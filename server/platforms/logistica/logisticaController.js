@@ -43,25 +43,72 @@ const splitName = (fullName) => {
 
 const LOGISTICA_PLATFORM_ROLES = ['supervisor', 'supervisor_hse', 'administrativo', 'admin', 'gerencia', 'jefatura', 'operativo', 'tecnico'];
 
-const ensureLogisticaPersonalBase = async (empresaRef) => {
-    const [tecnicos, candidatos, usuarios] = await Promise.all([
-        Tecnico.find({ empresaRef }).select('_id rut'),
-        Candidato.find({ empresaRef, status: { $in: ['Contratado', 'Aprobado'] }, isActive: { $ne: false } })
-            .select('rut fullName email phone position projectId projectName area departamento ceco sede contractStartDate'),
-        PlatformUser.find({ empresaRef, status: 'Activo', role: { $in: LOGISTICA_PLATFORM_ROLES } })
-            .select('rut name email telefono cargo role')
-    ]);
+const ensureLogisticaPersonalBase = async (userOrEmpresaRef) => {
+    let empresaRef = null;
+    let role = '';
 
-    const existingRuts = new Set(tecnicos.map(t => normalizeRut(t.rut)).filter(Boolean));
-    const toInsert = [];
+    if (userOrEmpresaRef && typeof userOrEmpresaRef === 'object' && (userOrEmpresaRef.role !== undefined || userOrEmpresaRef.empresaRef !== undefined)) {
+        empresaRef = userOrEmpresaRef.empresaRef;
+        role = String(userOrEmpresaRef.role || '').toLowerCase();
+    } else {
+        empresaRef = userOrEmpresaRef;
+        role = 'supervisor';
+    }
 
+    if (!empresaRef) {
+        console.warn("⚠️ [ensureLogisticaPersonalBase] Omitiendo ejecución por empresaRef inválido o nulo.");
+        return;
+    }
+
+    // 1. Replicar exactamente el filtro de candidatos de Captura de Talento basado en el rol del usuario
+    let filter = {};
+    if (['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        filter = {};
+    } else if (role === 'admin') {
+        filter = {
+            $or: [ { empresaRef }, { empresaRef: null }, { empresaRef: { $exists: false } } ]
+        };
+    } else {
+        filter = { empresaRef };
+    }
+
+    const candidatos = await Candidato.find(filter)
+        .select('rut fullName email phone position projectId projectName area departamento ceco sede contractStartDate status idRecursoToa')
+        .lean();
+
+    const candRuts = candidatos.map(c => normalizeRut(c.rut)).filter(Boolean);
+
+    // 2. Eliminar cualquier técnico que:
+    //    - Tenga proyectos obsoletos "ULTIMA MILLA"
+    //    - O que su RUT no exista en los candidatos (limpiando PlatformUsers agregados en el pasado)
+    let deleteFilter = {};
+    if (['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        deleteFilter = {
+            $or: [
+                { proyecto: { $regex: /^ULTIMA MILLA/i } },
+                { rut: { $nin: candRuts } }
+            ]
+        };
+    } else {
+        deleteFilter = {
+            empresaRef,
+            $or: [
+                { proyecto: { $regex: /^ULTIMA MILLA/i } },
+                { rut: { $nin: candRuts } }
+            ]
+        };
+    }
+
+    await Tecnico.deleteMany(deleteFilter);
+
+    // 3. Registrar o actualizar (espejo online) a los candidatos en la colección de técnicos
     for (const cand of candidatos) {
         const rut = normalizeRut(cand.rut);
-        if (!rut || existingRuts.has(rut)) continue;
+        if (!rut) continue;
 
         const names = splitName(cand.fullName);
-        toInsert.push({
-            empresaRef,
+        const mappedData = {
+            empresaRef: cand.empresaRef || empresaRef,
             rut,
             nombres: names.nombres,
             apellidos: names.apellidos,
@@ -75,48 +122,149 @@ const ensureLogisticaPersonalBase = async (empresaRef) => {
             ceco: cand.ceco || '',
             sede: cand.sede || '',
             fechaIngreso: cand.contractStartDate || null,
-            estadoActual: 'OPERATIVO'
-        });
-        existingRuts.add(rut);
+            estadoActual: (cand.status === 'Inactivo' || cand.status === 'Suspendido' || cand.status === 'Bloqueado') ? 'INACTIVO' : 
+                          (cand.status === 'Licencia Médica') ? 'LICENCIA MEDICA' :
+                          (cand.status === 'Finiquitado') ? 'FINIQUITADO' : 'OPERATIVO',
+            idRecursoToa: cand.idRecursoToa || ''
+        };
+
+        // Upsert en tiempo real para actuar como espejo online absoluto
+        await Tecnico.findOneAndUpdate(
+            { rut, empresaRef: cand.empresaRef || empresaRef },
+            mappedData,
+            { upsert: true, new: true }
+        );
     }
 
-    for (const user of usuarios) {
-        const rut = normalizeRut(user.rut);
-        if (!rut || existingRuts.has(rut)) continue;
-
-        const names = splitName(user.name);
-        toInsert.push({
-            empresaRef,
-            rut,
-            nombres: names.nombres,
-            apellidos: names.apellidos,
-            email: user.email || '',
-            telefono: user.telefono || '',
-            cargo: user.cargo || user.role || 'Colaborador',
-            operativo: user.role === 'tecnico' || user.role === 'operativo' ? 'SI' : 'NO',
-            estadoActual: 'OPERATIVO'
-        });
-        existingRuts.add(rut);
+    // 5. AUTO-CREACIÓN DE ALMACENES PARA TÉCNICOS (Self-healing & Auto-provisioning)
+    // Buscamos todos los técnicos activos para esta empresa
+    let allTecnicosQuery = {};
+    if (!['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        allTecnicosQuery.empresaRef = empresaRef;
     }
 
-    if (toInsert.length > 0) {
-        try {
-            await Tecnico.insertMany(toInsert, { ordered: false });
-        } catch (e) {
-            // Ignoramos duplicados por concurrencia de requests
+    const activeTecnicos = await Tecnico.find(allTecnicosQuery).select('_id nombres apellidos empresaRef').lean();
+    
+    // DEDUPLICACIÓN DE ALMACENES EN TIEMPO REAL (Self-cleaning & Anti-duplication)
+    // Buscamos todas las bodegas que tengan tecnicoRef asignado
+    let whCleanupQuery = { tecnicoRef: { $exists: true, $ne: null } };
+    if (!['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        whCleanupQuery.empresaRef = empresaRef;
+    }
+    const allWhs = await Almacen.find(whCleanupQuery).select('_id tecnicoRef createdAt').sort({ createdAt: 1 }).lean();
+    
+    const whByTechnician = new Map();
+    const duplicateWhIds = [];
+    
+    for (const wh of allWhs) {
+        const tecIdStr = String(wh.tecnicoRef);
+        if (!whByTechnician.has(tecIdStr)) {
+            whByTechnician.set(tecIdStr, wh._id);
+        } else {
+            // Es un duplicado! Lo guardamos para eliminarlo y mantener solo el más antiguo
+            duplicateWhIds.push(wh._id);
         }
+    }
+    
+    if (duplicateWhIds.length > 0) {
+        console.log(`🧹 [Logística] Limpiando ${duplicateWhIds.length} bodegas duplicadas para mantener consistencia 1:1.`);
+        await Almacen.deleteMany({ _id: { $in: duplicateWhIds } });
+    }
+
+    // Obtenemos los almacenes de técnicos ya existentes (cualquier tipo)
+    let allAlmacenesQuery = { tecnicoRef: { $exists: true, $ne: null } };
+    if (!['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        allAlmacenesQuery.empresaRef = empresaRef;
+    }
+    const existingAlmacenes = await Almacen.find(allAlmacenesQuery).select('tecnicoRef').lean();
+    const techniciansWithWh = new Set(existingAlmacenes.map(w => String(w.tecnicoRef || '')));
+
+    // Buscamos o creamos la Bodega Central como raíz para cada empresa involucrada
+    const getCentralWarehouse = async (targetEmpresaRef) => {
+        let centralWh = await Almacen.findOne({ empresaRef: targetEmpresaRef, tipo: 'Central' }).select('_id').lean();
+        if (!centralWh) {
+            centralWh = await Almacen.findOne({ empresaRef: targetEmpresaRef, nombre: /Central/i }).select('_id').lean();
+        }
+        if (!centralWh) {
+            // Auto-crear Bodega Central si no existe ninguna en absoluto
+            const newCentral = new Almacen({
+                nombre: 'Bodega Central',
+                codigo: `BOD-CENTRAL-${targetEmpresaRef.toString().slice(-4).toUpperCase()}`,
+                tipo: 'Central',
+                propiedad: 'Propio',
+                empresaRef: targetEmpresaRef
+            });
+            await newCentral.save();
+            centralWh = newCentral;
+        }
+        return centralWh;
+    };
+
+    // Auto-creación para cada técnico faltante
+    for (const tec of activeTecnicos) {
+        if (techniciansWithWh.has(String(tec._id))) continue;
+
+        const targetEmpresaRef = tec.empresaRef || empresaRef;
+        const centralWh = await getCentralWarehouse(targetEmpresaRef);
+
+        const tecWhName = `Bodega Móvil - ${tec.nombres} ${tec.apellidos}`;
+        const tecWhCode = `MOB-${tec._id.toString().slice(-6).toUpperCase()}`;
+
+        const newWh = new Almacen({
+            nombre: tecWhName,
+            codigo: tecWhCode,
+            tipo: 'Técnico',
+            tecnicoRef: tec._id,
+            parentAlmacen: centralWh?._id || null, // Por defecto queda con Bodega Central de raíz
+            propiedad: 'Propio',
+            empresaRef: targetEmpresaRef
+        });
+        await newWh.save();
     }
 };
 
-const getLogisticaPersonal = async (empresaRef) => {
-    await ensureLogisticaPersonalBase(empresaRef);
+const getLogisticaPersonal = async (user) => {
+    await ensureLogisticaPersonalBase(user);
 
-    const [tecnicos, usuarios] = await Promise.all([
-        Tecnico.find({ empresaRef, estadoActual: { $ne: 'FINIQUITADO' } })
-            .select('nombres apellidos rut email cargo supervisorId estadoActual')
+    const empresaRef = user.empresaRef;
+    const role = String(user.role || '').toLowerCase();
+
+    let filter = {};
+    if (['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        filter = {};
+    } else if (role === 'admin') {
+        filter = {
+            $or: [ { empresaRef }, { empresaRef: null }, { empresaRef: { $exists: false } } ]
+        };
+    } else {
+        filter = { empresaRef };
+    }
+
+    let tecnicoQuery = {};
+    if (!['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        tecnicoQuery.empresaRef = empresaRef;
+    }
+
+    let platformUserQuery = {};
+    if (!['system_admin', 'ceo', 'ceo_genai'].includes(role)) {
+        platformUserQuery.empresaRef = empresaRef;
+    }
+    platformUserQuery.status = 'Activo';
+
+    const [tecnicos, usuarios, candidatos] = await Promise.all([
+        Tecnico.find(tecnicoQuery)
+            .select('nombres apellidos rut email cargo supervisorId estadoActual proyecto mandantePrincipal idRecursoToa projectId')
+            .populate({
+                path: 'projectId',
+                select: 'nombreProyecto cliente centroCosto',
+                populate: { path: 'cliente', select: 'nombre' }
+            })
             .lean(),
-        PlatformUser.find({ empresaRef, status: 'Activo' })
+        PlatformUser.find(platformUserQuery)
             .select('_id rut email role name cargo')
+            .lean(),
+        Candidato.find(filter)
+            .select('rut status')
             .lean()
     ]);
 
@@ -129,23 +277,37 @@ const getLogisticaPersonal = async (empresaRef) => {
         if (email && !byEmail.has(email)) byEmail.set(email, u);
     }
 
+    const candByRut = new Map();
+    for (const c of candidatos) {
+        const rut = normalizeRut(c.rut);
+        if (rut) candByRut.set(rut, c.status);
+    }
+
     return tecnicos.map(t => {
         const rut = normalizeRut(t.rut);
         const email = String(t.email || '').toLowerCase().trim();
-        const user = (rut && byRut.get(rut)) || (email && byEmail.get(email)) || null;
+        const userObj = (rut && byRut.get(rut)) || (email && byEmail.get(email)) || null;
+
+        const nomProyecto = t.proyecto || t.projectId?.nombreProyecto || 'Sin Asignar';
+        const nomCliente = t.mandantePrincipal || t.projectId?.cliente?.nombre || 'Sin Asignar';
+        const candStatus = rut ? candByRut.get(rut) : null;
+
         return {
             _id: t._id,
             tecnicoId: t._id,
-            platformUserId: user?._id || null,
+            platformUserId: userObj?._id || null,
             nombres: t.nombres,
             apellidos: t.apellidos,
             nombreCompleto: `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
             rut: rut || 'S/R',
-            email: t.email || user?.email || '',
-            cargo: t.cargo || user?.cargo || user?.role || 'Colaborador',
-            role: user?.role || null,
-            estadoActual: t.estadoActual,
-            supervisorId: t.supervisorId || null
+            email: t.email || userObj?.email || '',
+            cargo: t.cargo || userObj?.cargo || userObj?.role || 'Cargo en Préstamo',
+            role: userObj?.role || null,
+            estadoActual: candStatus || t.estadoActual || 'OPERATIVO',
+            supervisorId: t.supervisorId || null,
+            proyecto: nomProyecto,
+            cliente: nomCliente,
+            idRecursoToa: t.idRecursoToa || ''
         };
     });
 };
@@ -224,10 +386,10 @@ const generateCorrelativo = async (modelo, prefijo, empresaRef) => {
 
 exports.getConfiguracionMaestra = async (req, res) => {
     try {
+        const tecnicos = await getLogisticaPersonal(req.user);
         const empresaRef = req.user.empresaRef;
-        const tecnicos = await getLogisticaPersonal(empresaRef);
         const [almacenes, categorias, productos, clientes, tiposCompra] = await Promise.all([
-            Almacen.find({ empresaRef }).populate('parentAlmacen', 'nombre').populate('tecnicoRef', 'nombres apellidos').populate('clienteRef', 'nombre'),
+            Almacen.find({ empresaRef }).populate('parentAlmacen', 'nombre').populate('tecnicoRef', 'nombres apellidos rut cargo estadoActual idRecursoToa').populate('clienteRef', 'nombre'),
             Categoria.find({ empresaRef }),
             Producto.find({ empresaRef }).populate('categoria', 'nombre').populate('clienteRef', 'nombre'),
             Cliente.find({ empresaRef }),
@@ -253,7 +415,7 @@ exports.getVehiculos = async (req, res) => {
 
 exports.getTecnicos = async (req, res) => {
     try {
-        const personal = await getLogisticaPersonal(req.user.empresaRef);
+        const personal = await getLogisticaPersonal(req.user);
         res.json(personal);
     } catch (e) {
         res.status(500).json({ message: e.message });
@@ -326,6 +488,7 @@ exports.bulkCreateProductos = async (req, res) => {
 
         const errores = [];
         let creados = 0;
+        let actualizados = 0;
 
         for (let i = 0; i < rows.length; i += 1) {
             const item = rows[i];
@@ -338,34 +501,62 @@ exports.bulkCreateProductos = async (req, res) => {
                 const categoriaKey = String(item.categoriaCodigo || item.categoriaNombre || item.categoria || '').toUpperCase();
                 const categoriaId = categoriasByCodigo.get(categoriaKey) || categoriasByNombre.get(categoriaKey) || null;
 
-                const nuevo = new Producto({
-                    nombre: item.nombre,
-                    sku: item.sku,
-                    categoria: categoriaId,
-                    marca: item.marca || '',
-                    modelo: item.modelo || '',
-                    nroSerie: item.nroSerie || item.numeroSerie || '',
-                    imei: item.imei || '',
-                    tipo: item.tipo || 'Suministro',
-                    segmentacion: item.segmentacion || 'Estándar',
-                    color: item.color || 'Genérico',
-                    icono: item.icono || 'Archive',
-                    propiedad: item.propiedad || 'Propio',
-                    clienteRef: item.propiedad === 'Cliente' ? (item.clienteRef || null) : null,
-                    valorUnitario: Number(item.valorUnitario || 0),
-                    fotos: item.imagenUrl ? [item.imagenUrl] : [],
-                    empresaRef: req.user.empresaRef
-                });
-                await nuevo.save();
-                creados += 1;
+                const skuVal = String(item.sku || '').trim();
+                let existente = null;
+                if (skuVal) {
+                    existente = await Producto.findOne({ empresaRef: req.user.empresaRef, sku: skuVal });
+                }
+
+                if (existente) {
+                    existente.nombre = item.nombre || existente.nombre;
+                    existente.categoria = categoriaId || existente.categoria;
+                    existente.marca = item.marca !== undefined ? item.marca : existente.marca;
+                    existente.modelo = item.modelo !== undefined ? item.modelo : existente.modelo;
+                    existente.nroSerie = (item.nroSerie || item.numeroSerie) !== undefined ? (item.nroSerie || item.numeroSerie) : existente.nroSerie;
+                    existente.imei = item.imei !== undefined ? item.imei : existente.imei;
+                    existente.tipo = item.tipo || existente.tipo;
+                    existente.segmentacion = item.segmentacion || existente.segmentacion;
+                    existente.color = item.color || existente.color;
+                    existente.icono = item.icono || existente.icono;
+                    existente.propiedad = item.propiedad || existente.propiedad;
+                    existente.clienteRef = item.propiedad === 'Cliente' ? (item.clienteRef || existente.clienteRef) : null;
+                    existente.valorUnitario = item.valorUnitario !== undefined ? Number(item.valorUnitario) : existente.valorUnitario;
+                    existente.descripcion = item.descripcion || existente.descripcion || '';
+                    if (item.imagenUrl) existente.fotos = [item.imagenUrl];
+                    await existente.save();
+                    actualizados += 1;
+                } else {
+                    const nuevo = new Producto({
+                        nombre: item.nombre,
+                        sku: item.sku,
+                        categoria: categoriaId,
+                        marca: item.marca || '',
+                        modelo: item.modelo || '',
+                        nroSerie: item.nroSerie || item.numeroSerie || '',
+                        imei: item.imei || '',
+                        tipo: item.tipo || 'Suministro',
+                        segmentacion: item.segmentacion || 'Estándar',
+                        color: item.color || 'Genérico',
+                        icono: item.icono || 'Archive',
+                        propiedad: item.propiedad || 'Propio',
+                        clienteRef: item.propiedad === 'Cliente' ? (item.clienteRef || null) : null,
+                        valorUnitario: Number(item.valorUnitario || 0),
+                        fotos: item.imagenUrl ? [item.imagenUrl] : [],
+                        descripcion: item.descripcion || '',
+                        empresaRef: req.user.empresaRef
+                    });
+                    await nuevo.save();
+                    creados += 1;
+                }
             } catch (e) {
                 errores.push({ fila: i + 1, error: e.message });
             }
         }
 
         res.status(201).json({
-            message: `Carga masiva productos completada. Creados: ${creados}. Errores: ${errores.length}.`,
+            message: `Carga masiva productos completada. Creados: ${creados}. Actualizados: ${actualizados}. Errores: ${errores.length}.`,
             creados,
+            actualizados,
             errores
         });
     } catch (e) {
@@ -419,8 +610,9 @@ exports.deleteProducto = async (req, res) => {
 
 exports.getAlmacenes = async (req, res) => {
     try {
-        const almacenes = await Almacen.find({ empresaRef: req.user.empresaRef, status: 'Activo' })
-            .populate('tecnicoRef', 'nombres apellidos rut cargo')
+        await ensureLogisticaPersonalBase(req.user);
+        const almacenes = await Almacen.find({ empresaRef: req.user.empresaRef })
+            .populate('tecnicoRef', 'nombres apellidos rut cargo estadoActual idRecursoToa')
             .populate('encargado', 'name email')
             .lean();
         res.json(almacenes);
@@ -579,6 +771,13 @@ exports.registrarMovimiento = async (req, res, next) => {
     try {
         const stockField = getStockField(estadoProducto);
 
+        // Generar correlativo si documentoReferencia es vacío, nulo o marcado como automático
+        let finalDocRef = documentoReferencia;
+        if (!finalDocRef || finalDocRef === '(AUTO-GENERADO)' || finalDocRef.trim() === '') {
+            const prefijo = tipo === 'ASIGNACION' || tipo === 'REVERSA' ? 'GD' : (tipo === 'RECEPCION' ? 'REC' : 'MOV');
+            finalDocRef = await generateCorrelativo(Movimiento, prefijo, req.user.empresaRef);
+        }
+
         // 1. Crear el registro de movimiento
         const mov = new Movimiento({
             tipo,
@@ -588,7 +787,7 @@ exports.registrarMovimiento = async (req, res, next) => {
             almacenOrigen,
             almacenDestino,
             motivo,
-            documentoReferencia,
+            documentoReferencia: finalDocRef,
             fotoUrl,
             usuarioRef: req.user._id,
             empresaRef: req.user.empresaRef
@@ -658,6 +857,117 @@ exports.registrarMovimiento = async (req, res, next) => {
 
         await logAction(req, 'Logistica', 'MOVIMIENTO', { tipo, productoRef, cantidad, motivo });
         res.json({ message: 'Movimiento registrado con éxito', movimiento: mov });
+    } catch (e) {
+        next(e);
+    }
+};
+
+exports.registrarMovimientosBulk = async (req, res, next) => {
+    const { movimientos } = req.body;
+    try {
+        if (!Array.isArray(movimientos) || movimientos.length === 0) {
+            return res.status(400).json({ message: 'Se requiere un arreglo de movimientos.' });
+        }
+
+        // Generar un correlativo único para toda la transacción bulk si corresponde
+        let bulkDocRef = null;
+        if (movimientos.length > 0) {
+            const firstMov = movimientos[0];
+            if (!firstMov.documentoReferencia || firstMov.documentoReferencia === '(AUTO-GENERADO)' || firstMov.documentoReferencia.trim() === '') {
+                const prefijo = firstMov.tipo === 'ASIGNACION' || firstMov.tipo === 'REVERSA' ? 'GD' : (firstMov.tipo === 'RECEPCION' ? 'REC' : 'MOV');
+                bulkDocRef = await generateCorrelativo(Movimiento, prefijo, req.user.empresaRef);
+            }
+        }
+
+        const creados = [];
+        for (const movData of movimientos) {
+            const { tipo, productoRef, cantidad, almacenOrigen, almacenDestino, estadoProducto, motivo, documentoReferencia, fotoUrl } = movData;
+            const stockField = getStockField(estadoProducto);
+
+            const finalDocRef = bulkDocRef || documentoReferencia;
+
+            // 1. Crear el registro de movimiento
+            const mov = new Movimiento({
+                tipo,
+                productoRef,
+                cantidad,
+                estadoProducto,
+                almacenOrigen,
+                almacenDestino,
+                motivo,
+                documentoReferencia: finalDocRef,
+                fotoUrl,
+                usuarioRef: req.user._id,
+                empresaRef: req.user.empresaRef
+            });
+            await mov.save();
+            creados.push(mov);
+
+            // 1.1 Si el movimiento tiene foto y el producto no tiene fotos, guardarla como referencia maestra
+            if (fotoUrl) {
+                await Producto.findOneAndUpdate(
+                    { _id: productoRef, empresaRef: req.user.empresaRef },
+                    { $addToSet: { fotos: fotoUrl } }
+                );
+            }
+
+            // 2. Lógica de actualización de stock multidimensional
+            const isEntry = ['ENTRADA', 'RECEPCION', 'AJUSTE', 'REVERSA'].includes(tipo);
+            const isExit = ['SALIDA', 'ASIGNACION', 'MERMA'].includes(tipo);
+            const isTransfer = tipo === 'TRASPASO' || tipo === 'ASIGNACION' || tipo === 'REVERSA';
+
+            if (isTransfer) {
+                // Salida de origen
+                if (almacenOrigen) {
+                    await StockNivel.findOneAndUpdate(
+                        { productoRef, almacenRef: almacenOrigen, empresaRef: req.user.empresaRef },
+                        { $inc: { [stockField]: -cantidad } }
+                    );
+                }
+                // Entrada a destino
+                if (almacenDestino) {
+                    await StockNivel.findOneAndUpdate(
+                        { productoRef, almacenRef: almacenDestino, empresaRef: req.user.empresaRef },
+                        { $inc: { [stockField]: cantidad } },
+                        { upsert: true }
+                    );
+                }
+            } else if (isEntry) {
+                await StockNivel.findOneAndUpdate(
+                    { productoRef, almacenRef: almacenDestino, empresaRef: req.user.empresaRef },
+                    { $inc: { [stockField]: cantidad } },
+                    { upsert: true }
+                );
+            } else if (isExit) {
+                await StockNivel.findOneAndUpdate(
+                    { productoRef, almacenRef: almacenOrigen, empresaRef: req.user.empresaRef },
+                    { $inc: { [stockField]: -cantidad } },
+                    { upsert: true }
+                );
+            }
+
+            // 3. Si es MERMA y viene de un ajuste o salida, asegurar que se registre en el campo Merma del almacén
+            if (tipo === 'MERMA' && almacenOrigen) {
+                await StockNivel.findOneAndUpdate(
+                    { productoRef, almacenRef: almacenOrigen, empresaRef: req.user.empresaRef },
+                    { $inc: { cantidadMerma: cantidad } },
+                    { upsert: true }
+                );
+            }
+
+            // 4. Actualizar Stock Total en el Producto para acceso rápido (Solo cuenta nuevo y bueno)
+            const totalImpact = (isEntry ? cantidad : (isExit ? -cantidad : 0));
+            if (totalImpact !== 0 && (estadoProducto === 'Nuevo' || estadoProducto === 'Usado Bueno')) {
+                await Producto.findOneAndUpdate(
+                    { _id: productoRef, empresaRef: req.user.empresaRef },
+                    { $inc: { stockActual: totalImpact } }
+                );
+            }
+
+            await logAction(req, 'Logistica', 'MOVIMIENTO', { tipo, productoRef, cantidad, motivo });
+        }
+
+        res.json({ message: `${creados.length} movimientos registrados con éxito.`, movimientos: creados });
     } catch (e) {
         next(e);
     }
@@ -909,28 +1219,29 @@ exports.bulkCreateCategorias = async (req, res) => {
 
             try {
                 const nombre = String(item.nombre || '').trim();
-                const existente = await Categoria.findOne({ empresaRef: req.user.empresaRef, nombre }).select('_id').lean();
+                let existente = await Categoria.findOne({ empresaRef: req.user.empresaRef, nombre });
 
-                const result = await Categoria.findOneAndUpdate(
-                    { empresaRef: req.user.empresaRef, nombre },
-                    {
-                        $set: {
-                            descripcion: item.descripcion || '',
-                            prioridadValor: item.prioridadValor || 'Bajo Valor',
-                            tipoRotacion: item.tipoRotacion || 'Rotativo',
-                            icono: item.icono || 'Tags',
-                            imagenUrl: item.imagenUrl || ''
-                        },
-                        $setOnInsert: {
-                            nombre,
-                            empresaRef: req.user.empresaRef
-                        }
-                    },
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
-                );
-
-                if (existente) actualizados += 1;
-                else if (result?._id) creados += 1;
+                if (existente) {
+                    existente.descripcion = item.descripcion || existente.descripcion || '';
+                    existente.prioridadValor = item.prioridadValor || existente.prioridadValor || 'Bajo Valor';
+                    existente.tipoRotacion = item.tipoRotacion || existente.tipoRotacion || 'Rotativo';
+                    existente.icono = item.icono || existente.icono || 'Tags';
+                    existente.imagenUrl = item.imagenUrl || existente.imagenUrl || '';
+                    await existente.save();
+                    actualizados += 1;
+                } else {
+                    const nueva = new Categoria({
+                        nombre,
+                        empresaRef: req.user.empresaRef,
+                        descripcion: item.descripcion || '',
+                        prioridadValor: item.prioridadValor || 'Bajo Valor',
+                        tipoRotacion: item.tipoRotacion || 'Rotativo',
+                        icono: item.icono || 'Tags',
+                        imagenUrl: item.imagenUrl || ''
+                    });
+                    await nueva.save();
+                    creados += 1;
+                }
             } catch (e) {
                 errores.push({ fila: i + 1, error: e.message });
             }

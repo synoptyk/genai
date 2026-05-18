@@ -35,6 +35,7 @@ router.delete('/almacenes/:id', authorize('logistica_almacenes:eliminar', 'logis
 
 // --- MOVIMIENTOS ---
 router.post('/movimientos', authorize('logistica_movimientos:crear', ROLES.SUPERVISOR), logisticaController.registrarMovimiento);
+router.post('/movimientos/bulk', authorize('logistica_movimientos:crear', ROLES.SUPERVISOR), logisticaController.registrarMovimientosBulk);
 router.get('/movimientos', authorize('logistica_movimientos:ver'), logisticaController.getMovimientos);
 router.get('/stock/reporte', authorize('logistica_movimientos:ver'), logisticaController.getStockReport);
 

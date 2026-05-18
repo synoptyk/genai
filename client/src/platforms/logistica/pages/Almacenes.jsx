@@ -229,9 +229,24 @@ const Almacenes = () => {
                             
                             {(alm.tecnicoRef || alm.tipo === 'Móvil' || alm.tipo === 'Técnico') && (
                                 <div className="p-3 bg-emerald-50/50 rounded-xl mt-2 border border-emerald-100/50">
-                                    <p className="text-[9px] font-black text-emerald-700 uppercase mb-1">Técnico Titular (Dotación)</p>
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <p className="text-[9px] font-black text-emerald-700 uppercase tracking-wider">
+                                            {alm.tecnicoRef?.cargo || 'Colaborador'} (Titular)
+                                        </p>
+                                        {alm.tecnicoRef?.estadoActual && (
+                                            <span className={`px-2 py-0.5 rounded-md text-[8px] font-bold border uppercase ${
+                                                ['INACTIVO', 'DE BAJA', 'FINIQUITADO'].includes(alm.tecnicoRef.estadoActual.toUpperCase())
+                                                    ? 'bg-rose-50 text-rose-600 border-rose-100'
+                                                    : alm.tecnicoRef.estadoActual.toUpperCase() === 'LICENCIA MEDICA'
+                                                    ? 'bg-amber-50 text-amber-600 border-amber-100'
+                                                    : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                            }`}>
+                                                {alm.tecnicoRef.estadoActual}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                                        <Truck size={12} />
+                                        <Truck size={12} className="text-emerald-600" />
                                         {alm.tecnicoRef ? `${alm.tecnicoRef.nombres} ${alm.tecnicoRef.apellidos}` : 'No vinculado'}
                                     </p>
                                 </div>

@@ -77,7 +77,9 @@ export const candidatosApi = {
     uploadProfilePic: (id, formData) => rrhhApi.post(`/candidatos/${id}/profile-pic`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
     uploadCV: (id, formData) => rrhhApi.post(`/candidatos/${id}/cv`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
     updateDocumentStatus: (id, docId, status, extra = {}) => rrhhApi.put(`/candidatos/${id}/documents/${docId}`, { status, ...extra }),
+    bulkCreate: (candidatos) => rrhhApi.post('/candidatos/bulk', { candidatos }),
     remove: (id) => rrhhApi.delete(`/candidatos/${id}`),
+    syncBase: () => rrhhApi.post('/candidatos/sincronizar-base'),
 };
 
 export const proyectosApi = {

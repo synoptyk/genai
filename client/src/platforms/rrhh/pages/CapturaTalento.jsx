@@ -8,7 +8,7 @@ import {
     Heart, Landmark, CreditCard, DollarSign, Award, Truck, Shield, Activity, Shirt,
     User, Calendar, FileText, Download, Upload, Printer, Hash, Star,
     HelpCircle, Info, ChevronRight, UserCheck, MessageCircle, Camera,
-    Folder, BarChart, UserX, Share2, Layers, Grid, List, LogOut, Crosshair
+    Folder, BarChart, UserX, Share2, Layers, Grid, List, LogOut, Crosshair, RotateCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi, bonosConfigApi, rrhhApi, adminApi } from '../rrhhApi';
@@ -22,10 +22,15 @@ const STATUS_COLORS = {
     'Postulando': 'bg-indigo-50 text-indigo-600 border-indigo-200',
     'En Entrevista': 'bg-violet-50 text-violet-600 border-violet-200',
     'En Evaluación': 'bg-sky-50 text-sky-600 border-sky-200',
-    'En Acreditación': 'bg-orange-50 text-orange-600 border-orange-200',
-    'En Documentación': 'bg-amber-50 text-amber-600 border-amber-200',
+    'Examen Preocupacional': 'bg-pink-50 text-pink-600 border-pink-200',
+    'PREOCUP': 'bg-pink-50 text-pink-600 border-pink-200',
     'Aprobado': 'bg-teal-50 text-teal-600 border-teal-200',
     'Aprobado/No Operativo': 'bg-cyan-50 text-cyan-600 border-cyan-200',
+    'Curso Online': 'bg-blue-50 text-blue-600 border-blue-200',
+    'C. ONLINE': 'bg-blue-50 text-blue-600 border-blue-200',
+    'OTEC': 'bg-amber-50 text-amber-600 border-amber-200',
+    'En Acreditación': 'bg-orange-50 text-orange-600 border-orange-200',
+    'En Documentación': 'bg-amber-50 text-amber-600 border-amber-200',
     'Contratado': 'bg-emerald-50 text-emerald-700 border-emerald-200',
     'Rechazado': 'bg-rose-50 text-rose-600 border-rose-200',
     'Retirado': 'bg-slate-50 text-slate-500 border-slate-200',
@@ -33,11 +38,12 @@ const STATUS_COLORS = {
     'Inactivo': 'bg-amber-50 text-amber-600 border-amber-200',
     'Suspendido': 'bg-amber-50 text-amber-600 border-amber-200',
     'Bloqueado': 'bg-rose-50 text-rose-600 border-rose-200',
+    'BLOQ': 'bg-rose-50 text-rose-600 border-rose-200',
     'Ausente': 'bg-orange-50 text-orange-600 border-orange-200',
     'Licencia Médica': 'bg-yellow-50 text-yellow-600 border-yellow-200',
 };
 
-const STATUSES = ['POST', 'ENTR', 'APROB', 'ACRED', 'CONT', 'ACTIVO', 'INACTIVO', 'DE BAJA'];
+const STATUSES = ['POST', 'ENTR', 'BLOQ', 'PREOCUP', 'APROB', 'C. ONLINE', 'OTEC', 'ACRED', 'CONT', 'ACTIVO', 'INACTIVO', 'DE BAJA'];
 
 // LISTAS DE MERCADO CHILENO
 const AFPS = ['CAPITAL', 'CUPRUM', 'HABITAT', 'MODELO', 'PLANVITAL', 'PROVIDA', 'UNO'];
@@ -120,7 +126,6 @@ const initialForm = {
     uniformSize: '', tallaGuantes: '',
     
     // Fechas Operativas y Salida
-    operationalStartDate: '',
     fechaFiniquito: '',
     motivoFiniquito: '',
     
@@ -139,6 +144,79 @@ const getSelectValue = (val, isIdFilter, options) => {
         return found ? found.value : val;
     }
     return val;
+};
+
+const BULK_COLUMNS_MAP = {
+    "RUT": "rut",
+    "Nombre Completo": "fullName",
+    "Cargo / Puesto": "position",
+    "Email": "email",
+    "Telefono": "phone",
+    "Fecha Nacimiento": "fechaNacimiento",
+    "Estado Civil": "estadoCivil",
+    "Nacionalidad": "nationality",
+    "Lugar de Nacimiento": "birthPlace",
+    "Vencimiento Cedula": "idExpiryDate",
+    "Genero": "gender",
+    "Direccion Completa": "address",
+    "Calle": "calle",
+    "Numero Calle": "numero",
+    "Depto / Block": "deptoBlock",
+    "Comuna": "comuna",
+    "Region": "region",
+    "ID Recurso TOA": "idRecursoToa",
+    "Nivel Educativo": "educationLevel",
+    "Centro de Costo": "ceco",
+    "Area": "area",
+    "Departamento": "departamento",
+    "Sede": "sede",
+    "Proyecto": "projectName",
+    "Cliente": "clienteNombre",
+    "Estado Proceso": "status",
+    "Tipo Contrato": "contractType",
+    "Fecha Inicio Contrato": "contractStartDate",
+    "Duracion Contrato Dias": "contractDurationDays",
+    "Fecha Termino Contrato": "contractEndDate",
+    "Fecha Operativa Inicio": "operationalStartDate",
+    "Contacto Emergencia Nombre": "emergencyContact",
+    "Contacto Emergencia Telefono": "emergencyPhone",
+    "Contacto Emergencia Email": "emergencyEmail",
+    "Prevision Salud": "previsionSalud",
+    "Nombre Isapre": "isapreNombre",
+    "Valor Plan Isapre": "valorPlan",
+    "Moneda Plan Isapre": "monedaPlan",
+    "AFP": "afp",
+    "Pensionado": "pensionado",
+    "Grupo Sanguineo": "bloodType",
+    "Alergias": "allergies",
+    "Enfermedades Cronicas": "chronicDiseases",
+    "Tiene Discapacidad": "hasDisability",
+    "Tipo Discapacidad": "disabilityType",
+    "Tiene Cargas Familiares": "tieneCargas",
+    "Banco": "banco",
+    "Tipo Cuenta Banco": "tipoCuenta",
+    "Numero Cuenta Banco": "numeroCuenta",
+    "Sueldo Base": "sueldoBase",
+    "Requiere Licencia Conducir": "requiereLicencia",
+    "Vencimiento Licencia Conducir": "fechaVencimientoLicencia",
+    "Talla Camisa": "shirtSize",
+    "Talla Pantalon": "pantsSize",
+    "Talla Parka / Chaqueta": "jacketSize",
+    "Talla Zapato": "shoeSize",
+    "Fuente Captacion": "fuenteCaptacion",
+    "Paso Contrato": "contractStep",
+    "Fecha Proximo Hito": "nextAddendumDate",
+    "Descripcion Proximo Hito": "nextAddendumDescription",
+    "Cantidad Bonos Permanentes": "cantidadBonosExtraPermanentes",
+    "Situacion Laboral Entrevista": "situacionLaboralEntrevista",
+    "Declara Conflicto Interes": "declaraConflictoInteres",
+    "Cantidad Cargas": "cantidadCargasLimitadas",
+    "Talla Guantes": "tallaGuantes",
+    "Fecha Finiquito": "fechaFiniquito",
+    "Motivo Finiquito": "motivoFiniquito",
+    "Talla Overol": "uniformSize",
+    "URL Foto Perfil": "profilePic",
+    "URL CV Adjunto": "cvUrl"
 };
 
 const CapturaTalento = () => {
@@ -174,6 +252,234 @@ const CapturaTalento = () => {
         const saved = localStorage.getItem('rrhh_visible_columns');
         return saved ? JSON.parse(saved) : ['perfil', 'identificacion', 'asignacion', 'ubicacion', 'estado', 'acciones'];
     });
+
+    const [showBulkModal, setShowBulkModal] = useState(false);
+    const [bulkParsedRows, setBulkParsedRows] = useState([]);
+    const [bulkErrors, setBulkErrors] = useState([]);
+    const [bulkFileLoading, setBulkFileLoading] = useState(false);
+    const [bulkProcessing, setBulkProcessing] = useState(false);
+    const [bulkResults, setBulkResults] = useState(null);
+
+    const handleDownloadTemplate = () => {
+        try {
+            const headers = Object.keys(BULK_COLUMNS_MAP);
+            const exampleRow = {
+                "RUT": "12.345.678-9",
+                "Nombre Completo": "JUAN PEREZ GONZALEZ",
+                "Cargo / Puesto": "TECNICO TELECOMUNICACIONES",
+                "Email": "juan.perez@example.com",
+                "Telefono": "+56912345678",
+                "Fecha Nacimiento": "15/08/1990",
+                "Estado Civil": "Soltero(a)",
+                "Nacionalidad": "Chilena",
+                "Lugar de Nacimiento": "Santiago",
+                "Vencimiento Cedula": "15/08/2028",
+                "Genero": "Masculino",
+                "Direccion Completa": "AVENIDA MATTA 1234",
+                "Calle": "AVENIDA MATTA",
+                "Numero Calle": "1234",
+                "Depto / Block": "DEPTO 402",
+                "Comuna": "SANTIAGO",
+                "Region": "METROPOLITANA DE SANTIAGO",
+                "ID Recurso TOA": "T_12345",
+                "Nivel Educativo": "Técnico Profesional",
+                "Centro de Costo": "CECO-01",
+                "Area": "Operaciones",
+                "Departamento": "Telecomunicaciones",
+                "Sede": "SANTIAGO CENTRO",
+                "Proyecto": "VTR HFC",
+                "Cliente": "ZENER",
+                "Estado Proceso": "Contratado",
+                "Tipo Contrato": "PLAZO FIJO",
+                "Fecha Inicio Contrato": "01/05/2026",
+                "Duracion Contrato Dias": "30",
+                "Fecha Termino Contrato": "31/05/2026",
+                "Fecha Operativa Inicio": "02/05/2026",
+                "Contacto Emergencia Nombre": "MARIA GONZALEZ",
+                "Contacto Emergencia Telefono": "+56987654321",
+                "Contacto Emergencia Email": "maria@example.com",
+                "Prevision Salud": "FONASA",
+                "Nombre Isapre": "",
+                "Valor Plan Isapre": "",
+                "Moneda Plan Isapre": "UF",
+                "AFP": "HABITAT",
+                "Pensionado": "NO",
+                "Grupo Sanguineo": "O+",
+                "Alergias": "Ninguna",
+                "Enfermedades Cronicas": "Ninguna",
+                "Tiene Discapacidad": "NO",
+                "Tipo Discapacidad": "",
+                "Tiene Cargas Familiares": "NO",
+                "Banco": "BANCO ESTADO",
+                "Tipo Cuenta Banco": "Cuenta RUT",
+                "Numero Cuenta Banco": "12345678",
+                "Sueldo Base": "650000",
+                "Requiere Licencia Conducir": "SI",
+                "Vencimiento Licencia Conducir": "20/12/2029",
+                "Talla Camisa": "M",
+                "Talla Pantalon": "44",
+                "Talla Parka / Chaqueta": "L",
+                "Talla Zapato": "41"
+            };
+
+            const ws = XLSX.utils.json_to_sheet([exampleRow], { header: headers });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Plantilla_Carga_Masiva");
+
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+            const s2ab = (s) => {
+                const buf = new ArrayBuffer(s.length);
+                const view = new Uint8Array(buf);
+                for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+                return buf;
+            };
+            const blob = new Blob([s2ab(wbout)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = 'none';
+            a.href = url;
+            a.download = "Plantilla_Captura_Talento_100.xlsx";
+            
+            a.addEventListener('click', (e) => {
+                e.stopPropagation();
+            }, { once: true });
+            
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 1000);
+
+            showToast("📥 Plantilla descargada exitosamente");
+        } catch (e) {
+            console.error("Error al descargar plantilla", e);
+            showToast("❌ Error al descargar plantilla", "error");
+        }
+    };
+
+    const handleBulkExcelUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setBulkFileLoading(true);
+        setBulkParsedRows([]);
+        setBulkErrors([]);
+        setBulkResults(null);
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const data = evt.target.result;
+                const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+                
+                if (rawRows.length === 0) {
+                    throw new Error("El archivo está vacío o no tiene el formato correcto.");
+                }
+
+                const cleanRows = [];
+                const validationErrors = [];
+
+                rawRows.forEach((row, idx) => {
+                    const mappedRow = {};
+                    Object.keys(BULK_COLUMNS_MAP).forEach(spanishHeader => {
+                        const schemaKey = BULK_COLUMNS_MAP[spanishHeader];
+                        const fileKey = Object.keys(row).find(k => k.trim().toLowerCase() === spanishHeader.trim().toLowerCase());
+                        let val = fileKey ? row[fileKey] : '';
+
+                        if (val instanceof Date) {
+                            const day = String(val.getDate()).padStart(2, '0');
+                            const month = String(val.getMonth() + 1).padStart(2, '0');
+                            const year = val.getFullYear();
+                            val = `${day}/${month}/${year}`;
+                        }
+
+                        mappedRow[schemaKey] = val;
+                    });
+
+                    const cleanRut = String(mappedRow.rut || '').replace(/[^0-9kK]/g, '').toUpperCase().trim();
+                    const rowErrors = [];
+
+                    if (!cleanRut) {
+                        rowErrors.push("RUT inválido o vacío");
+                    } else if (!validateRut(cleanRut)) {
+                        rowErrors.push("Formato de RUT no es válido");
+                    }
+
+                    if (!mappedRow.fullName || !String(mappedRow.fullName).trim()) {
+                        rowErrors.push("Nombre Completo es requerido");
+                    }
+
+                    if (!mappedRow.position || !String(mappedRow.position).trim()) {
+                        rowErrors.push("Cargo es requerido");
+                    }
+
+                    if (rowErrors.length > 0) {
+                        validationErrors.push({
+                            fila: idx + 2,
+                            rut: mappedRow.rut || 'N/A',
+                            nombre: mappedRow.fullName || 'N/A',
+                            detalles: rowErrors.join(', ')
+                        });
+                    }
+
+                    cleanRows.push({
+                        ...mappedRow,
+                        rut: formatRut(cleanRut),
+                        fila: idx + 2,
+                        erroresLocales: rowErrors
+                    });
+                });
+
+                setBulkParsedRows(cleanRows);
+                setBulkErrors(validationErrors);
+                showToast(`📂 Archivo leído: ${cleanRows.length} registros encontrados.`);
+            } catch (error) {
+                console.error("Error al procesar archivo", error);
+                showToast(`❌ Error al leer archivo: ${error.message}`, "error");
+            } finally {
+                setBulkFileLoading(false);
+            }
+        };
+        reader.onerror = () => {
+            showToast("❌ Error al leer archivo", "error");
+            setBulkFileLoading(false);
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    const handleProcessBulk = async () => {
+        if (bulkParsedRows.length === 0) return;
+        const validRows = bulkParsedRows.filter(r => r.erroresLocales.length === 0);
+        
+        if (validRows.length === 0) {
+            showToast("❌ No hay registros válidos para procesar", "error");
+            return;
+        }
+
+        try {
+            setBulkProcessing(true);
+            const res = await candidatosApi.bulkCreate(validRows);
+            
+            if (res.data?.success) {
+                setBulkResults(res.data.stats);
+                showToast(`✅ Importación completada!`);
+                fetchCandidatos();
+            } else {
+                throw new Error(res.data?.message || "Ocurrió un error inesperado.");
+            }
+        } catch (e) {
+            console.error("Error al procesar carga masiva", e);
+            showToast(`❌ Error al importar: ${e.response?.data?.message || e.message}`, "error");
+        } finally {
+            setBulkProcessing(false);
+        }
+    };
 
     useEffect(() => {
         localStorage.setItem('rrhh_visible_columns', JSON.stringify(visibleColumns));
@@ -262,11 +568,16 @@ const CapturaTalento = () => {
     const handleSyncBase = async () => {
         try {
             setLoading(true);
-            const res = await rrhhApi.syncBase();
-            alert(`Sincronización completada: ${res.data?.stats?.sinronizados || 0} candidatos.`);
+            const res = await candidatosApi.syncBase();
+            const count = res.data?.stats?.sincronizados || res.data?.stats?.sinronizados || 0;
+            showToast(`🔄 Sincronización completada: ${count} candidatos.`);
             fetchCandidatos();
-        } catch (err) { alert("Error al sincronizar"); }
-        finally { setLoading(false); }
+        } catch (err) {
+            console.error("Error al sincronizar:", err);
+            showToast("❌ Error al sincronizar", "error");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleProyectoChange = (projId) => {
@@ -307,7 +618,7 @@ const CapturaTalento = () => {
     const handleSubmit = async () => {
         try {
             setSaving(true);
-            const dataToSend = { ...form, fullName: form.fullName.toUpperCase(), status: getOriginalStatus(form.status) };
+            const dataToSend = { ...form, fullName: form.fullName.toUpperCase(), rut: formatRut(form.rut), status: getOriginalStatus(form.status) };
             if (editId) await candidatosApi.update(editId, dataToSend);
             else await candidatosApi.create(dataToSend);
             setShowForm(false);
@@ -321,7 +632,11 @@ const CapturaTalento = () => {
     const getOriginalStatus = (abb) => {
         if (abb === 'POST') return 'En Postulación';
         if (abb === 'ENTR') return 'En Entrevista';
+        if (abb === 'BLOQ') return 'Bloqueado';
+        if (abb === 'PREOCUP') return 'Examen Preocupacional';
         if (abb === 'APROB') return 'Aprobado';
+        if (abb === 'C. ONLINE') return 'Curso Online';
+        if (abb === 'OTEC') return 'OTEC';
         if (abb === 'ACRED') return 'En Acreditación';
         if (abb === 'CONT') return 'Contratado';
         if (abb === 'ACTIVO') return 'En Terreno';
@@ -379,11 +694,15 @@ const CapturaTalento = () => {
         const getAbbreviatedStatus = (status) => {
             if (['En Postulación', 'Postulando'].includes(status)) return 'POST';
             if (['En Entrevista'].includes(status)) return 'ENTR';
+            if (['Bloqueado', 'BLOQUEADO', 'bloqueado', 'bloqueados', 'Bloqueados'].includes(status)) return 'BLOQ';
+            if (['Examen Preocupacional', 'Preocupacional', 'En Examen Preocupacional', 'PREOCUP'].includes(status)) return 'PREOCUP';
             if (['Aprobado', 'En Evaluación', 'Aprobado/No Operativo'].includes(status)) return 'APROB';
+            if (['Curso Online', 'C. ONLINE', 'C.Online'].includes(status)) return 'C. ONLINE';
+            if (['OTEC', 'Otec'].includes(status)) return 'OTEC';
             if (['En Acreditación', 'Acreditación', 'En Documentación'].includes(status)) return 'ACRED';
             if (['Contratado'].includes(status)) return 'CONT';
             if (['En Terreno', 'Listo Terreno', 'EN TERR'].includes(status)) return 'ACTIVO';
-            if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo', 'Suspendidos', 'bloqueados', 'Ausentes', 'Licencia medica'].includes(status)) return 'INACTIVO';
+            if (['Suspendido', 'Ausente', 'Licencia Médica', 'Inactivo', 'Suspendidos', 'Ausentes', 'Licencia medica'].includes(status)) return 'INACTIVO';
             if (['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja'].includes(status)) return 'DE BAJA';
             return status;
         };
@@ -432,20 +751,27 @@ const CapturaTalento = () => {
     const filteredCandidatos = useMemo(() => {
         return candidatos.filter(c => {
             const resolvedProjectName = c.projectId?.nombreProyecto || c.projectName || '';
+            const cleanSearchTerm = searchTerm.replace(/[^0-9kK]/g, '').toUpperCase();
+            const cleanCandidateRut = (c.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
             const matchesSearch = 
                 c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 c.rut?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (cleanSearchTerm && cleanCandidateRut.includes(cleanSearchTerm)) ||
                 c.position?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 resolvedProjectName.toLowerCase().includes(searchTerm.toLowerCase());
             
             const getAbb = (status) => {
                 if (['En Postulación', 'Postulando'].includes(status)) return 'POST';
                 if (['En Entrevista'].includes(status)) return 'ENTR';
+                if (['Bloqueado', 'BLOQUEADO', 'bloqueado', 'bloqueados', 'Bloqueados'].includes(status)) return 'BLOQ';
+                if (['Examen Preocupacional', 'Preocupacional', 'En Examen Preocupacional', 'PREOCUP'].includes(status)) return 'PREOCUP';
                 if (['Aprobado', 'En Evaluación', 'Aprobado/No Operativo'].includes(status)) return 'APROB';
+                if (['Curso Online', 'C. ONLINE', 'C.Online'].includes(status)) return 'C. ONLINE';
+                if (['OTEC', 'Otec'].includes(status)) return 'OTEC';
                 if (['En Acreditación', 'Acreditación', 'En Documentación'].includes(status)) return 'ACRED';
                 if (['Contratado'].includes(status)) return 'CONT';
                 if (['En Terreno', 'Listo Terreno', 'EN TERR'].includes(status)) return 'ACTIVO';
-                if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo', 'Suspendidos', 'bloqueados', 'Ausentes', 'Licencia medica'].includes(status)) return 'INACTIVO';
+                if (['Suspendido', 'Ausente', 'Licencia Médica', 'Inactivo', 'Suspendidos', 'Ausentes', 'Licencia medica'].includes(status)) return 'INACTIVO';
                 if (['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja'].includes(status)) return 'DE BAJA';
                 return status;
             };
@@ -481,7 +807,11 @@ const CapturaTalento = () => {
 
             // Filtros de Columna Dinámicos
             const matchesColPerfil = !columnFilters.perfil || c.fullName?.toLowerCase().includes(columnFilters.perfil.toLowerCase());
-            const matchesColRut = !columnFilters.identificacion || c.rut?.toLowerCase().includes(columnFilters.identificacion.toLowerCase()) || c.idRecursoToa?.toLowerCase().includes(columnFilters.identificacion.toLowerCase());
+            const cleanColFilterVal = columnFilters.identificacion ? columnFilters.identificacion.replace(/[^0-9kK]/g, '').toUpperCase() : '';
+            const matchesColRut = !columnFilters.identificacion || 
+                c.rut?.toLowerCase().includes(columnFilters.identificacion.toLowerCase()) || 
+                (cleanColFilterVal && cleanCandidateRut.includes(cleanColFilterVal)) ||
+                c.idRecursoToa?.toLowerCase().includes(columnFilters.identificacion.toLowerCase());
             const resolvedColCliente = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || '';
             const matchesColCliente = !columnFilters.cliente || resolvedColCliente.toLowerCase().includes(columnFilters.cliente.toLowerCase());
             const matchesColAsignacion = !columnFilters.asignacion || resolvedProjectName.toLowerCase().includes(columnFilters.asignacion.toLowerCase()) || c.position?.toLowerCase().includes(columnFilters.asignacion.toLowerCase());
@@ -601,41 +931,71 @@ const CapturaTalento = () => {
     const handleDownloadExcel = () => {
         try {
             const excelData = filteredCandidatos.map(c => {
-                const resolvedCliente = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'N/A';
-                return {
-                    'NOMBRE COMPLETO': c.fullName,
-                    'RUT': c.rut,
-                    'EMAIL': c.email || 'N/A',
-                    'TELÉFONO': c.phone || 'N/A',
-                    'NACIONALIDAD': c.nationality || 'CHILENA',
-                    'GÉNERO': c.gender || 'N/A',
-                    'CLIENTE VINCULADO': resolvedCliente,
-                    'PROYECTO': c.projectId?.nombreProyecto || c.projectName || 'N/A',
-                    'CECO': c.ceco || 'N/A',
-                    'ÁREA': c.area || 'N/A',
-                    'SEDE': c.sede || 'N/A',
-                    'CARGO': c.position,
-                    'ESTADO': c.status,
-                    'TIPO CONTRATO': c.contractType || 'N/A',
-                    'INICIO CONTRATO': c.contractStartDate ? new Date(c.contractStartDate).toLocaleDateString() : 'N/A',
-                    'TÉRMINO CONTRATO': c.contractEndDate ? new Date(c.contractEndDate).toLocaleDateString() : 'N/A',
-                    'PRÓXIMO HITO': c.nextAddendumDate ? new Date(c.nextAddendumDate).toLocaleDateString() : 'N/A',
-                    'AFP': c.afp || 'N/A',
-                    'SALUD': c.previsionSalud || 'N/A',
-                    'ISAPRE': c.isapreNombre || 'N/A',
-                    'VALOR PLAN': c.valorPlan || 'N/A',
-                    'BANCO': c.banco || 'N/A',
-                    'TIPO CUENTA': c.tipoCuenta || 'N/A',
-                    'NÚMERO CUENTA': c.numeroCuenta || 'N/A',
-                    'TALLA CAMISA': c.shirtSize || 'N/A',
-                    'TALLA PANTALÓN': c.pantsSize || 'N/A',
-                    'TALLA ZAPATOS': c.shoeSize || 'N/A'
-                };
+                const resolvedCliente = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || '';
+                const resolvedProyecto = c.projectId?.nombreProyecto || c.projectId?.projectName || c.projectName || '';
+                
+                const row = {};
+                Object.entries(BULK_COLUMNS_MAP).forEach(([excelKey, modelKey]) => {
+                    let val = '';
+                    
+                    if (modelKey === 'clienteNombre') {
+                        val = resolvedCliente;
+                    } else if (modelKey === 'projectName') {
+                        val = resolvedProyecto;
+                    } else if (modelKey === 'projectId') {
+                        val = c.projectId?._id || c.projectId || '';
+                    } else if (modelKey === 'rut') {
+                        val = formatRut(c.rut);
+                    } else if (['fechaNacimiento', 'idExpiryDate', 'contractStartDate', 'contractEndDate', 'operationalStartDate', 'fechaVencimientoLicencia', 'nextAddendumDate', 'fechaFiniquito'].includes(modelKey)) {
+                        const d = c[modelKey];
+                        if (d) {
+                            const dateObj = new Date(d);
+                            if (!isNaN(dateObj.getTime())) {
+                                const day = String(dateObj.getDate()).padStart(2, '0');
+                                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                const year = dateObj.getFullYear();
+                                val = `${day}/${month}/${year}`;
+                            }
+                        }
+                    } else if (modelKey === 'hasDisability') {
+                        val = c.hasDisability ? 'SI' : 'NO';
+                    } else {
+                        val = c[modelKey];
+                    }
+                    
+                    row[excelKey] = val !== undefined && val !== null ? String(val) : '';
+                });
+                return row;
             });
             const ws = XLSX.utils.json_to_sheet(excelData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Candidatos");
-            XLSX.writeFile(wb, "Gestion_Talento_Completo.xlsx");
+
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+            const s2ab = (s) => {
+                const buf = new ArrayBuffer(s.length);
+                const view = new Uint8Array(buf);
+                for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+                return buf;
+            };
+            const blob = new Blob([s2ab(wbout)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = 'none';
+            a.href = url;
+            a.download = "Gestion_Talento_Completo.xlsx";
+            
+            a.addEventListener('click', (e) => {
+                e.stopPropagation();
+            }, { once: true });
+            
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 1000);
         } catch (err) { 
             console.error(err);
             showToast("❌ Error al exportar Excel", 'error'); 
@@ -669,8 +1029,22 @@ const CapturaTalento = () => {
 
                 <div className="h-10 w-px bg-slate-200 mx-2 hidden md:block" />
 
-                <button onClick={handleSyncBase} className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 shadow-sm hover:bg-slate-50">
-                    <Share2 size={16} className="text-indigo-500" /> Sincronizar
+                <button 
+                    onClick={handleSyncBase} 
+                    className="px-6 py-4 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 shadow-sm transition-all text-slate-700"
+                >
+                    <RotateCw size={16} className={`text-indigo-500 ${loading ? 'animate-spin' : ''}`} /> Sincronizar
+                </button>
+                <button 
+                    onClick={() => {
+                        setBulkParsedRows([]);
+                        setBulkErrors([]);
+                        setBulkResults(null);
+                        setShowBulkModal(true);
+                    }} 
+                    className="px-6 py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 shadow-sm transition-all"
+                >
+                    <Upload size={16} /> Carga Masiva
                 </button>
                 <button onClick={() => { setForm(initialForm); setEditId(null); setShowForm(true); }} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl hover:-translate-y-1 transition-all flex items-center gap-2">
                     <Plus size={16} /> Registrar
@@ -685,11 +1059,24 @@ const CapturaTalento = () => {
     };
 
     const handleDashboardFilter = (status, project = 'ALL', cargo = 'ALL', client = 'ALL') => {
-        setFilterStatus(status);
-        // Si el título contiene "TOTALES", reseteamos los filtros de esa dimensión para mostrar el universo completo
-        setFilterProject(project.includes('TOTALES') ? 'ALL' : project);
-        setFilterCargo(cargo.includes('TOTALES') ? 'ALL' : cargo);
-        setFilterClient(client.includes('TOTALES') ? 'ALL' : client);
+        // Normalizar los filtros de entidad
+        const normProj = project.toUpperCase().includes('TOTALES') ? 'ALL' : project;
+        const normCargo = cargo.toUpperCase().includes('TOTALES') ? 'ALL' : cargo;
+        const normClient = client.toUpperCase().includes('TOTALES') ? 'ALL' : client;
+
+        setFilterProject(normProj);
+        setFilterClient(normClient);
+
+        if (status === 'TEC') {
+            setFilterCargo('TECNICO TELECOMUNICACIONES');
+            setFilterStatus('ALL');
+        } else if (status === 'SUP') {
+            setFilterCargo('SUPERVISOR TELECOMUNICACIONES');
+            setFilterStatus('ALL');
+        } else {
+            setFilterCargo(normCargo);
+            setFilterStatus(status);
+        }
         scrollToTable();
     };
 
@@ -730,7 +1117,11 @@ const CapturaTalento = () => {
                 { id: 'SUP',          label: 'SUP',      tooltip: 'Supervisores Telecomunicaciones — Personal de gestión y control',         color: 'from-violet-600 to-purple-800', count: data.specialCounts?.SUP || 0 },
                 { id: 'POST',         label: 'POST',     tooltip: 'En Postulación — Candidatos en etapa de aplicación inicial',                  color: 'from-indigo-500 to-indigo-600', count: data.status['POST']    || 0 },
                 { id: 'ENTR',         label: 'ENTR',     tooltip: 'En Entrevista — En proceso de evaluación presencial o virtual',              color: 'from-violet-500 to-violet-600', count: data.status['ENTR']    || 0 },
+                { id: 'BLOQ',         label: 'BLOQ',     tooltip: 'Bloqueado — Colaboradores suspendidos o restringidos por administración',    color: 'from-rose-500 to-rose-600',    count: data.status['BLOQ']    || 0 },
+                { id: 'PREOCUP',      label: 'PREOCUP',  tooltip: 'Examen Preocupacional — Estado de evaluación de salud y aptitud laboral',   color: 'from-pink-500 to-pink-600',    count: data.status['PREOCUP'] || 0 },
                 { id: 'APROB',        label: 'APROB',    tooltip: 'Aprobado — Superaron la entrevista y evaluación técnica',                     color: 'from-teal-500 to-teal-600',    count: data.status['APROB']   || 0 },
+                { id: 'C. ONLINE',    label: 'C. ONLINE',tooltip: 'Curso Online — Inducción obligatoria completada o en proceso',            color: 'from-blue-500 to-indigo-600',  count: data.status['C. ONLINE'] || 0 },
+                { id: 'OTEC',         label: 'OTEC',     tooltip: 'OTEC — Acreditación externa mediante capacitación técnica',                 color: 'from-amber-500 to-yellow-600', count: data.status['OTEC'] || 0 },
                 { id: 'ACRED',        label: 'ACRED',    tooltip: 'En Acreditación — En proceso de documentación, exámenes y EPP',            color: 'from-orange-500 to-orange-600',count: data.status['ACRED']   || 0 },
                 { id: 'CONT',         label: 'CONT',     tooltip: 'Contratado — Con contrato firmado, listos para operar',                       color: 'from-emerald-500 to-emerald-600', count: data.status['CONT'] || 0 },
                 { id: 'ACTIVO',       label: 'ACTIVO',   tooltip: 'Activo — Operando en terreno, ejecutando trabajos en campo',                  color: 'from-sky-500 to-sky-600',      count: data.status['ACTIVO']  || 0 },
@@ -742,10 +1133,17 @@ const CapturaTalento = () => {
 
             return (
                 <div key={title} className="group bg-white rounded-[1.5rem] border border-slate-200 p-2 hover:border-indigo-400 hover:shadow-xl transition-all cursor-pointer flex items-center justify-between gap-4 w-full shadow-md overflow-hidden"
-                    onClick={(e) => handleActionClick(e, 'ALL', title, type)}
+                    onClick={() => handleDashboardFilter('ALL', type === 'project' ? title : 'ALL', type === 'cargo' ? title : 'ALL', type === 'client' ? title : 'ALL')}
                 >
                     {/* TOTAL Box - Far Left - Compacted */}
-                    <div className="flex flex-col items-center gap-1 w-14 relative group/metric ml-4 shrink-0">
+                    <div 
+                        style={{ width: '56px', minWidth: '56px', maxWidth: '56px' }}
+                        className="flex flex-col items-center gap-1 relative group/metric ml-4 shrink-0"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDashboardFilter('ALL', type === 'project' ? title : 'ALL', type === 'cargo' ? title : 'ALL', type === 'client' ? title : 'ALL');
+                        }}
+                    >
                         <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 group-hover/metric:opacity-100 transition-all duration-200 scale-95 group-hover/metric:scale-100">
                              <div className="bg-slate-900/95 backdrop-blur-sm text-white text-[9px] font-bold rounded-xl px-3 py-2 whitespace-nowrap shadow-2xl border border-white/10 max-w-[160px] text-center leading-snug">
                                 {totalMetric.tooltip}
@@ -754,7 +1152,6 @@ const CapturaTalento = () => {
                         </div>
                         <div 
                             className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all bg-gradient-to-br ${totalMetric.color} text-white shadow-lg hover:scale-110`}
-                            onClick={(e) => handleActionClick(e, 'ALL', title, type)}
                         >
                             <span className="text-[16px] font-black">{totalMetric.count}</span>
                         </div>
@@ -764,19 +1161,45 @@ const CapturaTalento = () => {
                     </div>
 
                     {/* Entity Title Box - Narrower for better fit */}
-                    <div className={`bg-gradient-to-br ${theme} text-white px-5 py-3 rounded-xl w-[220px] flex items-center justify-center text-center shadow-lg shrink-0 ${title.toUpperCase().includes('TOTALES') ? 'ring-2 ring-indigo-500/50 shadow-indigo-900/40 scale-[1.02]' : ''}`}>
-                        <span className={`text-[13px] font-black uppercase tracking-tight truncate ${title.toUpperCase().includes('TOTALES') ? 'text-indigo-100' : ''}`}>{title}</span>
+                    <div 
+                        style={{ width: '210px', minWidth: '210px', maxWidth: '210px' }}
+                        className={`bg-gradient-to-br ${theme} text-white px-3 py-2.5 rounded-xl overflow-hidden flex flex-col items-center justify-center text-center shadow-lg shrink-0 relative group/title ${title.toUpperCase().includes('TOTALES') ? 'ring-2 ring-indigo-500/50 shadow-indigo-900/40 scale-[1.02]' : ''}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDashboardFilter('ALL', type === 'project' ? title : 'ALL', type === 'cargo' ? title : 'ALL', type === 'client' ? title : 'ALL');
+                        }}
+                    >
+                        <span 
+                            style={{ width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            className={`text-[12px] font-black uppercase tracking-tight ${title.toUpperCase().includes('TOTALES') ? 'text-indigo-100' : ''}`}
+                        >
+                            {title}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setCoverageData(calculateCoverage(title));
+                            }}
+                            className="absolute inset-0 bg-slate-900/90 rounded-xl flex items-center justify-center gap-2 opacity-0 group-hover/title:opacity-100 transition-all duration-200 text-[10px] font-black uppercase tracking-wider text-indigo-400 hover:text-white"
+                        >
+                            <BarChart size={12} />
+                            Ver Cobertura
+                        </button>
                     </div>
 
                     {/* Metric Sequence - Centered within the remaining space */}
-                    <div className="flex-1 flex items-center justify-end gap-5 pr-4">
+                    <div className="flex-1 flex items-center justify-end gap-2 pr-4 overflow-x-auto scrollbar-thin">
                         {/* OPERATIONAL SEGMENT (TEC / SUP) - Sync with Entity Theme */}
-                        <div className={`flex items-center gap-4 px-4 py-2 bg-gradient-to-br ${theme} rounded-2xl shadow-lg relative group/ops border border-white/20`}>
-                            <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-white px-2 text-[6px] font-black text-slate-500 uppercase tracking-widest border border-slate-100 rounded-full shadow-sm">
+                        <div 
+                            style={{ width: '88px', minWidth: '88px', maxWidth: '88px' }}
+                            className={`flex items-center gap-2 px-2 py-1.5 bg-gradient-to-br ${theme} rounded-2xl shadow-lg relative group/ops border border-white/20 shrink-0`}
+                        >
+                            <span className="absolute -top-2 bg-white px-1.5 text-[5px] font-black text-slate-500 uppercase tracking-widest border border-slate-100 rounded-full shadow-sm left-1/2 -translate-x-1/2">
                                 Operativa
                             </span>
                             {hubMetrics.filter(m => ['TEC', 'SUP'].includes(m.id)).map(m => (
-                                <div key={m.id} className="flex flex-col items-center gap-1 w-12 relative group/metric">
+                                <div key={m.id} style={{ width: '32px', minWidth: '32px', maxWidth: '32px' }} className="flex flex-col items-center gap-0.5 relative group/metric">
                                     <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 group-hover/metric:opacity-100 transition-all duration-200 scale-95 group-hover/metric:scale-100">
                                         <div className="bg-slate-900/95 backdrop-blur-sm text-white text-[9px] font-bold rounded-xl px-3 py-2 whitespace-nowrap shadow-2xl border border-white/10 max-w-[160px] text-center leading-snug">
                                             {m.tooltip}
@@ -784,26 +1207,35 @@ const CapturaTalento = () => {
                                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95"></div>
                                     </div>
                                     <div 
-                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${m.count > 0 ? `bg-white text-slate-900 shadow-md hover:scale-110` : 'bg-white/20 text-white/40 border border-white/10'}`}
+                                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${m.count > 0 ? `bg-white text-slate-900 shadow-md hover:scale-110` : 'bg-white/20 text-white/40 border border-white/10'}`}
                                         onClick={(e) => {
-                                            if (m.count > 0) handleActionClick(e, m.id, title, type);
+                                            e.stopPropagation();
+                                            if (m.count > 0) {
+                                                handleDashboardFilter(m.id, type === 'project' ? title : 'ALL', type === 'cargo' ? title : 'ALL', type === 'client' ? title : 'ALL');
+                                            }
                                         }}
                                     >
-                                        <span className="text-[14px] font-black">{m.count}</span>
+                                        <span className="text-[12px] font-black">{m.count}</span>
                                     </div>
-                                    <span className={`text-[7px] font-black uppercase tracking-[0.1em] ${m.count > 0 ? 'text-white' : 'text-white/60'}`}>
+                                    <span className={`text-[6.5px] font-black uppercase tracking-[0.05em] ${m.count > 0 ? 'text-white' : 'text-white/60'}`}>
                                         {m.label}
                                     </span>
                                 </div>
                             ))}
                         </div>
 
-                        <div className="h-8 w-px bg-slate-200 shrink-0" />
+                        <div 
+                            style={{ width: '1px', minWidth: '1px', maxWidth: '1px' }}
+                            className="h-8 bg-slate-200 shrink-0" 
+                        />
 
                         {/* FLOW SEGMENT */}
-                        <div className="flex items-center gap-2">
+                        <div 
+                            style={{ width: '524px', minWidth: '524px', maxWidth: '524px' }}
+                            className="flex items-center gap-1 shrink-0"
+                        >
                             {hubMetrics.filter(m => !['TEC', 'SUP'].includes(m.id)).map(m => (
-                                <div key={m.id} className="flex flex-col items-center gap-1 w-12 relative group/metric">
+                                <div key={m.id} style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }} className="flex flex-col items-center gap-0.5 relative group/metric">
                                     <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 group-hover/metric:opacity-100 transition-all duration-200 scale-95 group-hover/metric:scale-100">
                                         <div className="bg-slate-900/95 backdrop-blur-sm text-white text-[9px] font-bold rounded-xl px-3 py-2 whitespace-nowrap shadow-2xl border border-white/10 max-w-[160px] text-center leading-snug">
                                             {m.tooltip}
@@ -811,14 +1243,17 @@ const CapturaTalento = () => {
                                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95"></div>
                                     </div>
                                     <div 
-                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${m.count > 0 ? `bg-gradient-to-br ${m.color} text-white shadow-lg hover:scale-110` : 'bg-slate-100 text-slate-300 border border-slate-200'}`}
+                                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${m.count > 0 ? `bg-gradient-to-br ${m.color} text-white shadow-lg hover:scale-110` : 'bg-slate-100 text-slate-300 border border-slate-200'}`}
                                         onClick={(e) => {
-                                            if (m.count > 0) handleActionClick(e, m.id, title, type);
+                                            e.stopPropagation();
+                                            if (m.count > 0) {
+                                                handleDashboardFilter(m.id, type === 'project' ? title : 'ALL', type === 'cargo' ? title : 'ALL', type === 'client' ? title : 'ALL');
+                                            }
                                         }}
                                     >
-                                        <span className="text-[14px] font-black">{m.count}</span>
+                                        <span className="text-[12px] font-black">{m.count}</span>
                                     </div>
-                                    <span className={`text-[7px] font-black uppercase tracking-[0.1em] ${m.isRed ? 'text-rose-600' : m.count > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
+                                    <span className={`text-[6.5px] font-black uppercase tracking-[0.05em] ${m.isRed ? 'text-rose-600' : m.count > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
                                         {m.label}
                                     </span>
                                 </div>
@@ -1047,7 +1482,7 @@ const CapturaTalento = () => {
                                     )}
                                     {visibleColumns.includes('identificacion') && (
                                         <td className="px-8 py-6">
-                                            <div className="text-[12px] font-black text-slate-700 tracking-wider mb-2 font-mono bg-slate-100 px-3 py-1.5 rounded-lg w-fit border border-slate-200 shadow-sm">{c.rut}</div>
+                                            <div className="text-[12px] font-black text-slate-700 tracking-wider mb-2 font-mono bg-slate-100 px-3 py-1.5 rounded-lg w-fit border border-slate-200 shadow-sm">{formatRut(c.rut)}</div>
                                             <div className="inline-flex items-center gap-2 text-[10px] font-black text-white uppercase tracking-widest bg-indigo-600 px-4 py-2 rounded-2xl shadow-lg shadow-indigo-200/50 transition-transform hover:scale-105">
                                                 <Activity size={12} /> {c.idRecursoToa || 'SIN ID TOA'}
                                             </div>
@@ -1177,12 +1612,16 @@ const CapturaTalento = () => {
                                                     value={(() => {
                                                         const s = c.status || '';
                                                         if (['En Postulación','Postulando'].includes(s)) return 'POST';
-                                                        if (['En Entrevista','En Evaluación'].includes(s)) return 'ENTR';
-                                                        if (['Aprobado','Aprobado/No Operativo'].includes(s)) return 'APROB';
+                                                        if (['En Entrevista'].includes(s)) return 'ENTR';
+                                                        if (['Bloqueado', 'BLOQUEADO', 'bloqueado', 'bloqueados', 'Bloqueados'].includes(s)) return 'BLOQ';
+                                                        if (['Examen Preocupacional', 'Preocupacional', 'En Examen Preocupacional', 'PREOCUP'].includes(s)) return 'PREOCUP';
+                                                        if (['Aprobado','En Evaluación','Aprobado/No Operativo'].includes(s)) return 'APROB';
+                                                        if (['Curso Online', 'C. ONLINE', 'C.Online'].includes(s)) return 'C. ONLINE';
+                                                        if (['OTEC', 'Otec'].includes(s)) return 'OTEC';
                                                         if (['En Acreditación','Acreditación','En Documentación'].includes(s)) return 'ACRED';
                                                         if (['Contratado','Listo Terreno'].includes(s)) return 'CONT';
                                                         if (['En Terreno','EN TERR'].includes(s)) return 'ACTIVO';
-                                                        if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo'].includes(s)) return 'INACTIVO';
+                                                        if (['Suspendido', 'Ausente', 'Licencia Médica', 'Inactivo'].includes(s)) return 'INACTIVO';
                                                         if (['Rechazado','Retirado','Finiquitado','Bajas/Inactivos', 'De Baja'].includes(s)) return 'DE BAJA';
                                                         return s;
                                                     })()}
@@ -1254,7 +1693,7 @@ const CapturaTalento = () => {
                         <div className="space-y-3 mb-8">
                             <div className="flex items-center justify-between text-[10px]">
                                 <span className="font-black text-slate-400 uppercase tracking-widest">RUT</span>
-                                <span className="font-bold text-slate-600 font-mono">{c.rut}</span>
+                                <span className="font-bold text-slate-600 font-mono">{formatRut(c.rut)}</span>
                             </div>
                             <div className="flex items-center justify-between text-[10px]">
                                 <span className="font-black text-slate-400 uppercase tracking-widest">Proyecto</span>
@@ -1430,12 +1869,16 @@ const CapturaTalento = () => {
                                             value={(() => {
                                                 const s = form.status || '';
                                                 if (['En Postulación','Postulando'].includes(s)) return 'POST';
-                                                if (['En Entrevista','En Evaluación'].includes(s)) return 'ENTR';
-                                                if (['Aprobado','Aprobado/No Operativo'].includes(s)) return 'APROB';
+                                                if (['En Entrevista'].includes(s)) return 'ENTR';
+                                                if (['Bloqueado', 'BLOQUEADO', 'bloqueado', 'bloqueados', 'Bloqueados'].includes(s)) return 'BLOQ';
+                                                if (['Examen Preocupacional', 'Preocupacional', 'En Examen Preocupacional', 'PREOCUP'].includes(s)) return 'PREOCUP';
+                                                if (['Aprobado','En Evaluación','Aprobado/No Operativo'].includes(s)) return 'APROB';
+                                                if (['Curso Online', 'C. ONLINE', 'C.Online'].includes(s)) return 'C. ONLINE';
+                                                if (['OTEC', 'Otec'].includes(s)) return 'OTEC';
                                                 if (['En Acreditación','Acreditación','En Documentación'].includes(s)) return 'ACRED';
                                                 if (['Contratado','Listo Terreno'].includes(s)) return 'CONT';
                                                 if (['En Terreno','EN TERR'].includes(s)) return 'ACTIVO';
-                                                if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo'].includes(s)) return 'INACTIVO';
+                                                if (['Suspendido', 'Ausente', 'Licencia Médica', 'Inactivo'].includes(s)) return 'INACTIVO';
                                                 if (['Rechazado','Retirado','Finiquitado','Bajas/Inactivos', 'De Baja'].includes(s)) return 'DE BAJA';
                                                 return s;
                                             })()} 
@@ -1497,7 +1940,7 @@ const CapturaTalento = () => {
                                                 {form.contractType === 'PLAZO FIJO' && (
                                                     <div className="flex gap-2">
                                                         {[30, 60, 90].map(d => (
-                                                            <button key={d} onClick={() => setForm({...form, contractDurationDays: d})} className={`px-2 py-0.5 rounded-md text-[8px] font-black border transition-all ${form.contractDurationDays == d ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200 text-slate-400 hover:border-indigo-300'}`}>{d}</button>
+                                                            <button key={d} onClick={() => setForm({...form, contractDurationDays: d})} className={`px-2 py-0.5 rounded-md text-[8px] font-black border transition-all ${Number(form.contractDurationDays) === Number(d) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200 text-slate-400 hover:border-indigo-300'}`}>{d}</button>
                                                         ))}
                                                     </div>
                                                 )}
@@ -2325,6 +2768,269 @@ const CapturaTalento = () => {
                             </div>
                             <button onClick={() => setShowCoverageModal(false)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Cerrar Reporte</button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Carga Masiva Premium */}
+            {showBulkModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md overflow-hidden animate-fade-in">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 flex flex-col w-full max-w-5xl h-[85vh] overflow-hidden animate-scale-up">
+                        {/* Header del Modal */}
+                        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-8 flex items-center justify-between shadow-lg relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
+                                <Upload size={120} className="text-white" />
+                            </div>
+                            <div className="relative z-10 flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white">
+                                    <Layers size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-1">Carga Masiva de Postulantes</h3>
+                                    <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.3em]">Importador Inteligente & Upsert 100% Columnas</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowBulkModal(false)} 
+                                className="w-12 h-12 flex items-center justify-center bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all relative z-10"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-8 bg-slate-50/50">
+                            {!bulkResults ? (
+                                <>
+                                    {/* Pasos y Acciones Iniciales */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {/* Descargar Plantilla */}
+                                        <div className="bg-white rounded-3xl p-8 border border-slate-200 hover:border-indigo-300 transition-all shadow-sm hover:shadow-xl flex flex-col justify-between">
+                                            <div>
+                                                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-6 border border-emerald-100">
+                                                    <Download size={22} />
+                                                </div>
+                                                <h4 className="text-base font-black text-slate-800 uppercase tracking-tight mb-2">1. Descargar Plantilla</h4>
+                                                <p className="text-slate-400 text-xs leading-relaxed mb-6">
+                                                    Obtén la última versión de la plantilla con las 55 columnas reglamentarias. Incluye ejemplos reales de RUTs, AFP, Isapres y comunas chilenas.
+                                                </p>
+                                            </div>
+                                            <button 
+                                                onClick={handleDownloadTemplate}
+                                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100/20"
+                                            >
+                                                <Download size={14} /> Descargar Plantilla Excel
+                                            </button>
+                                        </div>
+
+                                        {/* Cargar Archivo */}
+                                        <div className="bg-white rounded-3xl p-8 border border-slate-200 hover:border-indigo-300 transition-all shadow-sm hover:shadow-xl flex flex-col justify-between">
+                                            <div>
+                                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-6 border border-indigo-100">
+                                                    <Upload size={22} />
+                                                </div>
+                                                <h4 className="text-base font-black text-slate-800 uppercase tracking-tight mb-2">2. Subir Archivo</h4>
+                                                <p className="text-slate-400 text-xs leading-relaxed mb-6">
+                                                    Sube tu archivo <span className="font-bold text-slate-600">.xlsx</span> o <span className="font-bold text-slate-600">.csv</span> completado. Nuestro motor validará la información en tiempo real.
+                                                </p>
+                                            </div>
+                                            <label className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100/20 cursor-pointer text-center">
+                                                <Upload size={14} /> {bulkFileLoading ? 'Procesando Archivo...' : 'Seleccionar Archivo'}
+                                                <input 
+                                                    type="file" 
+                                                    accept=".xlsx,.csv" 
+                                                    onChange={handleBulkExcelUpload} 
+                                                    className="hidden" 
+                                                    disabled={bulkFileLoading} 
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Grilla de Validación y Previsualización */}
+                                    {bulkParsedRows.length > 0 && (
+                                        <div className="space-y-6">
+                                            <div className="h-px bg-slate-200" />
+                                            
+                                            {/* Panel de Resumen de Lectura */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registros Leídos</span>
+                                                        <span className="text-2xl font-black text-slate-800">{bulkParsedRows.length}</span>
+                                                    </div>
+                                                    <div className="w-10 h-10 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center">
+                                                        <Users size={18} />
+                                                    </div>
+                                                </div>
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Listos para Cargar</span>
+                                                        <span className="text-2xl font-black text-emerald-600">
+                                                            {bulkParsedRows.filter(r => r.erroresLocales.length === 0).length}
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                                                        <CheckCircle size={18} />
+                                                    </div>
+                                                </div>
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registros con Error</span>
+                                                        <span className="text-2xl font-black text-rose-600">{bulkErrors.length}</span>
+                                                    </div>
+                                                    <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
+                                                        <AlertCircle size={18} />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Reporte Detallado de Errores */}
+                                            {bulkErrors.length > 0 && (
+                                                <div className="bg-rose-50 border border-rose-200 rounded-3xl p-6 space-y-4">
+                                                    <div className="flex items-center gap-3 text-rose-800">
+                                                        <AlertCircle size={20} />
+                                                        <h5 className="text-xs font-black uppercase tracking-wider">Errores Críticos Detectados (No se importarán)</h5>
+                                                    </div>
+                                                    <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                                        {bulkErrors.map((err, i) => (
+                                                            <div key={i} className="bg-white/80 p-3.5 rounded-xl border border-rose-100 text-slate-600 text-xs flex justify-between gap-4">
+                                                                <div>
+                                                                    <span className="font-black text-rose-600 uppercase text-[9px] block">Fila {err.fila}</span>
+                                                                    <span className="font-bold text-slate-800">{err.nombre}</span>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <span className="text-[10px] bg-slate-100 px-2.5 py-0.5 rounded-full font-bold uppercase">{formatRut(err.rut)}</span>
+                                                                    <span className="block text-rose-500 font-bold text-[10px] mt-1">{err.detalles}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Grilla Vista Previa (Spreadsheet View) */}
+                                            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                                                <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vista Previa de Datos (Primeros 10)</span>
+                                                    <span className="text-[9px] font-bold text-slate-400 italic">Desliza para ver la grilla completa</span>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left border-collapse text-xs">
+                                                        <thead>
+                                                            <tr className="bg-slate-100/50 text-[9px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-200">
+                                                                <th className="py-4 px-6 text-center w-14">Fila</th>
+                                                                <th className="py-4 px-6">Estado Reg.</th>
+                                                                <th className="py-4 px-6">RUT</th>
+                                                                <th className="py-4 px-6">Nombre Completo</th>
+                                                                <th className="py-4 px-6">Cargo</th>
+                                                                <th className="py-4 px-6">Email</th>
+                                                                <th className="py-4 px-6">Teléfono</th>
+                                                                <th className="py-4 px-6">Proyecto</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                                                            {bulkParsedRows.slice(0, 10).map((row, i) => (
+                                                                <tr key={i} className={`hover:bg-slate-50/80 transition-colors ${row.erroresLocales.length > 0 ? 'bg-rose-50/20' : ''}`}>
+                                                                    <td className="py-3 px-6 text-center font-bold text-slate-400">{row.fila}</td>
+                                                                    <td className="py-3 px-6">
+                                                                        {row.erroresLocales.length > 0 ? (
+                                                                            <span className="px-2 py-0.5 rounded-full text-[8px] font-black bg-rose-50 text-rose-600 uppercase border border-rose-100">
+                                                                                Error
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-50 text-emerald-600 uppercase border border-emerald-100">
+                                                                                Válido
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="py-3 px-6 font-bold">{formatRut(row.rut) || 'N/A'}</td>
+                                                                    <td className="py-3 px-6 uppercase font-medium">{row.fullName || 'N/A'}</td>
+                                                                    <td className="py-3 px-6 uppercase text-slate-500">{row.position || 'N/A'}</td>
+                                                                    <td className="py-3 px-6 text-slate-500">{row.email || 'N/A'}</td>
+                                                                    <td className="py-3 px-6 text-slate-500">{row.phone || 'N/A'}</td>
+                                                                    <td className="py-3 px-6 text-indigo-600 uppercase font-semibold">{row.projectName || 'N/A'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                {bulkParsedRows.length > 10 && (
+                                                    <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-100 text-center text-[10px] font-bold text-slate-400">
+                                                        Mostrando los primeros 10 de {bulkParsedRows.length} registros cargados...
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                /* Pantalla de Resultado de Éxito */
+                                <div className="flex flex-col items-center justify-center py-12 text-center max-w-md mx-auto space-y-6">
+                                    <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-[2rem] flex items-center justify-center shadow-lg border border-emerald-200 animate-bounce">
+                                        <CheckCircle size={40} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">¡Carga Procesada Exitosamente!</h4>
+                                        <p className="text-slate-400 text-xs leading-relaxed">
+                                            La base de datos de Captura de Talento se ha actualizado y sincronizado online con el módulo operativo en tiempo real.
+                                        </p>
+                                    </div>
+
+                                    {/* Métrica de resultados */}
+                                    <div className="grid grid-cols-2 gap-4 w-full bg-white border border-slate-200 p-6 rounded-3xl shadow-sm">
+                                        <div className="text-center p-4 bg-slate-50 rounded-2xl">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nuevos Creados</span>
+                                            <span className="text-2xl font-black text-indigo-600">{bulkResults.creados}</span>
+                                        </div>
+                                        <div className="text-center p-4 bg-slate-50 rounded-2xl">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Actualizados (Upsert)</span>
+                                            <span className="text-2xl font-black text-emerald-600">{bulkResults.actualizados}</span>
+                                        </div>
+                                    </div>
+
+                                    <button 
+                                        onClick={() => {
+                                            setShowBulkModal(false);
+                                            setBulkResults(null);
+                                            setBulkParsedRows([]);
+                                            setBulkErrors([]);
+                                        }}
+                                        className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl"
+                                    >
+                                        Finalizar & Cerrar
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer del Modal */}
+                        {!bulkResults && (
+                            <div className="bg-slate-50 p-6 border-t border-slate-200 flex justify-between items-center px-10">
+                                <button 
+                                    onClick={() => setShowBulkModal(false)}
+                                    className="px-8 py-4 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                
+                                <button 
+                                    onClick={handleProcessBulk}
+                                    disabled={bulkProcessing || bulkParsedRows.filter(r => r.erroresLocales.length === 0).length === 0}
+                                    className="px-10 py-4 bg-indigo-600 text-white disabled:bg-indigo-300 disabled:cursor-not-allowed rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl flex items-center gap-2 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                                >
+                                    {bulkProcessing ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={16} /> Importando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check size={16} /> Procesar Carga Masiva
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

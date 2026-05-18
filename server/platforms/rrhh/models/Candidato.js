@@ -145,8 +145,9 @@ const CandidatoSchema = new mongoose.Schema({
         enum: [
             'En Postulación', 'Postulando',
             'En Entrevista', 'En Evaluación',
-            'En Acreditación', 'En Documentación',
-            'Aprobado', 'Aprobado/No Operativo', 'Contratado',
+            'Examen Preocupacional', 'En Examen Preocupacional',
+            'Aprobado', 'Aprobado/No Operativo', 'Curso Online', 'OTEC',
+            'En Acreditación', 'Acreditación', 'En Documentación', 'Contratado',
             'En Terreno', 'Listo Terreno', 'Acreditación', 'Bajas/Inactivos',
             'Rechazado', 'Retirado', 'Finiquitado',
             'Inactivo', 'Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica'

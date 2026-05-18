@@ -4,7 +4,7 @@ import {
     MoreHorizontal, MapPin, Truck, User, ArrowRight,
     Anchor, Repeat, ChevronRight, Archive, Upload,
     Download, ImagePlus, Package, Grid3X3, List, Pencil, Trash2, ShieldAlert,
-    Lock, Unlock
+    Lock, Unlock, Sparkles
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
 import * as XLSX from 'xlsx';
@@ -33,12 +33,107 @@ const getColorHex = (colorName) => {
     return '#94A3B8';
 };
 
+const generateIntelligentDescription = (item) => {
+    const nombre = item.nombre ? String(item.nombre).trim() : '';
+    const categoria = item.categoria ? String(item.categoria).trim() : 'Logística';
+    const marca = item.marca ? String(item.marca).trim() : '';
+    const modelo = item.modelo ? String(item.modelo).trim() : '';
+    const tipo = item.tipo ? String(item.tipo).trim() : 'Activo';
+    const segmentacion = item.segmentacion ? String(item.segmentacion).trim() : 'Estándar';
+
+    let desc = `${nombre}. `;
+    desc += `Artículo de la categoría de ${categoria} (${tipo.toLowerCase()}). `;
+    
+    if (marca && modelo) {
+        desc += `Fabricado por la marca líder ${marca} (Modelo: ${modelo}). `;
+    } else if (marca) {
+        desc += `Fabricado por la marca de alta calidad ${marca}. `;
+    } else if (modelo) {
+        desc += `Modelo técnico: ${modelo}. `;
+    }
+    
+    if (segmentacion === 'Crítico') {
+        desc += `Clasificado como insumo crítico, indispensable para asegurar la operatividad y evitar interrupciones de servicio. `;
+    } else {
+        desc += `Insumo estándar diseñado para cumplir de manera óptima con los requerimientos logísticos diarios. `;
+    }
+    
+    desc += `Registrado en el Ecosistema 360 de Control de Existencias.`;
+    return desc;
+};
+
+const stringSimilarity = (str1, str2) => {
+    const s1 = String(str1 || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const s2 = String(str2 || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (s1 === s2) return 1.0;
+    if (s1.length < 2 || s2.length < 2) return 0.0;
+
+    const bigrams1 = new Map();
+    for (let i = 0; i < s1.length - 1; i++) {
+        const bigram = s1.substr(i, 2);
+        bigrams1.set(bigram, (bigrams1.get(bigram) || 0) + 1);
+    }
+
+    let intersection = 0;
+    for (let i = 0; i < s2.length - 1; i++) {
+        const bigram = s2.substr(i, 2);
+        const count = bigrams1.get(bigram) || 0;
+        if (count > 0) {
+            intersection++;
+            bigrams1.set(bigram, count - 1);
+        }
+    }
+
+    return (2.0 * intersection) / (s1.length + s2.length - 2);
+};
+
 const getVisualIcon = (name, size = 20) => {
     const normalized = String(name || '').toLowerCase();
     if (normalized === 'tags') return <Tags size={size} />;
     if (normalized === 'package') return <Package size={size} />;
     if (normalized === 'warehouse') return <Warehouse size={size} />;
     return <Archive size={size} />;
+};
+
+const getInitials = (name) => {
+    if (!name) return 'ST';
+    const chunks = name.split(/\s+/).filter(Boolean);
+    if (chunks.length === 0) return 'ST';
+    if (chunks.length === 1) return chunks[0].substring(0, 2).toUpperCase();
+    return (chunks[0][0] + chunks[chunks.length - 1][0]).toUpperCase();
+};
+
+const getAbbreviatedStatus = (estado) => {
+    const s = String(estado || '').trim();
+    if (['En Postulación', 'Postulando', 'POST'].includes(s)) return 'POST';
+    if (['En Entrevista', 'En Evaluación', 'ENTR'].includes(s)) return 'ENTR';
+    if (['Aprobado', 'Aprobado/No Operativo', 'APROB'].includes(s)) return 'APROB';
+    if (['En Acreditación', 'Acreditación', 'En Documentación', 'ACRED'].includes(s)) return 'ACRED';
+    if (['Contratado', 'Listo Terreno', 'CONT'].includes(s)) return 'CONT';
+    if (['En Terreno', 'EN TERR', 'OPERATIVO', 'ACTIVO'].includes(s)) return 'ACTIVO';
+    if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo', 'INACTIVO'].includes(s)) return 'INACTIVO';
+    if (['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja', 'DE BAJA'].includes(s)) return 'DE BAJA';
+    return 'ACTIVO';
+};
+
+const getEstadoTalentoBadge = (estado) => {
+    const abb = getAbbreviatedStatus(estado);
+
+    let colorClasses = 'bg-slate-50 text-slate-500 border-slate-200';
+    if (abb === 'POST') colorClasses = 'bg-indigo-50 text-indigo-600 border-indigo-200';
+    else if (abb === 'ENTR') colorClasses = 'bg-violet-50 text-violet-600 border-violet-200';
+    else if (abb === 'APROB') colorClasses = 'bg-teal-50 text-teal-600 border-teal-200';
+    else if (abb === 'ACRED') colorClasses = 'bg-orange-50 text-orange-600 border-orange-200';
+    else if (abb === 'CONT') colorClasses = 'bg-cyan-50 text-cyan-600 border-cyan-200';
+    else if (abb === 'ACTIVO') colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    else if (abb === 'INACTIVO') colorClasses = 'bg-amber-50 text-amber-600 border-amber-200';
+    else if (abb === 'DE BAJA') colorClasses = 'bg-rose-50 text-rose-600 border-rose-200';
+
+    return (
+        <span className={`px-2.5 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider ${colorClasses}`}>
+            {abb}
+        </span>
+    );
 };
 
 const ConfigLogistica = () => {
@@ -55,11 +150,24 @@ const ConfigLogistica = () => {
     const [categoriaView, setCategoriaView] = useState('grid');
     const [editingCategoriaId, setEditingCategoriaId] = useState(null);
     const [searchProducto, setSearchProducto] = useState('');
+    const [searchPersonal, setSearchPersonal] = useState('');
+    const [personalView, setPersonalView] = useState('grid');
+    const [filterPersonalProyecto, setFilterPersonalProyecto] = useState('');
+    const [filterPersonalCliente, setFilterPersonalCliente] = useState('');
+    const [filterPersonalEstado, setFilterPersonalEstado] = useState('');
+    const [filterPersonalToa, setFilterPersonalToa] = useState('all');
     const [productoView, setProductoView] = useState('grid');
     const [editingProductoId, setEditingProductoId] = useState(null);
     const [isMaster, setIsMaster] = useState(false);
     const catBulkInputRef = useRef(null);
     const prodBulkInputRef = useRef(null);
+    const almBulkInputRef = useRef(null);
+    const [showAiModal, setShowAiModal] = useState(false);
+    const [aiProgress, setAiProgress] = useState(false);
+    const [inlineSimilarityWarning, setInlineSimilarityWarning] = useState(null);
+    const [duplicateResolutionQueue, setDuplicateResolutionQueue] = useState([]);
+    const [showResolutionModal, setShowResolutionModal] = useState(false);
+    const [pendingUploadList, setPendingUploadList] = useState([]);
 
     // Form states
     const [almForm, setAlmForm] = useState({ nombre: '', codigo: '', tipo: 'Central', parentAlmacen: '', tecnicoRef: '', ubicacion: { direccion: '' }, propiedad: 'Propio', clienteRef: '' });
@@ -76,6 +184,25 @@ const ConfigLogistica = () => {
             setIsMaster(false);
         }
     }, []);
+
+    useEffect(() => {
+        const nombreVal = String(prodForm.nombre || '').trim();
+        if (nombreVal.length < 3) {
+            setInlineSimilarityWarning(null);
+            return;
+        }
+
+        const match = (data.productos || []).find(p => {
+            if (p._id === editingProductoId) return false;
+            return stringSimilarity(p.nombre, nombreVal) >= 0.70;
+        });
+
+        if (match) {
+            setInlineSimilarityWarning(match);
+        } else {
+            setInlineSimilarityWarning(null);
+        }
+    }, [prodForm.nombre, editingProductoId, data.productos]);
 
     const closeModal = () => {
         setShowModal(false);
@@ -245,12 +372,26 @@ const ConfigLogistica = () => {
             { 'Columna': 'imagenUrl', 'Obligatorio': 'NO', 'Descripción': 'URL opcional de la imagen de la categoría.' }
         ];
 
+        const opcionValores = [
+            { 'Prioridad de Valor': 'Bajo Valor' },
+            { 'Prioridad de Valor': 'Alto Valor' }
+        ];
+
+        const opcionRotacion = [
+            { 'Tipo de Rotación': 'Rotativo' },
+            { 'Tipo de Rotación': 'Consumible' }
+        ];
+
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(templateData);
         const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+        const wsValores = XLSX.utils.json_to_sheet(opcionValores);
+        const wsRotacion = XLSX.utils.json_to_sheet(opcionRotacion);
 
         XLSX.utils.book_append_sheet(wb, ws, 'Categorias');
         XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+        XLSX.utils.book_append_sheet(wb, wsValores, 'Prioridad Valor');
+        XLSX.utils.book_append_sheet(wb, wsRotacion, 'Tipo Rotación');
 
         XLSX.writeFile(wb, 'Plantilla_Categorias_Logistica.xlsx');
     };
@@ -311,14 +452,140 @@ const ConfigLogistica = () => {
             { 'Columna': 'imagenUrl', 'Obligatorio': 'NO', 'Descripción': 'URL opcional de la foto del artículo.' }
         ];
 
+        const opcionCategorias = (data.categorias || []).map(c => ({
+            'Categoría Existente': c.nombre || '',
+            'Descripción': c.descripcion || ''
+        }));
+
+        const opcionColores = COLOR_OPTIONS.map(c => ({ 'Colores Aceptados': c }));
+        const opcionTipos = [{ 'Tipos de Existencia': 'Activo' }, { 'Tipos de Existencia': 'Suministro' }];
+        const opcionSegmento = [{ 'Segmentación': 'Estándar' }, { 'Segmentación': 'Crítico' }];
+        const opcionPropiedad = [{ 'Propiedad': 'Propio' }, { 'Propiedad': 'Cliente' }];
+
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(templateData);
         const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+        const wsCategorias = XLSX.utils.json_to_sheet(opcionCategorias);
+        const wsColores = XLSX.utils.json_to_sheet(opcionColores);
+        const wsTipos = XLSX.utils.json_to_sheet(opcionTipos);
+        const wsSegmento = XLSX.utils.json_to_sheet(opcionSegmento);
+        const wsPropiedad = XLSX.utils.json_to_sheet(opcionPropiedad);
 
         XLSX.utils.book_append_sheet(wb, ws, 'Existencias');
         XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+        if (opcionCategorias.length > 0) {
+            XLSX.utils.book_append_sheet(wb, wsCategorias, 'Categorías Disponibles');
+        }
+        XLSX.utils.book_append_sheet(wb, wsColores, 'Colores Aceptados');
+        XLSX.utils.book_append_sheet(wb, wsTipos, 'Tipos Existencia');
+        XLSX.utils.book_append_sheet(wb, wsSegmento, 'Segmentaciones');
+        XLSX.utils.book_append_sheet(wb, wsPropiedad, 'Propiedad');
 
         XLSX.writeFile(wb, 'Plantilla_Existencias_Logistica.xlsx');
+    };
+
+    const downloadAlmacenTemplate = () => {
+        const templateData = [
+            {
+                nombre: 'Bodega Central Santiago',
+                codigo: 'BOD-CENTRAL',
+                tipo: 'Central',
+                direccion: 'Av. Providencia 1234, Santiago',
+                propiedad: 'Propio',
+                tecnicoRut: '',
+                clienteRef: ''
+            },
+            {
+                nombre: 'Vehículo Móvil 05 - Juan Pérez',
+                codigo: 'VEH-05',
+                tipo: 'Vehículo',
+                direccion: 'Móvil RM',
+                propiedad: 'Propio',
+                tecnicoRut: '12.345.678-9',
+                clienteRef: ''
+            }
+        ];
+
+        const instrucciones = [
+            { 'Columna': 'nombre', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre de la bodega o vehículo.' },
+            { 'Columna': 'codigo', 'Obligatorio': 'NO', 'Descripción': 'Código único identificador.' },
+            { 'Columna': 'tipo', 'Obligatorio': 'SÍ', 'Descripción': 'Central, Bodega Técnica, Vehículo, Cliente.' },
+            { 'Columna': 'direccion', 'Obligatorio': 'NO', 'Descripción': 'Dirección física o zona de operación.' },
+            { 'Columna': 'propiedad', 'Obligatorio': 'SÍ', 'Descripción': 'Propio o Cliente.' },
+            { 'Columna': 'tecnicoRut', 'Obligatorio': 'NO', 'Descripción': 'RUT del técnico asignado (ej: 12.345.678-9).' },
+            { 'Columna': 'clienteRef', 'Obligatorio': 'NO', 'Descripción': 'Nombre o ID del cliente asociado.' }
+        ];
+
+        const opcionTecnicos = (data.tecnicos || []).map(t => ({
+            'RUT Técnico': t.rut || '',
+            'Nombre Completo': `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
+            'Cargo': t.cargo || ''
+        }));
+
+        const opcionTipos = [
+            { 'Tipos de Bodega': 'Central' },
+            { 'Tipos de Bodega': 'Bodega Técnica' },
+            { 'Tipos de Bodega': 'Vehículo' },
+            { 'Tipos de Bodega': 'Cliente' }
+        ];
+
+        const opcionPropiedad = [
+            { 'Propiedad': 'Propio' },
+            { 'Propiedad': 'Cliente' }
+        ];
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+        const wsTecnicos = XLSX.utils.json_to_sheet(opcionTecnicos);
+        const wsTipos = XLSX.utils.json_to_sheet(opcionTipos);
+        const wsPropiedad = XLSX.utils.json_to_sheet(opcionPropiedad);
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Bodegas');
+        XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+        XLSX.utils.book_append_sheet(wb, wsTipos, 'Tipos Bodega');
+        XLSX.utils.book_append_sheet(wb, wsPropiedad, 'Propiedad');
+        if (opcionTecnicos.length > 0) {
+            XLSX.utils.book_append_sheet(wb, wsTecnicos, 'Técnicos Disponibles');
+        }
+
+        XLSX.writeFile(wb, 'Plantilla_Bodegas_Logistica.xlsx');
+    };
+
+    const importAlmacenes = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            setBulkLoading(true);
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const almacenes = rows
+                .map(r => ({
+                    nombre: String(r.nombre || '').trim(),
+                    codigo: String(r.codigo || '').trim(),
+                    tipo: String(r.tipo || 'Central').trim(),
+                    direccion: String(r.direccion || '').trim(),
+                    propiedad: String(r.propiedad || 'Propio').trim(),
+                    tecnicoRut: String(r.tecnicoRut || r.rutResponsable || r.rut || '').trim(),
+                    clienteRef: String(r.clienteRef || '').trim()
+                }))
+                .filter(r => r.nombre);
+
+            if (almacenes.length === 0) {
+                alert('No hay filas válidas para importar en bodegas.');
+                return;
+            }
+
+            const res = await logisticaApi.post('/almacenes/bulk', { almacenes });
+            alert(res.data?.message || 'Carga masiva bodegas completada.');
+            fetchMasterData();
+        } catch (err) {
+            alert('Error en carga masiva de bodegas: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setBulkLoading(false);
+            if (almBulkInputRef.current) almBulkInputRef.current.value = '';
+        }
     };
 
     const importCategorias = async (e) => {
@@ -365,27 +632,75 @@ const ConfigLogistica = () => {
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
             const productos = rows
-                .map(r => ({
-                    nombre: String(r.nombre || '').trim(),
-                    sku: String(r.sku || '').trim(),
-                    ean: String(r.ean || '').trim(),
-                    categoria: String(r.categoria || '').trim(),
-                    marca: String(r.marca || '').trim(),
-                    modelo: String(r.modelo || '').trim(),
-                    color: String(r.color || 'Genérico').trim(),
-                    unidadMedida: String(r.unidadMedida || 'Unidad').trim(),
-                    descripcion: String(r.descripcion || '').trim(),
-                    tipo: String(r.tipo || 'Activo').trim(),
-                    segmentacion: String(r.segmentacion || 'Estándar').trim(),
-                    propiedad: String(r.propiedad || 'Propio').trim(),
-                    valorUnitario: Number(r.valorUnitario || 0),
-                    icono: String(r.icono || 'Archive').trim(),
-                    imagenUrl: String(r.imagenUrl || '').trim()
-                }))
+                .map(r => {
+                    const rowNombre = String(r.nombre || '').trim();
+                    const rowCategoria = String(r.categoria || '').trim();
+                    const rowMarca = String(r.marca || '').trim();
+                    const rowModelo = String(r.modelo || '').trim();
+                    const rowTipo = String(r.tipo || 'Activo').trim();
+                    const rowSegmento = String(r.segmentacion || 'Estándar').trim();
+                    const rowDesc = String(r.descripcion || '').trim();
+
+                    const finalDesc = rowDesc || generateIntelligentDescription({
+                        nombre: rowNombre,
+                        categoria: rowCategoria,
+                        marca: rowMarca,
+                        modelo: rowModelo,
+                        tipo: rowTipo,
+                        segmentacion: rowSegmento
+                    });
+
+                    return {
+                        nombre: rowNombre,
+                        sku: String(r.sku || '').trim(),
+                        ean: String(r.ean || '').trim(),
+                        categoria: rowCategoria,
+                        marca: rowMarca,
+                        modelo: rowModelo,
+                        color: String(r.color || 'Genérico').trim(),
+                        unidadMedida: String(r.unidadMedida || 'Unidad').trim(),
+                        descripcion: finalDesc,
+                        tipo: rowTipo,
+                        segmentacion: rowSegmento,
+                        propiedad: String(r.propiedad || 'Propio').trim(),
+                        valorUnitario: Number(r.valorUnitario || 0),
+                        icono: String(r.icono || 'Archive').trim(),
+                        imagenUrl: String(r.imagenUrl || '').trim()
+                    };
+                })
                 .filter(r => r.nombre);
 
             if (productos.length === 0) {
                 alert('No hay filas válidas para importar en productos.');
+                return;
+            }
+
+            const queue = [];
+            productos.forEach((p, idx) => {
+                // Si el SKU ya existe en el sistema, es una actualización directa (se omite del mitigador de similitudes de nombre)
+                const hasExactSkuMatch = p.sku && (data.productos || []).some(existing => String(existing.sku || '').trim().toUpperCase() === String(p.sku).trim().toUpperCase());
+                if (hasExactSkuMatch) {
+                    return;
+                }
+
+                // Monitoreo de similitud de nombre
+                const match = (data.productos || []).find(existing => stringSimilarity(existing.nombre, p.nombre) >= 0.70);
+                if (match) {
+                    queue.push({
+                        index: idx,
+                        uploadedItem: p,
+                        similarTo: match,
+                        resolution: null // 'unify', 'keep', 'discard'
+                    });
+                }
+            });
+
+            if (queue.length > 0) {
+                setPendingUploadList(productos);
+                setDuplicateResolutionQueue(queue);
+                setShowResolutionModal(true);
+                setBulkLoading(false);
+                if (prodBulkInputRef.current) prodBulkInputRef.current.value = '';
                 return;
             }
 
@@ -397,6 +712,90 @@ const ConfigLogistica = () => {
         } finally {
             setBulkLoading(false);
             if (prodBulkInputRef.current) prodBulkInputRef.current.value = '';
+        }
+    };
+
+    const handleAutocompleteDescriptions = async () => {
+        const productsToUpdate = (data.productos || []).filter(p => !p.descripcion || p.descripcion.trim() === '');
+        if (productsToUpdate.length === 0) {
+            alert('¡Excelente! Todas las existencias registradas ya cuentan con descripciones inteligentes completadas.');
+            return;
+        }
+
+        try {
+            setAiProgress(true);
+            
+            await Promise.all(productsToUpdate.map(async (p) => {
+                const generated = generateIntelligentDescription({
+                    nombre: p.nombre,
+                    categoria: p.categoria?.nombre || p.categoria || '',
+                    marca: p.marca,
+                    modelo: p.modelo,
+                    tipo: p.tipo,
+                    segmentacion: p.segmentacion
+                });
+
+                const payload = {
+                    ...p,
+                    categoria: p.categoria?._id || p.categoria,
+                    descripcion: generated
+                };
+
+                return logisticaApi.put(`/productos/${p._id}`, payload);
+            }));
+
+            alert(`✨ ¡Éxito! Se generaron y completaron descripciones inteligentes para ${productsToUpdate.length} existencias de forma masiva.`);
+            setShowAiModal(false);
+            fetchMasterData();
+        } catch (error) {
+            alert('Error en autocompletado masivo: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setAiProgress(false);
+        }
+    };
+
+    const handleResolveDuplicatesSubmit = async () => {
+        try {
+            setBulkLoading(true);
+            const unresolvedCount = duplicateResolutionQueue.filter(item => !item.resolution).length;
+            if (unresolvedCount > 0) {
+                alert(`Por favor resuelve todas las similitudes de productos antes de proceder (${unresolvedCount} pendientes).`);
+                return;
+            }
+
+            const finalProductos = [];
+            pendingUploadList.forEach((p, idx) => {
+                const resolutionItem = duplicateResolutionQueue.find(item => item.index === idx);
+                if (resolutionItem) {
+                    if (resolutionItem.resolution === 'discard') {
+                        return; // Omitido por completo
+                    }
+                    if (resolutionItem.resolution === 'unify') {
+                        // Asignamos el SKU del producto existente similar para que el backend lo actualice automáticamente
+                        p.sku = resolutionItem.similarTo.sku;
+                        finalProductos.push(p);
+                        return;
+                    }
+                }
+                // Si es un producto limpio o fue marcado para 'Mantener' (se crea como nuevo registro)
+                finalProductos.push(p);
+            });
+
+            if (finalProductos.length > 0) {
+                const res = await logisticaApi.post('/productos/bulk', { productos: finalProductos });
+                alert(res.data?.message || 'Carga masiva productos completada.');
+            } else {
+                alert('No se crearon ni actualizaron nuevos registros.');
+            }
+
+            setShowResolutionModal(false);
+            setPendingUploadList([]);
+            setDuplicateResolutionQueue([]);
+            fetchMasterData();
+        } catch (err) {
+            alert('Error al aplicar resoluciones e importar: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setBulkLoading(false);
         }
     };
 
@@ -452,6 +851,23 @@ const ConfigLogistica = () => {
     const productosFiltrados = (data.productos || []).filter(p =>
         `${p.nombre || ''} ${p.sku || ''} ${p.marca || ''} ${p.modelo || ''}`.toLowerCase().includes(searchProducto.toLowerCase())
     );
+    const personalFiltrado = (data.tecnicos || []).filter(t => {
+        const textMatch = `${t.nombreCompleto || ''} ${t.rut || ''} ${t.cargo || ''} ${t.proyecto || ''} ${t.cliente || ''} ${t.idRecursoToa || ''}`.toLowerCase().includes(searchPersonal.toLowerCase());
+        const proyectoMatch = !filterPersonalProyecto || String(t.proyecto || '').toLowerCase() === filterPersonalProyecto.toLowerCase();
+        const clienteMatch = !filterPersonalCliente || String(t.cliente || '').toLowerCase() === filterPersonalCliente.toLowerCase();
+        const estadoMatch = !filterPersonalEstado || getAbbreviatedStatus(t.estadoActual).toLowerCase() === filterPersonalEstado.toLowerCase();
+        let toaMatch = true;
+        if (filterPersonalToa === 'with_toa') {
+            toaMatch = !!t.idRecursoToa;
+        } else if (filterPersonalToa === 'without_toa') {
+            toaMatch = !t.idRecursoToa;
+        }
+        return textMatch && proyectoMatch && clienteMatch && estadoMatch && toaMatch;
+    });
+
+    const uniquePersonalProyectos = Array.from(new Set((data.tecnicos || []).map(t => t.proyecto).filter(Boolean))).sort();
+    const uniquePersonalClientes = Array.from(new Set((data.tecnicos || []).map(t => t.cliente).filter(Boolean))).sort();
+    const uniquePersonalEstados = Array.from(new Set((data.tecnicos || []).map(t => getAbbreviatedStatus(t.estadoActual)).filter(Boolean))).sort();
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -462,26 +878,28 @@ const ConfigLogistica = () => {
                     </div>
                     <div>
                         <h1 className="text-3xl font-black text-slate-800 tracking-tight">Centro de Configuración Logística</h1>
-                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Ecosistema 360 / Bodegas, Categorías y Existencia General</p>
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Ecosistema 360 / Bodegas, Personal, Categorías y Existencias</p>
                     </div>
                 </div>
-                <button 
-                    onClick={() => setShowModal(true)}
-                    className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
-                >
-                    <Plus size={18} /> Crear {activeTab === 'bodegas' ? 'Bodega' : activeTab === 'categorias' ? 'Categoría' : 'Existencia'}
-                </button>
+                {activeTab !== 'personal' && (
+                    <button 
+                        onClick={() => setShowModal(true)}
+                        className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
+                    >
+                        <Plus size={18} /> Crear {activeTab === 'bodegas' ? 'Bodega' : activeTab === 'categorias' ? 'Categoría' : 'Existencia'}
+                    </button>
+                )}
             </header>
 
             {/* TABS */}
             <div className="flex gap-2 p-1.5 bg-slate-100 rounded-[2rem] w-fit">
-                {['bodegas', 'categorias', 'productos'].map(tab => (
+                {['bodegas', 'personal', 'categorias', 'productos'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                     >
-                        {tab === 'bodegas' ? 'Bodegas' : tab === 'categorias' ? 'Categorías' : 'Existencia General'}
+                        {tab === 'bodegas' ? 'Bodegas y Almacenes' : tab === 'personal' ? 'Personal Trabajador' : tab === 'categorias' ? 'Categorías' : 'Existencia General'}
                     </button>
                 ))}
             </div>
@@ -510,9 +928,27 @@ const ConfigLogistica = () => {
                                     <List size={14} />
                                 </button>
                             </div>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={downloadAlmacenTemplate} 
+                                    className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all"
+                                >
+                                    <Download size={14} /> Descargar Plantilla
+                                </button>
+                                <button 
+                                    type="button" 
+                                    disabled={bulkLoading} 
+                                    onClick={() => almBulkInputRef.current?.click()} 
+                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                                >
+                                    <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
+                                </button>
+                                <input ref={almBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importAlmacenes} />
+                            </div>
                         </div>
                     )}
-
+ 
                     {activeTab === 'categorias' && (
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
@@ -532,15 +968,33 @@ const ConfigLogistica = () => {
                                     <List size={14} />
                                 </button>
                             </div>
-                            {isMaster && (
-                                <button
-                                    type="button"
-                                    onClick={handleDeleteAllCategorias}
-                                    className="px-4 py-2.5 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2"
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={downloadCategoriaTemplate} 
+                                    className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all"
                                 >
-                                    <ShieldAlert size={14} /> Eliminar Todas (Maestro)
+                                    <Download size={14} /> Descargar Plantilla
                                 </button>
-                            )}
+                                <button 
+                                    type="button" 
+                                    disabled={bulkLoading} 
+                                    onClick={() => catBulkInputRef.current?.click()} 
+                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                                >
+                                    <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
+                                </button>
+                                <input ref={catBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importCategorias} />
+                                {isMaster && (
+                                    <button
+                                        type="button"
+                                        onClick={handleDeleteAllCategorias}
+                                        className="px-4 py-2.5 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2"
+                                    >
+                                        <ShieldAlert size={14} /> Eliminar Todas (Maestro)
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -579,7 +1033,135 @@ const ConfigLogistica = () => {
                                 >
                                     <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
                                 </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowAiModal(true)}
+                                    className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-violet-100 hover:-translate-y-0.5 transition-all"
+                                >
+                                    <Sparkles size={14} className="animate-pulse" /> Autocompletar IA
+                                </button>
                                 <input ref={prodBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importProductos} />
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'personal' && (
+                        <div className="space-y-4">
+                            {/* Barra Superior con Búsqueda y Vistas */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            value={searchPersonal}
+                                            onChange={e => setSearchPersonal(e.target.value)}
+                                            placeholder="Buscar por RUT, nombre, cargo..."
+                                            className="pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold w-64 shadow-sm focus:outline-none focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setPersonalView('grid')} 
+                                            className={`px-3 py-2 rounded-lg text-xs font-black transition-all ${personalView === 'grid' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                            title="Vista Cuadrícula"
+                                        >
+                                            <Grid3X3 size={14} />
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setPersonalView('list')} 
+                                            className={`px-3 py-2 rounded-lg text-xs font-black transition-all ${personalView === 'list' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                            title="Vista Lista"
+                                        >
+                                            <List size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                    Colaboradores Filtrados: <span className="text-slate-800 font-extrabold">{personalFiltrado.length}</span> / {data.tecnicos?.length || 0}
+                                </div>
+                            </div>
+
+                            {/* Barra de Filtros Dinámicos */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                                {/* Filtro Proyecto */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Proyecto</label>
+                                    <select
+                                        value={filterPersonalProyecto}
+                                        onChange={e => setFilterPersonalProyecto(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="">Todos los Proyectos</option>
+                                        {uniquePersonalProyectos.map(p => (
+                                            <option key={p} value={p}>{p}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro Cliente */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Mandante / Cliente</label>
+                                    <select
+                                        value={filterPersonalCliente}
+                                        onChange={e => setFilterPersonalCliente(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="">Todos los Clientes</option>
+                                        {uniquePersonalClientes.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro Estado */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Estado Talento</label>
+                                    <select
+                                        value={filterPersonalEstado}
+                                        onChange={e => setFilterPersonalEstado(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="">Todos los Estados</option>
+                                        {uniquePersonalEstados.map(est => (
+                                            <option key={est} value={est}>{est}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro TOA */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Integración TOA</label>
+                                    <select
+                                        value={filterPersonalToa}
+                                        onChange={e => setFilterPersonalToa(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="all">Cualquiera</option>
+                                        <option value="with_toa">Con ID TOA</option>
+                                        <option value="without_toa">Sin ID TOA</option>
+                                    </select>
+                                </div>
+
+                                {/* Limpiar Filtros */}
+                                {(filterPersonalProyecto || filterPersonalCliente || filterPersonalEstado || filterPersonalToa !== 'all' || searchPersonal) && (
+                                    <div className="flex items-end col-span-2 md:col-span-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFilterPersonalProyecto('');
+                                                setFilterPersonalCliente('');
+                                                setFilterPersonalEstado('');
+                                                setFilterPersonalToa('all');
+                                                setSearchPersonal('');
+                                            }}
+                                            className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-rose-100/30 flex items-center justify-center gap-1.5"
+                                        >
+                                            Limpiar Filtros
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -589,24 +1171,51 @@ const ConfigLogistica = () => {
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
+                                        <th className="px-4 py-3 w-16">Item</th>
+                                        <th className="px-4 py-3 w-32">ID TOA</th>
                                         <th className="px-4 py-3">Bodega/Vehículo</th>
                                         <th className="px-4 py-3">Código</th>
                                         <th className="px-4 py-3">Tipo</th>
                                         <th className="px-4 py-3">Responsable</th>
+                                        <th className="px-4 py-3">Propiedad</th>
                                         <th className="px-4 py-3">Estado</th>
                                         <th className="px-4 py-3 text-right">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {almacenesFiltrados.map(alm => (
+                                    {almacenesFiltrados.map((alm, index) => (
                                         <tr key={alm._id} className="border-t border-slate-50">
+                                            <td className="px-4 py-3 text-xs font-black text-slate-400">{index + 1}</td>
+                                            <td className="px-4 py-3 text-xs">
+                                                {alm.tecnicoRef?.idRecursoToa ? (
+                                                    <span className="text-violet-600 font-extrabold flex items-center gap-1 bg-violet-50/50 border border-violet-100/50 px-2 py-0.5 rounded-lg w-fit text-[9px] uppercase tracking-wider">
+                                                        ⚡ {alm.tecnicoRef.idRecursoToa}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 font-bold italic text-[9px]">Sin TOA ID</span>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 text-xs font-bold text-slate-700 flex items-center gap-2">
                                                 <Warehouse size={14} className="text-slate-400" /> {alm.nombre}
                                             </td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{alm.codigo || 'S/C'}</td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{alm.tipo}</td>
-                                            <td className="px-4 py-3 text-xs text-slate-500">
-                                                {alm.tecnicoRef ? `${alm.tecnicoRef.nombres} ${alm.tecnicoRef.apellidos}` : 'No Asignado'}
+                                            <td className="px-4 py-3 text-xs">
+                                                <div className="font-extrabold text-slate-700">
+                                                    {alm.tecnicoRef ? `${alm.tecnicoRef.nombres} ${alm.tecnicoRef.apellidos}` : 'No Asignado'}
+                                                </div>
+                                                {alm.tecnicoRef && (
+                                                    <div className="text-[9px] font-black text-slate-400 uppercase mt-0.5 tracking-wider">
+                                                        {alm.tecnicoRef.cargo || 'Colaborador'}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                                                    alm.propiedad === 'Propio' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                }`}>
+                                                    {alm.propiedad === 'Propio' ? 'Empresa' : alm.clienteRef?.nombre || 'Cliente'}
+                                                </span>
                                             </td>
                                             <td className="px-4 py-3 text-xs">
                                                 <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${alm.status === 'Inactivo' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
@@ -634,6 +1243,8 @@ const ConfigLogistica = () => {
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
+                                        <th className="px-4 py-3 w-16">Item</th>
+                                        <th className="px-4 py-3 w-32">ID</th>
                                         <th className="px-4 py-3">Categoría</th>
                                         <th className="px-4 py-3">Código</th>
                                         <th className="px-4 py-3">Valor</th>
@@ -643,8 +1254,10 @@ const ConfigLogistica = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {categoriasFiltradas.map(cat => (
+                                    {categoriasFiltradas.map((cat, index) => (
                                         <tr key={cat._id} className="border-t border-slate-50">
+                                            <td className="px-4 py-3 text-xs font-black text-slate-400">{index + 1}</td>
+                                            <td className="px-4 py-3 text-[10px] font-mono text-slate-400 select-all">{cat._id}</td>
                                             <td className="px-4 py-3 text-xs font-bold text-slate-700 flex items-center gap-2">{getVisualIcon(cat.icono || 'Tags', 14)} {cat.nombre}</td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{cat.codigo || 'S/C'}</td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{cat.prioridadValor}</td>
@@ -675,20 +1288,25 @@ const ConfigLogistica = () => {
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
+                                        <th className="px-4 py-3 w-16">Item</th>
+                                        <th className="px-4 py-3 w-32">ID</th>
                                         <th className="px-4 py-3">Existencia</th>
                                         <th className="px-4 py-3">SKU</th>
                                         <th className="px-4 py-3">Marca</th>
                                         <th className="px-4 py-3">Modelo</th>
                                         <th className="px-4 py-3">Color</th>
                                         <th className="px-4 py-3">Tipo</th>
+                                        <th className="px-4 py-3">Propiedad</th>
                                         <th className="px-4 py-3">Valor</th>
                                         <th className="px-4 py-3">Estado</th>
                                         <th className="px-4 py-3 text-right">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {productosFiltrados.map(prod => (
+                                    {productosFiltrados.map((prod, index) => (
                                         <tr key={prod._id} className="border-t border-slate-50">
+                                            <td className="px-4 py-3 text-xs font-black text-slate-400">{index + 1}</td>
+                                            <td className="px-4 py-3 text-[10px] font-mono text-slate-400 select-all">{prod._id}</td>
                                             <td className="px-4 py-3 text-xs font-bold text-slate-700 flex items-center gap-2">{getVisualIcon(prod.icono || 'Archive', 14)} {prod.nombre}</td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{prod.sku || 'S/SKU'}</td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{prod.marca || '-'}</td>
@@ -700,6 +1318,13 @@ const ConfigLogistica = () => {
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{prod.tipo || '-'}</td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                                                    prod.propiedad === 'Propio' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                }`}>
+                                                    {prod.propiedad === 'Propio' ? 'Empresa' : prod.clienteRef?.nombre || 'Cliente'}
+                                                </span>
+                                            </td>
                                             <td className="px-4 py-3 text-xs text-slate-500">${Number(prod.valorUnitario || 0).toLocaleString()}</td>
                                             <td className="px-4 py-3 text-xs">
                                                 <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${prod.status === 'Inactivo' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
@@ -737,6 +1362,26 @@ const ConfigLogistica = () => {
                                             <span className="text-slate-400 uppercase">Responsable:</span>
                                             <span className="text-slate-800">{alm.tecnicoRef ? `${alm.tecnicoRef.nombres} ${alm.tecnicoRef.apellidos}` : 'No Asignado'}</span>
                                         </div>
+                                        {alm.tecnicoRef && (
+                                            <>
+                                                <div className="flex items-center justify-between text-[10px] font-bold">
+                                                    <span className="text-slate-400 uppercase">Cargo Responsable:</span>
+                                                    <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-600 text-[8px] font-black uppercase tracking-wider">{alm.tecnicoRef.cargo || 'Colaborador'}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-[10px] font-bold">
+                                                    <span className="text-slate-400 uppercase">Estado Responsable:</span>
+                                                    <span className={`px-2 py-0.5 rounded-md text-[8px] font-bold border uppercase ${
+                                                        ['INACTIVO', 'DE BAJA', 'FINIQUITADO'].includes(alm.tecnicoRef.estadoActual?.toUpperCase())
+                                                            ? 'bg-rose-50 text-rose-600 border-rose-100'
+                                                            : alm.tecnicoRef.estadoActual?.toUpperCase() === 'LICENCIA MEDICA'
+                                                            ? 'bg-amber-50 text-amber-600 border-amber-100'
+                                                            : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                    }`}>
+                                                        {alm.tecnicoRef.estadoActual || 'OPERATIVO'}
+                                                    </span>
+                                                </div>
+                                            </>
+                                        )}
                                         <div className="flex items-center justify-between text-[10px] font-bold">
                                             <span className="text-slate-400 uppercase">Propiedad:</span>
                                             <span className={`px-2 py-0.5 rounded-lg ${alm.propiedad === 'Propio' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
@@ -817,6 +1462,140 @@ const ConfigLogistica = () => {
                                     </div>
                                 </ConfigCard>
                             ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'personal' && personalView === 'grid' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in zoom-in-95 duration-200">
+                            {personalFiltrado.map(colab => {
+                                const initials = getInitials(colab.nombreCompleto);
+                                return (
+                                    <div 
+                                        key={colab._id} 
+                                        className="bg-white rounded-[2.5rem] border border-slate-100 p-6 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-100 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
+                                    >
+                                        <div>
+                                            {/* HEADER CARD */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-500 text-white font-black text-sm flex items-center justify-center shadow-lg shadow-indigo-100 uppercase">
+                                                        {initials}
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-xs font-black text-slate-800 tracking-tight line-clamp-1">{colab.nombreCompleto}</h3>
+                                                        <span className="inline-block mt-1 px-2.5 py-0.5 rounded-lg bg-sky-50 text-sky-600 text-[9px] font-black uppercase tracking-wider">
+                                                            {colab.cargo || 'Cargo en Préstamo'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="text-[7px] font-black text-slate-300 uppercase tracking-wider">Estado HR</span>
+                                                    {getEstadoTalentoBadge(colab.estadoActual)}
+                                                </div>
+                                            </div>
+
+                                            {/* DETALLES */}
+                                            <div className="mt-6 space-y-3.5">
+                                                <div className="p-3 bg-slate-50 rounded-2xl space-y-2">
+                                                    <div className="flex items-center justify-between text-[10px] font-bold">
+                                                        <span className="text-slate-400 uppercase tracking-wider">Proyecto:</span>
+                                                        <span className="text-slate-800 font-extrabold text-right line-clamp-1">{colab.proyecto || 'Sin Asignar'}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-[10px] font-bold">
+                                                        <span className="text-slate-400 uppercase tracking-wider">Mandante / Cliente:</span>
+                                                        <span className="text-slate-800 font-extrabold text-right line-clamp-1">{colab.cliente || 'Sin Asignar'}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* IDENTIFICADORES */}
+                                                <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-50">
+                                                    <div className="flex-1 min-w-[120px] p-2 bg-slate-50 rounded-xl border border-slate-100/50 flex flex-col justify-center">
+                                                        <span className="text-[7px] font-black text-slate-300 uppercase tracking-wider">RUT Trabajador</span>
+                                                        <span className="text-[10px] font-extrabold text-slate-600 mt-0.5">{colab.rut || 'No Registrado'}</span>
+                                                    </div>
+                                                    {colab.idRecursoToa ? (
+                                                        <div className="flex-1 min-w-[120px] p-2 bg-violet-50/50 rounded-xl border border-violet-100/30 flex flex-col justify-center">
+                                                            <span className="text-[7px] font-black text-violet-400 uppercase tracking-wider">TOA Resource ID</span>
+                                                            <span className="text-[10px] font-black text-violet-600 mt-0.5 flex items-center gap-1">
+                                                                ⚡ {colab.idRecursoToa}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex-1 min-w-[120px] p-2 bg-slate-50 rounded-xl border border-slate-100/50 flex flex-col justify-center">
+                                                            <span className="text-[7px] font-black text-slate-300 uppercase tracking-wider">TOA ID</span>
+                                                            <span className="text-[10px] font-bold text-slate-400 mt-0.5 italic">Sin TOA ID</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {activeTab === 'personal' && personalView === 'list' && (
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
+                                    <tr>
+                                        <th className="px-6 py-4 w-20">Item</th>
+                                        <th className="px-6 py-4">Colaborador</th>
+                                        <th className="px-6 py-4">RUT</th>
+                                        <th className="px-6 py-4">ID TOA</th>
+                                        <th className="px-6 py-4">Cargo</th>
+                                        <th className="px-6 py-4">Proyecto</th>
+                                        <th className="px-6 py-4">Mandante</th>
+                                        <th className="px-6 py-4">Estado Talento</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {personalFiltrado.map((colab, index) => {
+                                        const initials = getInitials(colab.nombreCompleto);
+                                        return (
+                                            <tr key={colab._id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-all duration-150">
+                                                <td className="px-6 py-4 text-xs font-black text-slate-400">{index + 1}</td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 text-white font-black text-xs flex items-center justify-center uppercase shadow-sm">
+                                                            {initials}
+                                                        </div>
+                                                        <span className="text-xs font-black text-slate-800 tracking-tight">{colab.nombreCompleto}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-xs font-extrabold text-slate-500">{colab.rut || 'No Registrado'}</td>
+                                                <td className="px-6 py-4 text-xs font-black">
+                                                    {colab.idRecursoToa ? (
+                                                        <span className="text-violet-600 flex items-center gap-1">
+                                                            ⚡ {colab.idRecursoToa}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 font-bold italic">Sin TOA ID</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-600 text-[9px] font-black uppercase tracking-wider">
+                                                        {colab.cargo || 'Cargo en Préstamo'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-xs font-extrabold text-slate-600">{colab.proyecto || 'Sin Asignar'}</td>
+                                                <td className="px-6 py-4 text-xs font-extrabold text-slate-600">{colab.cliente || 'Sin Asignar'}</td>
+                                                <td className="px-6 py-4 text-xs">
+                                                    {getEstadoTalentoBadge(colab.estadoActual)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {personalFiltrado.length === 0 && (
+                                        <tr>
+                                            <td colSpan={8} className="px-6 py-12 text-center text-xs font-bold text-slate-400 italic">
+                                                No se encontraron colaboradores que coincidan con la búsqueda o filtros aplicados.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                     </>
@@ -919,6 +1698,50 @@ const ConfigLogistica = () => {
                                             <input ref={prodBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importProductos} />
                                         </div>
                                         <InputField label="Nombre de la Existencia" value={prodForm.nombre} onChange={v => setProdForm({...prodForm, nombre: v})} />
+                                        {inlineSimilarityWarning && (
+                                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl animate-pulse flex flex-col gap-2">
+                                                <div className="flex items-center gap-2 text-amber-800 text-xs font-black uppercase tracking-wider">
+                                                    <span className="text-sm">⚠️</span> Posible Duplicado Detectado
+                                                </div>
+                                                <p className="text-[11px] text-amber-700 font-bold leading-relaxed">
+                                                    El nombre es muy similar a la existencia existente: <strong className="text-amber-900">"{inlineSimilarityWarning.nombre}"</strong> ({inlineSimilarityWarning.sku}).
+                                                </p>
+                                                <div className="flex gap-2 mt-1">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => {
+                                                            setProdForm({
+                                                                ...prodForm,
+                                                                nombre: inlineSimilarityWarning.nombre,
+                                                                sku: inlineSimilarityWarning.sku,
+                                                                categoria: inlineSimilarityWarning.categoria?._id || inlineSimilarityWarning.categoria,
+                                                                marca: inlineSimilarityWarning.marca || '',
+                                                                modelo: inlineSimilarityWarning.modelo || '',
+                                                                color: inlineSimilarityWarning.color || 'Genérico',
+                                                                unidadMedida: inlineSimilarityWarning.unidadMedida || 'Unidad',
+                                                                descripcion: inlineSimilarityWarning.descripcion || '',
+                                                                tipo: inlineSimilarityWarning.tipo || 'Activo',
+                                                                segmentacion: inlineSimilarityWarning.segmentacion || 'Estándar',
+                                                                propiedad: inlineSimilarityWarning.propiedad || 'Propio',
+                                                                valorUnitario: inlineSimilarityWarning.valorUnitario || 0
+                                                            });
+                                                            setEditingProductoId(inlineSimilarityWarning._id);
+                                                            setInlineSimilarityWarning(null);
+                                                        }} 
+                                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"
+                                                    >
+                                                        🔗 Unificar (Editar Existente)
+                                                     </button>
+                                                     <button 
+                                                         type="button" 
+                                                         onClick={() => setInlineSimilarityWarning(null)} 
+                                                         className="px-3 py-1.5 bg-white border border-amber-200 hover:bg-amber-100 text-amber-800 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"
+                                                     >
+                                                         ✅ Mantener como Nueva Opción
+                                                     </button>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="grid grid-cols-2 gap-4">
                                             <InputField label="Código SKU (Vacío = Auto)" value={prodForm.sku} onChange={v => setProdForm({...prodForm, sku: v})} />
                                             <InputField label="Código EAN (Barras)" value={prodForm.ean} onChange={v => setProdForm({...prodForm, ean: v})} />
@@ -992,6 +1815,231 @@ const ConfigLogistica = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {showAiModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+                        <div className="p-8 bg-gradient-to-r from-violet-600 to-indigo-600 text-white flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3.5 bg-white/10 rounded-2xl">
+                                    <Sparkles size={24} className="animate-spin duration-[3000ms]" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black uppercase tracking-wider">Asistente de IA Logística</h2>
+                                    <p className="text-violet-200 text-[10px] font-black uppercase tracking-widest mt-1">Sintetizador Masivo de Fichas Técnicas</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setShowAiModal(false)} className="text-white/60 hover:text-white font-bold text-xs uppercase tracking-wider">Cerrar</button>
+                        </div>
+
+                        <div className="p-8 space-y-6 overflow-y-auto flex-1">
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-center gap-4">
+                                <div className="text-3xl">🤖</div>
+                                <div>
+                                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">¿Cómo funciona?</h4>
+                                    <p className="text-slate-500 text-xs mt-1 leading-relaxed">
+                                        Nuestra IA analizará la categoría, marca, modelo y segmentación de cada producto para redactar una ficha técnica detallada y profesional en segundos.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                    Existencias a Actualizar ({(data.productos || []).filter(p => !p.descripcion || p.descripcion.trim() === '').length})
+                                </h3>
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                                    {(data.productos || []).filter(p => !p.descripcion || p.descripcion.trim() === '').map(p => {
+                                        const previewDesc = generateIntelligentDescription({
+                                            nombre: p.nombre,
+                                            categoria: p.categoria?.nombre || p.categoria || '',
+                                            marca: p.marca,
+                                            modelo: p.modelo,
+                                            tipo: p.tipo,
+                                            segmentacion: p.segmentacion
+                                        });
+                                        return (
+                                            <div key={p._id} className="p-4 bg-violet-50/50 rounded-2xl border border-violet-100/50 hover:bg-violet-50 transition-all flex flex-col gap-1.5">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">{p.nombre}</span>
+                                                    <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[8px] font-black uppercase tracking-widest">{p.sku || 'Sin SKU'}</span>
+                                                </div>
+                                                <p className="text-[11px] text-violet-600 font-bold leading-relaxed">{previewDesc}</p>
+                                            </div>
+                                        );
+                                    })}
+                                    {(data.productos || []).filter(p => !p.descripcion || p.descripcion.trim() === '').length === 0 && (
+                                        <div className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                            🎉 ¡Perfecto! Ningún producto requiere optimización de descripción.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+                            <button type="button" onClick={() => setShowAiModal(false)} className="px-6 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600">Cancelar</button>
+                            <button 
+                                type="button" 
+                                disabled={aiProgress || (data.productos || []).filter(p => !p.descripcion || p.descripcion.trim() === '').length === 0}
+                                onClick={handleAutocompleteDescriptions} 
+                                className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {aiProgress ? 'Generando y Actualizando...' : '✨ Generar e Inyectar descripciones'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showResolutionModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+                        <div className="p-8 bg-gradient-to-r from-amber-500 to-orange-600 text-white flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3.5 bg-white/10 rounded-2xl">
+                                    <ShieldAlert size={24} className="animate-bounce" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black uppercase tracking-wider">Mitigador de Duplicados</h2>
+                                    <p className="text-amber-100 text-[10px] font-black uppercase tracking-widest mt-1">Monitoreo de Similitudes de Catálogo</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => {
+                                setShowResolutionModal(false);
+                                setPendingUploadList([]);
+                                setDuplicateResolutionQueue([]);
+                            }} className="text-white/60 hover:text-white font-bold text-xs uppercase tracking-wider">Cancelar Carga</button>
+                        </div>
+
+                        <div className="p-8 space-y-6 overflow-y-auto flex-1">
+                            <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 flex items-center gap-4">
+                                <div className="text-3xl">⚠️</div>
+                                <div>
+                                    <h4 className="text-xs font-black text-amber-800 uppercase tracking-wide">Se detectaron posibles productos duplicados en tu archivo</h4>
+                                    <p className="text-amber-700 text-xs mt-1 leading-relaxed font-medium">
+                                        Para mantener el catálogo de existencias limpio y ordenado, valida cada caso. Puedes unificarlos con el producto existente (evita crear un duplicado), mantenerlos por ser una variante diferente, o descartarlos de la carga.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                        Casos Pendientes de Resolución ({duplicateResolutionQueue.filter(item => !item.resolution).length})
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setDuplicateResolutionQueue(duplicateResolutionQueue.map(item => ({ ...item, resolution: 'unify' })));
+                                            }}
+                                            className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all"
+                                        >
+                                            🔗 Unificar Todos
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setDuplicateResolutionQueue(duplicateResolutionQueue.map(item => ({ ...item, resolution: 'keep' })));
+                                            }}
+                                            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all"
+                                        >
+                                            ✅ Mantener Todos
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {duplicateResolutionQueue.map((item, idx) => (
+                                        <div key={idx} className={`p-5 rounded-3xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                                            item.resolution === 'unify' 
+                                                ? 'bg-amber-50 border-amber-200' 
+                                                : item.resolution === 'keep' 
+                                                ? 'bg-emerald-50 border-emerald-200' 
+                                                : item.resolution === 'discard' 
+                                                ? 'bg-rose-50 border-rose-200' 
+                                                : 'bg-white border-slate-100 shadow-sm'
+                                        }`}>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-[8px] font-black uppercase tracking-widest">Fila Excel</span>
+                                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">{item.uploadedItem.nombre}</span>
+                                                </div>
+                                                <div className="text-[11px] font-bold text-slate-400">
+                                                    Muy similar a: <span className="text-amber-800 font-extrabold">"{item.similarTo.nombre}"</span> ({item.similarTo.sku || 'Sin SKU'})
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const nq = [...duplicateResolutionQueue];
+                                                        nq[idx].resolution = 'unify';
+                                                        setDuplicateResolutionQueue(nq);
+                                                    }}
+                                                    className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                                                        item.resolution === 'unify' 
+                                                            ? 'bg-amber-600 text-white shadow-md' 
+                                                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                    }`}
+                                                >
+                                                    🔗 Unificar
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const nq = [...duplicateResolutionQueue];
+                                                        nq[idx].resolution = 'keep';
+                                                        setDuplicateResolutionQueue(nq);
+                                                    }}
+                                                    className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                                                        item.resolution === 'keep' 
+                                                            ? 'bg-emerald-600 text-white shadow-md' 
+                                                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                    }`}
+                                                >
+                                                    ✅ Mantener
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const nq = [...duplicateResolutionQueue];
+                                                        nq[idx].resolution = 'discard';
+                                                        setDuplicateResolutionQueue(nq);
+                                                    }}
+                                                    className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                                                        item.resolution === 'discard' 
+                                                            ? 'bg-rose-600 text-white shadow-md' 
+                                                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                    }`}
+                                                >
+                                                    ❌ Omitir
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+                            <button type="button" onClick={() => {
+                                setShowResolutionModal(false);
+                                setPendingUploadList([]);
+                                setDuplicateResolutionQueue([]);
+                            }} className="px-6 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600">Cancelar Todo</button>
+                            <button 
+                                type="button" 
+                                onClick={handleResolveDuplicatesSubmit}
+                                className="bg-slate-900 hover:bg-slate-800 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2"
+                            >
+                                Importar y Aplicar Resoluciones
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

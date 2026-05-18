@@ -508,6 +508,204 @@ router.get('/:id', protect, async (req, res) => {
     }
 });
 
+router.post('/bulk', protect, authorize('admin', 'rrhh_captura:crear'), async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body.candidatos) ? req.body.candidatos : [];
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'No se enviaron registros para procesar' });
+        }
+
+        console.log(`\n📥 CARGA MASIVA: Procesando ${rows.length} registros para la empresa ${req.user.empresaRef}...`);
+
+        let createdCount = 0;
+        let updatedCount = 0;
+        let errors = [];
+
+        const parseCustomDate = (val) => {
+            if (!val) return null;
+            if (val instanceof Date) return val;
+            const s = String(val).trim();
+            if (!s || s === 'SIN TÉRMINO' || s.toUpperCase() === 'N/A' || s.toUpperCase() === 'NULL' || s === 'undefined') return null;
+
+            // Si es formato ISO
+            if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                const d = new Date(s);
+                return isNaN(d.getTime()) ? null : d;
+            }
+
+            // Si es formato DD/MM/AAAA o DD-MM-AAAA
+            const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+            if (match) {
+                const day = parseInt(match[1], 10);
+                const month = parseInt(match[2], 10) - 1; // 0-indexed
+                const year = parseInt(match[3], 10);
+                const d = new Date(year, month, day);
+                return isNaN(d.getTime()) ? null : d;
+            }
+
+            const d = new Date(s);
+            return isNaN(d.getTime()) ? null : d;
+        };
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            try {
+                const cleanRut = normalizeRut(row.rut);
+                if (!cleanRut) {
+                    throw new Error(`RUT inválido o vacío en la fila ${i + 1}`);
+                }
+
+                if (!row.fullName || !String(row.fullName).trim()) {
+                    throw new Error(`Nombre Completo es requerido (RUT: ${cleanRut})`);
+                }
+
+                if (!row.position || !String(row.position).trim()) {
+                    throw new Error(`Cargo es requerido (RUT: ${cleanRut})`);
+                }
+
+                // Intentar resolver Proyecto
+                let projectId = null;
+                let projectName = row.projectName || '';
+                if (projectName) {
+                    const matchedProj = await Proyecto.findOne({
+                        empresaRef: req.user.empresaRef,
+                        $or: [
+                            { nombreProyecto: new RegExp('^' + projectName.trim() + '$', 'i') },
+                            { projectName: new RegExp('^' + projectName.trim() + '$', 'i') }
+                        ]
+                    }).select('_id nombreProyecto projectName').lean();
+
+                    if (matchedProj) {
+                        projectId = matchedProj._id;
+                        projectName = matchedProj.nombreProyecto || matchedProj.projectName;
+                    }
+                }
+
+                // Intentar resolver Cliente
+                let clienteId = null;
+                let clienteNombre = row.clienteNombre || '';
+                if (clienteNombre) {
+                    const Cliente = require('../../agentetelecom/models/Cliente');
+                    const matchedCli = await Cliente.findOne({
+                        empresaRef: req.user.empresaRef,
+                        nombre: new RegExp('^' + clienteNombre.trim() + '$', 'i')
+                    }).select('_id nombre').lean();
+
+                    if (matchedCli) {
+                        clienteId = matchedCli._id;
+                        clienteNombre = matchedCli.nombre;
+                    }
+                }
+
+                let candidato = await Candidato.findOne({ rut: cleanRut, empresaRef: req.user.empresaRef });
+
+                const mapped = {
+                    fullName: String(row.fullName).trim(),
+                    email: row.email ? String(row.email).trim().toLowerCase() : '',
+                    phone: row.phone ? String(row.phone).trim() : '',
+                    fechaNacimiento: parseCustomDate(row.fechaNacimiento),
+                    estadoCivil: row.estadoCivil || 'Soltero(a)',
+                    nationality: row.nationality || 'Chilena',
+                    birthPlace: row.birthPlace || '',
+                    idExpiryDate: parseCustomDate(row.idExpiryDate),
+                    gender: row.gender || 'No Informado',
+                    address: row.address || '',
+                    calle: row.calle || '',
+                    numero: row.numero || '',
+                    deptoBlock: row.deptoBlock || '',
+                    comuna: row.comuna || '',
+                    region: row.region || '',
+                    idRecursoToa: row.idRecursoToa || '',
+                    position: String(row.position).trim(),
+                    educationLevel: row.educationLevel || '',
+                    ceco: row.ceco || '',
+                    area: row.area || '',
+                    departamento: row.departamento || '',
+                    sede: row.sede || '',
+                    projectName: projectName || '',
+                    projectId: projectId || null,
+                    clienteId: clienteId || null,
+                    clienteNombre: clienteNombre || '',
+                    status: row.status || 'Contratado',
+                    contractType: row.contractType || 'PLAZO FIJO',
+                    contractStartDate: parseCustomDate(row.contractStartDate) || new Date(),
+                    contractDurationDays: row.contractDurationDays ? (parseInt(row.contractDurationDays, 10) || 30) : 30,
+                    contractEndDate: parseCustomDate(row.contractEndDate),
+                    operationalStartDate: parseCustomDate(row.operationalStartDate),
+                    emergencyContact: row.emergencyContact || '',
+                    emergencyPhone: row.emergencyPhone || '',
+                    emergencyEmail: row.emergencyEmail || '',
+                    previsionSalud: row.previsionSalud || 'FONASA',
+                    isapreNombre: row.isapreNombre || '',
+                    valorPlan: row.valorPlan || '',
+                    monedaPlan: row.monedaPlan || 'UF',
+                    afp: row.afp || '',
+                    pensionado: (row.pensionado && (String(row.pensionado).toUpperCase() === 'SI' || String(row.pensionado).toUpperCase() === 'SÍ')) ? 'SI' : 'NO',
+                    bloodType: row.bloodType || '',
+                    allergies: row.allergies || '',
+                    chronicDiseases: row.chronicDiseases || '',
+                    hasDisability: Boolean(row.hasDisability && (String(row.hasDisability).toUpperCase() === 'SI' || String(row.hasDisability).toUpperCase() === 'SÍ' || row.hasDisability === true)),
+                    disabilityType: row.disabilityType || '',
+                    tieneCargas: (row.tieneCargas && (String(row.tieneCargas).toUpperCase() === 'SI' || String(row.tieneCargas).toUpperCase() === 'SÍ')) ? 'SI' : 'NO',
+                    banco: row.banco || '',
+                    tipoCuenta: row.tipoCuenta || '',
+                    numeroCuenta: row.numeroCuenta || '',
+                    sueldoBase: row.sueldoBase ? (parseFloat(row.sueldoBase) || 0) : 0,
+                    requiereLicencia: (row.requiereLicencia && (String(row.requiereLicencia).toUpperCase() === 'SI' || String(row.requiereLicencia).toUpperCase() === 'SÍ')) ? 'SI' : 'NO',
+                    fechaVencimientoLicencia: parseCustomDate(row.fechaVencimientoLicencia),
+                    shirtSize: row.shirtSize || '',
+                    pantsSize: row.pantsSize || '',
+                    jacketSize: row.jacketSize || '',
+                    shoeSize: row.shoeSize || '',
+                    isActive: true
+                };
+
+                if (candidato) {
+                    Object.assign(candidato, mapped);
+                    candidato.updatedAt = new Date();
+                    candidato.history.push({ action: 'Carga Masiva', description: 'Registro actualizado vía importación masiva', user: req.user?.name || 'Sistema' });
+                    const saved = await candidato.save();
+                    await syncToTecnico(saved, req.user.empresaRef);
+                    updatedCount++;
+                } else {
+                    candidato = new Candidato({
+                        ...mapped,
+                        rut: cleanRut,
+                        empresaRef: req.user.empresaRef,
+                        history: [{ action: 'Carga Masiva', description: 'Registro creado vía importación masiva', user: req.user?.name || 'Sistema' }]
+                    });
+                    const saved = await candidato.save();
+                    await syncToTecnico(saved, req.user.empresaRef);
+                    createdCount++;
+                }
+            } catch (err) {
+                console.error(`❌ Error importando fila ${i + 1}:`, err.message);
+                errors.push({
+                    fila: i + 1,
+                    rut: row.rut || 'S/N',
+                    fullName: row.fullName || 'S/N',
+                    error: err.message
+                });
+            }
+        }
+
+        res.json({
+            success: true,
+            stats: {
+                total: rows.length,
+                creados: createdCount,
+                actualizados: updatedCount,
+                errores: errors.length
+            },
+            errors: errors.length > 0 ? errors : null
+        });
+
+    } catch (err) {
+        console.error('❌ POST /api/rrhh/candidatos/bulk ERROR:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 router.post('/', protect, authorize('admin', 'rrhh_captura:crear'), async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);

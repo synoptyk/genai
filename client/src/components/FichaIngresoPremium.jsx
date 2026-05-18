@@ -9,6 +9,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { formatRut } from '../utils/rutUtils';
 
 /**
  * FichaIngresoPremium
@@ -203,7 +204,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                   {[
                     { label: 'Nombres', value: data.nombres || data.fullName?.split(' ')[0] },
                     { label: 'Apellidos', value: data.apellidos || data.fullName?.split(' ').slice(1).join(' ') },
-                    { label: 'RUT / Identificador', value: data.rut },
+                    { label: 'RUT / Identificador', value: formatRut(data.rut) },
                     { label: 'Fecha Nacimiento', value: formatDate(data.fechaNacimiento) },
                     { label: 'Nacionalidad', value: data.nacionalidad || data.nationality },
                     { label: 'Estado Civil', value: data.estadoCivil },

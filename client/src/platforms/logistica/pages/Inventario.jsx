@@ -467,7 +467,6 @@ const Inventario = () => {
     // DESCARGAR PLANTILLA EXCEL
     const descargarPlantillaExcel = () => {
         try {
-            // Un par de ejemplos para orientar al usuario
             const ejemploProductos = productos.slice(0, 2);
             const templateData = [
                 {
@@ -487,17 +486,35 @@ const Inventario = () => {
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(templateData);
             
-            // Agregar hoja de instrucciones
             const instrucciones = [
                 { 'Instrucción / Regla': '1. La columna SKU_PRODUCTO es obligatoria y debe coincidir exactamente con el SKU del catálogo maestro.' },
                 { 'Instrucción / Regla': '2. La columna CANTIDAD debe ser un número entero mayor a 0.' },
-                { 'Instrucción / Regla': '3. La columna ESTADO_FISICO debe ser uno de los siguientes valores: Nuevo, Usado Bueno, Usado Malo.' },
-                { 'Instrucción / Regla': '4. La columna NOMBRE_REFERENCIA es opcional y solo sirve como guía.' }
+                { 'Instrucción / Regla': '3. La columna ESTADO_FISICO debe ser uno de los siguientes valores: Nuevo, Usado Bueno, Usado Malo, Merma.' },
+                { 'Instrucción / Regla': '4. La columna NOMBRE_REFERENCIA es opcional y solo sirve como guía de lectura.' }
             ];
             const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
 
+            const opcionProductos = (productos || []).map(p => ({
+                'SKU Maestro': p.sku || '',
+                'Nombre del Producto': p.nombre || '',
+                'Categoría': typeof p.categoria === 'object' ? (p.categoria?.nombre || '') : String(p.categoria || '')
+            }));
+            const wsProductos = XLSX.utils.json_to_sheet(opcionProductos);
+
+            const opcionEstados = [
+                { 'Estados Físicos Aceptados': 'Nuevo' },
+                { 'Estados Físicos Aceptados': 'Usado Bueno' },
+                { 'Estados Físicos Aceptados': 'Usado Malo' },
+                { 'Estados Físicos Aceptados': 'Merma' }
+            ];
+            const wsEstados = XLSX.utils.json_to_sheet(opcionEstados);
+
             XLSX.utils.book_append_sheet(wb, ws, "Plantilla de Carga");
             XLSX.utils.book_append_sheet(wb, wsInstrucciones, "Instrucciones de Uso");
+            if (opcionProductos.length > 0) {
+                XLSX.utils.book_append_sheet(wb, wsProductos, "Productos Disponibles");
+            }
+            XLSX.utils.book_append_sheet(wb, wsEstados, "Estados Aceptados");
 
             XLSX.writeFile(wb, "Plantilla_Carga_Inicial_Existencias.xlsx");
         } catch (error) {
@@ -1204,6 +1221,7 @@ const Inventario = () => {
                                     <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50/80 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100 whitespace-nowrap">
                                     <tr>
+                                        <th className="px-4 py-5 w-16">Item</th>
                                         <th className="px-4 py-5">SKU</th>
                                         <th className="px-4 py-5">EAN</th>
                                         <th className="px-4 py-5">Categoría</th>
@@ -1237,23 +1255,23 @@ const Inventario = () => {
                                     {loading ? (
                                         [1,2,3,4].map(i => (
                                             <tr key={i} className="animate-pulse">
-                                                <td colSpan="27" className="px-6 py-8" />
+                                                <td colSpan="28" className="px-6 py-8" />
                                             </tr>
                                         ))
                                     ) : filteredAssets.length === 0 ? (
                                         <tr>
-                                            <td colSpan="27" className="px-6 py-20 text-center text-slate-400 font-bold">
+                                            <td colSpan="28" className="px-6 py-20 text-center text-slate-400 font-bold">
                                                 <Archive size={48} className="mx-auto mb-4 opacity-25" />
                                                 Sin activos registrados en el catálogo maestro
                                             </td>
                                         </tr>
-                                    ) : filteredAssets.map((p) => {
+                                    ) : filteredAssets.map((p, index) => {
                                         const isBlocked = p.status === 'Inactivo';
                                         
                                         // Calcular stock físico consolidado
                                         const stockItems = stockReport.filter(s => s.productoRef?._id === p._id || s.productoRef === p._id);
                                         const totalStock = stockItems.reduce((acc, curr) => acc + (curr.cantidadNuevo || 0) + (curr.cantidadUsadoBueno || 0) + (curr.cantidadUsadoMalo || 0) + (curr.cantidadMerma || 0), 0);
-
+ 
                                         // Calcular stock asignado (bodegas tipo Móvil, Técnico o asignadas a técnico)
                                         const stockAsignado = stockItems.reduce((acc, curr) => {
                                             const esAsignado = curr.almacenRef?.tipo === 'Móvil' || curr.almacenRef?.tipo === 'Técnico' || Boolean(curr.almacenRef?.tecnicoRef);
@@ -1262,10 +1280,10 @@ const Inventario = () => {
                                             }
                                             return acc;
                                         }, 0);
-
+ 
                                         // Stock disponible: total menos asignados
                                         const stockDisponible = totalStock - stockAsignado;
-
+ 
                                         // Calcular depreciación virtual para el maestro
                                         const unitPrice = p.valorUnitario || 0;
                                         const lifeMonths = p.vidaUtilMeses || 60;
@@ -1287,12 +1305,12 @@ const Inventario = () => {
                                             }
                                         }
                                         const valLibro = unitPrice - depAcum;
-
+ 
                                         return (
                                             <tr key={p._id} className={`hover:bg-slate-50/50 transition-all group ${
                                                 isBlocked ? 'bg-slate-50/30' : ''
                                             } ${selectedAssetForDepreciation?._id === p._id ? 'bg-indigo-50/20 border-l-4 border-l-indigo-600' : ''}`}>
-                                                
+                                                <td className="px-4 py-4 text-xs font-black text-slate-400">{index + 1}</td>
                                                 {/* SKU */}
                                                 <td className="px-4 py-4 whitespace-nowrap">
                                                     <span className="text-[10px] font-mono font-black text-slate-400 uppercase tracking-tight bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
@@ -1546,6 +1564,7 @@ const Inventario = () => {
                                 <table className="w-full text-left border-collapse">
                                     <thead className="bg-slate-50/80 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100 whitespace-nowrap">
                                         <tr>
+                                            <th className="px-6 py-5 w-20">Item</th>
                                             <th className="px-6 py-5">Activo / Categoría</th>
                                             <th className="px-4 py-5">SKU / EAN</th>
                                             <th className="px-4 py-5">Marca & Modelo</th>
@@ -1560,17 +1579,17 @@ const Inventario = () => {
                                         {loading ? (
                                             [1,2,3,4].map(i => (
                                                 <tr key={i} className="animate-pulse">
-                                                    <td colSpan="8" className="px-6 py-8" />
+                                                    <td colSpan="9" className="px-6 py-8" />
                                                 </tr>
                                             ))
                                         ) : filteredAssets.length === 0 ? (
                                             <tr>
-                                                <td colSpan="8" className="px-6 py-20 text-center text-slate-400 font-bold">
+                                                <td colSpan="9" className="px-6 py-20 text-center text-slate-400 font-bold">
                                                     <Archive size={48} className="mx-auto mb-4 opacity-25" />
                                                     Sin activos registrados en el catálogo maestro
                                                 </td>
                                             </tr>
-                                        ) : filteredAssets.map((p) => {
+                                        ) : filteredAssets.map((p, index) => {
                                             const isBlocked = p.status === 'Inactivo';
                                             
                                             // Calcular stock consolidado
@@ -1605,7 +1624,7 @@ const Inventario = () => {
                                                 <tr key={p._id} className={`hover:bg-slate-50/50 transition-all group ${
                                                     isBlocked ? 'bg-slate-50/30' : ''
                                                 } ${selectedAssetForDepreciation?._id === p._id ? 'bg-indigo-50/20 border-l-4 border-l-indigo-600' : ''}`}>
-                                                    
+                                                    <td className="px-6 py-4 text-xs font-black text-slate-400">{index + 1}</td>
                                                     {/* Activo / Categoría */}
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-3">
@@ -1752,6 +1771,7 @@ const Inventario = () => {
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50/80 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100">
                                     <tr>
+                                        <th className="px-6 py-5 w-20">Item</th>
                                         <th className="px-6 py-5">Activo / Bodega</th>
                                         <th className="px-6 py-5">Ubicación / Encargado</th>
                                         <th className="px-6 py-5 text-center">Estados Físicos Stock</th>
@@ -1763,17 +1783,17 @@ const Inventario = () => {
                                     {loading ? (
                                         [1,2,3,4].map(i => (
                                             <tr key={i} className="animate-pulse">
-                                                <td colSpan="5" className="px-6 py-8" />
+                                                <td colSpan="6" className="px-6 py-8" />
                                             </tr>
                                         ))
                                     ) : filteredStock.length === 0 ? (
                                         <tr>
-                                            <td colSpan="5" className="px-6 py-20 text-center text-slate-400 font-bold">
+                                            <td colSpan="6" className="px-6 py-20 text-center text-slate-400 font-bold">
                                                 <Package size={48} className="mx-auto mb-4 opacity-25" />
                                                 Sin existencias reportadas en bodegas o móviles
                                             </td>
                                         </tr>
-                                    ) : filteredStock.map((s) => {
+                                    ) : filteredStock.map((s, index) => {
                                         const hasRefs = Boolean(s?.productoRef?._id && s?.almacenRef?._id);
                                         const isAssetBlocked = s.productoRef?.status === 'Inactivo';
                                         
@@ -1802,7 +1822,7 @@ const Inventario = () => {
                                             <tr key={s._id} className={`hover:bg-slate-50/50 transition-all group ${
                                                 isAssetBlocked ? 'bg-slate-50/20' : ''
                                             }`}>
-                                                
+                                                <td className="px-6 py-4 text-xs font-black text-slate-400">{index + 1}</td>
                                                 {/* Activo / SKU */}
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-4">
