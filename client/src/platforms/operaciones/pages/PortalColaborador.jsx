@@ -13,12 +13,130 @@ import {
     Zap, Mail, Phone, Briefcase, Building2,
     CalendarClock, Fingerprint, ShieldAlert,
     Package, Key, Fuel, Navigation, GraduationCap,
-    Activity,
+    Activity, Archive,
     ClipboardList,
     TrendingUp, Star, Trophy, Settings,
     Wrench, Shield, Cpu, Layers, Hammer, Gauge
 } from 'lucide-react';
 import logisticaApi from '../../logistica/logisticaApi';
+
+const getLocation = () => {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('Geolocalización no soportada en su dispositivo.'));
+        } else {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    });
+                },
+                (error) => {
+                    let msg = 'Error obteniendo ubicación. Asegúrese de tener el GPS activado.';
+                    if (error.code === 1) msg = 'Permiso de ubicación denegado. Debe autorizar el GPS para esta acción.';
+                    reject(new Error(msg));
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+    });
+};
+
+const SignaturePad = ({ onSave, onCancel }) => {
+    const canvasRef = React.useRef(null);
+    const [isDrawing, setIsDrawing] = React.useState(false);
+
+    const getCoordinates = (e) => {
+        if (!canvasRef.current) return;
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        if (e.touches && e.touches.length > 0) {
+            return {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        }
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    };
+
+    const startDrawing = (e) => {
+        // e.preventDefault(); // Sometimes prevents touch scrolling if outside, but we want it for canvas
+        const coords = getCoordinates(e);
+        if (!coords) return;
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(coords.x, coords.y);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#333';
+        setIsDrawing(true);
+    };
+
+    const draw = (e) => {
+        if (!isDrawing) return;
+        // e.preventDefault();
+        const coords = getCoordinates(e);
+        if (!coords) return;
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.lineTo(coords.x, coords.y);
+        ctx.stroke();
+    };
+
+    const endDrawing = () => {
+        setIsDrawing(false);
+    };
+
+    const clear = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+
+    const handleSave = () => {
+        const canvas = canvasRef.current;
+        if(canvas) {
+            // Check if canvas is empty (simplified check)
+            const ctx = canvas.getContext('2d');
+            const pixelBuffer = new Uint32Array(ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+            const hasPixels = pixelBuffer.some(color => color !== 0);
+            if (!hasPixels) {
+                alert("Debe dibujar su firma antes de continuar.");
+                return;
+            }
+            onSave(canvas.toDataURL('image/png'));
+        }
+    };
+
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="border-2 border-dashed border-slate-300 rounded-xl bg-white overflow-hidden touch-none relative" style={{ touchAction: 'none' }}>
+                <canvas 
+                    ref={canvasRef}
+                    width={400}
+                    height={200}
+                    className="w-full h-[150px] cursor-crosshair"
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={endDrawing}
+                    onMouseLeave={endDrawing}
+                    onTouchStart={(e) => { e.preventDefault(); startDrawing(e.nativeEvent); }}
+                    onTouchMove={(e) => { e.preventDefault(); draw(e.nativeEvent); }}
+                    onTouchEnd={(e) => { e.preventDefault(); endDrawing(); }}
+                />
+                <button onClick={clear} className="absolute top-2 right-2 text-[10px] font-bold bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg shadow-sm">Limpiar</button>
+            </div>
+            <div className="flex gap-2">
+                <button onClick={onCancel} className="flex-1 py-3 text-slate-500 bg-slate-100 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-slate-200">Cancelar</button>
+                <button onClick={handleSave} className="flex-1 py-3 text-white bg-indigo-600 rounded-xl font-black text-[10px] uppercase tracking-wider shadow-lg hover:bg-indigo-700">Confirmar Firma</button>
+            </div>
+        </div>
+    );
+};
+
+
 
 const PortalColaborador = () => {
     const { user } = useAuth();
@@ -72,10 +190,12 @@ const PortalColaborador = () => {
     
     // Estados Auto-Auditoría
     const [isAutoAuditing, setIsAutoAuditing] = useState(false);
-    const [auditResponses, setAuditResponses] = useState({}); // { itemId: { estado: 'Bueno'|'Malo'|'No Tengo', comentario, fotoUrl } }
+    const [auditResponses, setAuditResponses] = useState({}); // { productoId: { estado, comentario, foto } }
+    const [submittingAudit, setSubmittingAudit] = useState(false);
     const [auditItemTarget, setAuditItemTarget] = useState(null);
     const [auditItemStatus, setAuditItemStatus] = useState(null);
-    const [submittingAudit, setSubmittingAudit] = useState(false);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [historialAuditorias, setHistorialAuditorias] = useState([]);
 
     const activeYear = new Date().getFullYear();
 
@@ -314,14 +434,16 @@ const PortalColaborador = () => {
 
             // 6. Cargar Inventario y Auditorías Logísticas (solo si hay ID de técnico)
             if (resTecnico.data?._id) {
-                const [resInv, resAud, resObs] = await Promise.all([
+                const [resInv, resAud, resObs, resHist] = await Promise.all([
                     logisticaApi.get(`/stock-tecnico?tecnicoId=${resTecnico.data._id}`).catch(() => ({ data: [] })),
                     logisticaApi.get(`/auditorias-tecnico?tecnicoId=${resTecnico.data._id}`).catch(() => ({ data: [] })),
-                    logisticaApi.get(`/observaciones-stock/tecnico/${resTecnico.data._id}`).catch(() => ({ data: [] }))
+                    logisticaApi.get(`/observaciones-stock/tecnico/${resTecnico.data._id}`).catch(() => ({ data: [] })),
+                    logisticaApi.get(`/historial-auto-auditorias/${resTecnico.data._id}`).catch(() => ({ data: [] }))
                 ]);
                 setMiInventario(resInv.data);
                 setMisAuditorias(resAud.data);
                 setMisObservacionesActivas(resObs.data);
+                setHistorialAuditorias(resHist.data);
 
                 // 7. Cargar producción TOA si el técnico tiene idRecursoToa
                 if (resTecnico.data.idRecursoToa) {
@@ -592,7 +714,8 @@ const PortalColaborador = () => {
                     <Card icon={BarChart3} title="Rendimiento" subtitle="Tu avance productivo y metas" color="bg-emerald-600" onClick={() => setActiveView('produccion')} />
                     <Card icon={ShieldCheck} title="HSE & Seguridad" subtitle="Certificaciones y Licencias" color="bg-violet-600" onClick={() => setActiveView('cumplimiento')} />
                     <Card icon={Fuel} title="Solicitud Combustible" subtitle={lastFuelRequest?.estado === 'Pendiente' ? 'Estado: Pendiente de Aprobación' : 'Registra tu carga del día'} color="bg-orange-600" onClick={() => setActiveView('combustible')} />
-                    <Card icon={ClipboardList} title="Mi Inventario 360" subtitle={`Total: ${miInventario.length} categorías asignadas`} color="bg-slate-800" onClick={() => setActiveView('inventario')} />
+                    <Card icon={ClipboardList} title="Mi Inventario 360" subtitle={`Total: ${Array.from(new Set(miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).map(item => item.productoRef?.categoria?.nombre || item.categoria || 'Otros'))).length} categorías asignadas`} color="bg-slate-800" onClick={() => setActiveView('inventario')} />
+                    <Card icon={Archive} title="Historial Auditorías" subtitle={`Total: ${historialAuditorias.length} auditorías firmadas`} color="bg-teal-600" onClick={() => setActiveView('historial-auditorias')} />
                     <Card icon={Wallet} title="Liquidaciones" subtitle="Historial de remuneraciones" color="bg-slate-400" isPlaceholder />
                     <Card icon={Award} title="Certificados" subtitle="Documentación laboral 24/7" color="bg-slate-400" isPlaceholder />
                 </div>
@@ -1663,10 +1786,12 @@ const PortalColaborador = () => {
             if (!observationForm.comentario) return alert("Debes ingresar un comentario detallado.");
             setSubmittingObservation(true);
             try {
+                const coords = await getLocation();
                 const data = {
                     ...observationForm,
                     tecnicoRef: tecnico?._id,
-                    productoRef: selectedItemObservation.productoRef?._id || selectedItemObservation.productoRef || selectedItemObservation._id
+                    productoRef: selectedItemObservation.productoRef?._id || selectedItemObservation.productoRef || selectedItemObservation._id,
+                    geolocalizacion: coords
                 };
                 await logisticaApi.post('/observaciones-stock', data);
                 alert("Alerta enviada correctamente. Su supervisor ha sido notificado.");
@@ -1744,19 +1869,29 @@ const PortalColaborador = () => {
                 setIsAutoAuditing(false);
                 return;
             }
+            setShowSignatureModal(true);
+        };
 
+        const submitSignedAutoAudit = async (signatureBase64) => {
             setSubmittingAudit(true);
             try {
-                await logisticaApi.post('/auto-auditoria', {
+                const coords = await getLocation();
+                const items = Object.values(auditResponses);
+                
+                await logisticaApi.post('/auto-auditoria-firmada', {
                     tecnicoId: tecnico?._id,
-                    items
+                    items,
+                    firmaUrl: signatureBase64,
+                    geolocalizacion: coords
                 });
-                alert("Auto-Auditoría enviada correctamente.");
+                
+                alert("Auto-Auditoría firmada y enviada correctamente.");
                 setIsAutoAuditing(false);
                 setAuditResponses({});
+                setShowSignatureModal(false);
                 fetchData();
             } catch (err) {
-                alert("Error al procesar auto-auditoría: " + (err.response?.data?.message || err.message));
+                alert("Error al procesar auto-auditoría: " + (err.message));
             } finally {
                 setSubmittingAudit(false);
             }
@@ -1771,7 +1906,7 @@ const PortalColaborador = () => {
                     <div className="lg:col-span-2 space-y-6">
                         <div className="flex items-center justify-between px-2">
                             <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 italic">Estatus de Stock Asignado</h4>
-                            <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black">{miInventario.length} Ítems</span>
+                            <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black">{miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).length} Ítems</span>
                         </div>
 
                         <div className="flex gap-2">
@@ -1815,7 +1950,7 @@ const PortalColaborador = () => {
                                         <Package size={18} />
                                     </div>
                                     <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${selectedCategoryTab === 'TODOS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                                        {miInventario.length}
+                                        {miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).length}
                                     </span>
                                 </div>
                                 <div>
@@ -1824,8 +1959,8 @@ const PortalColaborador = () => {
                                 </div>
                             </div>
 
-                            {Array.from(new Set(miInventario.map(item => item.productoRef?.categoria?.nombre || item.categoria || 'Otros'))).map(cat => {
-                                const count = miInventario.filter(item => (item.productoRef?.categoria?.nombre || item.categoria || 'Otros') === cat).length;
+                            {Array.from(new Set(miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).map(item => item.productoRef?.categoria?.nombre || item.categoria || 'Otros'))).map(cat => {
+                                const count = miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0 && (item.productoRef?.categoria?.nombre || item.categoria || 'Otros') === cat).length;
                                 const isActive = selectedCategoryTab === cat;
                                 
                                 // Elegir ícono dinámicamente en base al nombre de la categoría
@@ -1861,7 +1996,7 @@ const PortalColaborador = () => {
                         </div>
 
                         <div className="grid gap-4 mt-2">
-                            {miInventario.filter(item => {
+                            {miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).filter(item => {
                                 // Filtro por pestaña de categoría
                                 if (selectedCategoryTab !== 'TODOS') {
                                     const cat = item.productoRef?.categoria?.nombre || item.categoria || 'Otros';
@@ -1965,7 +2100,7 @@ const PortalColaborador = () => {
                                     </div>
                                 );
                             })}
-                            {miInventario.length === 0 && (
+                            {miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).length === 0 && (
                                 <div className="p-20 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
                                     <Package size={48} className="text-slate-100 mx-auto mb-4" />
                                     <p className="text-slate-300 font-black uppercase italic text-xs tracking-widest">No tienes inventario cargado</p>
@@ -2178,6 +2313,52 @@ const PortalColaborador = () => {
                         </div>
                     </div>
                 )}
+
+                {showSignatureModal && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="bg-slate-50 w-full max-w-lg rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="text-center mb-4 shrink-0">
+                                <div className="mx-auto w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                                    <ShieldCheck size={32} />
+                                </div>
+                                <h3 className="text-lg font-black text-slate-800 tracking-tight">Firma de Auto-Auditoría</h3>
+                                <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">{tecnico?.nombres} {tecnico?.apellidos} - {tecnico?.rut}</p>
+                            </div>
+
+                            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4 overflow-y-auto flex-1">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center border-b pb-2">Resumen de Ítems Auditados</h4>
+                                <ul className="space-y-3">
+                                    {Object.entries(auditResponses).map(([id, data]) => {
+                                        const item = miInventario.find(i => (i.productoRef?._id || i.productoRef) === id);
+                                        return (
+                                            <li key={id} className="flex justify-between items-center text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
+                                                <span className="font-bold text-slate-700 truncate mr-2" title={item?.productoRef?.nombre || 'Ítem'}>{item?.productoRef?.nombre || 'Ítem'}</span>
+                                                <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider whitespace-nowrap ${data.estado === 'Bueno' ? 'bg-emerald-100 text-emerald-700' : data.estado === 'Malo' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-700'}`}>
+                                                    {data.estado}
+                                                </span>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                                <p className="text-[9px] font-bold text-slate-400 mt-4 text-center italic border-t pt-2">Se adjuntará su geolocalización actual como evidencia forense.</p>
+                            </div>
+
+                            <div className="shrink-0">
+                                {submittingAudit ? (
+                                    <div className="py-12 flex flex-col items-center justify-center">
+                                        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+                                        <p className="text-xs font-black uppercase text-slate-500 tracking-widest">Procesando firma y GPS...</p>
+                                    </div>
+                                ) : (
+                                    <SignaturePad 
+                                        onSave={submitSignedAutoAudit} 
+                                        onCancel={() => setShowSignatureModal(false)}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -2229,10 +2410,12 @@ const PortalColaborador = () => {
                     }
                 }
 
+                const coords = await getLocation();
                 const data = {
                     ...fuelForm,
                     rut: user.rut,
-                    nombre: user.name
+                    nombre: user.name,
+                    geolocalizacion: coords
                 };
                 await api.post('/api/operaciones/combustible', data);
                 alert("Solicitud de combustible enviada correctamente");
@@ -2379,7 +2562,7 @@ const PortalColaborador = () => {
                                         <input
                                             type="file"
                                             accept="image/*"
-                                            capture="camera"
+                                            capture="environment"
                                             className="hidden"
                                             onChange={handleCapture}
                                         />
@@ -2475,6 +2658,74 @@ const PortalColaborador = () => {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: HISTORIAL AUDITORIAS
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'historial-auditorias') {
+        return (
+            <div className="animate-fade-in p-6 max-w-7xl mx-auto">
+                <button
+                    onClick={() => setActiveView('main')}
+                    className="mb-6 flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-medium bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200"
+                >
+                    <ChevronLeft className="w-5 h-5" />
+                    Volver al Panel Principal
+                </button>
+
+                <div className="mb-8">
+                    <h2 className="text-3xl font-black text-slate-800 flex items-center gap-3">
+                        <Archive className="w-8 h-8 text-teal-600" />
+                        Historial General del Colaborador
+                    </h2>
+                    <p className="text-slate-500 mt-2 text-lg">Revisa tus auto-auditorías firmadas con geolocalización.</p>
+                </div>
+
+                {historialAuditorias.length === 0 ? (
+                    <div className="bg-white rounded-3xl p-12 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center justify-center text-center">
+                        <Archive className="w-20 h-20 text-slate-300 mb-6" />
+                        <h3 className="text-2xl font-bold text-slate-700 mb-2">Sin Historial</h3>
+                        <p className="text-slate-500 text-lg">Aún no has firmado ninguna auto-auditoría.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {historialAuditorias.map((audit) => (
+                            <div key={audit._id} className="bg-white rounded-3xl p-6 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col justify-between">
+                                <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-2">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                            <span className="text-sm font-bold text-slate-700">Completada</span>
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-400">
+                                            {new Date(audit.fecha).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-slate-600 mb-4">
+                                        <strong>Auditoría ID:</strong> {audit._id.slice(-6).toUpperCase()}
+                                    </p>
+                                    <div className="bg-slate-50 rounded-xl p-3 mb-4 text-xs text-slate-500 font-mono">
+                                        <MapPin className="w-3 h-3 inline-block mr-1 text-teal-600" />
+                                        Lat: {audit.geolocalizacion?.lat}, Lng: {audit.geolocalizacion?.lng}
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-slate-500 mb-2">Firma del Colaborador:</p>
+                                    <div className="bg-white border-2 border-slate-100 rounded-xl p-2 flex justify-center items-center h-24">
+                                        {audit.firmaDataUrl ? (
+                                            <img src={audit.firmaDataUrl} alt="Firma" className="max-h-full max-w-full object-contain" />
+                                        ) : (
+                                            <span className="text-xs text-slate-400">Firma no disponible</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // VIEW: MIS ACTIVOS / EQUIPAMIENTO
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'equipamiento') {
@@ -2483,10 +2734,12 @@ const PortalColaborador = () => {
             if (!observationForm.comentario) return alert("Debes ingresar un comentario detallado.");
             setSubmittingObservation(true);
             try {
+                const coords = await getLocation();
                 const data = {
                     ...observationForm,
                     tecnicoRef: tecnico?._id,
-                    productoRef: selectedItemObservation.productoRef?._id || selectedItemObservation.productoRef || selectedItemObservation._id
+                    productoRef: selectedItemObservation.productoRef?._id || selectedItemObservation.productoRef || selectedItemObservation._id,
+                    geolocalizacion: coords
                 };
                 await logisticaApi.post('/observaciones-stock', data);
                 alert("Alerta enviada correctamente. Su supervisor ha sido notificado.");
@@ -2569,17 +2822,17 @@ const PortalColaborador = () => {
                                         onChange={(e) => setEquipamientoFilter(e.target.value)}
                                     />
                                 </div>
-                                <span className="text-xs font-black text-slate-400 bg-slate-100 px-3 py-2 rounded-xl whitespace-nowrap">{miInventario.length} items</span>
+                                <span className="text-xs font-black text-slate-400 bg-slate-100 px-3 py-2 rounded-xl whitespace-nowrap">{miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).length} items</span>
                             </div>
                         </div>
-                        {miInventario.length === 0 ? (
+                        {miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).length === 0 ? (
                             <div className="text-center py-12 text-slate-400">
                                 <Package size={40} className="mx-auto mb-3 opacity-20" />
                                 <p className="text-xs font-black uppercase tracking-widest italic">Sin inventario asignado</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {miInventario.filter(item => {
+                                {miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).filter(item => {
                                     const nombre = item.productoRef?.nombre || item.nombre || '';
                                     const cat = item.productoRef?.categoria?.nombre || item.categoria || '';
                                     const search = equipamientoFilter.toLowerCase();

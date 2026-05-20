@@ -16,6 +16,7 @@ const SolicitudCompra = require('./models/SolicitudCompra');
 const OrdenCompra = require('./models/OrdenCompra');
 const TipoCompra = require('./models/TipoCompra');
 const ObservacionStock = require('./models/ObservacionStock');
+const AutoAuditoriaColaborador = require('./models/AutoAuditoriaColaborador');
 const mailer = require('../../utils/mailer');
 const notificationService = require('../../utils/notificationService');
 const { logAction } = require('../../utils/auditLogger');
@@ -793,22 +794,40 @@ exports.bulkCreateProductos = async (req, res) => {
 
 exports.updateProducto = async (req, res) => {
     try {
-        let skuVal = req.body.sku ? String(req.body.sku).trim() : '';
-        if (!skuVal) {
-            const count = await Producto.countDocuments({ empresaRef: req.user.empresaRef });
-            skuVal = `PRD-${(count + 1).toString().padStart(5, '0')}`;
+        const productoExistente = await Producto.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!productoExistente) return res.status(404).json({ message: 'Producto no encontrado' });
+
+        const data = { ...req.body };
+
+        // Handle SKU update safely: only generate if 'sku' is explicitly in the payload
+        if ('sku' in req.body) {
+            let skuVal = req.body.sku ? String(req.body.sku).trim() : '';
+            if (!skuVal) {
+                if (!productoExistente.sku) {
+                    const count = await Producto.countDocuments({ empresaRef: req.user.empresaRef });
+                    skuVal = `PRD-${(count + 1).toString().padStart(5, '0')}`;
+                } else {
+                    skuVal = productoExistente.sku;
+                }
+            }
+            data.sku = skuVal;
         }
 
-        const data = {
-            ...req.body,
-            sku: skuVal,
-            clienteRef: req.body.propiedad === 'Cliente' ? (req.body.clienteRef || null) : null,
-            fotos: Array.isArray(req.body.fotos)
+        // Handle propiedad / clienteRef update: only modify if propiedad/clienteRef are in the payload
+        if ('propiedad' in req.body) {
+            data.clienteRef = req.body.propiedad === 'Cliente' ? (req.body.clienteRef || null) : null;
+        } else if ('clienteRef' in req.body) {
+            data.clienteRef = req.body.clienteRef || null;
+        }
+
+        // Handle photos update: only update if fotos or fotoUrl are provided
+        if ('fotos' in req.body || 'fotoUrl' in req.body) {
+            data.fotos = Array.isArray(req.body.fotos)
                 ? req.body.fotos.filter(Boolean)
                 : req.body.fotoUrl
                 ? [req.body.fotoUrl]
-                : []
-        };
+                : [];
+        }
 
         const actualizado = await Producto.findOneAndUpdate(
             { _id: req.params.id, empresaRef: req.user.empresaRef },
@@ -816,7 +835,6 @@ exports.updateProducto = async (req, res) => {
             { new: true }
         );
 
-        if (!actualizado) return res.status(404).json({ message: 'Producto no encontrado' });
         res.json(actualizado);
     } catch (e) {
         res.status(400).json({ message: e.message });
@@ -2187,6 +2205,99 @@ exports.submitAutoAuditoria = async (req, res) => {
     } catch (e) {
         console.error('Error procesando auto-auditoría:', e);
         res.status(500).json({ message: 'Error interno al procesar auto-auditoría' });
+    }
+};
+
+exports.submitAutoAuditoriaFirmada = async (req, res) => {
+    try {
+        const { tecnicoId, items, firmaUrl, geolocalizacion } = req.body;
+        const empresaRef = req.user.empresaRef;
+
+        if (!tecnicoId || !items || !Array.isArray(items) || !firmaUrl || !geolocalizacion) {
+            return res.status(400).json({ message: 'Datos incompletos para procesar la auto-auditoría.' });
+        }
+
+        const tecnico = await Tecnico.findById(tecnicoId);
+        if (!tecnico) return res.status(404).json({ message: 'Técnico no encontrado.' });
+
+        const supervisorRef = tecnico.supervisorId || null;
+        const observacionesToSave = [];
+
+        for (const item of items) {
+            if (item.estado === 'Malo' || item.estado === 'No Tengo') {
+                const tipo = item.estado === 'Malo' ? 'Daño' : 'Pérdida';
+                const obs = new ObservacionStock({
+                    tecnicoRef: tecnicoId,
+                    productoRef: item.productoRef,
+                    supervisorRef,
+                    comentario: item.comentario || `Reportado en Auto-Auditoría: ${item.estado}`,
+                    fotoUrl: item.fotoUrl || '',
+                    estado: 'Abierto',
+                    tipo,
+                    empresaRef
+                });
+                observacionesToSave.push(obs);
+            }
+        }
+
+        if (observacionesToSave.length > 0) {
+            await ObservacionStock.insertMany(observacionesToSave);
+
+            if (supervisorRef) {
+                await notificationService.notifyAction({
+                    actor: req.user,
+                    moduleKey: 'logistica_inventario',
+                    action: `reportó discrepancias en su auto-auditoría firmada (${observacionesToSave.length} ítems)`,
+                    entityName: 'Auto-Auditoría',
+                    entityId: observacionesToSave[0]._id, // ref simple
+                    companyRef: empresaRef,
+                    targetUserId: supervisorRef,
+                    isImportant: true
+                });
+            }
+        }
+
+        // Guardar el registro de auditoría firmada
+        const nuevaAuditoria = new AutoAuditoriaColaborador({
+            empresaRef,
+            tecnicoRef: tecnicoId,
+            items: items.map(i => ({
+                productoRef: i.productoRef,
+                estado: i.estado,
+                comentario: i.comentario,
+                fotoUrl: i.fotoUrl
+            })),
+            firmaUrl,
+            geolocalizacion,
+            tieneDiscrepancia: observacionesToSave.length > 0
+        });
+
+        await nuevaAuditoria.save();
+
+        res.status(200).json({ 
+            message: 'Auto-Auditoría firmada y procesada correctamente.', 
+            anomalias: observacionesToSave.length,
+            auditoriaId: nuevaAuditoria._id
+        });
+    } catch (e) {
+        console.error('Error procesando auto-auditoría firmada:', e);
+        res.status(500).json({ message: 'Error interno al procesar auto-auditoría' });
+    }
+};
+
+exports.getHistorialAutoAuditorias = async (req, res) => {
+    try {
+        const { tecnicoId } = req.params;
+        const auditorias = await AutoAuditoriaColaborador.find({ 
+            tecnicoRef: tecnicoId, 
+            empresaRef: req.user.empresaRef 
+        })
+        .populate('items.productoRef', 'nombre sku marca modelo')
+        .sort({ fecha: -1 });
+
+        res.json(auditorias);
+    } catch (e) {
+        res.status(500).json({ message: e.message });
     }
 };
 

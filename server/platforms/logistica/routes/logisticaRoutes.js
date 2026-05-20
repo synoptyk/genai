@@ -86,6 +86,8 @@ router.delete('/cargo-equipamiento/:id', authorize('logistica_configuracion:elim
 router.post('/observaciones-stock', authorize('logistica_inventario:ver', ROLES.TECNICO, 'user', 'operativo'), logisticaController.createObservacionStock);
 router.get('/observaciones-stock/tecnico/:tecnicoId', authorize('logistica_inventario:ver', ROLES.TECNICO, ROLES.SUPERVISOR, 'user', 'operativo'), logisticaController.getObservacionesPorTecnico);
 router.post('/auto-auditoria', authorize('logistica_inventario:ver', ROLES.TECNICO, 'user', 'operativo'), logisticaController.submitAutoAuditoria);
+router.post('/auto-auditoria-firmada', authorize('logistica_inventario:ver', ROLES.TECNICO, 'user', 'operativo'), logisticaController.submitAutoAuditoriaFirmada);
+router.get('/historial-auto-auditorias/:tecnicoId', authorize('logistica_inventario:ver', ROLES.TECNICO, ROLES.SUPERVISOR, 'user', 'operativo'), logisticaController.getHistorialAutoAuditorias);
 
 console.log("✅ [LOGISTICA] Routes defined successfully.");
 module.exports = router;

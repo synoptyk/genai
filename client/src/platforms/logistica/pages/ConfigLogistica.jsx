@@ -339,6 +339,19 @@ const ConfigLogistica = () => {
         }
     };
 
+    const handleDerivarSeriado = async (prod) => {
+        if (!window.confirm(`¿Derivar este artículo a Existencias Seriadas?\nSe habilitará el rastreo por Serie/IMEI para este producto.`)) return;
+        try {
+            await logisticaApi.put(`/productos/${prod._id}`, { trackSerial: true });
+            fetchMasterData();
+            setActiveProdCategoryDetail(null);
+            setActiveTab('seriados');
+            setSearchProducto(prod.sku || prod.nombre);
+        } catch (err) {
+            alert('Error al derivar artículo: ' + (err.response?.data?.message || err.message));
+        }
+    };
+
     const handleEditCategoria = (cat) => {
         setEditingCategoriaId(cat._id);
         setCatForm({
@@ -1727,11 +1740,11 @@ const ConfigLogistica = () => {
                                 </div>
 
                                 {(data.categorias || []).filter(cat => {
-                                    if (activeTab !== 'seriados') return true;
                                     const count = (data.productos || []).filter(p => {
                                         const isSer = !!(p.nroSerie || p.trackSerial);
+                                        const tabMatch = activeTab === 'seriados' ? isSer : !isSer;
                                         const catId = p.categoria?._id || p.categoria;
-                                        return isSer && String(catId) === String(cat._id);
+                                        return tabMatch && String(catId) === String(cat._id);
                                     }).length;
                                     return count > 0;
                                 }).map(cat => {
@@ -1780,11 +1793,11 @@ const ConfigLogistica = () => {
                                     >
                                         <option value="">Todas las Categorías</option>
                                         {(data.categorias || []).filter(cat => {
-                                            if (activeTab !== 'seriados') return true;
                                             const count = (data.productos || []).filter(p => {
                                                 const isSer = !!(p.nroSerie || p.trackSerial);
+                                                const tabMatch = activeTab === 'seriados' ? isSer : !isSer;
                                                 const catId = p.categoria?._id || p.categoria;
-                                                return isSer && String(catId) === String(cat._id);
+                                                return tabMatch && String(catId) === String(cat._id);
                                             }).length;
                                             return count > 0;
                                         }).map(cat => (
@@ -3937,7 +3950,9 @@ const ConfigLogistica = () => {
                                         <h3 className="text-xl font-black text-slate-800 mt-1">
                                             {((data.productos || []).filter(p => {
                                                 const catId = p.categoria?._id || p.categoria;
-                                                return String(catId) === String(activeProdCategoryDetail._id);
+                                                const isSer = !!(p.nroSerie || p.trackSerial);
+                                                const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
+                                                return String(catId) === String(activeProdCategoryDetail._id) && matchesTab;
                                             })).length}
                                         </h3>
                                     </div>
@@ -3951,7 +3966,9 @@ const ConfigLogistica = () => {
                                         <h3 className="text-xl font-black text-slate-800 mt-1">
                                             ${((data.productos || []).filter(p => {
                                                 const catId = p.categoria?._id || p.categoria;
-                                                return String(catId) === String(activeProdCategoryDetail._id);
+                                                const isSer = !!(p.nroSerie || p.trackSerial);
+                                                const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
+                                                return String(catId) === String(activeProdCategoryDetail._id) && matchesTab;
                                             })).reduce((acc, p) => acc + (Number(p.valorUnitario) || 0), 0).toLocaleString()}
                                         </h3>
                                     </div>
@@ -3965,7 +3982,9 @@ const ConfigLogistica = () => {
                                         <h3 className="text-xl font-black text-slate-800 mt-1">
                                             {((data.productos || []).filter(p => {
                                                 const catId = p.categoria?._id || p.categoria;
-                                                return String(catId) === String(activeProdCategoryDetail._id) && (p.segmentacion === 'Crítico' || p.segmentacion === 'Critico');
+                                                const isSer = !!(p.nroSerie || p.trackSerial);
+                                                const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
+                                                return String(catId) === String(activeProdCategoryDetail._id) && matchesTab && (p.segmentacion === 'Crítico' || p.segmentacion === 'Critico');
                                             })).length}
                                         </h3>
                                     </div>
@@ -3979,7 +3998,9 @@ const ConfigLogistica = () => {
                                         <h3 className="text-xl font-black text-slate-800 mt-1">
                                             {((data.productos || []).filter(p => {
                                                 const catId = p.categoria?._id || p.categoria;
-                                                return String(catId) === String(activeProdCategoryDetail._id) && p.status !== 'Inactivo';
+                                                const isSer = !!(p.nroSerie || p.trackSerial);
+                                                const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
+                                                return String(catId) === String(activeProdCategoryDetail._id) && matchesTab && p.status !== 'Inactivo';
                                             })).length}
                                         </h3>
                                     </div>
@@ -4003,8 +4024,10 @@ const ConfigLogistica = () => {
                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                     Mostrando {((data.productos || []).filter(p => {
                                         const catId = p.categoria?._id || p.categoria;
+                                        const isSer = !!(p.nroSerie || p.trackSerial);
+                                        const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
                                         const term = (searchProducto || '').toLowerCase();
-                                        return String(catId) === String(activeProdCategoryDetail._id) && (
+                                        return String(catId) === String(activeProdCategoryDetail._id) && matchesTab && (
                                             !term ||
                                             p.nombre?.toLowerCase().includes(term) ||
                                             p.sku?.toLowerCase().includes(term) ||
@@ -4013,7 +4036,9 @@ const ConfigLogistica = () => {
                                         );
                                     })).length} de {((data.productos || []).filter(p => {
                                         const catId = p.categoria?._id || p.categoria;
-                                        return String(catId) === String(activeProdCategoryDetail._id);
+                                        const isSer = !!(p.nroSerie || p.trackSerial);
+                                        const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
+                                        return String(catId) === String(activeProdCategoryDetail._id) && matchesTab;
                                     })).length} existencias
                                 </div>
                             </div>
@@ -4021,8 +4046,10 @@ const ConfigLogistica = () => {
                             {/* Tabla de Artículos */}
                             {((data.productos || []).filter(p => {
                                 const catId = p.categoria?._id || p.categoria;
+                                const isSer = !!(p.nroSerie || p.trackSerial);
+                                const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
                                 const term = (searchProducto || '').toLowerCase();
-                                return String(catId) === String(activeProdCategoryDetail._id) && (
+                                return String(catId) === String(activeProdCategoryDetail._id) && matchesTab && (
                                     !term ||
                                     p.nombre?.toLowerCase().includes(term) ||
                                     p.sku?.toLowerCase().includes(term) ||
@@ -4053,8 +4080,10 @@ const ConfigLogistica = () => {
                                             <tbody className="divide-y divide-slate-50">
                                                 {((data.productos || []).filter(p => {
                                                     const catId = p.categoria?._id || p.categoria;
+                                                    const isSer = !!(p.nroSerie || p.trackSerial);
+                                                    const matchesTab = activeTab === 'seriados' ? isSer : !isSer;
                                                     const term = (searchProducto || '').toLowerCase();
-                                                    return String(catId) === String(activeProdCategoryDetail._id) && (
+                                                    return String(catId) === String(activeProdCategoryDetail._id) && matchesTab && (
                                                         !term ||
                                                         p.nombre?.toLowerCase().includes(term) ||
                                                         p.sku?.toLowerCase().includes(term) ||
@@ -4109,11 +4138,7 @@ const ConfigLogistica = () => {
                                                             <div className="flex items-center justify-end gap-2">
                                                                 <button 
                                                                     type="button" 
-                                                                    onClick={() => {
-                                                                        setActiveProdCategoryDetail(null);
-                                                                        setActiveTab('seriados');
-                                                                        setSearchProducto(prod.sku || prod.nombre);
-                                                                    }} 
+                                                                    onClick={() => handleDerivarSeriado(prod)} 
                                                                     className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
                                                                     title="Derivar a Existencias Seriadas"
                                                                 >
