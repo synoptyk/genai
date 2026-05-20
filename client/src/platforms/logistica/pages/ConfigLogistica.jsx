@@ -4,11 +4,15 @@ import {
     MoreHorizontal, MapPin, Truck, User, ArrowRight,
     Anchor, Repeat, ChevronRight, Archive, Upload,
     Download, ImagePlus, Package, Grid3X3, List, Pencil, Trash2, ShieldAlert,
-    Lock, Unlock, Sparkles
+    Lock, Unlock, Sparkles, Briefcase, ChevronDown, ChevronUp,
+    Wrench, Shield, Cpu, Layers, Hammer, Gauge, CheckCircle2, AlertTriangle, GitFork, Boxes
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
 import * as XLSX from 'xlsx';
 import SmartSelect from '../components/SmartSelect';
+import axios from 'axios';
+import API_URL from '../../../config';
+
 
 const ICON_OPTIONS = ['Tags', 'Archive', 'Package', 'Warehouse'];
 
@@ -158,21 +162,45 @@ const ConfigLogistica = () => {
     const [filterPersonalToa, setFilterPersonalToa] = useState('all');
     const [productoView, setProductoView] = useState('grid');
     const [editingProductoId, setEditingProductoId] = useState(null);
+    const [filterProdCategoria, setFilterProdCategoria] = useState('');
+    const [filterProdTipo, setFilterProdTipo] = useState('');
+    const [filterProdSegmentacion, setFilterProdSegmentacion] = useState('');
+    const [filterProdPropiedad, setFilterProdPropiedad] = useState('');
     const [isMaster, setIsMaster] = useState(false);
     const catBulkInputRef = useRef(null);
     const prodBulkInputRef = useRef(null);
     const almBulkInputRef = useRef(null);
+    const personalBulkInputRef = useRef(null);
+    const cargosBulkInputRef = useRef(null);
+    const seriadosBulkInputRef = useRef(null);
     const [showAiModal, setShowAiModal] = useState(false);
     const [aiProgress, setAiProgress] = useState(false);
     const [inlineSimilarityWarning, setInlineSimilarityWarning] = useState(null);
     const [duplicateResolutionQueue, setDuplicateResolutionQueue] = useState([]);
     const [showResolutionModal, setShowResolutionModal] = useState(false);
     const [pendingUploadList, setPendingUploadList] = useState([]);
+    const [selectedProdCategoryTab, setSelectedProdCategoryTab] = useState('TODOS');
+    const [activeProdCategoryDetail, setActiveProdCategoryDetail] = useState(null);
 
     // Form states
     const [almForm, setAlmForm] = useState({ nombre: '', codigo: '', tipo: 'Central', parentAlmacen: '', tecnicoRef: '', ubicacion: { direccion: '' }, propiedad: 'Propio', clienteRef: '' });
     const [catForm, setCatForm] = useState({ nombre: '', prioridadValor: 'Bajo Valor', tipoRotacion: 'Rotativo', icono: 'Tags', imagenUrl: '' });
-    const [prodForm, setProdForm] = useState({ nombre: '', sku: '', ean: '', categoria: '', marca: '', modelo: '', unidadMedida: 'Unidad', descripcion: '', tipo: 'Activo', color: 'Genérico', segmentacion: 'Estándar', propiedad: 'Propio', clienteRef: '', valorUnitario: 0, icono: 'Archive', fotoUrl: '' });
+    const [prodForm, setProdForm] = useState({ nombre: '', sku: '', ean: '', categoria: '', marca: '', modelo: '', nroSerie: '', imei: '', trackSerial: false, unidadMedida: 'Unidad', descripcion: '', tipo: 'Activo', color: 'Genérico', segmentacion: 'Estándar', propiedad: 'Propio', clienteRef: '', valorUnitario: 0, icono: 'Archive', fotoUrl: '' });
+    const [searchCargo, setSearchCargo] = useState('');
+    const [filterCargoCategoria, setFilterCargoCategoria] = useState('');
+    const [filterCargoEstado, setFilterCargoEstado] = useState('');
+    const [filterCargoBase, setFilterCargoBase] = useState('');
+    const [cargoForm, setCargoForm] = useState({ cargo: '', nombreTipoCargo: '', items: [] });
+    const [editingCargoId, setEditingCargoId] = useState(null);
+    const [expandedCargos, setExpandedCargos] = useState({});
+
+    // States para Asignación Inteligente
+    const [showAsignacionModal, setShowAsignacionModal] = useState(false);
+    const [tecnicoAsignacion, setTecnicoAsignacion] = useState(null);
+    const [almacenOrigenAsig, setAlmacenOrigenAsig] = useState('');
+    const [asignacionSimulacion, setAsignacionSimulacion] = useState(null);
+    const [isSimulatingAsignacion, setIsSimulatingAsignacion] = useState(false);
+    const [isConfirmingAsignacion, setIsConfirmingAsignacion] = useState(false);
 
     useEffect(() => {
         fetchMasterData();
@@ -204,14 +232,66 @@ const ConfigLogistica = () => {
         }
     }, [prodForm.nombre, editingProductoId, data.productos]);
 
+    // --- ASIGNACIÓN INTELIGENTE DE CARGO ---
+    const handleOpenAsignacionModal = (tecnico) => {
+        setTecnicoAsignacion(tecnico);
+        setAlmacenOrigenAsig(''); // Podría autoseleccionarse la bodega central si la ubicamos
+        setAsignacionSimulacion(null);
+        setShowAsignacionModal(true);
+    };
+
+    const handleCloseAsignacionModal = () => {
+        setShowAsignacionModal(false);
+        setTecnicoAsignacion(null);
+        setAlmacenOrigenAsig('');
+        setAsignacionSimulacion(null);
+    };
+
+    const simularAsignacion = async () => {
+        if (!tecnicoAsignacion) return;
+        setIsSimulatingAsignacion(true);
+        try {
+            const res = await logisticaApi.post(`/tecnicos/${tecnicoAsignacion._id}/asignar-cargo`, {
+                almacenOrigen: almacenOrigenAsig || null,
+                dryRun: true
+            });
+            setAsignacionSimulacion(res.data.simulacion);
+        } catch (err) {
+            alert('Error al simular la asignación: ' + (err.response?.data?.message || err.message));
+            setAsignacionSimulacion(null);
+        } finally {
+            setIsSimulatingAsignacion(false);
+        }
+    };
+
+    const confirmarAsignacion = async () => {
+        if (!tecnicoAsignacion) return;
+        setIsConfirmingAsignacion(true);
+        try {
+            const res = await logisticaApi.post(`/tecnicos/${tecnicoAsignacion._id}/asignar-cargo`, {
+                almacenOrigen: almacenOrigenAsig || null,
+                dryRun: false
+            });
+            alert(res.data.message || 'Asignación realizada con éxito');
+            handleCloseAsignacionModal();
+            fetchMasterData();
+        } catch (err) {
+            alert('Error al procesar asignación: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setIsConfirmingAsignacion(false);
+        }
+    };
+
     const closeModal = () => {
         setShowModal(false);
         setEditingAlmacenId(null);
         setEditingCategoriaId(null);
         setEditingProductoId(null);
+        setEditingCargoId(null);
         setAlmForm({ nombre: '', codigo: '', tipo: 'Central', parentAlmacen: '', tecnicoRef: '', ubicacion: { direccion: '' }, propiedad: 'Propio', clienteRef: '' });
         setCatForm({ nombre: '', prioridadValor: 'Bajo Valor', tipoRotacion: 'Rotativo', icono: 'Tags', imagenUrl: '' });
-        setProdForm({ nombre: '', sku: '', ean: '', categoria: '', marca: '', modelo: '', unidadMedida: 'Unidad', descripcion: '', tipo: 'Activo', color: 'Genérico', segmentacion: 'Estándar', propiedad: 'Propio', clienteRef: '', valorUnitario: 0, icono: 'Archive', fotoUrl: '' });
+        setProdForm({ nombre: '', sku: '', ean: '', categoria: '', marca: '', modelo: '', nroSerie: '', imei: '', estadoDetallado: 'Nuevo', unidadMedida: 'Unidad', descripcion: '', tipo: 'Activo', color: 'Genérico', segmentacion: 'Estándar', propiedad: 'Propio', clienteRef: '', valorUnitario: 0, icono: 'Archive', fotoUrl: '' });
+        setCargoForm({ cargo: '', nombreTipoCargo: '', items: [] });
     };
 
     const handleEditAlmacen = (alm) => {
@@ -249,6 +329,8 @@ const ConfigLogistica = () => {
                 ? `/almacenes/${item._id}` 
                 : type === 'categoria' 
                 ? `/categorias/${item._id}` 
+                : type === 'cargo'
+                ? `/cargo-equipamiento/${item._id}`
                 : `/productos/${item._id}`;
             await logisticaApi.put(endpoint, { status: newStatus });
             fetchMasterData();
@@ -280,6 +362,31 @@ const ConfigLogistica = () => {
         }
     };
 
+    const handleEditCargo = (cargoEquip) => {
+        setEditingCargoId(cargoEquip._id);
+        setCargoForm({
+            cargo: cargoEquip.cargo || '',
+            nombreTipoCargo: cargoEquip.nombreTipoCargo || cargoEquip.cargo || '',
+            items: (cargoEquip.items || []).map(it => ({
+                productoRef: it.productoRef?._id || it.productoRef || '',
+                cantidad: it.cantidad || 1,
+                estadoProducto: it.estadoProducto || 'Nuevo'
+            }))
+        });
+        setActiveTab('cargos');
+        setShowModal(true);
+    };
+
+    const handleDeleteCargo = async (id) => {
+        if (!window.confirm('¿Eliminar esta configuración de cargo?')) return;
+        try {
+            await logisticaApi.delete(`/cargo-equipamiento/${id}`);
+            fetchMasterData();
+        } catch (err) {
+            alert('Error al eliminar configuración: ' + (err.response?.data?.message || err.message));
+        }
+    };
+
     const handleDeleteAllCategorias = async () => {
         if (!window.confirm('Esta acción eliminará TODAS las categorías. ¿Deseas continuar?')) return;
         try {
@@ -300,6 +407,9 @@ const ConfigLogistica = () => {
             categoria: prod.categoria?._id || prod.categoria || '',
             marca: prod.marca || '',
             modelo: prod.modelo || '',
+            nroSerie: prod.nroSerie || '',
+            imei: prod.imei || '',
+            trackSerial: prod.trackSerial || false,
             unidadMedida: prod.unidadMedida || 'Unidad',
             descripcion: prod.descripcion || '',
             tipo: prod.tipo || 'Activo',
@@ -311,8 +421,44 @@ const ConfigLogistica = () => {
             icono: prod.icono || 'Archive',
             fotoUrl: prod.fotos?.[0] || ''
         });
-        setActiveTab('productos');
+        if (prod.nroSerie || prod.trackSerial) {
+            setActiveTab('seriados');
+        } else {
+            setActiveTab('productos');
+        }
         setShowModal(true);
+    };
+
+    const handleDerivarASeriado = (prod) => {
+        setEditingProductoId(null);
+        setProdForm({
+            nombre: prod.nombre || '',
+            sku: '',
+            ean: '',
+            categoria: prod.categoria?._id || prod.categoria || '',
+            marca: prod.marca || '',
+            modelo: prod.modelo || '',
+            nroSerie: '',
+            imei: '',
+            estadoDetallado: 'Nuevo',
+            unidadMedida: prod.unidadMedida || 'Unidad',
+            descripcion: prod.descripcion || '',
+            tipo: prod.tipo || 'Activo',
+            color: prod.color || 'Genérico',
+            segmentacion: prod.segmentacion || 'Estándar',
+            propiedad: prod.propiedad || 'Propio',
+            clienteRef: prod.clienteRef?._id || prod.clienteRef || '',
+            valorUnitario: prod.valorUnitario || 0,
+            icono: prod.icono || 'Archive',
+            fotoUrl: prod.fotos?.[0] || ''
+        });
+        setActiveTab('seriados');
+        setShowModal(true);
+    };
+
+    const handleIrAPlantillaBase = (nombreProducto) => {
+        setSearchProducto(nombreProducto);
+        setActiveTab('productos');
     };
 
     const handleDeleteProducto = async (id) => {
@@ -552,6 +698,267 @@ const ConfigLogistica = () => {
         XLSX.writeFile(wb, 'Plantilla_Bodegas_Logistica.xlsx');
     };
 
+    const downloadPersonalTemplate = () => {
+        const templateData = [
+            {
+                rut: '12.345.678-9',
+                fullName: 'Juan Ignacio Pérez Silva',
+                email: 'juan.perez@dominio.com',
+                phone: '+56912345678',
+                position: 'Técnico Telecomunicaciones',
+                projectName: 'PLANTA EXTERNA SANTIAGO',
+                clienteNombre: 'VTR',
+                ceco: 'RM-SCL-01',
+                area: 'Operaciones',
+                departamento: 'Logística y Terreno',
+                sede: 'Santiago Centro',
+                idRecursoToa: 'TOA-10293',
+                status: 'Contratado',
+                contractType: 'PLAZO FIJO',
+                contractStartDate: '01/05/2026',
+                contractEndDate: '31/07/2026',
+                previsionSalud: 'FONASA',
+                isapreNombre: '',
+                valorPlan: '',
+                monedaPlan: 'UF',
+                afp: 'PROVIDA',
+                banco: 'BANCO ESTADO',
+                tipoCuenta: 'Cuenta RUT',
+                numeroCuenta: '12345678',
+                sueldoBase: 650000,
+                requiereLicencia: 'SI',
+                fechaVencimientoLicencia: '15/12/2028',
+                shirtSize: 'M',
+                pantsSize: '42',
+                jacketSize: 'L',
+                shoeSize: '41'
+            }
+        ];
+
+        const instrucciones = [
+            { 'Columna': 'rut', 'Obligatorio': 'SÍ', 'Descripción': 'RUT del colaborador (con puntos y guion).' },
+            { 'Columna': 'fullName', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre completo del colaborador.' },
+            { 'Columna': 'email', 'Obligatorio': 'NO', 'Descripción': 'Correo electrónico institucional o personal.' },
+            { 'Columna': 'phone', 'Obligatorio': 'NO', 'Descripción': 'Teléfono de contacto.' },
+            { 'Columna': 'position', 'Obligatorio': 'SÍ', 'Descripción': 'Cargo exacto (ej: Técnico Telecomunicaciones).' },
+            { 'Columna': 'projectName', 'Obligatorio': 'NO', 'Descripción': 'Nombre del proyecto asignado.' },
+            { 'Columna': 'clienteNombre', 'Obligatorio': 'NO', 'Descripción': 'Nombre del mandante/cliente.' },
+            { 'Columna': 'ceco', 'Obligatorio': 'NO', 'Descripción': 'Centro de Costos (CECO).' },
+            { 'Columna': 'area', 'Obligatorio': 'NO', 'Descripción': 'Área funcional.' },
+            { 'Columna': 'departamento', 'Obligatorio': 'NO', 'Descripción': 'Departamento interno.' },
+            { 'Columna': 'sede', 'Obligatorio': 'NO', 'Descripción': 'Sede física asignada.' },
+            { 'Columna': 'idRecursoToa', 'Obligatorio': 'NO', 'Descripción': 'Identificador de recurso en TOA.' },
+            { 'Columna': 'status', 'Obligatorio': 'NO', 'Descripción': 'Contratado, Inactivo, Licencia Médica.' },
+            { 'Columna': 'contractType', 'Obligatorio': 'NO', 'Descripción': 'PLAZO FIJO, INDEFINIDO, por obra.' },
+            { 'Columna': 'contractStartDate', 'Obligatorio': 'NO', 'Descripción': 'Fecha de ingreso en formato DD/MM/AAAA.' },
+            { 'Columna': 'contractEndDate', 'Obligatorio': 'NO', 'Descripción': 'Fecha de término (opcional, DD/MM/AAAA).' },
+            { 'Columna': 'previsionSalud', 'Obligatorio': 'NO', 'Descripción': 'FONASA o ISAPRE.' },
+            { 'Columna': 'isapreNombre', 'Obligatorio': 'NO', 'Descripción': 'Nombre de la ISAPRE (si corresponde).' },
+            { 'Columna': 'valorPlan', 'Obligatorio': 'NO', 'Descripción': 'Valor del plan de salud.' },
+            { 'Columna': 'monedaPlan', 'Obligatorio': 'NO', 'Descripción': 'UF o CLP.' },
+            { 'Columna': 'afp', 'Obligatorio': 'NO', 'Descripción': 'Nombre de la AFP.' },
+            { 'Columna': 'banco', 'Obligatorio': 'NO', 'Descripción': 'Nombre del banco.' },
+            { 'Columna': 'tipoCuenta', 'Obligatorio': 'NO', 'Descripción': 'Tipo de cuenta (ej: Corriente, Vista).' },
+            { 'Columna': 'numeroCuenta', 'Obligatorio': 'NO', 'Descripción': 'Número de cuenta bancaria.' },
+            { 'Columna': 'sueldoBase', 'Obligatorio': 'NO', 'Descripción': 'Sueldo base bruto.' },
+            { 'Columna': 'requiereLicencia', 'Obligatorio': 'NO', 'Descripción': 'SI o NO.' },
+            { 'Columna': 'fechaVencimientoLicencia', 'Obligatorio': 'NO', 'Descripción': 'Vencimiento de licencia (DD/MM/AAAA).' },
+            { 'Columna': 'shirtSize', 'Obligatorio': 'NO', 'Descripción': 'Talla de camisa (S, M, L, XL).' },
+            { 'Columna': 'pantsSize', 'Obligatorio': 'NO', 'Descripción': 'Talla de pantalón.' },
+            { 'Columna': 'jacketSize', 'Obligatorio': 'NO', 'Descripción': 'Talla de parka/chaqueta.' },
+            { 'Columna': 'shoeSize', 'Obligatorio': 'NO', 'Descripción': 'Talla de calzado.' }
+        ];
+
+        const opcionCargosValidos = uniqueCargos.map(c => ({ 'Cargo Registrado': c }));
+        const opcionPrevision = [{ 'Previsión': 'FONASA' }, { 'Previsión': 'ISAPRE' }];
+        const opcionMoneda = [{ 'Moneda Plan': 'UF' }, { 'Moneda Plan': 'CLP' }];
+        const opcionLicencia = [{ 'Requiere Licencia': 'SI' }, { 'Requiere Licencia': 'NO' }];
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+        const wsPrevision = XLSX.utils.json_to_sheet(opcionPrevision);
+        const wsMoneda = XLSX.utils.json_to_sheet(opcionMoneda);
+        const wsLicencia = XLSX.utils.json_to_sheet(opcionLicencia);
+        const wsCargosValidos = XLSX.utils.json_to_sheet(opcionCargosValidos);
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores');
+        XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+        XLSX.utils.book_append_sheet(wb, wsPrevision, 'Previsión de Salud');
+        XLSX.utils.book_append_sheet(wb, wsMoneda, 'Moneda Plan');
+        XLSX.utils.book_append_sheet(wb, wsLicencia, 'Uso de Licencia');
+        if (opcionCargosValidos.length > 0) {
+            XLSX.utils.book_append_sheet(wb, wsCargosValidos, 'Cargos Registrados');
+        }
+
+        XLSX.writeFile(wb, 'Plantilla_Colaboradores_Logistica.xlsx');
+    };
+
+    const downloadSeriadosTemplate = () => {
+        const templateData = [
+            {
+                nombre: 'Fusionadora de Fibra Óptica',
+                sku: 'PRD-FUS01',
+                nroSerie: 'FUS-991823A',
+                imei: '',
+                estadoDetallado: 'Nuevo',
+                ean: '7809988223311',
+                categoria: 'Equipos Activos',
+                marca: 'Fujikura',
+                modelo: '88S+',
+                color: 'Gris',
+                unidadMedida: 'Unidad',
+                descripcion: 'Fusionadora de fibra óptica de alineación por núcleo premium',
+                tipo: 'Activo',
+                segmentacion: 'Crítico',
+                propiedad: 'Propio',
+                valorUnitario: 3500000,
+                icono: 'Archive',
+                imagenUrl: ''
+            },
+            {
+                nombre: 'Equipo Móvil Operaciones',
+                sku: 'PRD-TEL05',
+                nroSerie: 'IMEI-88221923',
+                imei: '862093849102938',
+                estadoDetallado: 'Nuevo',
+                ean: '7801234560099',
+                categoria: 'Equipos Activos',
+                marca: 'Samsung',
+                modelo: 'Galaxy A34',
+                color: 'Negro',
+                unidadMedida: 'Unidad',
+                descripcion: 'Teléfono celular asignado para operaciones en terreno',
+                tipo: 'Activo',
+                segmentacion: 'Estándar',
+                propiedad: 'Propio',
+                valorUnitario: 220000,
+                icono: 'Archive',
+                imagenUrl: ''
+            }
+        ];
+
+        const instrucciones = [
+            { 'Columna': 'nombre', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre del activo o herramienta.' },
+            { 'Columna': 'sku', 'Obligatorio': 'SÍ', 'Descripción': 'Código único de producto (SKU).' },
+            { 'Columna': 'nroSerie', 'Obligatorio': 'SÍ', 'Descripción': 'Número de serie físico único del activo.' },
+            { 'Columna': 'imei', 'Obligatorio': 'NO', 'Descripción': 'Código IMEI de 15 dígitos (ej. teléfonos, routers).' },
+            { 'Columna': 'estadoDetallado', 'Obligatorio': 'SÍ', 'Descripción': 'Nuevo, Usado Reacondicionado, Para Reparar, Baja.' },
+            { 'Columna': 'ean', 'Obligatorio': 'NO', 'Descripción': 'Código de barras de 13 dígitos.' },
+            { 'Columna': 'categoria', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre exacto de una categoría existente.' },
+            { 'Columna': 'marca', 'Obligatorio': 'NO', 'Descripción': 'Marca del artículo.' },
+            { 'Columna': 'modelo', 'Obligatorio': 'NO', 'Descripción': 'Modelo del artículo.' },
+            { 'Columna': 'color', 'Obligatorio': 'NO', 'Descripción': 'Color del artículo (Ej: Genérico, Negro, Gris).' },
+            { 'Columna': 'unidadMedida', 'Obligatorio': 'SÍ', 'Descripción': 'Unidad, Metro, etc.' },
+            { 'Columna': 'descripcion', 'Obligatorio': 'NO', 'Descripción': 'Detalle descriptivo.' },
+            { 'Columna': 'tipo', 'Obligatorio': 'SÍ', 'Descripción': 'Debe ser "Activo" para existencias seriadas.' },
+            { 'Columna': 'segmentacion', 'Obligatorio': 'SÍ', 'Descripción': 'Estándar o Crítico.' },
+            { 'Columna': 'propiedad', 'Obligatorio': 'SÍ', 'Descripción': 'Propio o Cliente.' },
+            { 'Columna': 'valorUnitario', 'Obligatorio': 'SÍ', 'Descripción': 'Valor monetario en CLP.' },
+            { 'Columna': 'icono', 'Obligatorio': 'NO', 'Descripción': 'Archive, Tags, Package.' },
+            { 'Columna': 'imagenUrl', 'Obligatorio': 'NO', 'Descripción': 'URL opcional de la foto.' }
+        ];
+
+        const opcionCategorias = (data.categorias || []).map(c => ({
+            'Categoría Existente': c.nombre || '',
+            'Descripción': c.descripcion || ''
+        }));
+
+        const opcionEstadosDetallados = [
+            { 'Estados Físicos': 'Nuevo' },
+            { 'Estados Físicos': 'Usado Reacondicionado' },
+            { 'Estados Físicos': 'Para Reparar' },
+            { 'Estados Físicos': 'Baja' }
+        ];
+
+        const opcionColores = COLOR_OPTIONS.map(c => ({ 'Colores Aceptados': c }));
+        const opcionSegmento = [{ 'Segmentación': 'Estándar' }, { 'Segmentación': 'Crítico' }];
+        const opcionPropiedad = [{ 'Propiedad': 'Propio' }, { 'Propiedad': 'Cliente' }];
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+        const wsCategorias = XLSX.utils.json_to_sheet(opcionCategorias);
+        const wsEstados = XLSX.utils.json_to_sheet(opcionEstadosDetallados);
+        const wsColores = XLSX.utils.json_to_sheet(opcionColores);
+        const wsSegmento = XLSX.utils.json_to_sheet(opcionSegmento);
+        const wsPropiedad = XLSX.utils.json_to_sheet(opcionPropiedad);
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Seriados');
+        XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+        XLSX.utils.book_append_sheet(wb, wsEstados, 'Estados Físicos');
+        if (opcionCategorias.length > 0) {
+            XLSX.utils.book_append_sheet(wb, wsCategorias, 'Categorías Disponibles');
+        }
+        XLSX.utils.book_append_sheet(wb, wsColores, 'Colores Aceptados');
+        XLSX.utils.book_append_sheet(wb, wsSegmento, 'Segmentaciones');
+        XLSX.utils.book_append_sheet(wb, wsPropiedad, 'Propiedad');
+
+        XLSX.writeFile(wb, 'Plantilla_Activos_Seriados_Logistica.xlsx');
+    };
+
+    const downloadCargosTemplate = () => {
+        const templateData = [
+            {
+                cargo: 'Técnico Fusor',
+                nombreTipoCargo: 'Fusor Fibra Óptica Planta Externa',
+                productoSku: 'PRD-00001',
+                cantidad: 2,
+                estadoProducto: 'Nuevo'
+            },
+            {
+                cargo: 'Técnico Fusor',
+                nombreTipoCargo: 'Fusor Fibra Óptica Planta Externa',
+                productoSku: 'PRD-00003',
+                cantidad: 1,
+                estadoProducto: 'Nuevo'
+            },
+            {
+                cargo: 'Supervisor Terreno',
+                nombreTipoCargo: 'Supervisor de Planta e Infraestructura',
+                productoSku: 'PRD-00001',
+                cantidad: 1,
+                estadoProducto: 'Usado Bueno'
+            }
+        ];
+
+        const instrucciones = [
+            { 'Columna': 'cargo', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre del rol base de la dotación (ej: Técnico Fusor).' },
+            { 'Columna': 'nombreTipoCargo', 'Obligatorio': 'NO', 'Descripción': 'Especialización o nombre descriptivo del cargo (ej: Fusor Planta Externa).' },
+            { 'Columna': 'productoSku', 'Obligatorio': 'SÍ', 'Descripción': 'SKU exacto del producto pre-asignado.' },
+            { 'Columna': 'cantidad', 'Obligatorio': 'SÍ', 'Descripción': 'Cantidad requerida de este insumo para el cargo.' },
+            { 'Columna': 'estadoProducto', 'Obligatorio': 'SÍ', 'Descripción': 'Nuevo, Usado Bueno, Usado Malo, Merma.' }
+        ];
+
+        const opcionProductos = (data.productos || []).map(p => ({
+            'SKU': p.sku || '',
+            'Nombre': p.nombre || '',
+            'Categoría': p.categoria?.nombre || p.categoria || ''
+        }));
+
+        const opcionEstados = [
+            { 'Estados Recomendados': 'Nuevo' },
+            { 'Estados Recomendados': 'Usado Bueno' },
+            { 'Estados Recomendados': 'Usado Malo' },
+            { 'Estados Recomendados': 'Merma' }
+        ];
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+        const wsProductos = XLSX.utils.json_to_sheet(opcionProductos);
+        const wsEstados = XLSX.utils.json_to_sheet(opcionEstados);
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Cargos');
+        XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+        XLSX.utils.book_append_sheet(wb, wsEstados, 'Estados Aceptados');
+        if (opcionProductos.length > 0) {
+            XLSX.utils.book_append_sheet(wb, wsProductos, 'Productos Disponibles');
+        }
+
+        XLSX.writeFile(wb, 'Plantilla_Perfiles_Cargos_Logistica.xlsx');
+    };
+
     const importAlmacenes = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -585,6 +992,197 @@ const ConfigLogistica = () => {
         } finally {
             setBulkLoading(false);
             if (almBulkInputRef.current) almBulkInputRef.current.value = '';
+        }
+    };
+
+    const importPersonal = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            setBulkLoading(true);
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const candidatos = rows
+                .map(r => ({
+                    rut: String(r.rut || '').trim(),
+                    fullName: String(r.fullName || r.nombreCompleto || '').trim(),
+                    email: String(r.email || '').trim(),
+                    phone: String(r.phone || r.telefono || '').trim(),
+                    position: String(r.position || r.cargo || '').trim(),
+                    projectName: String(r.projectName || r.proyecto || '').trim(),
+                    clienteNombre: String(r.clienteNombre || r.cliente || '').trim(),
+                    ceco: String(r.ceco || '').trim(),
+                    area: String(r.area || '').trim(),
+                    departamento: String(r.departamento || '').trim(),
+                    sede: String(r.sede || '').trim(),
+                    idRecursoToa: String(r.idRecursoToa || '').trim(),
+                    status: String(r.status || 'Contratado').trim(),
+                    contractType: String(r.contractType || 'PLAZO FIJO').trim(),
+                    contractStartDate: String(r.contractStartDate || '').trim(),
+                    contractEndDate: String(r.contractEndDate || '').trim(),
+                    previsionSalud: String(r.previsionSalud || 'FONASA').trim(),
+                    isapreNombre: String(r.isapreNombre || '').trim(),
+                    valorPlan: String(r.valorPlan || '').trim(),
+                    monedaPlan: String(r.monedaPlan || 'UF').trim(),
+                    afp: String(r.afp || '').trim(),
+                    banco: String(r.banco || '').trim(),
+                    tipoCuenta: String(r.tipoCuenta || '').trim(),
+                    numeroCuenta: String(r.numeroCuenta || '').trim(),
+                    sueldoBase: Number(r.sueldoBase || 0),
+                    requiereLicencia: String(r.requiereLicencia || 'NO').trim(),
+                    fechaVencimientoLicencia: String(r.fechaVencimientoLicencia || '').trim(),
+                    shirtSize: String(r.shirtSize || '').trim(),
+                    pantsSize: String(r.pantsSize || '').trim(),
+                    jacketSize: String(r.jacketSize || '').trim(),
+                    shoeSize: String(r.shoeSize || '').trim()
+                }))
+                .filter(r => r.rut && r.fullName && r.position);
+
+            if (candidatos.length === 0) {
+                alert('No hay colaboradores válidos para importar. Asegúrate de incluir RUT, Nombre Completo y Cargo.');
+                return;
+            }
+
+            const storedUser = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
+            let token = '';
+            if (storedUser) {
+                try {
+                    token = JSON.parse(storedUser).token;
+                } catch (err) {}
+            }
+            const headers = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            const storedContext = sessionStorage.getItem('platform_audit_context');
+            if (storedContext) {
+                try {
+                    const auditData = JSON.parse(storedContext);
+                    if (auditData._id) {
+                        headers['x-company-override'] = auditData._id;
+                    }
+                } catch (err) {}
+            }
+
+            const res = await axios.post(`${API_URL}/api/rrhh/candidatos/bulk`, { candidatos }, { headers });
+            
+            const stats = res.data?.stats || {};
+            alert(`Carga masiva de personal completada.\nCreados: ${stats.creados || 0}\nActualizados: ${stats.actualizados || 0}\nErrores: ${stats.errores || 0}`);
+            fetchMasterData();
+        } catch (err) {
+            alert('Error en carga masiva de personal: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setBulkLoading(false);
+            if (personalBulkInputRef.current) personalBulkInputRef.current.value = '';
+        }
+    };
+
+    const importSeriados = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            setBulkLoading(true);
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const productos = rows
+                .map(r => {
+                    const rowNombre = String(r.nombre || '').trim();
+                    const rowCategoria = String(r.categoria || '').trim();
+                    const rowMarca = String(r.marca || '').trim();
+                    const rowModelo = String(r.modelo || '').trim();
+                    const rowTipo = String(r.tipo || 'Activo').trim();
+                    const rowSegmento = String(r.segmentacion || 'Estándar').trim();
+                    const rowDesc = String(r.descripcion || '').trim();
+
+                    const finalDesc = rowDesc || generateIntelligentDescription({
+                        nombre: rowNombre,
+                        categoria: rowCategoria,
+                        marca: rowMarca,
+                        modelo: rowModelo,
+                        tipo: rowTipo,
+                        segmentacion: rowSegmento
+                    });
+
+                    return {
+                        nombre: rowNombre,
+                        sku: String(r.sku || '').trim(),
+                        ean: String(r.ean || '').trim(),
+                        categoria: rowCategoria,
+                        marca: rowMarca,
+                        modelo: rowModelo,
+                        nroSerie: String(r.nroSerie || r.numeroSerie || '').trim(),
+                        imei: String(r.imei || '').trim(),
+                        estadoDetallado: String(r.estadoDetallado || 'Nuevo').trim(),
+                        color: String(r.color || 'Genérico').trim(),
+                        unidadMedida: String(r.unidadMedida || 'Unidad').trim(),
+                        descripcion: finalDesc,
+                        tipo: 'Activo',
+                        trackSerial: true,
+                        segmentacion: rowSegmento,
+                        propiedad: String(r.propiedad || 'Propio').trim(),
+                        valorUnitario: Number(r.valorUnitario || 0),
+                        icono: String(r.icono || 'Archive').trim(),
+                        imagenUrl: String(r.imagenUrl || '').trim()
+                    };
+                })
+                .filter(r => r.nombre && r.nroSerie);
+
+            if (productos.length === 0) {
+                alert('No hay filas válidas para importar en existencias seriadas. Asegúrate de incluir el Nombre y Número de Serie.');
+                return;
+            }
+
+            const res = await logisticaApi.post('/productos/bulk', { productos });
+            alert(res.data?.message || 'Carga masiva existencias seriadas completada.');
+            fetchMasterData();
+        } catch (err) {
+            alert('Error en carga masiva de existencias seriadas: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setBulkLoading(false);
+            if (seriadosBulkInputRef.current) seriadosBulkInputRef.current.value = '';
+        }
+    };
+
+    const importCargos = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            setBulkLoading(true);
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const cargos = rows
+                .map(r => ({
+                    cargo: String(r.cargo || '').trim(),
+                    nombreTipoCargo: String(r.nombreTipoCargo || r.nombreEspecialidad || r.cargo || '').trim(),
+                    productoSku: String(r.productoSku || r.sku || '').trim(),
+                    cantidad: Number(r.cantidad || 1),
+                    estadoProducto: String(r.estadoProducto || r.estado || 'Nuevo').trim()
+                }))
+                .filter(r => r.cargo && r.productoSku);
+
+            if (cargos.length === 0) {
+                alert('No hay perfiles de cargos válidos para importar. Asegúrate de incluir el Cargo y el SKU del Producto.');
+                return;
+            }
+
+            const res = await logisticaApi.post('/cargo-equipamiento/bulk', { cargos });
+            
+            const errs = res.data?.errores || [];
+            if (errs.length > 0) {
+                const limit = errs.slice(0, 5).map(e => `Fila ${e.fila}: ${e.error}`).join('\n');
+                alert(`Carga masiva de cargos completada con algunos errores:\nCreados: ${res.data.creados || 0}\nActualizados: ${res.data.actualizados || 0}\nErrores: ${errs.length}\n\nMuestra de errores:\n${limit}`);
+            } else {
+                alert(res.data?.message || 'Carga masiva de perfiles de cargos completada con éxito.');
+            }
+            fetchMasterData();
+        } catch (err) {
+            alert('Error en carga masiva de perfiles de cargos: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setBulkLoading(false);
+            if (cargosBulkInputRef.current) cargosBulkInputRef.current.value = '';
         }
     };
 
@@ -807,12 +1405,16 @@ const ConfigLogistica = () => {
                 ? (editingAlmacenId ? `/almacenes/${editingAlmacenId}` : '/almacenes')
                 : activeTab === 'categorias'
                 ? (editingCategoriaId ? `/categorias/${editingCategoriaId}` : '/categorias')
+                : activeTab === 'cargos'
+                ? (editingCargoId ? `/cargo-equipamiento/${editingCargoId}` : '/cargo-equipamiento')
                 : (editingProductoId ? `/productos/${editingProductoId}` : '/productos');
             const method = activeTab === 'bodegas' && editingAlmacenId
                 ? 'put'
                 : activeTab === 'categorias' && editingCategoriaId
                 ? 'put'
-                : activeTab === 'productos' && editingProductoId
+                : activeTab === 'cargos' && editingCargoId
+                ? 'put'
+                : (activeTab === 'productos' || activeTab === 'seriados') && editingProductoId
                 ? 'put'
                 : 'post';
             const payload = activeTab === 'bodegas'
@@ -827,8 +1429,13 @@ const ConfigLogistica = () => {
                     ...catForm,
                     imagenUrl: catForm.imagenUrl || ''
                 }
+                : activeTab === 'cargos'
+                ? {
+                    ...cargoForm
+                }
                 : {
                     ...prodForm,
+                    trackSerial: activeTab === 'seriados' ? true : prodForm.trackSerial,
                     clienteRef: prodForm.propiedad === 'Cliente' ? (prodForm.clienteRef || null) : null,
                     fotoUrl: prodForm.fotoUrl || ''
                 };
@@ -848,9 +1455,38 @@ const ConfigLogistica = () => {
     const categoriasFiltradas = (data.categorias || []).filter(c =>
         `${c.nombre || ''} ${c.codigo || ''}`.toLowerCase().includes(searchCategoria.toLowerCase())
     );
-    const productosFiltrados = (data.productos || []).filter(p =>
-        `${p.nombre || ''} ${p.sku || ''} ${p.marca || ''} ${p.modelo || ''}`.toLowerCase().includes(searchProducto.toLowerCase())
-    );
+    const productosFiltrados = (data.productos || []).filter(p => {
+        const textMatch = `${p.nombre || ''} ${p.sku || ''} ${p.marca || ''} ${p.modelo || ''} ${p.nroSerie || ''} ${p.imei || ''}`.toLowerCase().includes(searchProducto.toLowerCase());
+        const catId = p.categoria?._id || p.categoria;
+        const categoriaMatch = !filterProdCategoria || String(catId) === String(filterProdCategoria);
+        const tipoMatch = !filterProdTipo || p.tipo === filterProdTipo;
+        const segmentacionMatch = !filterProdSegmentacion || p.segmentacion === filterProdSegmentacion;
+        const propiedadMatch = !filterProdPropiedad || p.propiedad === filterProdPropiedad;
+        
+        let tabMatch = true;
+        if (selectedProdCategoryTab !== 'TODOS') {
+            const catName = p.categoria?.nombre || p.categoria || 'Otros';
+            tabMatch = catName === selectedProdCategoryTab;
+        }
+        
+        const isSeriada = !!(p.nroSerie || p.trackSerial);
+        const serialMatch = activeTab === 'seriados' ? isSeriada : !isSeriada;
+        
+        return textMatch && categoriaMatch && tipoMatch && segmentacionMatch && propiedadMatch && tabMatch && serialMatch;
+    });
+    const cargosFiltrados = (data.cargoEquipamientos || []).filter(c => {
+        const textMatch = `${c.cargo || ''} ${c.nombreTipoCargo || ''}`.toLowerCase().includes(searchCargo.toLowerCase());
+        const estadoMatch = !filterCargoEstado || (c.status || 'Activo') === filterCargoEstado;
+        const cargoBaseMatch = !filterCargoBase || c.cargo === filterCargoBase;
+        const categoriaMatch = !filterCargoCategoria || (c.items || []).some(item => {
+            const prodId = typeof item.productoRef === 'object' ? item.productoRef?._id : item.productoRef;
+            const prod = (data.productos || []).find(p => p._id === prodId) || (typeof item.productoRef === 'object' ? item.productoRef : {}) || {};
+            const catId = prod.categoria?._id || prod.categoria;
+            return String(catId) === String(filterCargoCategoria);
+        });
+        return textMatch && estadoMatch && cargoBaseMatch && categoriaMatch;
+    });
+    const uniqueCargos = Array.from(new Set((data.tecnicos || []).map(t => t.cargo).filter(Boolean)));
     const personalFiltrado = (data.tecnicos || []).filter(t => {
         const textMatch = `${t.nombreCompleto || ''} ${t.rut || ''} ${t.cargo || ''} ${t.proyecto || ''} ${t.cliente || ''} ${t.idRecursoToa || ''}`.toLowerCase().includes(searchPersonal.toLowerCase());
         const proyectoMatch = !filterPersonalProyecto || String(t.proyecto || '').toLowerCase() === filterPersonalProyecto.toLowerCase();
@@ -886,20 +1522,20 @@ const ConfigLogistica = () => {
                         onClick={() => setShowModal(true)}
                         className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
                     >
-                        <Plus size={18} /> Crear {activeTab === 'bodegas' ? 'Bodega' : activeTab === 'categorias' ? 'Categoría' : 'Existencia'}
+                        <Plus size={18} /> Crear {activeTab === 'bodegas' ? 'Bodega' : activeTab === 'categorias' ? 'Categoría' : activeTab === 'cargos' ? 'Equipamiento' : activeTab === 'seriados' ? 'Existencia Seriada' : 'Existencia'}
                     </button>
                 )}
             </header>
 
             {/* TABS */}
             <div className="flex gap-2 p-1.5 bg-slate-100 rounded-[2rem] w-fit">
-                {['bodegas', 'personal', 'categorias', 'productos'].map(tab => (
+                {['bodegas', 'personal', 'categorias', 'productos', 'seriados', 'cargos'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                     >
-                        {tab === 'bodegas' ? 'Bodegas y Almacenes' : tab === 'personal' ? 'Personal Trabajador' : tab === 'categorias' ? 'Categorías' : 'Existencia General'}
+                        {tab === 'bodegas' ? 'Bodegas y Almacenes' : tab === 'personal' ? 'Personal Trabajador' : tab === 'categorias' ? 'Categorías' : tab === 'productos' ? 'Existencia General' : tab === 'seriados' ? 'Existencias Seriadas' : 'Cargo Predeterminado'}
                     </button>
                 ))}
             </div>
@@ -998,49 +1634,230 @@ const ConfigLogistica = () => {
                         </div>
                     )}
 
-                    {activeTab === 'productos' && (
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                                <div className="relative">
-                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                    <input
-                                        value={searchProducto}
-                                        onChange={e => setSearchProducto(e.target.value)}
-                                        placeholder="Buscar existencia..."
-                                        className="pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold"
-                                    />
+                    {(activeTab === 'productos' || activeTab === 'seriados') && (
+                        <div className="space-y-4">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            value={searchProducto}
+                                            onChange={e => setSearchProducto(e.target.value)}
+                                            placeholder={activeTab === 'seriados' ? "Buscar existencia seriada..." : "Buscar existencia..."}
+                                            className="pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+                                        />
+                                    </div>
+                                    <button type="button" onClick={() => setProductoView('grid')} className={`px-3 py-2 rounded-xl text-xs font-black ${productoView === 'grid' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        <Grid3X3 size={14} />
+                                    </button>
+                                    <button type="button" onClick={() => setProductoView('list')} className={`px-3 py-2 rounded-xl text-xs font-black ${productoView === 'list' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        <List size={14} />
+                                    </button>
                                 </div>
-                                <button type="button" onClick={() => setProductoView('grid')} className={`px-3 py-2 rounded-xl text-xs font-black ${productoView === 'grid' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                    <Grid3X3 size={14} />
-                                </button>
-                                <button type="button" onClick={() => setProductoView('list')} className={`px-3 py-2 rounded-xl text-xs font-black ${productoView === 'list' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                    <List size={14} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {activeTab === 'productos' ? (
+                                        <>
+                                            <button 
+                                                type="button" 
+                                                onClick={downloadProductoTemplate} 
+                                                className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all"
+                                            >
+                                                <Download size={14} /> Descargar Plantilla
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                disabled={bulkLoading} 
+                                                onClick={() => prodBulkInputRef.current?.click()} 
+                                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                                            >
+                                                <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
+                                            </button>
+                                            <input ref={prodBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importProductos} />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button 
+                                                type="button" 
+                                                onClick={downloadSeriadosTemplate} 
+                                                className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all"
+                                            >
+                                                <Download size={14} /> Descargar Plantilla
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                disabled={bulkLoading} 
+                                                onClick={() => seriadosBulkInputRef.current?.click()} 
+                                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                                            >
+                                                <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
+                                            </button>
+                                            <input ref={seriadosBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importSeriados} />
+                                        </>
+                                    )}
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowAiModal(true)}
+                                        className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-violet-100 hover:-translate-y-0.5 transition-all"
+                                    >
+                                        <Sparkles size={14} className="animate-pulse" /> Autocompletar IA
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button 
-                                    type="button" 
-                                    onClick={downloadProductoTemplate} 
-                                    className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all"
+
+                            {/* Categorías como Tarjetas / Pestañas en Existencia (Compacto y Premium) */}
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-2 mb-4">
+                                <div 
+                                    onClick={() => setActiveProdCategoryDetail({ _id: 'all', nombre: activeTab === 'seriados' ? 'Todas las Existencias Seriadas' : 'Todas las Existencias' })}
+                                    className="p-3 bg-white hover:bg-indigo-50/20 border border-slate-100 hover:border-indigo-100 rounded-2xl shadow-sm transition-all cursor-pointer flex items-center gap-3 group"
                                 >
-                                    <Download size={14} /> Descargar Plantilla
-                                </button>
-                                <button 
-                                    type="button" 
-                                    disabled={bulkLoading} 
-                                    onClick={() => prodBulkInputRef.current?.click()} 
-                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
-                                >
-                                    <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
-                                </button>
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowAiModal(true)}
-                                    className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-violet-100 hover:-translate-y-0.5 transition-all"
-                                >
-                                    <Sparkles size={14} className="animate-pulse" /> Autocompletar IA
-                                </button>
-                                <input ref={prodBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importProductos} />
+                                    <div className="p-2 rounded-xl bg-slate-50 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                        <Package size={16} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider truncate">Todas</h4>
+                                        <p className="text-[8px] font-bold text-slate-400">
+                                            {
+                                                (data.productos || []).filter(p => {
+                                                    const isSer = !!(p.nroSerie || p.trackSerial);
+                                                    return activeTab === 'seriados' ? isSer : !isSer;
+                                                }).length
+                                            } Existencias
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {(data.categorias || []).filter(cat => {
+                                    if (activeTab !== 'seriados') return true;
+                                    const count = (data.productos || []).filter(p => {
+                                        const isSer = !!(p.nroSerie || p.trackSerial);
+                                        const catId = p.categoria?._id || p.categoria;
+                                        return isSer && String(catId) === String(cat._id);
+                                    }).length;
+                                    return count > 0;
+                                }).map(cat => {
+                                    const count = (data.productos || []).filter(p => {
+                                        const isSer = !!(p.nroSerie || p.trackSerial);
+                                        const tabMatch = activeTab === 'seriados' ? isSer : !isSer;
+                                        const catId = p.categoria?._id || p.categoria;
+                                        return tabMatch && String(catId) === String(cat._id);
+                                    }).length;
+                                    
+                                    let IconComponent = Wrench;
+                                    const lowerCat = (cat.nombre || '').toLowerCase();
+                                    if (lowerCat.includes('epp') || lowerCat.includes('seguridad') || lowerCat.includes('protección') || lowerCat.includes('casco') || lowerCat.includes('chaleco')) IconComponent = Shield;
+                                    else if (lowerCat.includes('equipo') || lowerCat.includes('tecnología') || lowerCat.includes('cámara') || lowerCat.includes('fusión') || lowerCat.includes('router') || lowerCat.includes('ont')) IconComponent = Cpu;
+                                    else if (lowerCat.includes('cable') || lowerCat.includes('fibra') || lowerCat.includes('insumo') || lowerCat.includes('conector') || lowerCat.includes('ferretería')) IconComponent = Layers;
+                                    else if (lowerCat.includes('herramienta') || lowerCat.includes('taladro') || lowerCat.includes('destornillador')) IconComponent = Hammer;
+                                    else if (lowerCat.includes('instrumento') || lowerCat.includes('medidor') || lowerCat.includes('tester') || lowerCat.includes('otdr') || lowerCat.includes('power')) IconComponent = Gauge;
+
+                                    return (
+                                        <div 
+                                            key={cat._id}
+                                            onClick={() => setActiveProdCategoryDetail(cat)}
+                                            className="p-3 bg-white hover:bg-indigo-50/20 border border-slate-100 hover:border-indigo-100 rounded-2xl shadow-sm transition-all cursor-pointer flex items-center gap-3 group"
+                                        >
+                                            <div className="p-2 rounded-xl bg-slate-50 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                                <IconComponent size={16} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider truncate">{cat.nombre}</h4>
+                                                <p className="text-[8px] font-bold text-slate-400">{count} Artículos</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Barra de Filtros Dinámicos de Existencias */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 bg-slate-50 rounded-3xl border border-slate-100 shadow-sm">
+                                {/* Filtro Categoría */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Categoría</label>
+                                    <select
+                                        value={filterProdCategoria}
+                                        onChange={e => setFilterProdCategoria(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="">Todas las Categorías</option>
+                                        {(data.categorias || []).filter(cat => {
+                                            if (activeTab !== 'seriados') return true;
+                                            const count = (data.productos || []).filter(p => {
+                                                const isSer = !!(p.nroSerie || p.trackSerial);
+                                                const catId = p.categoria?._id || p.categoria;
+                                                return isSer && String(catId) === String(cat._id);
+                                            }).length;
+                                            return count > 0;
+                                        }).map(cat => (
+                                            <option key={cat._id} value={cat._id}>{cat.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro Tipo */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Tipo</label>
+                                    <select
+                                        value={filterProdTipo}
+                                        onChange={e => setFilterProdTipo(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="">Todos los Tipos</option>
+                                        <option value="Activo">Activo</option>
+                                        <option value="Suministro">Suministro</option>
+                                    </select>
+                                </div>
+
+                                {/* Filtro Segmentación */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Segmentación</label>
+                                    <select
+                                        value={filterProdSegmentacion}
+                                        onChange={e => setFilterProdSegmentacion(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="">Todas las Segmentaciones</option>
+                                        <option value="Estándar">Estándar</option>
+                                        <option value="Crítico">Crítico</option>
+                                        <option value="Consumo">Consumo</option>
+                                    </select>
+                                </div>
+
+                                {/* Filtro Propiedad */}
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Propiedad</label>
+                                    <select
+                                        value={filterProdPropiedad}
+                                        onChange={e => setFilterProdPropiedad(e.target.value)}
+                                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                    >
+                                        <option value="">Todas las Propiedades</option>
+                                        <option value="Propio">Propio</option>
+                                        <option value="Cliente">Cliente</option>
+                                    </select>
+                                </div>
+
+                                {/* Limpiar Filtros */}
+                                {(filterProdCategoria || filterProdTipo || filterProdSegmentacion || filterProdPropiedad || searchProducto) ? (
+                                    <div className="flex items-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFilterProdCategoria('');
+                                                setFilterProdTipo('');
+                                                setFilterProdSegmentacion('');
+                                                setFilterProdPropiedad('');
+                                                setSearchProducto('');
+                                            }}
+                                            className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-rose-100/30 flex items-center justify-center gap-1.5 shadow-sm"
+                                        >
+                                            Limpiar Filtros
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-end justify-center text-[10px] text-slate-400 font-extrabold uppercase tracking-widest px-3 py-2 bg-white rounded-xl border border-slate-200/50 shadow-sm">
+                                        Filtrados: <span className="text-slate-800 font-extrabold ml-1">{productosFiltrados.length}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -1078,8 +1895,27 @@ const ConfigLogistica = () => {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-                                    Colaboradores Filtrados: <span className="text-slate-800 font-extrabold">{personalFiltrado.length}</span> / {data.tecnicos?.length || 0}
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        type="button" 
+                                        onClick={downloadPersonalTemplate} 
+                                        className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all"
+                                    >
+                                        <Download size={14} /> Descargar Plantilla
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        disabled={bulkLoading} 
+                                        onClick={() => personalBulkInputRef.current?.click()} 
+                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                                    >
+                                        <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
+                                    </button>
+                                    <input ref={personalBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importPersonal} />
+
+                                    <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                        Colaboradores Filtrados: <span className="text-slate-800 font-extrabold">{personalFiltrado.length}</span> / {data.tecnicos?.length || 0}
+                                    </div>
                                 </div>
                             </div>
 
@@ -1289,8 +2125,8 @@ const ConfigLogistica = () => {
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
                                         <th className="px-4 py-3 w-16">Item</th>
-                                        <th className="px-4 py-3 w-32">ID</th>
                                         <th className="px-4 py-3">Existencia</th>
+                                        <th className="px-4 py-3">Categoría</th>
                                         <th className="px-4 py-3">SKU</th>
                                         <th className="px-4 py-3">Marca</th>
                                         <th className="px-4 py-3">Modelo</th>
@@ -1306,8 +2142,17 @@ const ConfigLogistica = () => {
                                     {productosFiltrados.map((prod, index) => (
                                         <tr key={prod._id} className="border-t border-slate-50">
                                             <td className="px-4 py-3 text-xs font-black text-slate-400">{index + 1}</td>
-                                            <td className="px-4 py-3 text-[10px] font-mono text-slate-400 select-all">{prod._id}</td>
                                             <td className="px-4 py-3 text-xs font-bold text-slate-700 flex items-center gap-2">{getVisualIcon(prod.icono || 'Archive', 14)} {prod.nombre}</td>
+                                            <td className="px-4 py-3 text-xs">
+                                                {prod.categoria ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-100 text-slate-600 text-[10px] font-extrabold uppercase tracking-wide">
+                                                        {getVisualIcon(prod.categoria.icono || 'Tags', 12)}
+                                                        {prod.categoria.nombre}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 font-bold italic text-[10px]">Sin Categoría</span>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{prod.sku || 'S/SKU'}</td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{prod.marca || '-'}</td>
                                             <td className="px-4 py-3 text-xs text-slate-500">{prod.modelo || '-'}</td>
@@ -1333,7 +2178,15 @@ const ConfigLogistica = () => {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button type="button" onClick={() => handleToggleStatus('producto', prod)} className={`p-2 rounded-lg ${prod.status === 'Inactivo' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-slate-100 text-slate-600'}`} title={prod.status === 'Inactivo' ? 'Desbloquear / Activar' : 'Bloquear / Desactivar'}>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleDerivarASeriado(prod)} 
+                                                        className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all font-bold flex items-center justify-center" 
+                                                        title="Derivar a Existencia Seriada (Crear copia con serie)"
+                                                    >
+                                                        <Boxes size={14} />
+                                                    </button>
+                                                    <button type="button" onClick={() => handleToggleStatus('producto', prod)} className={`p-2 rounded-lg ${prod.status === 'Inactivo' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title={prod.status === 'Inactivo' ? 'Desbloquear / Activar' : 'Bloquear / Desactivar'}>
                                                         {prod.status === 'Inactivo' ? <Unlock size={14} /> : <Lock size={14} />}
                                                     </button>
                                                     <button type="button" onClick={() => handleEditProducto(prod)} className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="Editar"><Pencil size={14} /></button>
@@ -1347,9 +2200,464 @@ const ConfigLogistica = () => {
                         </div>
                     )}
 
+                    {activeTab === 'seriados' && productoView === 'list' && (
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
+                                    <tr>
+                                        <th className="px-4 py-3 w-16">Item</th>
+                                        <th className="px-4 py-3">Existencia Seriada</th>
+                                        <th className="px-4 py-3">Categoría</th>
+                                        <th className="px-4 py-3">Marca / Modelo</th>
+                                        <th className="px-4 py-3">Nº de Serie</th>
+                                        <th className="px-4 py-3">IMEI</th>
+                                        <th className="px-4 py-3">Color</th>
+                                        <th className="px-4 py-3">Estado Físico</th>
+                                        <th className="px-4 py-3">Propiedad</th>
+                                        <th className="px-4 py-3">Valor</th>
+                                        <th className="px-4 py-3">Estado</th>
+                                        <th className="px-4 py-3 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {productosFiltrados.map((prod, index) => (
+                                        <tr key={prod._id} className="border-t border-slate-50 hover:bg-slate-50/40 transition-colors">
+                                            <td className="px-4 py-3 text-xs font-black text-slate-400">{index + 1}</td>
+                                            <td className="px-4 py-3 text-xs flex flex-col gap-0.5 justify-center">
+                                                <span className="font-bold text-slate-700 flex items-center gap-2">
+                                                    {getVisualIcon(prod.icono || 'Archive', 14)} {prod.nombre}
+                                                </span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => handleIrAPlantillaBase(prod.nombre)}
+                                                    className="w-fit text-[9px] font-black text-indigo-500 hover:text-indigo-700 flex items-center gap-1 uppercase tracking-wider transition-all"
+                                                    title="Ir a la Existencia General Base"
+                                                >
+                                                    <GitFork size={10} /> Ver Base General
+                                                </button>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                                {prod.categoria ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-100 text-slate-600 text-[10px] font-extrabold uppercase tracking-wide">
+                                                        {getVisualIcon(prod.categoria.icono || 'Tags', 12)}
+                                                        {prod.categoria.nombre}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 font-bold italic text-[10px]">Sin Categoría</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-xs text-slate-600 font-bold">
+                                                {prod.marca || '-'} / <span className="text-slate-400 font-normal">{prod.modelo || '-'}</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <span className="px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
+                                                    {prod.nroSerie || 'S/N'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                                {prod.imei ? (
+                                                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-[9px] font-bold">
+                                                        {prod.imei}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-300 font-bold text-[10px]">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-xs text-slate-500">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-3 h-3 rounded-full border border-slate-200 shadow-sm" style={{ backgroundColor: getColorHex(prod.color), display: 'inline-block' }} />
+                                                    <span className="font-bold text-slate-600">{prod.color || 'Genérico'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                                                    prod.estadoDetallado === 'Nuevo' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                    prod.estadoDetallado === 'Usado Reacondicionado' ? 'bg-sky-50 text-sky-600 border border-sky-100' :
+                                                    prod.estadoDetallado === 'Para Reparar' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                    'bg-rose-50 text-rose-600 border border-rose-100'
+                                                }`}>
+                                                    {prod.estadoDetallado || 'Nuevo'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                                                    prod.propiedad === 'Propio' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                }`}>
+                                                    {prod.propiedad === 'Propio' ? 'Empresa' : prod.clienteRef?.nombre || 'Cliente'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs font-black text-slate-600">${Number(prod.valorUnitario || 0).toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${prod.status === 'Inactivo' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                    {prod.status || 'Activo'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button type="button" onClick={() => handleToggleStatus('producto', prod)} className={`p-2 rounded-lg ${prod.status === 'Inactivo' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title={prod.status === 'Inactivo' ? 'Desbloquear / Activar' : 'Bloquear / Desactivar'}>
+                                                        {prod.status === 'Inactivo' ? <Unlock size={14} /> : <Lock size={14} />}
+                                                    </button>
+                                                    <button type="button" onClick={() => handleEditProducto(prod)} className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="Editar"><Pencil size={14} /></button>
+                                                    <button type="button" onClick={() => handleDeleteProducto(prod._id)} className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100" title="Eliminar"><Trash2 size={14} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {activeTab === 'cargos' && (
+                        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+                            {/* Search and Filters Bar */}
+                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 space-y-4 shadow-sm">
+                                <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+                                    <div className="relative flex-1">
+                                        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input 
+                                            type="text" 
+                                            value={searchCargo} 
+                                            onChange={e => setSearchCargo(e.target.value)} 
+                                            placeholder="Buscar por cargo predeterminado o especialización..." 
+                                            className="w-full pl-12 pr-4 py-3.5 bg-slate-50 rounded-2xl text-xs font-bold outline-none border border-transparent focus:border-indigo-500/25 transition-all placeholder:text-slate-400"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={downloadCargosTemplate} 
+                                            className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all"
+                                        >
+                                            <Download size={14} /> Descargar Plantilla
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            disabled={bulkLoading} 
+                                            onClick={() => cargosBulkInputRef.current?.click()} 
+                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                                        >
+                                            <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva (Excel)'}
+                                        </button>
+                                        <input ref={cargosBulkInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importCargos} />
+
+                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100/50 flex items-center justify-center">
+                                            Total Cargos: <span className="text-indigo-600 font-extrabold ml-1.5">{cargosFiltrados.length}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-50">
+                                    {/* Categoría Insumo */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Tiene Insumo de Categoría</label>
+                                        <select
+                                            value={filterCargoCategoria}
+                                            onChange={e => setFilterCargoCategoria(e.target.value)}
+                                            className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                        >
+                                            <option value="">Cualquier Categoría</option>
+                                            {(data.categorias || []).map(cat => (
+                                                <option key={cat._id} value={cat._id}>{cat.nombre}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Cargo Base */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Rol Base Asignado</label>
+                                        <select
+                                            value={filterCargoBase}
+                                            onChange={e => setFilterCargoBase(e.target.value)}
+                                            className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                        >
+                                            <option value="">Cualquier Rol Base</option>
+                                            {uniqueCargos.map(cBase => (
+                                                <option key={cBase} value={cBase}>{cBase}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Estado */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Estado de Ficha</label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={filterCargoEstado}
+                                                onChange={e => setFilterCargoEstado(e.target.value)}
+                                                className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="">Cualquier Estado</option>
+                                                <option value="Activo">Activo</option>
+                                                <option value="Inactivo">Inactivo</option>
+                                            </select>
+
+                                            {(filterCargoCategoria || filterCargoBase || filterCargoEstado || searchCargo) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setFilterCargoCategoria('');
+                                                        setFilterCargoBase('');
+                                                        setFilterCargoEstado('');
+                                                        setSearchCargo('');
+                                                    }}
+                                                    className="px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-black uppercase border border-rose-100/30 transition-all"
+                                                    title="Limpiar Filtros"
+                                                >
+                                                    Limpiar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Cargo Cards Stack */}
+                            <div className="grid grid-cols-1 gap-4">
+                                {cargosFiltrados.length === 0 ? (
+                                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-16 text-center shadow-sm">
+                                        <Briefcase className="mx-auto text-slate-300 mb-4 animate-pulse" size={40} />
+                                        <h3 className="text-sm font-black text-slate-700 tracking-tight">Sin Fichas de Cargo</h3>
+                                        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">No se encontraron predeterminados para la búsqueda o aún no has creado equipamiento para este cargo.</p>
+                                    </div>
+                                ) : (
+                                    cargosFiltrados.map((cargoEquip, index) => {
+                                        const isExpanded = !!expandedCargos[cargoEquip._id];
+                                        const totalItems = cargoEquip.items?.reduce((acc, it) => acc + (it.cantidad || 0), 0) || 0;
+                                        const uniqueCount = cargoEquip.items?.length || 0;
+
+                                        return (
+                                            <div 
+                                                key={cargoEquip._id}
+                                                className={`bg-white rounded-[2.5rem] border transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md ${
+                                                    isExpanded ? 'border-indigo-100 ring-2 ring-indigo-50/50' : 'border-slate-100'
+                                                }`}
+                                            >
+                                                {/* Card Header (Clickable to toggle expansion) */}
+                                                <div 
+                                                    onClick={() => setExpandedCargos({
+                                                        ...expandedCargos,
+                                                        [cargoEquip._id]: !isExpanded
+                                                    })}
+                                                    className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer select-none hover:bg-slate-50/30 transition-all"
+                                                >
+                                                    <div className="flex items-center gap-4 flex-1">
+                                                        {/* Brand-Styled Icon Container */}
+                                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all ${
+                                                            isExpanded 
+                                                                ? 'bg-gradient-to-tr from-indigo-500 to-violet-500 text-white shadow-indigo-100' 
+                                                                : 'bg-slate-50 text-indigo-500 shadow-slate-100 border border-slate-100'
+                                                        }`}>
+                                                            <Briefcase size={22} className={isExpanded ? 'animate-bounce' : ''} />
+                                                        </div>
+
+                                                        <div>
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <h3 className="text-sm font-black text-slate-800 tracking-tight uppercase">
+                                                                    {cargoEquip.nombreTipoCargo || cargoEquip.cargo}
+                                                                </h3>
+                                                                {cargoEquip.nombreTipoCargo && cargoEquip.nombreTipoCargo !== cargoEquip.cargo && (
+                                                                    <span className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 text-[9px] font-black uppercase tracking-wider">
+                                                                        Rol Base: {cargoEquip.cargo}
+                                                                    </span>
+                                                                )}
+                                                                <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${
+                                                                    cargoEquip.status === 'Inactivo' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+                                                                }`}>
+                                                                    {cargoEquip.status || 'Activo'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    📦 {uniqueCount} {uniqueCount === 1 ? 'Tipo de Insumo' : 'Tipos de Insumos'}
+                                                                </span>
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                                                                <span className="flex items-center gap-1.5">
+                                                                    🛠️ {totalItems} {totalItems === 1 ? 'Unidad Total' : 'Unidades Totales'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Right Side Actions & Chevron Toggle */}
+                                                    <div className="flex items-center gap-3 self-stretch md:self-auto justify-between md:justify-end border-t md:border-t-0 border-slate-50 pt-4 md:pt-0">
+                                                        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => handleToggleStatus('cargo', cargoEquip)} 
+                                                                className={`p-2.5 rounded-xl transition-all ${
+                                                                    cargoEquip.status === 'Inactivo' 
+                                                                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-100/50' 
+                                                                        : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-100'
+                                                                }`} 
+                                                                title={cargoEquip.status === 'Inactivo' ? 'Activar Ficha' : 'Desactivar Ficha'}
+                                                            >
+                                                                {cargoEquip.status === 'Inactivo' ? <Unlock size={14} /> : <Lock size={14} />}
+                                                            </button>
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => handleEditCargo(cargoEquip)} 
+                                                                className="p-2.5 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100 transition-all" 
+                                                                title="Editar Ficha"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </button>
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => handleDeleteCargo(cargoEquip._id)} 
+                                                                className="p-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100/30 transition-all" 
+                                                                title="Eliminar Ficha"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+
+                                                        <div className={`p-2 rounded-full transition-all duration-300 ${
+                                                            isExpanded ? 'bg-indigo-50 text-indigo-600 rotate-180' : 'bg-slate-50 text-slate-400'
+                                                        }`}>
+                                                            <ChevronDown size={18} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Expanded Content - Ficha Técnica con Tabla de Líneas */}
+                                                {isExpanded && (
+                                                    <div className="border-t border-slate-50 bg-slate-50/20 px-6 md:px-8 py-6 animate-in slide-in-from-top-4 duration-300">
+                                                        <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
+                                                            {/* Ficha Header Info */}
+                                                            <div className="p-5 bg-gradient-to-r from-slate-50/55 to-white border-b border-slate-100 flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1.5 h-3 rounded-full bg-indigo-500" />
+                                                                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                                                                        Detalle de Equipamiento Asignado (Ficha de Cargo)
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-[9px] font-bold text-slate-400 select-all font-mono">
+                                                                    ID: {cargoEquip._id}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Table of Lines */}
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead>
+                                                                    <tr className="bg-slate-50/60 text-[9px] uppercase font-black text-slate-400 tracking-wider">
+                                                                        <th className="px-6 py-4 w-16 text-center">N°</th>
+                                                                        <th className="px-6 py-4">Insumo / Existencia</th>
+                                                                        <th className="px-6 py-4">Categoría</th>
+                                                                        <th className="px-6 py-4 text-center">Cant. Requerida</th>
+                                                                        <th className="px-6 py-4">Estado Sugerido</th>
+                                                                        <th className="px-6 py-4 text-right">Prioridad / Segmentación</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {cargoEquip.items && cargoEquip.items.length > 0 ? (
+                                                                        cargoEquip.items.filter(it => {
+                                                                            if (!filterCargoCategoria) return true;
+                                                                            const prodId = typeof it.productoRef === 'object' ? it.productoRef?._id : it.productoRef;
+                                                                            const matchingProd = (data.productos || []).find(prod => prod._id === prodId);
+                                                                            const p = matchingProd || (typeof it.productoRef === 'object' ? it.productoRef : {}) || {};
+                                                                            const catId = p.categoria?._id || p.categoria;
+                                                                            return String(catId) === String(filterCargoCategoria);
+                                                                        }).map((it, idx) => {
+                                                                            const prodId = typeof it.productoRef === 'object' ? it.productoRef?._id : it.productoRef;
+                                                                            const matchingProd = (data.productos || []).find(prod => prod._id === prodId);
+                                                                            const p = matchingProd || (typeof it.productoRef === 'object' ? it.productoRef : {}) || {};
+                                                                            const isCritical = p.segmentacion === 'Crítico' || p.segmentacion === 'Critico';
+                                                                            return (
+                                                                                <tr key={idx} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/30 transition-all duration-150">
+                                                                                    <td className="px-6 py-4 text-center text-xs font-black text-slate-400">
+                                                                                        {idx + 1}
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4">
+                                                                                        <div className="flex items-center gap-3">
+                                                                                            {p.icono ? (
+                                                                                                <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-500 flex items-center justify-center border border-slate-100">
+                                                                                                    {getVisualIcon(p.icono, 16)}
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center border border-slate-100">
+                                                                                                    <Package size={16} />
+                                                                                                </div>
+                                                                                            )}
+                                                                                            <div>
+                                                                                                <p className="text-xs font-extrabold text-slate-700 tracking-tight">
+                                                                                                    {p.nombre || 'Producto Desconocido'}
+                                                                                                </p>
+                                                                                                <div className="flex items-center gap-2 mt-0.5 text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                                                    <span>SKU: {p.sku || 'Auto'}</span>
+                                                                                                    <span>•</span>
+                                                                                                    <span>Marca: {p.marca || 'Genérica'}</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4">
+                                                                                        {p.categoria ? (
+                                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-100 text-slate-600 text-[10px] font-extrabold uppercase tracking-wide">
+                                                                                                {getVisualIcon(p.categoria.icono || 'Tags', 12)}
+                                                                                                {p.categoria.nombre || p.categoria}
+                                                                                            </span>
+                                                                                        ) : (
+                                                                                            <span className="text-slate-400 font-bold italic text-[10px]">Sin Categoría</span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4 text-center">
+                                                                                        <span className="inline-flex items-center justify-center px-3 py-1 bg-indigo-50 border border-indigo-100/30 rounded-xl text-xs font-black text-indigo-600 shadow-sm min-w-[50px]">
+                                                                                            {it.cantidad} {p.unidadMedida === 'Metro' ? 'Mtr(s)' : p.unidadMedida === 'Litro' ? 'Ltr(s)' : p.unidadMedida === 'Kilogramo' ? 'Kg(s)' : 'Uni'}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4">
+                                                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase border tracking-wider ${
+                                                                                            it.estadoProducto === 'Nuevo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                                                            it.estadoProducto === 'Usado Bueno' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                                            it.estadoProducto === 'Usado Malo' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                                                                                        }`}>
+                                                                                            <span className={`w-1.5 h-1.5 rounded-full ${
+                                                                                                it.estadoProducto === 'Nuevo' ? 'bg-emerald-500' :
+                                                                                                it.estadoProducto === 'Usado Bueno' ? 'bg-indigo-500' :
+                                                                                                it.estadoProducto === 'Usado Malo' ? 'bg-amber-500' : 'bg-rose-500'
+                                                                                            }`} />
+                                                                                            {it.estadoProducto}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4 text-right">
+                                                                                        {isCritical ? (
+                                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 border border-rose-100 rounded-xl text-[9px] font-black text-rose-600 uppercase tracking-widest shadow-sm">
+                                                                                                <ShieldAlert size={12} /> Crítico
+                                                                                            </span>
+                                                                                        ) : (
+                                                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 border border-slate-100/50 px-2 py-1 rounded-lg">
+                                                                                                Estándar
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })
+                                                                    ) : (
+                                                                        <tr>
+                                                                            <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-400 italic">
+                                                                                No hay ítems configurados en esta ficha.
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {((activeTab === 'bodegas' && almacenView === 'grid') || 
                       (activeTab === 'categorias' && categoriaView === 'grid') || 
-                      (activeTab === 'productos' && productoView === 'grid')) && (
+                      (activeTab === 'productos' && productoView === 'grid') ||
+                      (activeTab === 'seriados' && productoView === 'grid')) && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {activeTab === 'bodegas' && almacenesFiltrados.map(alm => (
                                 <ConfigCard key={alm._id} icon={<Warehouse size={20}/>} title={alm.nombre} sub={alm.codigo} type={alm.tipo} status={alm.status}>
@@ -1454,6 +2762,70 @@ const ConfigLogistica = () => {
                                         </div>
                                     </div>
                                     <div className="mt-4 flex justify-end gap-2 border-t border-slate-50 pt-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleDerivarASeriado(prod)} 
+                                            className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all font-bold flex items-center justify-center" 
+                                            title="Derivar a Existencia Seriada (Crear copia con serie)"
+                                        >
+                                            <Boxes size={14} />
+                                        </button>
+                                        <button type="button" onClick={() => handleToggleStatus('producto', prod)} className={`p-2 rounded-lg ${prod.status === 'Inactivo' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title={prod.status === 'Inactivo' ? 'Desbloquear / Activar' : 'Bloquear / Desactivar'}>
+                                            {prod.status === 'Inactivo' ? <Unlock size={14} /> : <Lock size={14} />}
+                                        </button>
+                                        <button type="button" onClick={() => handleEditProducto(prod)} className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" title="Editar"><Pencil size={14} /></button>
+                                        <button type="button" onClick={() => handleDeleteProducto(prod._id)} className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100" title="Eliminar"><Trash2 size={14} /></button>
+                                    </div>
+                                </ConfigCard>
+                            ))}
+
+                            {activeTab === 'seriados' && productoView === 'grid' && productosFiltrados.map(prod => (
+                                <ConfigCard key={prod._id} icon={getVisualIcon(prod.icono || 'Archive', 20)} title={prod.nombre} sub={`S/N: ${prod.nroSerie || 'S/N'}`} type={prod.estadoDetallado || 'Nuevo'} status={prod.status}>
+                                    {prod.fotos?.[0] && (
+                                        <img src={prod.fotos[0]} alt={prod.nombre} className="w-full h-24 object-cover rounded-2xl mt-3" />
+                                    )}
+                                    <div className="mt-4 grid grid-cols-2 gap-2">
+                                        <div className="p-2 bg-slate-50 rounded-xl">
+                                            <p className="text-[8px] font-black text-slate-300 uppercase">Marca</p>
+                                            <p className="text-[10px] font-black text-slate-700">{prod.marca || 'N/A'}</p>
+                                        </div>
+                                        <div className="p-2 bg-slate-50 rounded-xl">
+                                            <p className="text-[8px] font-black text-slate-300 uppercase">Modelo</p>
+                                            <p className="text-[10px] font-black text-slate-700">{prod.modelo || 'N/A'}</p>
+                                        </div>
+                                        <div className="p-2 bg-slate-50 rounded-xl flex items-center justify-between col-span-2">
+                                            <div>
+                                                <p className="text-[8px] font-black text-slate-300 uppercase">Color</p>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shadow-sm" style={{ backgroundColor: getColorHex(prod.color), display: 'inline-block' }} />
+                                                    <span className="text-[10px] font-black text-slate-700">{prod.color || 'Genérico'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[8px] font-black text-slate-300 uppercase">IMEI</p>
+                                                <span className="text-[10px] font-black text-slate-700 text-ellipsis overflow-hidden block w-24">{prod.imei || 'N/A'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-2 bg-slate-50 rounded-xl col-span-2 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[8px] font-black text-slate-300 uppercase">Propiedad</p>
+                                                <p className="text-[10px] font-black text-slate-700">{prod.propiedad === 'Propio' ? 'Empresa' : prod.clienteRef?.nombre || 'Cliente'}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[8px] font-black text-emerald-300 uppercase">Precio Adq.</p>
+                                                <p className="text-[10px] font-black text-emerald-600">${prod.valorUnitario?.toLocaleString() || 0}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 flex justify-end gap-2 border-t border-slate-50 pt-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleIrAPlantillaBase(prod.nombre)} 
+                                            className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-all font-bold flex items-center justify-center" 
+                                            title="Ir a la Existencia General Base"
+                                        >
+                                            <GitFork size={14} />
+                                        </button>
                                         <button type="button" onClick={() => handleToggleStatus('producto', prod)} className={`p-2 rounded-lg ${prod.status === 'Inactivo' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title={prod.status === 'Inactivo' ? 'Desbloquear / Activar' : 'Bloquear / Desactivar'}>
                                             {prod.status === 'Inactivo' ? <Unlock size={14} /> : <Lock size={14} />}
                                         </button>
@@ -1548,6 +2920,7 @@ const ConfigLogistica = () => {
                                         <th className="px-6 py-4">Proyecto</th>
                                         <th className="px-6 py-4">Mandante</th>
                                         <th className="px-6 py-4">Estado Talento</th>
+                                        <th className="px-6 py-4">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1584,6 +2957,14 @@ const ConfigLogistica = () => {
                                                 <td className="px-6 py-4 text-xs">
                                                     {getEstadoTalentoBadge(colab.estadoActual)}
                                                 </td>
+                                                <td className="px-6 py-4">
+                                                    <button 
+                                                        onClick={() => handleOpenAsignacionModal(colab)}
+                                                        className="px-3 py-1.5 rounded-xl bg-violet-50 text-violet-600 font-bold text-[10px] hover:bg-violet-100 transition-colors whitespace-nowrap flex items-center gap-1"
+                                                    >
+                                                        <Package size={12} /> Asignar
+                                                    </button>
+                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -1602,10 +2983,154 @@ const ConfigLogistica = () => {
                 )}
             </main>
 
+            {/* MODAL DE ASIGNACIÓN INTELIGENTE DE CARGO */}
+            {showAsignacionModal && tecnicoAsignacion && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3rem] w-full max-w-4xl shadow-2xl overflow-hidden transition-all duration-300 animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+                        <div className="p-8 border-b border-slate-50 flex items-center justify-between shrink-0">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                    <Package className="text-violet-500" size={28} />
+                                    Asignación Inteligente de Cargo
+                                </h2>
+                                <p className="text-slate-400 text-xs font-black uppercase tracking-widest mt-1">
+                                    Técnico: {tecnicoAsignacion.nombres} {tecnicoAsignacion.apellidos} ({tecnicoAsignacion.rut})
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                <span className="px-3 py-1 rounded-xl bg-sky-50 text-sky-600 font-bold text-xs uppercase">
+                                    {tecnicoAsignacion.cargo || 'Sin Cargo'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="p-8 overflow-y-auto custom-scrollbar flex-grow bg-slate-50/30">
+                            {/* Información de Tallas del Técnico */}
+                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 mb-6 shadow-sm">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Tallas Registradas (Captura de Talento)</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="p-4 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100/50">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Polera / Camisa</span>
+                                        <span className="text-lg font-black text-slate-800 mt-1">{tecnicoAsignacion.shirtSize || '-'}</span>
+                                    </div>
+                                    <div className="p-4 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100/50">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pantalón</span>
+                                        <span className="text-lg font-black text-slate-800 mt-1">{tecnicoAsignacion.pantsSize || '-'}</span>
+                                    </div>
+                                    <div className="p-4 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100/50">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Parka / Casaca</span>
+                                        <span className="text-lg font-black text-slate-800 mt-1">{tecnicoAsignacion.jacketSize || '-'}</span>
+                                    </div>
+                                    <div className="p-4 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100/50">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calzado</span>
+                                        <span className="text-lg font-black text-slate-800 mt-1">{tecnicoAsignacion.shoeSize || tecnicoAsignacion.bootsSize || '-'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mb-6 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Parámetros de Asignación</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <SelectField 
+                                        label="Bodega Origen (Desde donde se extrae el stock)" 
+                                        value={almacenOrigenAsig} 
+                                        onChange={setAlmacenOrigenAsig} 
+                                        options={data?.almacenes?.map(a => ({label: a.nombre, value: a._id}))} 
+                                        placeholder="Sin Origen (Ingreso Directo)"
+                                        required={false}
+                                    />
+                                    <div className="flex items-end">
+                                        <button 
+                                            type="button" 
+                                            onClick={simularAsignacion} 
+                                            disabled={isSimulatingAsignacion}
+                                            className="w-full py-4 rounded-2xl bg-indigo-50 text-indigo-600 font-black text-xs uppercase tracking-wider hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                                        >
+                                            {isSimulatingAsignacion ? 'Simulando...' : '1. Simular Matching Inteligente'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {asignacionSimulacion && (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                    <div className="bg-white p-6 rounded-[2rem] border border-emerald-100 shadow-sm shadow-emerald-50">
+                                        <h3 className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <CheckCircle2 size={16} /> Resultados de Simulación
+                                        </h3>
+                                        
+                                        {asignacionSimulacion.missingStock?.length > 0 && (
+                                            <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold">
+                                                <p className="flex items-center gap-2 mb-2"><AlertTriangle size={14} /> Faltante de Stock en Bodega Origen:</p>
+                                                <ul className="list-disc pl-5 space-y-1">
+                                                    {asignacionSimulacion.missingStock.map((m, i) => (
+                                                        <li key={i}>{m.producto} (Req: {m.requerido}, Disp: {m.disponible})</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-3">
+                                            {asignacionSimulacion.matches?.map((m, i) => (
+                                                <div key={`m-${i}`} className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md mb-1 inline-block">MATCH TALLA {m.tallaDetectada}</span>
+                                                        <p className="text-sm font-black text-slate-800">{m.productoAsignado}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 mt-0.5 line-through decoration-rose-300">Original: {m.productoOriginal}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-xs font-black text-slate-600">{m.cantidad}x {m.estadoProducto}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 mt-0.5">SKU: {m.skuAsignado}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {asignacionSimulacion.fallbacks?.map((f, i) => (
+                                                <div key={`f-${i}`} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-200 px-2 py-0.5 rounded-md mb-1 inline-block">ASIGNACIÓN ESTÁNDAR</span>
+                                                        <p className="text-sm font-black text-slate-800">{f.productoAsignado}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-xs font-black text-slate-600">{f.cantidad}x {f.estadoProducto}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 mt-0.5">SKU: {f.skuAsignado}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            
+                                            {asignacionSimulacion.matches?.length === 0 && asignacionSimulacion.fallbacks?.length === 0 && (
+                                                <p className="text-center text-xs font-bold text-slate-400 italic py-4">No hay ítems configurados en este cargo.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+                            <button 
+                                type="button" 
+                                onClick={handleCloseAsignacionModal} 
+                                className="px-6 py-3 rounded-2xl text-slate-500 font-bold text-xs uppercase tracking-wider hover:bg-slate-200 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={confirmarAsignacion}
+                                disabled={!asignacionSimulacion || asignacionSimulacion.missingStock?.length > 0 || isConfirmingAsignacion}
+                                className="px-8 py-3 rounded-2xl bg-violet-600 text-white font-black text-xs uppercase tracking-widest hover:bg-violet-700 hover:shadow-lg hover:shadow-violet-200 transition-all disabled:opacity-50 disabled:hover:shadow-none flex items-center gap-2"
+                            >
+                                {isConfirmingAsignacion ? 'Procesando...' : '2. Confirmar Asignación'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* MODAL UNIFICADO */}
             {showModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95">
+                    <div className={`bg-white rounded-[3rem] w-full ${activeTab === 'cargos' ? 'max-w-5xl' : 'max-w-lg'} shadow-2xl overflow-hidden transition-all duration-300 animate-in zoom-in-95`}>
                         <form onSubmit={handleAction}>
                             <div className="p-8 border-b border-slate-50">
                                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">
@@ -1615,12 +3140,16 @@ const ConfigLogistica = () => {
                                         ? 'Editar categoría'
                                         : activeTab === 'productos' && editingProductoId
                                         ? 'Editar existencia'
+                                        : activeTab === 'cargos' && editingCargoId
+                                        ? 'Editar equipamiento de cargo'
+                                        : activeTab === 'cargos'
+                                        ? 'Crear equipamiento de cargo'
                                         : `Registro de ${activeTab === 'productos' ? 'existencias' : activeTab === 'bodegas' ? 'bodegas/vehículos' : 'categorías'}`}
                                 </h2>
                                 <p className="text-slate-400 text-xs font-black uppercase tracking-widest mt-1">Configuración Maestra 360</p>
                             </div>
 
-                            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            <div className={`p-8 space-y-6 ${activeTab === 'cargos' ? 'max-h-[70vh]' : 'max-h-[60vh]'} overflow-y-auto custom-scrollbar`}>
                                 {activeTab === 'bodegas' && (
                                     <>
                                         <InputField label="Nombre de Bodega/Vehículo" value={almForm.nombre} onChange={v => setAlmForm({...almForm, nombre: v})} />
@@ -1638,7 +3167,7 @@ const ConfigLogistica = () => {
                                         <p className="text-[10px] font-bold text-slate-400 -mt-2">
                                             Para crear una bodega padre, guarda primero una bodega con jerarquía raíz y luego podrás seleccionarla en las siguientes.
                                         </p>
-                                        <InputField label="Dirección / Ubicación" value={almForm.ubicacion.direccion} onChange={v => setAlmForm({...almForm, ubicacion: { direccion: v }})} />
+                                        <InputField label="Dirección / Ubicación" value={almForm.ubicacion.direccion} onChange={v => setAlmForm({...almForm, ubicacion: { direccion: v }})} required={false} />
                                     </>
                                 )}
 
@@ -1743,8 +3272,8 @@ const ConfigLogistica = () => {
                                             </div>
                                         )}
                                         <div className="grid grid-cols-2 gap-4">
-                                            <InputField label="Código SKU (Vacío = Auto)" value={prodForm.sku} onChange={v => setProdForm({...prodForm, sku: v})} />
-                                            <InputField label="Código EAN (Barras)" value={prodForm.ean} onChange={v => setProdForm({...prodForm, ean: v})} />
+                                            <InputField label="Código SKU (Vacío = Auto)" value={prodForm.sku} onChange={v => setProdForm({...prodForm, sku: v})} required={false} />
+                                            <InputField label="Código EAN (Barras)" value={prodForm.ean} onChange={v => setProdForm({...prodForm, ean: v})} required={false} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <SelectField label="Categoría" value={prodForm.categoria} onChange={v => setProdForm({...prodForm, categoria: v})} options={data?.categorias?.map(c => ({label: c.nombre, value: c._id}))} />
@@ -1770,12 +3299,12 @@ const ConfigLogistica = () => {
                                             {prodForm.fotoUrl && <img src={prodForm.fotoUrl} alt="Existencia" className="w-full h-28 object-cover rounded-2xl" />}
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <InputField label="Marca" value={prodForm.marca} onChange={v => setProdForm({...prodForm, marca: v})} />
-                                            <InputField label="Modelo" value={prodForm.modelo} onChange={v => setProdForm({...prodForm, modelo: v})} />
+                                            <InputField label="Marca" value={prodForm.marca} onChange={v => setProdForm({...prodForm, marca: v})} required={false} />
+                                            <InputField label="Modelo" value={prodForm.modelo} onChange={v => setProdForm({...prodForm, modelo: v})} required={false} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <SelectField label="Unidad de Medida" value={prodForm.unidadMedida} onChange={v => setProdForm({...prodForm, unidadMedida: v})} options={['Unidad', 'Metro', 'Litro', 'Kilogramo', 'Caja', 'Pack']} />
-                                            <InputField label="Descripción" value={prodForm.descripcion} onChange={v => setProdForm({...prodForm, descripcion: v})} />
+                                            <InputField label="Descripción" value={prodForm.descripcion} onChange={v => setProdForm({...prodForm, descripcion: v})} required={false} />
                                         </div>
                                         <div className="p-4 bg-emerald-50 rounded-3xl border border-emerald-100">
                                             <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Precio Unitario de Adquisición ($)</label>
@@ -1792,11 +3321,281 @@ const ConfigLogistica = () => {
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <SelectField label="Propiedad" value={prodForm.propiedad} onChange={v => setProdForm({...prodForm, propiedad: v})} options={['Propio', 'Cliente']} />
-                                            {prodForm.propiedad === 'Cliente' && (
-                                                <SelectField label="Cliente Dueño" value={prodForm.clienteRef} onChange={v => setProdForm({...prodForm, clienteRef: v})} options={data?.clientes?.map(c => ({label: c.nombre, value: c._id}))} />
-                                            )}
                                         </div>
                                     </>
+                                )}
+
+                                {activeTab === 'seriados' && (
+                                    <>
+                                        <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col gap-1.5">
+                                            <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">
+                                                Vincular con Existencia General Base
+                                            </p>
+                                            <p className="text-[10px] text-indigo-500 font-bold leading-relaxed">
+                                                Selecciona un producto del catálogo general para heredar su nombre, categoría, unidad de medida y precio base de adquisición.
+                                            </p>
+                                            <div className="mt-2">
+                                                <SelectField
+                                                    label="Seleccionar Producto Base"
+                                                    value={
+                                                        (data.productos || []).find(p => !p.nroSerie && !p.trackSerial && p.nombre === prodForm.nombre)?._id || ''
+                                                    }
+                                                    onChange={selectedValue => {
+                                                        const baseProd = (data.productos || []).find(p => p._id === selectedValue);
+                                                        if (baseProd) {
+                                                            setProdForm(prev => ({
+                                                                ...prev,
+                                                                nombre: baseProd.nombre,
+                                                                categoria: baseProd.categoria?._id || baseProd.categoria,
+                                                                icono: baseProd.icono || 'Archive',
+                                                                tipo: baseProd.tipo || 'Activo',
+                                                                unidadMedida: baseProd.unidadMedida || 'Unidad',
+                                                                propiedad: baseProd.propiedad || 'Propio',
+                                                                clienteRef: baseProd.clienteRef?._id || baseProd.clienteRef || '',
+                                                                valorUnitario: baseProd.valorUnitario || 0,
+                                                                segmentacion: baseProd.segmentacion || 'Estándar',
+                                                                color: baseProd.color || 'Genérico',
+                                                                marca: baseProd.marca || prev.marca,
+                                                                modelo: baseProd.modelo || prev.modelo,
+                                                                descripcion: baseProd.descripcion || prev.descripcion,
+                                                            }));
+                                                        }
+                                                    }}
+                                                    options={(data.productos || [])
+                                                        .filter(p => !p.nroSerie && !p.trackSerial)
+                                                        .map(p => ({ label: p.nombre, value: p._id }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {prodForm.nombre && (
+                                            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col gap-2">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                                    Propiedades Heredadas
+                                                </p>
+                                                <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-600">
+                                                    <div>
+                                                        <span className="text-slate-400">Categoría:</span>{' '}
+                                                        {(data.categorias || []).find(c => c._id === (prodForm.categoria?._id || prodForm.categoria))?.nombre || 'Sin Categoría'}
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400">Tipo:</span> {prodForm.tipo}
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400">Medida:</span> {prodForm.unidadMedida}
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400">Valor Base:</span> ${Number(prodForm.valorUnitario || 0).toLocaleString()}
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <span className="text-slate-400">Propiedad:</span>{' '}
+                                                        {prodForm.propiedad === 'Propio' ? 'Empresa' : 'Cliente'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <InputField
+                                            label="Marca del Artículo"
+                                            value={prodForm.marca}
+                                            onChange={v => setProdForm({ ...prodForm, marca: v })}
+                                        />
+                                        <InputField
+                                            label="Modelo del Artículo"
+                                            value={prodForm.modelo}
+                                            onChange={v => setProdForm({ ...prodForm, modelo: v })}
+                                        />
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <InputField
+                                                label="Número de Serie (Requerido)"
+                                                value={prodForm.nroSerie}
+                                                onChange={v => setProdForm({ ...prodForm, nroSerie: v })}
+                                            />
+                                            <InputField
+                                                label="IMEI (Opcional)"
+                                                value={prodForm.imei}
+                                                onChange={v => setProdForm({ ...prodForm, imei: v })}
+                                                required={false}
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <SelectField
+                                                label="Color"
+                                                value={prodForm.color || 'Genérico'}
+                                                onChange={v => setProdForm({ ...prodForm, color: v })}
+                                                options={COLOR_OPTIONS}
+                                            />
+                                            <SelectField
+                                                label="Estado Físico"
+                                                value={prodForm.estadoDetallado || 'Nuevo'}
+                                                onChange={v => setProdForm({ ...prodForm, estadoDetallado: v })}
+                                                options={[
+                                                    'Nuevo',
+                                                    'Usado Reacondicionado',
+                                                    'Para Reparar',
+                                                    'Baja',
+                                                ]}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+
+                                {activeTab === 'cargos' && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                                        {/* COLUMNA IZQUIERDA: INFORMACIÓN DE CARGO (Ficha Básica) */}
+                                        <div className="lg:col-span-5 space-y-6">
+                                            <div className="bg-slate-50/80 rounded-[2rem] border border-slate-100 p-6 space-y-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-3 bg-slate-900 text-white rounded-2xl">
+                                                        <Briefcase size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide">Ficha de Cargo</h4>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Definición y Sugerencias</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <InputField 
+                                                        label="Cargo / Rol Base de Técnico" 
+                                                        value={cargoForm.cargo} 
+                                                        onChange={v => setCargoForm({ ...cargoForm, cargo: v, nombreTipoCargo: cargoForm.nombreTipoCargo && cargoForm.nombreTipoCargo !== cargoForm.cargo ? cargoForm.nombreTipoCargo : v })} 
+                                                        required
+                                                        placeholder="Ej: TECNICO TELECOMUNICACIONES"
+                                                    />
+
+                                                    <InputField 
+                                                        label="Nombre Especialidad / Variante de Cargo" 
+                                                        value={cargoForm.nombreTipoCargo} 
+                                                        onChange={v => setCargoForm({ ...cargoForm, nombreTipoCargo: v })} 
+                                                        required
+                                                        placeholder="Ej: Técnico Telecomunicaciones - Fibra Óptica"
+                                                    />
+
+                                                    {uniqueCargos.length > 0 && (
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Sugerencias del Personal 360</label>
+                                                            <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
+                                                                {uniqueCargos.map(cargoVal => (
+                                                                    <button
+                                                                        key={cargoVal}
+                                                                        type="button"
+                                                                        onClick={() => setCargoForm({ 
+                                                                            ...cargoForm, 
+                                                                            cargo: cargoVal, 
+                                                                            nombreTipoCargo: cargoForm.nombreTipoCargo && cargoForm.nombreTipoCargo !== cargoForm.cargo ? cargoForm.nombreTipoCargo : cargoVal 
+                                                                        })}
+                                                                        className={`px-3 py-2 border rounded-xl text-[10px] font-bold transition-all active:scale-95 ${cargoForm.cargo === cargoVal ? 'bg-slate-900 border-slate-900 text-white shadow-sm' : 'bg-white border-slate-200/60 text-slate-600 hover:bg-slate-50'}`}
+                                                                    >
+                                                                        {cargoVal}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-gradient-to-br from-indigo-50/50 to-violet-50/30 rounded-[2rem] border border-indigo-100/50 p-6 space-y-3">
+                                                <h5 className="text-[10px] font-black text-indigo-950 uppercase tracking-widest">¿Para qué sirve esta Ficha?</h5>
+                                                <p className="text-[10px] text-indigo-700/80 leading-relaxed font-semibold">
+                                                    Al predeterminar un cargo, el sistema asignará automáticamente este equipamiento base a los nuevos técnicos ingresados con este rol.
+                                                </p>
+                                                <div className="flex items-center gap-2 text-[9px] text-indigo-500 font-black uppercase tracking-wider pt-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Control Inteligente 360
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* COLUMNA DERECHA: CONSTRUCTOR DE IMPLEMENTOS */}
+                                        <div className="lg:col-span-7 space-y-4">
+                                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                                <div>
+                                                    <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Implementos Predeterminados</h4>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Asigna los insumos y herramientas requeridos</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCargoForm({
+                                                        ...cargoForm,
+                                                        items: [...cargoForm.items, { productoRef: '', cantidad: 1, estadoProducto: 'Nuevo' }]
+                                                    })}
+                                                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-md active:scale-95"
+                                                >
+                                                    <Plus size={12} /> Agregar Fila
+                                                </button>
+                                            </div>
+
+                                            {cargoForm.items.length === 0 ? (
+                                                <div className="p-12 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-wider space-y-2">
+                                                    <div className="w-12 h-12 rounded-full bg-white border border-slate-100 flex items-center justify-center mx-auto text-slate-300">
+                                                        <Plus size={18} />
+                                                    </div>
+                                                    <p>Sin equipamientos cargados aún.</p>
+                                                    <p className="text-[9px] text-slate-400 font-bold lowercase">Haz clic en "Agregar Fila" para definir el equipamiento estándar.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1 custom-scrollbar">
+                                                    {cargoForm.items.map((item, index) => (
+                                                        <div key={index} className="flex gap-2.5 items-end p-4 bg-white border border-slate-100 rounded-[2rem] shadow-sm hover:shadow-md transition-all duration-300 relative group animate-in slide-in-from-top-1">
+                                                            <div className="flex-1 min-w-[140px]">
+                                                                <SelectField
+                                                                    label="Existencia / Catálogo"
+                                                                    value={item.productoRef}
+                                                                    onChange={v => {
+                                                                        const newItems = [...cargoForm.items];
+                                                                        newItems[index].productoRef = v;
+                                                                        setCargoForm({ ...cargoForm, items: newItems });
+                                                                    }}
+                                                                    options={(data.productos || []).map(p => ({ label: `${p.nombre} (${p.sku})`, value: p._id }))}
+                                                                />
+                                                            </div>
+                                                            <div className="w-20">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Cant.</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    required
+                                                                    value={item.cantidad}
+                                                                    onChange={e => {
+                                                                        const newItems = [...cargoForm.items];
+                                                                        newItems[index].cantidad = Math.max(1, parseInt(e.target.value) || 1);
+                                                                        setCargoForm({ ...cargoForm, items: newItems });
+                                                                    }}
+                                                                    className="w-full mt-2 p-4 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs font-bold outline-none focus:border-slate-300 transition-all text-slate-700 shadow-inner"
+                                                                />
+                                                            </div>
+                                                            <div className="w-28">
+                                                                <SelectField
+                                                                    label="Estado"
+                                                                    value={item.estadoProducto}
+                                                                    onChange={v => {
+                                                                        const newItems = [...cargoForm.items];
+                                                                        newItems[index].estadoProducto = v;
+                                                                        setCargoForm({ ...cargoForm, items: newItems });
+                                                                    }}
+                                                                    options={['Nuevo', 'Usado Bueno', 'Usado Malo', 'Merma']}
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const newItems = cargoForm.items.filter((_, idx) => idx !== index);
+                                                                    setCargoForm({ ...cargoForm, items: newItems });
+                                                                }}
+                                                                className="p-3.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all flex items-center justify-center active:scale-95 border border-rose-100/50 mb-0.5"
+                                                                title="Eliminar fila"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
 
@@ -1811,6 +3610,8 @@ const ConfigLogistica = () => {
                                         ? 'Actualizar Categoría'
                                         : activeTab === 'productos' && editingProductoId
                                         ? 'Actualizar Producto'
+                                        : activeTab === 'cargos' && editingCargoId
+                                        ? 'Actualizar Cargo'
                                         : 'Guardar Registro'}
                                 </button>
                             </div>
@@ -2043,6 +3844,334 @@ const ConfigLogistica = () => {
                     </div>
                 </div>
             )}
+
+            {activeProdCategoryDetail && activeProdCategoryDetail._id !== 'all' && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[260] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3rem] w-full max-w-6xl shadow-2xl overflow-hidden transition-all duration-300 animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+                        {/* Cabecera Premium */}
+                        <div className="p-8 bg-gradient-to-r from-slate-900 to-indigo-950 text-white shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+                            {/* Decoración premium de fondo */}
+                            <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="absolute left-1/3 bottom-0 w-60 h-60 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+                            
+                            <div className="flex items-center gap-5 z-10">
+                                <div className="p-4 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 text-indigo-200 shadow-inner">
+                                    {(() => {
+                                        let IconComponent = Wrench;
+                                        const lowerCat = (activeProdCategoryDetail.nombre || '').toLowerCase();
+                                        if (lowerCat.includes('epp') || lowerCat.includes('seguridad') || lowerCat.includes('protección') || lowerCat.includes('casco') || lowerCat.includes('chaleco')) IconComponent = Shield;
+                                        else if (lowerCat.includes('equipo') || lowerCat.includes('tecnología') || lowerCat.includes('cámara') || lowerCat.includes('fusión') || lowerCat.includes('router') || lowerCat.includes('ont')) IconComponent = Cpu;
+                                        else if (lowerCat.includes('cable') || lowerCat.includes('fibra') || lowerCat.includes('insumo') || lowerCat.includes('conector') || lowerCat.includes('ferretería')) IconComponent = Layers;
+                                        else if (lowerCat.includes('herramienta') || lowerCat.includes('taladro') || lowerCat.includes('destornillador')) IconComponent = Hammer;
+                                        else if (lowerCat.includes('instrumento') || lowerCat.includes('medidor') || lowerCat.includes('tester') || lowerCat.includes('otdr') || lowerCat.includes('power')) IconComponent = Gauge;
+                                        return <IconComponent size={32} className="animate-pulse" />;
+                                    })()}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/30 border border-indigo-400/30 text-[9px] font-black uppercase tracking-widest text-indigo-200">
+                                            {activeProdCategoryDetail.prioridadValor}
+                                        </span>
+                                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 border border-emerald-400/30 text-[9px] font-black uppercase tracking-widest text-emerald-200">
+                                            {activeProdCategoryDetail.tipoRotacion}
+                                        </span>
+                                    </div>
+                                    <h2 className="text-2xl font-black tracking-tight mt-1">
+                                        Explorador: {activeProdCategoryDetail.nombre}
+                                    </h2>
+                                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5">
+                                        Código Maestro: {activeProdCategoryDetail.codigo || 'S/C'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 z-10">
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        setEditingProductoId(null);
+                                        setProdForm({
+                                            nombre: '',
+                                            sku: '',
+                                            ean: '',
+                                            categoria: activeProdCategoryDetail._id,
+                                            marca: '',
+                                            modelo: '',
+                                            nroSerie: '',
+                                            imei: '',
+                                            trackSerial: false,
+                                            unidadMedida: 'Unidad',
+                                            descripcion: '',
+                                            tipo: 'Activo',
+                                            color: 'Genérico',
+                                            segmentacion: 'Estándar',
+                                            propiedad: 'Propio',
+                                            clienteRef: '',
+                                            valorUnitario: 0,
+                                            icono: 'Archive',
+                                            fotoUrl: ''
+                                        });
+                                        setShowModal(true);
+                                    }}
+                                    className="px-5 py-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-900 font-black text-xs uppercase tracking-wider shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                                >
+                                    <Sparkles size={14} className="text-indigo-600" /> Nuevo Artículo
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setActiveProdCategoryDetail(null)}
+                                    className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase tracking-wider border border-white/10 hover:border-white/20 transition-all flex items-center gap-2"
+                                >
+                                    Volver Atrás
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Contenido / Vista Principal */}
+                        <div className="p-8 overflow-y-auto custom-scrollbar flex-grow bg-slate-50/50">
+                            {/* Métricas / KPIs de la Categoría */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Artículos</span>
+                                        <h3 className="text-xl font-black text-slate-800 mt-1">
+                                            {((data.productos || []).filter(p => {
+                                                const catId = p.categoria?._id || p.categoria;
+                                                return String(catId) === String(activeProdCategoryDetail._id);
+                                            })).length}
+                                        </h3>
+                                    </div>
+                                    <div className="p-3 rounded-2xl bg-indigo-50 text-indigo-600">
+                                        <Package size={20} />
+                                    </div>
+                                </div>
+                                <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Valorización Total</span>
+                                        <h3 className="text-xl font-black text-slate-800 mt-1">
+                                            ${((data.productos || []).filter(p => {
+                                                const catId = p.categoria?._id || p.categoria;
+                                                return String(catId) === String(activeProdCategoryDetail._id);
+                                            })).reduce((acc, p) => acc + (Number(p.valorUnitario) || 0), 0).toLocaleString()}
+                                        </h3>
+                                    </div>
+                                    <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600">
+                                        <Gauge size={20} />
+                                    </div>
+                                </div>
+                                <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Segmentación Críticos</span>
+                                        <h3 className="text-xl font-black text-slate-800 mt-1">
+                                            {((data.productos || []).filter(p => {
+                                                const catId = p.categoria?._id || p.categoria;
+                                                return String(catId) === String(activeProdCategoryDetail._id) && (p.segmentacion === 'Crítico' || p.segmentacion === 'Critico');
+                                            })).length}
+                                        </h3>
+                                    </div>
+                                    <div className="p-3 rounded-2xl bg-rose-50 text-rose-600">
+                                        <Shield size={20} />
+                                    </div>
+                                </div>
+                                <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Artículos Activos</span>
+                                        <h3 className="text-xl font-black text-slate-800 mt-1">
+                                            {((data.productos || []).filter(p => {
+                                                const catId = p.categoria?._id || p.categoria;
+                                                return String(catId) === String(activeProdCategoryDetail._id) && p.status !== 'Inactivo';
+                                            })).length}
+                                        </h3>
+                                    </div>
+                                    <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                                        <Cpu size={20} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Barra de Búsqueda local */}
+                            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="relative w-full max-w-md">
+                                    <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        value={searchProducto}
+                                        onChange={e => setSearchProducto(e.target.value)}
+                                        placeholder="Buscar artículo en esta categoría..."
+                                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Mostrando {((data.productos || []).filter(p => {
+                                        const catId = p.categoria?._id || p.categoria;
+                                        const term = (searchProducto || '').toLowerCase();
+                                        return String(catId) === String(activeProdCategoryDetail._id) && (
+                                            !term ||
+                                            p.nombre?.toLowerCase().includes(term) ||
+                                            p.sku?.toLowerCase().includes(term) ||
+                                            p.marca?.toLowerCase().includes(term) ||
+                                            p.modelo?.toLowerCase().includes(term)
+                                        );
+                                    })).length} de {((data.productos || []).filter(p => {
+                                        const catId = p.categoria?._id || p.categoria;
+                                        return String(catId) === String(activeProdCategoryDetail._id);
+                                    })).length} existencias
+                                </div>
+                            </div>
+
+                            {/* Tabla de Artículos */}
+                            {((data.productos || []).filter(p => {
+                                const catId = p.categoria?._id || p.categoria;
+                                const term = (searchProducto || '').toLowerCase();
+                                return String(catId) === String(activeProdCategoryDetail._id) && (
+                                    !term ||
+                                    p.nombre?.toLowerCase().includes(term) ||
+                                    p.sku?.toLowerCase().includes(term) ||
+                                    p.marca?.toLowerCase().includes(term) ||
+                                    p.modelo?.toLowerCase().includes(term)
+                                );
+                            })).length === 0 ? (
+                                <div className="p-12 text-center bg-white border border-slate-100 rounded-[2.5rem]">
+                                    <Archive size={40} className="mx-auto text-slate-300 mb-3" />
+                                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider">No se encontraron artículos</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-1">Prueba cambiando tu búsqueda o agrega un nuevo artículo.</p>
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 text-[9px] uppercase font-black text-slate-400 border-b border-slate-100">
+                                                <tr>
+                                                    <th className="px-6 py-4 w-12 text-center">Nº</th>
+                                                    <th className="px-6 py-4">Artículo</th>
+                                                    <th className="px-6 py-4">SKU / Código</th>
+                                                    <th className="px-6 py-4">Especificaciones</th>
+                                                    <th className="px-6 py-4">Valor Base</th>
+                                                    <th className="px-6 py-4">Estado</th>
+                                                    <th className="px-6 py-4 text-right">Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {((data.productos || []).filter(p => {
+                                                    const catId = p.categoria?._id || p.categoria;
+                                                    const term = (searchProducto || '').toLowerCase();
+                                                    return String(catId) === String(activeProdCategoryDetail._id) && (
+                                                        !term ||
+                                                        p.nombre?.toLowerCase().includes(term) ||
+                                                        p.sku?.toLowerCase().includes(term) ||
+                                                        p.marca?.toLowerCase().includes(term) ||
+                                                        p.modelo?.toLowerCase().includes(term)
+                                                    );
+                                                })).map((prod, index) => (
+                                                    <tr key={prod._id} className="hover:bg-slate-50/50 transition-colors">
+                                                        <td className="px-6 py-4 text-[10px] font-black text-slate-400 text-center">{index + 1}</td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                                                                    {getVisualIcon(prod.icono || 'Archive', 14)}
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="text-xs font-black text-slate-700">{prod.nombre}</h4>
+                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{prod.tipo || 'Insumo'}</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs font-mono font-bold text-slate-500">{prod.sku || 'S/SKU'}</td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {prod.marca && (
+                                                                    <span className="px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-100 text-[9px] font-extrabold text-slate-600 uppercase">
+                                                                        {prod.marca}
+                                                                    </span>
+                                                                )}
+                                                                {prod.modelo && (
+                                                                    <span className="px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-100 text-[9px] font-extrabold text-slate-600 uppercase">
+                                                                        {prod.modelo}
+                                                                    </span>
+                                                                )}
+                                                                {prod.color && (
+                                                                    <span className="px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-100 text-[9px] font-extrabold text-slate-600 uppercase">
+                                                                        {prod.color}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs font-extrabold text-slate-700">
+                                                            ${Number(prod.valorUnitario || 0).toLocaleString()}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                                prod.status === 'Inactivo' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+                                                            }`}>
+                                                                {prod.status || 'Activo'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => {
+                                                                        setActiveProdCategoryDetail(null);
+                                                                        setActiveTab('seriados');
+                                                                        setSearchProducto(prod.sku || prod.nombre);
+                                                                    }} 
+                                                                    className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                                                    title="Derivar a Existencias Seriadas"
+                                                                >
+                                                                    <Boxes size={13} />
+                                                                </button>
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleToggleStatus('producto', prod)} 
+                                                                    className={`p-2 rounded-lg transition-colors ${
+                                                                        prod.status === 'Inactivo' ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                                                    }`}
+                                                                    title={prod.status === 'Inactivo' ? 'Activar' : 'Desactivar'}
+                                                                >
+                                                                    {prod.status === 'Inactivo' ? <Unlock size={13} /> : <Lock size={13} />}
+                                                                </button>
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleEditProducto(prod)} 
+                                                                    className="p-2 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors"
+                                                                    title="Editar"
+                                                                >
+                                                                    <Pencil size={13} />
+                                                                </button>
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleDeleteProducto(prod._id)} 
+                                                                    className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                                                                    title="Eliminar"
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Pie de modal */}
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 shrink-0 flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-400">
+                                Synoptik Inteligencia Operativa
+                            </span>
+                            <button 
+                                type="button" 
+                                onClick={() => setActiveProdCategoryDetail(null)}
+                                className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider shadow-lg transition-all"
+                            >
+                                Volver al Panel General
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -2073,11 +4202,12 @@ const ConfigCard = ({ icon, title, sub, type, status, children }) => {
     );
 };
 
-const InputField = ({ label, value, onChange }) => (
+const InputField = ({ label, value, onChange, required = true, placeholder = '' }) => (
     <div className="space-y-2">
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
         <input 
-            required type="text" value={value} 
+            required={required} type="text" value={value} 
+            placeholder={placeholder}
             onChange={e => onChange(e.target.value)}
             className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-transparent focus:ring-slate-100 transition-all"
         />

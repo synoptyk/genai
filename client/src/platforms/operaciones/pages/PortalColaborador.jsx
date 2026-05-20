@@ -15,7 +15,8 @@ import {
     Package, Key, Fuel, Navigation, GraduationCap,
     Activity,
     ClipboardList,
-    TrendingUp, Star, Trophy, Settings
+    TrendingUp, Star, Trophy, Settings,
+    Wrench, Shield, Cpu, Layers, Hammer, Gauge
 } from 'lucide-react';
 import logisticaApi from '../../logistica/logisticaApi';
 
@@ -62,6 +63,20 @@ const PortalColaborador = () => {
     const [submittingAppeal, setSubmittingAppeal] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('Todos'); // Todos, Altas, Averías, etc
+    const [equipamientoFilter, setEquipamientoFilter] = useState('');
+    const [selectedCategoryTab, setSelectedCategoryTab] = useState('TODOS');
+    const [misObservacionesActivas, setMisObservacionesActivas] = useState([]);
+    const [selectedItemObservation, setSelectedItemObservation] = useState(null);
+    const [observationForm, setObservationForm] = useState({ comentario: '', fotoUrl: '' });
+    const [submittingObservation, setSubmittingObservation] = useState(false);
+    
+    // Estados Auto-Auditoría
+    const [isAutoAuditing, setIsAutoAuditing] = useState(false);
+    const [auditResponses, setAuditResponses] = useState({}); // { itemId: { estado: 'Bueno'|'Malo'|'No Tengo', comentario, fotoUrl } }
+    const [auditItemTarget, setAuditItemTarget] = useState(null);
+    const [auditItemStatus, setAuditItemStatus] = useState(null);
+    const [submittingAudit, setSubmittingAudit] = useState(false);
+
     const activeYear = new Date().getFullYear();
 
     // --- Estado para configuración dinámica de bonificaciones ---
@@ -299,12 +314,14 @@ const PortalColaborador = () => {
 
             // 6. Cargar Inventario y Auditorías Logísticas (solo si hay ID de técnico)
             if (resTecnico.data?._id) {
-                const [resInv, resAud] = await Promise.all([
+                const [resInv, resAud, resObs] = await Promise.all([
                     logisticaApi.get(`/stock-tecnico?tecnicoId=${resTecnico.data._id}`).catch(() => ({ data: [] })),
-                    logisticaApi.get(`/auditorias-tecnico?tecnicoId=${resTecnico.data._id}`).catch(() => ({ data: [] }))
+                    logisticaApi.get(`/auditorias-tecnico?tecnicoId=${resTecnico.data._id}`).catch(() => ({ data: [] })),
+                    logisticaApi.get(`/observaciones-stock/tecnico/${resTecnico.data._id}`).catch(() => ({ data: [] }))
                 ]);
                 setMiInventario(resInv.data);
                 setMisAuditorias(resAud.data);
+                setMisObservacionesActivas(resObs.data);
 
                 // 7. Cargar producción TOA si el técnico tiene idRecursoToa
                 if (resTecnico.data.idRecursoToa) {
@@ -313,6 +330,7 @@ const PortalColaborador = () => {
             } else {
                 setMiInventario([]);
                 setMisAuditorias([]);
+                setMisObservacionesActivas([]);
             }
 
         } catch (err) {
@@ -1640,6 +1658,110 @@ const PortalColaborador = () => {
     // VIEW: MI INVENTARIO (LOGÍSTICA)
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'inventario') {
+        const handleSendObservation = async (e) => {
+            e.preventDefault();
+            if (!observationForm.comentario) return alert("Debes ingresar un comentario detallado.");
+            setSubmittingObservation(true);
+            try {
+                const data = {
+                    ...observationForm,
+                    tecnicoRef: tecnico?._id,
+                    productoRef: selectedItemObservation.productoRef?._id || selectedItemObservation.productoRef || selectedItemObservation._id
+                };
+                await logisticaApi.post('/observaciones-stock', data);
+                alert("Alerta enviada correctamente. Su supervisor ha sido notificado.");
+                setSelectedItemObservation(null);
+                setObservationForm({ comentario: '', fotoUrl: '' });
+                fetchData();
+            } catch (err) {
+                alert("Error al reportar alerta: " + (err.response?.data?.message || err.message));
+            } finally {
+                setSubmittingObservation(false);
+            }
+        };
+
+        const handleCaptureObservation = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    try {
+                        const optimized = await resizeImage(reader.result);
+                        setObservationForm(prev => ({ ...prev, fotoUrl: optimized }));
+                    } catch (err) {
+                        console.error('Error optimizando foto:', err);
+                        setObservationForm(prev => ({ ...prev, fotoUrl: reader.result }));
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        const startAutoAudit = () => {
+            setIsAutoAuditing(true);
+            setEquipamientoFilter('');
+            setAuditResponses({});
+        };
+
+        const handleAuditSelect = (item, status) => {
+            if (status === 'Bueno') {
+                setAuditResponses(prev => ({ ...prev, [item._id]: { estado: 'Bueno', productoRef: item.productoRef?._id || item.productoRef } }));
+            } else {
+                setAuditItemTarget(item);
+                setAuditItemStatus(status);
+                setObservationForm({ comentario: '', fotoUrl: '' });
+            }
+        };
+
+        const handleSaveAuditItem = (e) => {
+            e.preventDefault();
+            if (auditItemStatus === 'Malo' && !observationForm.fotoUrl) {
+                return alert("Para reportar un activo como Malo/Dañado debes adjuntar una fotografía de evidencia.");
+            }
+            if (!observationForm.comentario) {
+                return alert("Debes ingresar un motivo detallado.");
+            }
+
+            setAuditResponses(prev => ({
+                ...prev,
+                [auditItemTarget._id]: {
+                    estado: auditItemStatus,
+                    comentario: observationForm.comentario,
+                    fotoUrl: observationForm.fotoUrl,
+                    productoRef: auditItemTarget.productoRef?._id || auditItemTarget.productoRef
+                }
+            }));
+            
+            setAuditItemTarget(null);
+            setAuditItemStatus(null);
+            setObservationForm({ comentario: '', fotoUrl: '' });
+        };
+
+        const finishAutoAudit = async () => {
+            const items = Object.values(auditResponses);
+            if (items.length === 0) {
+                alert("No has auditado ningún ítem.");
+                setIsAutoAuditing(false);
+                return;
+            }
+
+            setSubmittingAudit(true);
+            try {
+                await logisticaApi.post('/auto-auditoria', {
+                    tecnicoId: tecnico?._id,
+                    items
+                });
+                alert("Auto-Auditoría enviada correctamente.");
+                setIsAutoAuditing(false);
+                setAuditResponses({});
+                fetchData();
+            } catch (err) {
+                alert("Error al procesar auto-auditoría: " + (err.response?.data?.message || err.message));
+            } finally {
+                setSubmittingAudit(false);
+            }
+        };
+
         return (
             <div className="max-w-[1200px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
                 {renderHeader("Mi Inventario & Auditorías", ClipboardList)}
@@ -1652,24 +1774,197 @@ const PortalColaborador = () => {
                             <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black">{miInventario.length} Ítems</span>
                         </div>
 
-                        <div className="grid gap-4">
-                            {miInventario.map((item, idx) => (
-                                <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                                            <Package size={28} />
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Filtrar por nombre o categoría..."
+                                    value={equipamientoFilter}
+                                    onChange={e => setEquipamientoFilter(e.target.value)}
+                                    disabled={isAutoAuditing}
+                                    className="w-full bg-white border border-slate-100 rounded-[1.5rem] pl-12 pr-4 py-4 text-[11px] font-black uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-200 transition-all shadow-sm disabled:opacity-50"
+                                />
+                            </div>
+                            {equipamientoFilter && !isAutoAuditing && (
+                                <button onClick={() => setEquipamientoFilter('')} className="px-5 py-4 bg-slate-100 text-slate-500 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                    <XCircle size={16} />
+                                </button>
+                            )}
+                            {!isAutoAuditing && (
+                                <button onClick={startAutoAudit} className="px-5 py-4 bg-indigo-600 text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all flex items-center gap-2">
+                                    <ClipboardCheck size={16} /> <span className="hidden sm:inline">Auto-Auditarme</span>
+                                </button>
+                            )}
+                            {isAutoAuditing && (
+                                <button onClick={finishAutoAudit} disabled={submittingAudit} className="px-5 py-4 bg-emerald-500 text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 shadow-xl shadow-emerald-200 transition-all flex items-center gap-2">
+                                    {submittingAudit ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />} 
+                                    <span className="hidden sm:inline">Finalizar</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Categorías como Tarjetas / Pestañas */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-2">
+                            <div 
+                                onClick={() => setSelectedCategoryTab('TODOS')}
+                                className={`p-4 rounded-[2rem] border transition-all cursor-pointer flex flex-col justify-between min-h-[100px] group ${selectedCategoryTab === 'TODOS' ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-xl shadow-indigo-100 border-transparent' : 'bg-white border-slate-100 hover:border-indigo-200 shadow-sm'}`}
+                            >
+                                <div className="flex justify-between items-start">
+                                    <div className={`p-2.5 rounded-xl border transition-colors ${selectedCategoryTab === 'TODOS' ? 'bg-indigo-500/20 border-indigo-400/20 text-white' : 'bg-slate-50 text-slate-500 border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                        <Package size={18} />
+                                    </div>
+                                    <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${selectedCategoryTab === 'TODOS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                        {miInventario.length}
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 className={`text-[11px] font-black uppercase tracking-wider ${selectedCategoryTab === 'TODOS' ? 'text-white' : 'text-slate-700'}`}>Todos</h4>
+                                    <p className={`text-[8px] font-bold mt-0.5 ${selectedCategoryTab === 'TODOS' ? 'text-indigo-100' : 'text-slate-400'}`}>Ver todo el stock</p>
+                                </div>
+                            </div>
+
+                            {Array.from(new Set(miInventario.map(item => item.productoRef?.categoria?.nombre || item.categoria || 'Otros'))).map(cat => {
+                                const count = miInventario.filter(item => (item.productoRef?.categoria?.nombre || item.categoria || 'Otros') === cat).length;
+                                const isActive = selectedCategoryTab === cat;
+                                
+                                // Elegir ícono dinámicamente en base al nombre de la categoría
+                                let IconComponent = Wrench;
+                                const lowerCat = cat.toLowerCase();
+                                if (lowerCat.includes('epp') || lowerCat.includes('seguridad') || lowerCat.includes('protección') || lowerCat.includes('casco') || lowerCat.includes('chaleco')) IconComponent = Shield;
+                                else if (lowerCat.includes('equipo') || lowerCat.includes('tecnología') || lowerCat.includes('cámara') || lowerCat.includes('fusión') || lowerCat.includes('router') || lowerCat.includes('ont')) IconComponent = Cpu;
+                                else if (lowerCat.includes('cable') || lowerCat.includes('fibra') || lowerCat.includes('insumo') || lowerCat.includes('conector') || lowerCat.includes('ferretería')) IconComponent = Layers;
+                                else if (lowerCat.includes('herramienta') || lowerCat.includes('taladro') || lowerCat.includes('destornillador')) IconComponent = Hammer;
+                                else if (lowerCat.includes('instrumento') || lowerCat.includes('medidor') || lowerCat.includes('tester') || lowerCat.includes('otdr') || lowerCat.includes('power')) IconComponent = Gauge;
+
+                                return (
+                                    <div 
+                                        key={cat}
+                                        onClick={() => setSelectedCategoryTab(cat)}
+                                        className={`p-4 rounded-[2rem] border transition-all cursor-pointer flex flex-col justify-between min-h-[100px] group ${isActive ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-xl shadow-indigo-100 border-transparent' : 'bg-white border-slate-100 hover:border-indigo-200 shadow-sm'}`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className={`p-2.5 rounded-xl border transition-colors ${isActive ? 'bg-indigo-500/20 border-indigo-400/20 text-white' : 'bg-slate-50 text-slate-500 border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                                <IconComponent size={18} />
+                                            </div>
+                                            <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                                {count}
+                                            </span>
                                         </div>
                                         <div>
-                                            <p className="font-black text-slate-800 uppercase italic leading-none">{item.productoRef?.nombre}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 mt-1.5 uppercase tracking-widest">{item.productoRef?.sku} · {item.productoRef?.categoria?.nombre}</p>
+                                            <h4 className={`text-[11px] font-black uppercase tracking-wider truncate ${isActive ? 'text-white' : 'text-slate-700'}`}>{cat}</h4>
+                                            <p className={`text-[8px] font-bold mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-400'}`}>Equipos asignados</p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase italic mb-1">CANTIDAD</p>
-                                        <p className="text-2xl font-black text-slate-800">{item.cantidadNuevo + item.cantidadUsadoBueno}</p>
+                                );
+                            })}
+                        </div>
+
+                        <div className="grid gap-4 mt-2">
+                            {miInventario.filter(item => {
+                                // Filtro por pestaña de categoría
+                                if (selectedCategoryTab !== 'TODOS') {
+                                    const cat = item.productoRef?.categoria?.nombre || item.categoria || 'Otros';
+                                    if (cat !== selectedCategoryTab) return false;
+                                }
+                                // Filtro por búsqueda de texto
+                                const nombre = item.productoRef?.nombre || item.nombre || '';
+                                const cat = item.productoRef?.categoria?.nombre || item.categoria || '';
+                                const search = equipamientoFilter.toLowerCase();
+                                return nombre.toLowerCase().includes(search) || cat.toLowerCase().includes(search);
+                            }).map((item, idx) => {
+                                const qty = (item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0);
+                                const prodIdStr = String(item.productoRef?._id || item.productoRef || item._id);
+                                const activeObs = misObservacionesActivas.find(obs => String(obs.productoRef?._id || obs.productoRef) === prodIdStr);
+                                const auditedResponse = auditResponses[item._id];
+
+                                return (
+                                    <div key={idx} 
+                                         onClick={() => (!isAutoAuditing && !activeObs) ? setSelectedItemObservation(item) : null}
+                                         className={`p-6 rounded-[2rem] border transition-all flex flex-col group gap-4 
+                                         ${isAutoAuditing ? (auditedResponse ? 'bg-indigo-50/50 border-indigo-200' : 'bg-slate-50 border-slate-200 shadow-inner') : (activeObs ? 'bg-rose-50 border-rose-500 animate-pulse shadow-sm cursor-not-allowed' : 'bg-white border-slate-100 hover:border-indigo-200 cursor-pointer shadow-sm hover:shadow-md')}`}>
+                                        
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-colors flex-shrink-0 ${activeObs ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-slate-50 text-slate-400 border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                                    {activeObs ? <AlertCircle size={28} /> : <Package size={28} />}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className={`font-black uppercase italic leading-none ${activeObs ? 'text-rose-700' : 'text-slate-800'}`}>{item.productoRef?.nombre}</p>
+                                                        {activeObs && <span className="text-[8px] px-2 py-0.5 bg-rose-600 text-white rounded-full uppercase font-black">Alerta Activa</span>}
+                                                        {isAutoAuditing && auditedResponse && (
+                                                            <span className={`text-[8px] px-2 py-0.5 rounded-full uppercase font-black text-white ${auditedResponse.estado === 'Bueno' ? 'bg-emerald-500' : auditedResponse.estado === 'Malo' ? 'bg-amber-500' : 'bg-rose-500'}`}>
+                                                                {auditedResponse.estado}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-1.5 uppercase tracking-widest">{item.productoRef?.sku} · {item.productoRef?.categoria?.nombre || 'Sin Categoría'}</p>
+                                                    
+                                                    {tecnico?.fechaIngreso && (
+                                                        <div className="mt-2 flex items-center gap-1.5">
+                                                            <CalendarClock size={12} className={activeObs ? "text-rose-400" : "text-slate-400"} />
+                                                            <span className={`text-[8px] font-black uppercase tracking-widest ${activeObs ? 'text-rose-500' : 'text-slate-500'}`}>
+                                                                Asignación Inicial: {new Date(tecnico.fechaIngreso).toLocaleDateString('es-CL')}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {!isAutoAuditing ? (
+                                                <div className="text-right sm:ml-auto">
+                                                    <p className={`text-[9px] font-black uppercase italic mb-1 ${activeObs ? 'text-rose-400' : 'text-slate-400'}`}>CANTIDAD</p>
+                                                    <p className={`text-2xl font-black ${activeObs ? 'text-rose-700' : 'text-slate-800'}`}>{qty > 0 ? qty : 1}</p>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-2 sm:justify-end sm:ml-auto mt-2 sm:mt-0 w-full sm:w-auto">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleAuditSelect(item, 'Bueno'); }}
+                                                        className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${auditedResponse?.estado === 'Bueno' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                                        Bueno
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleAuditSelect(item, 'Malo'); }}
+                                                        className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${auditedResponse?.estado === 'Malo' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                                        Malo
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleAuditSelect(item, 'No Tengo'); }}
+                                                        className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${auditedResponse?.estado === 'No Tengo' ? 'bg-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                                        No Tengo
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Columnas Técnicas: Marca, Modelo, Nº Serie, IMEI */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2 pt-4 border-t border-slate-100/80">
+                                            <div className="min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Marca</p>
+                                                <p className="text-[11px] font-black text-slate-700 uppercase truncate italic">
+                                                    {item.productoRef?.marca || 'Genérica'}
+                                                </p>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Modelo</p>
+                                                <p className="text-[11px] font-black text-slate-700 uppercase truncate italic">
+                                                    {item.productoRef?.modelo || '—'}
+                                                </p>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Nº Serie</p>
+                                                <p className="text-[11px] font-black text-slate-700 uppercase truncate italic">
+                                                    {item.productoRef?.nroSerie || '—'}
+                                                </p>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Propiedad</p>
+                                                <p className="text-[11px] font-black text-slate-700 uppercase truncate italic">
+                                                    {item.productoRef?.propiedad || 'Propio'}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             {miInventario.length === 0 && (
                                 <div className="p-20 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
                                     <Package size={48} className="text-slate-100 mx-auto mb-4" />
@@ -1709,6 +2004,180 @@ const PortalColaborador = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Modal Auto-Auditoría (Malo / No Tengo) */}
+                {auditItemTarget && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xl animate-in fade-in duration-500">
+                        <div className="bg-white w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500 border border-slate-100">
+                            <div className={`p-8 border-b border-slate-100 flex justify-between items-center ${auditItemStatus === 'Malo' ? 'bg-amber-50' : 'bg-rose-50'}`}>
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-2xl ${auditItemStatus === 'Malo' ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}>
+                                        <AlertCircle size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className={`text-xl font-black uppercase italic leading-none ${auditItemStatus === 'Malo' ? 'text-amber-800' : 'text-rose-800'}`}>
+                                            Reportar como {auditItemStatus}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Activo: {auditItemTarget.productoRef?.nombre || auditItemTarget.nombre}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => { setAuditItemTarget(null); setAuditItemStatus(null); }} className="p-2 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600 shadow-sm border border-transparent hover:border-slate-200">
+                                    <XCircle size={28} />
+                                </button>
+                            </div>
+
+                            {auditItemStatus === 'No Tengo' && (
+                                <div className="px-8 pt-6 pb-2">
+                                    <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex gap-3">
+                                        <AlertCircle size={20} className="text-rose-500 flex-shrink-0" />
+                                        <p className="text-[10px] font-bold text-rose-800 uppercase leading-relaxed">
+                                            Su registro será derivado a supervisión y logística para validar y reponer. 
+                                            <span className="block mt-1 font-black text-rose-600">Considerar que si es pérdida por descuido esto puede generarte cobro para la reposición.</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <form onSubmit={handleSaveAuditItem} className="p-8 pt-4 space-y-6">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Motivo / Justificación</label>
+                                    <textarea 
+                                        required
+                                        placeholder={auditItemStatus === 'Malo' ? "Describe el daño o problema que presenta..." : "Indica cuándo o cómo perdiste el activo..."}
+                                        value={observationForm.comentario}
+                                        onChange={e => setObservationForm({ ...observationForm, comentario: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-100 p-6 rounded-[2rem] font-bold text-sm h-32 resize-none focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all focus:outline-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Evidencia Fotográfica {auditItemStatus === 'Malo' ? '(Obligatoria)' : '(Opcional)'}</label>
+                                    <div className="border-2 border-dashed border-slate-200 rounded-[2rem] overflow-hidden relative group bg-slate-50/50 flex flex-col items-center justify-center min-h-[160px]">
+                                        {observationForm.fotoUrl ? (
+                                            <>
+                                                <img src={observationForm.fotoUrl} alt="Evidencia" className="w-full h-full object-cover absolute inset-0" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setObservationForm({ ...observationForm, fotoUrl: '' })}
+                                                    className="absolute top-4 right-4 p-3 bg-rose-600 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                                >
+                                                    <XCircle size={20} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <label className="cursor-pointer flex flex-col items-center gap-3 hover:scale-105 transition-all p-8 w-full h-full justify-center">
+                                                <div className="p-4 bg-white rounded-2xl shadow-sm text-indigo-500 border border-indigo-50">
+                                                    <Search size={24} />
+                                                </div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Toca para capturar<br/>foto del activo</p>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={handleCaptureObservation}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-4">
+                                    <button type="button" onClick={() => { setAuditItemTarget(null); setAuditItemStatus(null); }} className="flex-1 py-5 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        className="flex-[2] py-5 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-200 flex items-center justify-center gap-3 hover:bg-indigo-700 active:scale-95 transition-all"
+                                    >
+                                        <CheckCircle2 size={20} /> Confirmar Estado
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal de Reporte de Observación Normal */}
+                {selectedItemObservation && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xl animate-in fade-in duration-500">
+                        <div className="bg-white w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500 border border-slate-100">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
+                                        <AlertCircle size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none">Reportar Alerta</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Activo: {selectedItemObservation.productoRef?.nombre || selectedItemObservation.nombre}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setSelectedItemObservation(null)} className="p-2 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600 shadow-sm border border-transparent hover:border-slate-200">
+                                    <XCircle size={28} />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSendObservation} className="p-8 space-y-6">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Detalle de la Observación / Problema</label>
+                                    <textarea 
+                                        required
+                                        placeholder="Ej: El taladro presenta fallas en la batería o la gata hidráulica está perdiendo aceite..."
+                                        value={observationForm.comentario}
+                                        onChange={e => setObservationForm({ ...observationForm, comentario: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-100 p-6 rounded-[2rem] font-bold text-sm h-32 resize-none focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all focus:outline-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Evidencia Fotográfica (Opcional)</label>
+                                    <div className="border-2 border-dashed border-slate-200 rounded-[2rem] overflow-hidden relative group bg-slate-50/50 flex flex-col items-center justify-center min-h-[160px]">
+                                        {observationForm.fotoUrl ? (
+                                            <>
+                                                <img src={observationForm.fotoUrl} alt="Evidencia" className="w-full h-full object-cover absolute inset-0" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setObservationForm({ ...observationForm, fotoUrl: '' })}
+                                                    className="absolute top-4 right-4 p-3 bg-rose-600 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                                >
+                                                    <XCircle size={20} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <label className="cursor-pointer flex flex-col items-center gap-3 hover:scale-105 transition-all p-8 w-full h-full justify-center">
+                                                <div className="p-4 bg-white rounded-2xl shadow-sm text-indigo-500 border border-indigo-50">
+                                                    <Search size={24} />
+                                                </div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Toca para capturar<br/>foto del activo</p>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={handleCaptureObservation}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-4">
+                                    <button type="button" onClick={() => setSelectedItemObservation(null)} className="flex-1 py-5 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        disabled={submittingObservation}
+                                        className="flex-[2] py-5 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-200 flex items-center justify-center gap-3 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        {submittingObservation ? <Loader2 className="animate-spin" size={20} /> : <AlertCircle size={20} />}
+                                        Reportar al Supervisor
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -1987,10 +2456,10 @@ const PortalColaborador = () => {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
-                                    { label: 'Tipo Contrato', value: perfil?.tipoContrato || '—' },
-                                    { label: 'Fecha Ingreso', value: perfil?.fechaIngreso ? new Date(perfil.fechaIngreso).toLocaleDateString('es-CL') : '—' },
+                                    { label: 'Tipo Contrato', value: perfil?.contractType || perfil?.hiring?.contractType || '—' },
+                                    { label: 'Fecha Ingreso', value: (perfil?.contractStartDate || perfil?.hiring?.contractStartDate) ? new Date(perfil.contractStartDate || perfil.hiring.contractStartDate).toLocaleDateString('es-CL') : '—' },
                                     { label: 'AFP', value: perfil?.afp || '—' },
-                                    { label: 'Isapre / Fonasa', value: perfil?.isapre || '—' },
+                                    { label: 'Isapre / Fonasa', value: perfil?.previsionSalud ? `${perfil.previsionSalud} ${perfil.isapreNombre ? `(${perfil.isapreNombre})` : ''}` : '—' },
                                 ].map(({ label, value }) => (
                                     <div key={label} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
@@ -2009,6 +2478,45 @@ const PortalColaborador = () => {
     // VIEW: MIS ACTIVOS / EQUIPAMIENTO
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'equipamiento') {
+        const handleSendObservation = async (e) => {
+            e.preventDefault();
+            if (!observationForm.comentario) return alert("Debes ingresar un comentario detallado.");
+            setSubmittingObservation(true);
+            try {
+                const data = {
+                    ...observationForm,
+                    tecnicoRef: tecnico?._id,
+                    productoRef: selectedItemObservation.productoRef?._id || selectedItemObservation.productoRef || selectedItemObservation._id
+                };
+                await logisticaApi.post('/observaciones-stock', data);
+                alert("Alerta enviada correctamente. Su supervisor ha sido notificado.");
+                setSelectedItemObservation(null);
+                setObservationForm({ comentario: '', fotoUrl: '' });
+                fetchData();
+            } catch (err) {
+                alert("Error al reportar alerta: " + (err.response?.data?.message || err.message));
+            } finally {
+                setSubmittingObservation(false);
+            }
+        };
+
+        const handleCaptureObservation = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    try {
+                        const optimized = await resizeImage(reader.result);
+                        setObservationForm(prev => ({ ...prev, fotoUrl: optimized }));
+                    } catch (err) {
+                        console.error('Error optimizando foto:', err);
+                        setObservationForm(prev => ({ ...prev, fotoUrl: reader.result }));
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
         return (
             <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
                 {renderHeader('Mis Activos', Truck)}
@@ -2045,12 +2553,24 @@ const PortalColaborador = () => {
 
                     {/* Inventario */}
                     <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
-                        <div className="flex items-center justify-between mb-6">
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-slate-100 rounded-xl"><Package size={18} className="text-slate-600" /></div>
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Equipamiento & Herramientas</h3>
                             </div>
-                            <span className="text-xs font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-full">{miInventario.length} items</span>
+                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                <div className="relative w-full md:w-64">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Buscar equipo o herramienta..."
+                                        className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-4 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700"
+                                        value={equipamientoFilter}
+                                        onChange={(e) => setEquipamientoFilter(e.target.value)}
+                                    />
+                                </div>
+                                <span className="text-xs font-black text-slate-400 bg-slate-100 px-3 py-2 rounded-xl whitespace-nowrap">{miInventario.length} items</span>
+                            </div>
                         </div>
                         {miInventario.length === 0 ? (
                             <div className="text-center py-12 text-slate-400">
@@ -2059,20 +2579,46 @@ const PortalColaborador = () => {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {miInventario.map((item, i) => (
-                                    <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-white rounded-xl border border-slate-100"><Package size={14} className="text-slate-500" /></div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-700 uppercase">{item.nombre || item.categoria || 'Ítem'}</p>
-                                                {item.serial && <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">S/N: {item.serial}</p>}
+                                {miInventario.filter(item => {
+                                    const nombre = item.productoRef?.nombre || item.nombre || '';
+                                    const cat = item.productoRef?.categoria?.nombre || item.categoria || '';
+                                    const search = equipamientoFilter.toLowerCase();
+                                    return nombre.toLowerCase().includes(search) || cat.toLowerCase().includes(search);
+                                }).map((item, i) => {
+                                    const qty = (item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0);
+                                    const name = item.productoRef?.nombre || item.nombre || 'Herramienta / Equipo';
+                                    const category = item.productoRef?.categoria?.nombre || item.categoria || 'General';
+                                    const prodIdStr = String(item.productoRef?._id || item.productoRef || item._id);
+                                    const activeObs = misObservacionesActivas.find(obs => String(obs.productoRef?._id || obs.productoRef) === prodIdStr);
+
+                                    return (
+                                        <div key={i} 
+                                             onClick={() => !activeObs && setSelectedItemObservation(item)}
+                                             className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${activeObs ? 'bg-rose-50 border-rose-500 animate-pulse shadow-sm' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 cursor-pointer hover:shadow-md'}`}>
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-3 rounded-xl border shadow-sm ${activeObs ? 'bg-rose-100 border-rose-200 text-rose-600' : 'bg-white border-slate-100 text-slate-500'}`}>
+                                                    {activeObs ? <AlertCircle size={18} /> : <Package size={18} />}
+                                                </div>
+                                                <div>
+                                                    <p className={`text-sm font-black uppercase ${activeObs ? 'text-rose-700' : 'text-slate-800'}`}>{name}</p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border ${activeObs ? 'bg-rose-200/50 border-rose-200 text-rose-600' : 'bg-slate-200/50 border-slate-200 text-slate-500'}`}>{category}</span>
+                                                        {item.serial && <span className={`text-[9px] font-bold uppercase tracking-widest border px-2 py-0.5 rounded-lg ${activeObs ? 'bg-rose-100 border-rose-200 text-rose-600' : 'border-slate-200 text-slate-400 bg-white'}`}>S/N: {item.serial}</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-right hidden sm:block">
+                                                    <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${activeObs ? 'text-rose-400' : 'text-slate-400'}`}>CANTIDAD</p>
+                                                    <p className={`text-sm font-black tabular-nums ${activeObs ? 'text-rose-700' : 'text-slate-800'}`}>{qty > 0 ? qty : 1}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-black px-3 py-1.5 rounded-xl uppercase shadow-sm whitespace-nowrap border ${activeObs ? 'bg-rose-600 text-white border-rose-500' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
+                                                    {activeObs ? 'Alerta Activa' : (item.estado || 'Asignado')}
+                                                </span>
                                             </div>
                                         </div>
-                                        <span className="text-[10px] font-black text-slate-500 bg-white border border-slate-100 px-3 py-1 rounded-xl uppercase">
-                                            {item.estado || 'Asignado'}
-                                        </span>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
@@ -2102,6 +2648,87 @@ const PortalColaborador = () => {
                         </div>
                     )}
                 </div>
+
+                {/* Modal de Reporte de Observación */}
+                {selectedItemObservation && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xl animate-in fade-in duration-500">
+                        <div className="bg-white w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500 border border-slate-100">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
+                                        <AlertCircle size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none">Reportar Alerta</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Activo: {selectedItemObservation.productoRef?.nombre || selectedItemObservation.nombre}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setSelectedItemObservation(null)} className="p-2 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600 shadow-sm border border-transparent hover:border-slate-200">
+                                    <XCircle size={28} />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSendObservation} className="p-8 space-y-6">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Detalle de la Observación / Problema</label>
+                                    <textarea 
+                                        required
+                                        placeholder="Ej: El taladro presenta fallas en la batería o la gata hidráulica está perdiendo aceite..."
+                                        value={observationForm.comentario}
+                                        onChange={e => setObservationForm({ ...observationForm, comentario: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-100 p-6 rounded-[2rem] font-bold text-sm h-32 resize-none focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all focus:outline-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Evidencia Fotográfica (Opcional)</label>
+                                    <div className="border-2 border-dashed border-slate-200 rounded-[2rem] overflow-hidden relative group bg-slate-50/50 flex flex-col items-center justify-center min-h-[160px]">
+                                        {observationForm.fotoUrl ? (
+                                            <>
+                                                <img src={observationForm.fotoUrl} alt="Evidencia" className="w-full h-full object-cover absolute inset-0" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setObservationForm({ ...observationForm, fotoUrl: '' })}
+                                                    className="absolute top-4 right-4 p-3 bg-rose-600 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                                >
+                                                    <XCircle size={20} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <label className="cursor-pointer flex flex-col items-center gap-3 hover:scale-105 transition-all p-8 w-full h-full justify-center">
+                                                <div className="p-4 bg-white rounded-2xl shadow-sm text-indigo-500 border border-indigo-50">
+                                                    <Search size={24} />
+                                                </div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Toca para capturar<br/>foto del activo</p>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={handleCaptureObservation}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-4">
+                                    <button type="button" onClick={() => setSelectedItemObservation(null)} className="flex-1 py-5 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        disabled={submittingObservation}
+                                        className="flex-[2] py-5 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-200 flex items-center justify-center gap-3 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        {submittingObservation ? <Loader2 className="animate-spin" size={20} /> : <AlertCircle size={20} />}
+                                        Reportar al Supervisor
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }

@@ -108,7 +108,15 @@ const TecnicoSchema = new mongoose.Schema({
   }],
 
   // 9. Supervisión & Asignación
-  supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' }
+  supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
+
+  // 10. Tallas (Ropa y Calzado)
+  shirtSize: { type: String, trim: true },
+  pantsSize: { type: String, trim: true },
+  jacketSize: { type: String, trim: true },
+  shoeSize: { type: String, trim: true },
+  uniformSize: { type: String, trim: true },
+  bootsSize: { type: String, trim: true }
 
 }, { timestamps: true });
 

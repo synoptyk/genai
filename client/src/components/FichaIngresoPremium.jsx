@@ -211,6 +211,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                     { label: 'Lugar Nacimiento', value: data.birthPlace },
                     { label: 'Vencimiento Cédula', value: formatDate(data.idExpiryDate) },
                     { label: 'Nivel Educacional', value: data.educationLevel },
+                    { label: 'Género', value: data.gender || 'No Informado' },
                   ].map((item, i) => (
                     <div key={i} className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-[#3b79b6]/30">
                       <label className="text-[7px] font-black text-slate-300 uppercase block mb-1 tracking-widest">{item.label}</label>
@@ -231,7 +232,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                     {[
                       { label: 'Teléfono Directo', value: data.telefono || data.phone, icon: Phone, color: 'emerald' },
                       { label: 'Email Corporativo', value: data.email, icon: Mail, color: 'blue' },
-                      { label: 'Residencia Actual', value: data.address || `${data.calle || ''} ${data.numero || ''}`, icon: MapPin, color: 'rose' },
+                      { label: 'Residencia Actual', value: (data.address || `${data.calle || ''} ${data.numero || ''} ${data.deptoBlock ? `Block/Depto: ${data.deptoBlock}` : ''}`).trim() || '—', icon: MapPin, color: 'rose' },
                       { label: 'Comuna / Región', value: data.comuna ? `${data.comuna} / ${data.region}` : '—', icon: Map, color: 'indigo' },
                     ].map((item, i) => (
                       <div key={i} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-center gap-5 transition-all hover:bg-white hover:shadow-lg">
@@ -275,7 +276,11 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                   { label: 'Posición Estratégica', value: data.cargo || data.position, icon: Briefcase },
                   { label: 'Unidad de Negocio', value: data.area || data.departamento, icon: Building },
                   { label: 'Centro Costos', value: data.ceco, icon: Hash },
-                  { label: 'Sede Operativa', value: data.sede || data.empresaRef?.nombre || 'PROYECTO ACTIVO', icon: Globe },
+                  { label: 'Sede Operativa', value: data.sede, icon: Globe },
+                  { label: 'Proyecto Asignado', value: data.projectName || data.proyectoTipo, icon: Map },
+                  { label: 'Cliente Mandante', value: data.clienteNombre, icon: User },
+                  { label: 'Empresa Principal', value: data.empresaRef?.nombre, icon: Building },
+                  { label: 'Fuente de Captación', value: data.source || 'Captación Directa', icon: Share2 }
                 ].map((item, i) => (
                   <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center group transition-all hover:bg-slate-900 hover:text-white">
                     <p className="text-[7px] font-black text-slate-400 group-hover:text-blue-400 uppercase mb-2 tracking-widest">{item.label}</p>
@@ -295,8 +300,20 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                    <span className="text-[10px] font-black text-slate-800 uppercase">{formatDate(data.contractStartDate)}</span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Captación Directa</span>
-                   <span className="text-[10px] font-black text-emerald-600 uppercase italic">{data.isDirectHire ? 'SÍ' : 'NO'}</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Duración Contrato</span>
+                   <span className="text-[10px] font-black text-slate-800 uppercase">{data.contractDurationDays ? `${data.contractDurationDays} días` : '—'}</span>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Término Contrato</span>
+                   <span className="text-[10px] font-black text-slate-800 uppercase">{formatDate(data.contractEndDate)}</span>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Inicio Operativo</span>
+                   <span className="text-[10px] font-black text-slate-800 uppercase">{formatDate(data.operationalStartDate)}</span>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Etapa Contrato</span>
+                   <span className="text-[10px] font-black text-indigo-600 uppercase font-bold">{data.contractStep || '—'}</span>
                 </div>
               </div>
             </section>
@@ -326,10 +343,10 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                           <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none">{data.previsionSalud || 'FONASA'}</span>
                        </div>
                        {data.previsionSalud === 'ISAPRE' && (
-                         <div className="pt-1 mt-1 border-t border-slate-50 flex flex-col gap-0.5">
-                            <p className="text-[7px] font-black text-indigo-500 uppercase leading-none">{data.isapreNombre}</p>
-                            <p className="text-[8px] font-black text-slate-700 leading-none">{data.valorPlan} {data.monedaPlan}</p>
-                         </div>
+                          <div className="pt-1 mt-1 border-t border-slate-50 flex flex-col gap-0.5">
+                             <p className="text-[7px] font-black text-indigo-500 uppercase leading-none">{data.isapreNombre}</p>
+                             <p className="text-[8px] font-black text-slate-700 leading-none">{data.valorPlan} {data.monedaPlan}</p>
+                          </div>
                        )}
                     </div>
                  </div>
@@ -350,6 +367,41 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                     </div>
                  </div>
               </div>
+
+              {/* Bonos y Asignaciones Contractuales Adicionales */}
+              {data.bonuses && data.bonuses.length > 0 && (
+                <div className="mt-6 bg-slate-50/50 p-5 rounded-3xl border border-slate-100">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Bonos y Asignaciones Contractuales Adicionales</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Bono / Concepto</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Código DT</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Monto</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Tipo</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Descripción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {data.bonuses.map((bonus, idx) => (
+                          <tr key={idx} className="hover:bg-slate-100/50">
+                            <td className="py-2.5 text-[9px] font-black text-slate-800 uppercase">{bonus.type || '—'}</td>
+                            <td className="py-2.5 text-[9px] font-mono text-slate-500 uppercase">{bonus.codigoDT || '—'}</td>
+                            <td className="py-2.5 text-[9px] font-black text-[#3b79b6]">${Number(bonus.amount || 0).toLocaleString('es-CL')}</td>
+                            <td className="py-2.5 text-[8px] font-black uppercase">
+                              <span className={`px-2 py-0.5 rounded-full text-[7px] ${bonus.isImponible ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                {bonus.isImponible ? 'IMPONIBLE' : 'NO IMPONIBLE'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 text-[8px] font-bold text-slate-500 uppercase truncate max-w-[200px]">{bonus.description || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 5. SALUD & BIENESTAR */}
@@ -361,8 +413,8 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                  {[
                    { label: 'Grupo Sanguíneo', value: data.bloodType || '—', color: 'rose' },
                    { label: 'Jubilado/Pensionado', value: data.pensionado || 'NO', color: 'indigo' },
-                   { label: 'Discapacidad', value: data.hasDisability ? 'SÍ' : 'NO', color: 'emerald' },
-                   { label: 'Cargas Familiares', value: `${data.listaCargas?.length || 0} CARGAS`, color: 'sky' },
+                   { label: 'Discapacidad', value: data.hasDisability ? `SÍ (${data.disabilityType || 'NO DECLARADO'})` : 'NO', color: 'emerald' },
+                   { label: 'Cargas Familiares', value: data.tieneCargas === 'SI' ? `SÍ (${data.listaCargas?.length || 0} CARGAS)` : 'NO', color: 'sky' },
                  ].map((item, i) => (
                    <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50">
                      <p className="text-[7px] font-black text-slate-400 uppercase mb-2 tracking-widest leading-none">{item.label}</p>
@@ -380,6 +432,40 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                    <p className="text-[9px] font-black text-amber-800 uppercase italic">{data.chronicDiseases || 'Ninguna declarada'}</p>
                 </div>
               </div>
+
+              {/* Detalle de Cargas Familiares */}
+              {data.listaCargas && data.listaCargas.length > 0 && (
+                <div className="mt-6 bg-slate-50/50 p-5 rounded-3xl border border-slate-100">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Detalle de Cargas Familiares (Dependientes)</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Nombre Completo</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">RUT</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Parentesco</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Fecha Nacimiento</th>
+                          <th className="pb-2 text-[7px] font-black text-slate-400 uppercase tracking-wider">Edad</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {data.listaCargas.map((carga, idx) => {
+                          const age = carga.fechaNacimiento ? Math.floor((new Date() - new Date(carga.fechaNacimiento)) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+                          return (
+                            <tr key={idx} className="hover:bg-slate-100/50">
+                              <td className="py-2 text-[9px] font-black text-slate-800 uppercase">{carga.fullName || carga.nombre || '—'}</td>
+                              <td className="py-2 text-[9px] font-mono text-slate-600 uppercase">{formatRut(carga.rut)}</td>
+                              <td className="py-2 text-[9px] font-black text-[#3b79b6] uppercase">{carga.parentesco || '—'}</td>
+                              <td className="py-2 text-[9px] font-bold text-slate-500">{formatDate(carga.fechaNacimiento)}</td>
+                              <td className="py-2 text-[9px] font-bold text-slate-700">{age !== null && age >= 0 ? `${age} años` : '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* 6. DOTACIÓN, EMERGENCIA & LICENCIA */}
@@ -445,12 +531,109 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                   </div>
                </div>
             </section>
+
+            {/* 10. Declaración de Conflicto de Interés */}
+            <section className="print-no-break">
+              <div className="flex items-center gap-3 mb-6 border-l-4 border-amber-500 pl-5">
+                <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">10. Declaración de Conflicto de Interés</h2>
+              </div>
+              <div className={`p-5 rounded-[2rem] border flex items-center gap-6 ${data.conflictOfInterest?.hasFamilyInCompany ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50/50 border-slate-100'}`}>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-md ${data.conflictOfInterest?.hasFamilyInCompany ? 'bg-amber-500 text-white animate-pulse' : 'bg-slate-200 text-slate-400'}`}>
+                  <Shield size={28} />
+                </div>
+                <div className="flex-1 grid grid-cols-3 gap-6">
+                  <div>
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">¿Tiene Familiares en la Empresa?</p>
+                    <p className={`text-[11px] font-black uppercase mt-1.5 ${data.conflictOfInterest?.hasFamilyInCompany ? 'text-amber-800' : 'text-slate-800'}`}>
+                      {data.conflictOfInterest?.hasFamilyInCompany ? 'SÍ, DECLARA VÍNCULO' : 'NO DECLARA VÍNCULO'}
+                    </p>
+                  </div>
+                  {data.conflictOfInterest?.hasFamilyInCompany && (
+                    <>
+                      <div>
+                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Relación / Parentesco</p>
+                        <p className="text-[11px] font-black text-slate-800 uppercase mt-1.5">{data.conflictOfInterest.relationship || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Nombre del Colaborador</p>
+                        <p className="text-[11px] font-black text-[#3b79b6] uppercase mt-1.5">{data.conflictOfInterest.employeeName || '—'}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 11. REGISTRO DE COMPORTAMIENTO E HISTORIAL */}
+            <section className="print-no-break">
+              <div className="flex items-center gap-3 mb-6 border-l-4 border-indigo-600 pl-5">
+                <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">11. Registro de Comportamiento e Historial</h2>
+              </div>
+              
+              {((data.amonestaciones && data.amonestaciones.length > 0) || (data.felicitaciones && data.felicitaciones.length > 0)) ? (
+                <div className="space-y-4">
+                  {data.felicitaciones && data.felicitaciones.length > 0 && (
+                    <div className="bg-emerald-50/30 p-5 rounded-3xl border border-emerald-100">
+                      <p className="text-[8px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-3">Reconocimientos y Felicitaciones</p>
+                      <div className="space-y-3">
+                        {data.felicitaciones.map((feli, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded-2xl border border-emerald-100 flex justify-between items-start gap-4">
+                            <div>
+                              <p className="text-[10px] font-black text-emerald-800 uppercase">{feli.motivo || 'Reconocimiento Formal'}</p>
+                              <p className="text-[8px] font-bold text-slate-500 uppercase mt-1">{feli.descripcion || '—'}</p>
+                            </div>
+                            <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full font-mono">{formatDate(feli.fecha)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {data.amonestaciones && data.amonestaciones.length > 0 && (
+                    <div className="bg-rose-50/30 p-5 rounded-3xl border border-rose-100">
+                      <p className="text-[8px] font-black text-rose-600 uppercase tracking-[0.2em] mb-3">Medidas Disciplinarias y Amonestaciones</p>
+                      <div className="space-y-3">
+                        {data.amonestaciones.map((amon, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded-2xl border border-rose-100 flex justify-between items-start gap-4">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-full text-[6px] font-black uppercase ${
+                                  amon.tipo === 'Escrita' ? 'bg-amber-100 text-amber-700' : amon.tipo === 'Suspensión' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {amon.tipo || 'Verbal'}
+                                </span>
+                                <p className="text-[10px] font-black text-slate-800 uppercase">{amon.motivo || 'Infracción Operativa'}</p>
+                              </div>
+                              <p className="text-[8px] font-bold text-slate-500 uppercase mt-1">{amon.descripcion || '—'}</p>
+                              {amon.firmado && (
+                                <span className="text-[6px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase mt-2 inline-block">FIRMADO POR COLABORADOR</span>
+                              )}
+                            </div>
+                            <span className="text-[8px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded-full font-mono">{formatDate(amon.fecha)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-emerald-50/30 p-5 rounded-[2rem] border border-emerald-100 flex items-center gap-6">
+                  <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+                    <Check size={28} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black text-emerald-800 uppercase leading-none">Expediente Disciplinario Impecable</p>
+                    <p className="text-[8px] font-bold text-emerald-500 uppercase mt-1.5">No se registran amonestaciones ni medidas de sanción vigentes en la base de datos.</p>
+                  </div>
+                </div>
+              )}
+            </section>
           </div>
 
-          {/* 10. VALIDACIÓN DIGITAL AVANZADA */}
+          {/* 12. VALIDACIÓN DIGITAL AVANZADA */}
           <section className="bg-slate-900 -mx-12 px-12 py-12 rounded-b-[4rem] text-white print-no-break shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] mt-12">
             <div className="flex items-center gap-4 mb-10 border-l-4 border-blue-400 pl-5">
-              <h2 className="text-xs font-black text-white uppercase tracking-[0.3em] leading-none">10. Validación Digital Certificada</h2>
+              <h2 className="text-xs font-black text-white uppercase tracking-[0.3em] leading-none">12. Validación Digital Certificada</h2>
               <span className="bg-blue-400/20 text-blue-300 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Plataforma Corporativa</span>
             </div>
   

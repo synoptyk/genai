@@ -7,6 +7,7 @@ const PlatformUser = require('../auth/PlatformUser');
 const Vehiculo = require('../agentetelecom/models/Vehiculo');
 const AuditoriaInventario = require('./models/AuditoriaInventario');
 const Categoria = require('./models/Categoria');
+const CargoEquipamiento = require('./models/CargoEquipamiento');
 const Tecnico = require('../agentetelecom/models/Tecnico');
 const Candidato = require('../rrhh/models/Candidato');
 const Cliente = require('../agentetelecom/models/Cliente');
@@ -14,6 +15,7 @@ const Proveedor = require('./models/Proveedor');
 const SolicitudCompra = require('./models/SolicitudCompra');
 const OrdenCompra = require('./models/OrdenCompra');
 const TipoCompra = require('./models/TipoCompra');
+const ObservacionStock = require('./models/ObservacionStock');
 const mailer = require('../../utils/mailer');
 const notificationService = require('../../utils/notificationService');
 const { logAction } = require('../../utils/auditLogger');
@@ -73,7 +75,7 @@ const ensureLogisticaPersonalBase = async (userOrEmpresaRef) => {
     }
 
     const candidatos = await Candidato.find(filter)
-        .select('rut fullName email phone position projectId projectName area departamento ceco sede contractStartDate status idRecursoToa')
+        .select('rut fullName email phone position projectId projectName area departamento ceco sede contractStartDate status idRecursoToa shirtSize pantsSize jacketSize shoeSize uniformSize bootsSize')
         .lean();
 
     const candRuts = candidatos.map(c => normalizeRut(c.rut)).filter(Boolean);
@@ -125,7 +127,13 @@ const ensureLogisticaPersonalBase = async (userOrEmpresaRef) => {
             estadoActual: (cand.status === 'Inactivo' || cand.status === 'Suspendido' || cand.status === 'Bloqueado') ? 'INACTIVO' : 
                           (cand.status === 'Licencia Médica') ? 'LICENCIA MEDICA' :
                           (cand.status === 'Finiquitado') ? 'FINIQUITADO' : 'OPERATIVO',
-            idRecursoToa: cand.idRecursoToa || ''
+            idRecursoToa: cand.idRecursoToa || '',
+            shirtSize: cand.shirtSize || '',
+            pantsSize: cand.pantsSize || '',
+            jacketSize: cand.jacketSize || '',
+            shoeSize: cand.shoeSize || '',
+            uniformSize: cand.uniformSize || '',
+            bootsSize: cand.bootsSize || ''
         };
 
         // Upsert en tiempo real para actuar como espejo online absoluto
@@ -253,7 +261,7 @@ const getLogisticaPersonal = async (user) => {
 
     const [tecnicos, usuarios, candidatos] = await Promise.all([
         Tecnico.find(tecnicoQuery)
-            .select('nombres apellidos rut email cargo supervisorId estadoActual proyecto mandantePrincipal idRecursoToa projectId')
+            .select('nombres apellidos rut email cargo supervisorId estadoActual proyecto mandantePrincipal idRecursoToa projectId shirtSize pantsSize jacketSize shoeSize uniformSize bootsSize fechaIngreso')
             .populate({
                 path: 'projectId',
                 select: 'nombreProyecto cliente centroCosto',
@@ -307,7 +315,14 @@ const getLogisticaPersonal = async (user) => {
             supervisorId: t.supervisorId || null,
             proyecto: nomProyecto,
             cliente: nomCliente,
-            idRecursoToa: t.idRecursoToa || ''
+            idRecursoToa: t.idRecursoToa || '',
+            shirtSize: t.shirtSize || '',
+            pantsSize: t.pantsSize || '',
+            jacketSize: t.jacketSize || '',
+            shoeSize: t.shoeSize || '',
+            uniformSize: t.uniformSize || '',
+            bootsSize: t.bootsSize || '',
+            fechaIngreso: t.fechaIngreso || null
         };
     });
 };
@@ -388,21 +403,231 @@ exports.getConfiguracionMaestra = async (req, res) => {
     try {
         const tecnicos = await getLogisticaPersonal(req.user);
         const empresaRef = req.user.empresaRef;
-        const [almacenes, categorias, productos, clientes, tiposCompra] = await Promise.all([
+        const [almacenes, categorias, productos, clientes, tiposCompra, cargoEquipamientos] = await Promise.all([
             Almacen.find({ empresaRef }).populate('parentAlmacen', 'nombre').populate('tecnicoRef', 'nombres apellidos rut cargo estadoActual idRecursoToa').populate('clienteRef', 'nombre'),
             Categoria.find({ empresaRef }),
-            Producto.find({ empresaRef }).populate('categoria', 'nombre').populate('clienteRef', 'nombre'),
+            Producto.find({ empresaRef }).populate('categoria', 'nombre icono').populate('clienteRef', 'nombre'),
             Cliente.find({ empresaRef }),
-            TipoCompra.find({ empresaRef, status: 'Activo' })
+            TipoCompra.find({ empresaRef, status: 'Activo' }),
+            CargoEquipamiento.find({ empresaRef }).populate({
+                path: 'items.productoRef',
+                select: 'nombre sku fotos color tipo marca modelo categoria',
+                populate: { path: 'categoria', select: 'nombre icono' }
+            })
         ]);
         
-        res.json({ almacenes, categorias, productos, tecnicos, clientes, tiposCompra });
+        res.json({ almacenes, categorias, productos, tecnicos, clientes, tiposCompra, cargoEquipamientos });
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
 };
 
-// --- AUXILIARES ---
+// --- AUXILIARES Y ASIGNACION INTELIGENTE ---
+
+exports.asignarCargoPredeterminado = async (req, res, next) => {
+    try {
+        const { id } = req.params; // Tecnico ID
+        const { almacenOrigen, dryRun } = req.body;
+        const empresaRef = req.user.empresaRef;
+
+        const tecnico = await Tecnico.findOne({ _id: id, empresaRef });
+        if (!tecnico) return res.status(404).json({ message: 'Técnico no encontrado' });
+
+        // Encontrar su bodega móvil (Almacen)
+        const almacenTecnico = await Almacen.findOne({ tecnicoRef: id, tipo: 'Técnico', empresaRef });
+        if (!almacenTecnico) return res.status(404).json({ message: 'El técnico no tiene una bodega asignada' });
+
+        // Encontrar el CargoEquipamiento que coincida con su cargo (ignorando mayúsculas/minúsculas)
+        const cargoQuery = tecnico.cargo ? { $regex: new RegExp(`^${tecnico.cargo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } : null;
+        
+        const cargoEquip = await CargoEquipamiento.findOne({ 
+            empresaRef, 
+            $or: [
+                { cargo: cargoQuery },
+                { nombreTipoCargo: cargoQuery }
+            ]
+        }).populate({
+            path: 'items.productoRef',
+            populate: { path: 'categoria' }
+        });
+
+        if (!cargoEquip || !cargoEquip.items || cargoEquip.items.length === 0) {
+            return res.status(404).json({ message: `No hay configuración de cargo predeterminado para el cargo: ${tecnico.cargo}` });
+        }
+
+        // Arrays para guardar la simulación/resultado
+        const matchResults = [];
+        const fallbacks = [];
+        const missingStock = [];
+        const asigMovimientos = [];
+
+        for (const item of cargoEquip.items) {
+            const prodGen = item.productoRef;
+            if (!prodGen) continue;
+
+            const catName = (prodGen.categoria?.nombre || '').toLowerCase();
+            const prodName = (prodGen.nombre || '').toLowerCase();
+            const originalSku = prodGen.sku;
+            
+            // Determinar si es ropa o calzado
+            const isShoes = /zapato|bota|calzado|zapatilla/.test(prodName) || /zapato|bota|calzado|zapatilla/.test(catName);
+            const isPants = /pantalon|pantalón|jeans|blue jean/.test(prodName) || /pantalon/.test(catName);
+            const isJacket = /parka|casaca|cortaviento|campera|chaqueta|microforro|poleron|polerón/.test(prodName) || /parka|chaqueta/.test(catName);
+            const isShirt = /polera|camisa|geologo|geólogo|chaleco|overol|ropa|uniforme|vestuario/.test(prodName) || /ropa|vestuario|uniforme|epp/.test(catName);
+            
+            let targetSize = null;
+            if (isShoes) targetSize = tecnico.shoeSize || tecnico.bootsSize;
+            else if (isPants) targetSize = tecnico.pantsSize;
+            else if (isJacket) targetSize = tecnico.jacketSize || tecnico.shirtSize;
+            else if (isShirt) targetSize = tecnico.shirtSize || tecnico.jacketSize || tecnico.uniformSize;
+
+            targetSize = String(targetSize || '').trim();
+
+            let matchedProduct = prodGen;
+            let matchType = 'exact-fallback';
+
+            if (targetSize && targetSize.length > 0 && targetSize !== 'undefined' && targetSize !== 'null') {
+                // Remover cualquier talla explícita en el nombre del producto base
+                const baseNameRaw = prodGen.nombre.replace(/\s+(TALLA|T-|SZ|T\.?)\s*[A-Z0-9\.\-]+/ig, '').trim();
+                const baseNameEscaped = baseNameRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                // Buscar productos de la misma empresa que coincidan con baseName y la talla
+                const posibles = await Producto.find({ 
+                    empresaRef, 
+                    status: 'Activo',
+                    nombre: { $regex: new RegExp(baseNameEscaped, 'i') } 
+                }).lean();
+
+                // Filtrar para encontrar la variante específica de la talla
+                const variante = posibles.find(p => {
+                    const pName = (p.nombre || '').toUpperCase();
+                    const sizeRegex = new RegExp(`\\b(TALLA|T-|SZ|T\.?)\\s*${targetSize.toUpperCase()}\\b`, 'i');
+                    const sizeDirectRegex = new RegExp(`\\b${targetSize.toUpperCase()}\\b`, 'i');
+                    return sizeRegex.test(pName) || sizeDirectRegex.test(pName);
+                });
+
+                if (variante) {
+                    matchedProduct = variante;
+                    matchType = 'size-matched';
+                }
+            }
+
+            // Validar existencia en almacén de origen si se proporciona
+            let stockDisponible = Infinity;
+            if (almacenOrigen && !dryRun) {
+                const stockRef = await StockNivel.findOne({ 
+                    productoRef: matchedProduct._id, 
+                    almacenRef: almacenOrigen, 
+                    empresaRef 
+                });
+                const qtyN = stockRef ? stockRef.cantidadNuevo : 0;
+                const qtyU = stockRef ? stockRef.cantidadUsadoBueno : 0;
+                stockDisponible = qtyN + qtyU;
+                
+                if (stockDisponible < item.cantidad) {
+                    missingStock.push({ 
+                        producto: matchedProduct.nombre, 
+                        sku: matchedProduct.sku,
+                        requerido: item.cantidad, 
+                        disponible: stockDisponible 
+                    });
+                    continue; // Skip assignation for this product if no stock (or maybe you want it to fail all)
+                }
+            }
+
+            const itemResult = {
+                productoOriginal: prodGen.nombre,
+                skuOriginal: originalSku,
+                tallaDetectada: targetSize,
+                productoAsignado: matchedProduct.nombre,
+                skuAsignado: matchedProduct.sku,
+                productoRef: matchedProduct._id,
+                matchType,
+                cantidad: item.cantidad,
+                estadoProducto: item.estadoProducto
+            };
+
+            if (matchType === 'size-matched') matchResults.push(itemResult);
+            else fallbacks.push(itemResult);
+            
+            asigMovimientos.push(itemResult);
+        }
+
+        // Si es DryRun, devolver la simulación sin guardar
+        if (dryRun) {
+            return res.json({
+                message: 'Simulación de asignación exitosa',
+                tecnico: `${tecnico.nombres} ${tecnico.apellidos}`,
+                cargoEncontrado: cargoEquip.nombreTipoCargo,
+                tallas: {
+                    shirt: tecnico.shirtSize, pants: tecnico.pantsSize, jacket: tecnico.jacketSize, shoe: tecnico.shoeSize
+                },
+                simulacion: { matches: matchResults, fallbacks, missingStock, totalItems: asigMovimientos.length }
+            });
+        }
+
+        if (missingStock.length > 0) {
+            return res.status(400).json({ 
+                message: 'No hay stock suficiente en la bodega de origen para algunos artículos.',
+                missingStock 
+            });
+        }
+
+        // Procesar movimientos reales (Bulk ASIGNACION)
+        const finalMovimientos = [];
+        const generatedDocRef = await generateCorrelativo(Movimiento, 'GD', empresaRef);
+
+        for (const movItem of asigMovimientos) {
+            const mov = new Movimiento({
+                tipo: 'ASIGNACION',
+                productoRef: movItem.productoRef,
+                cantidad: movItem.cantidad,
+                estadoProducto: movItem.estadoProducto,
+                almacenOrigen: almacenOrigen || null,
+                almacenDestino: almacenTecnico._id,
+                motivo: `Asignación por Cargo Predeterminado: ${cargoEquip.nombreTipoCargo}`,
+                documentoReferencia: generatedDocRef,
+                usuarioRef: req.user._id,
+                empresaRef
+            });
+            await mov.save();
+            finalMovimientos.push(mov);
+
+            const stockField = movItem.estadoProducto === 'Nuevo' ? 'cantidadNuevo' : 'cantidadUsadoBueno';
+            
+            if (almacenOrigen) {
+                await StockNivel.findOneAndUpdate(
+                    { productoRef: movItem.productoRef, almacenRef: almacenOrigen, empresaRef },
+                    { $inc: { [stockField]: -movItem.cantidad } },
+                    { upsert: true }
+                );
+            }
+            await StockNivel.findOneAndUpdate(
+                { productoRef: movItem.productoRef, almacenRef: almacenTecnico._id, empresaRef },
+                { $inc: { [stockField]: movItem.cantidad } },
+                { upsert: true }
+            );
+
+            // Actualizar Stock Total en el Producto para acceso rápido (Solo si sale de un almacén)
+            if (almacenOrigen) {
+                // Al salir hacia el técnico, no descontamos del "stockActual" (el técnico sigue teniéndolo como propio de la empresa) a menos que queramos aislar. 
+                // En registrarMovimiento vemos: "Al salir hacia el tecnico, NO descontamos del stockActual". Wait! En registrarMovimiento: `const totalImpact = (isEntry ? cantidad : (isExit ? -cantidad : 0));` y ASIGNACION es isExit (resta -cantidad).
+                await Producto.findOneAndUpdate(
+                    { _id: movItem.productoRef, empresaRef },
+                    { $inc: { stockActual: -movItem.cantidad } }
+                );
+            }
+        }
+
+        res.json({ 
+            message: `Asignación masiva exitosa para ${tecnico.nombres} ${tecnico.apellidos}`,
+            movimientosCount: finalMovimientos.length,
+            resultados: { matches: matchResults, fallbacks }
+        });
+    } catch (e) {
+        next(e);
+    }
+};
 
 exports.getVehiculos = async (req, res) => {
     try {
@@ -515,6 +740,7 @@ exports.bulkCreateProductos = async (req, res) => {
                     existente.nroSerie = (item.nroSerie || item.numeroSerie) !== undefined ? (item.nroSerie || item.numeroSerie) : existente.nroSerie;
                     existente.imei = item.imei !== undefined ? item.imei : existente.imei;
                     existente.tipo = item.tipo || existente.tipo;
+                    existente.trackSerial = item.trackSerial !== undefined ? item.trackSerial : (!!(existente.nroSerie || existente.imei || item.nroSerie || item.imei));
                     existente.segmentacion = item.segmentacion || existente.segmentacion;
                     existente.color = item.color || existente.color;
                     existente.icono = item.icono || existente.icono;
@@ -535,6 +761,7 @@ exports.bulkCreateProductos = async (req, res) => {
                         nroSerie: item.nroSerie || item.numeroSerie || '',
                         imei: item.imei || '',
                         tipo: item.tipo || 'Suministro',
+                        trackSerial: item.trackSerial !== undefined ? item.trackSerial : (!!(item.nroSerie || item.numeroSerie || item.imei)),
                         segmentacion: item.segmentacion || 'Estándar',
                         color: item.color || 'Genérico',
                         icono: item.icono || 'Archive',
@@ -1422,7 +1649,10 @@ exports.getStockPorTecnico = async (req, res) => {
         const almacenIds = almacenes.map(a => a._id);
 
         const stock = await StockNivel.find({ almacenRef: { $in: almacenIds }, empresaRef: req.user.empresaRef })
-            .populate('productoRef')
+            .populate({
+                path: 'productoRef',
+                populate: { path: 'categoria', select: 'nombre' }
+            })
             .populate('almacenRef', 'nombre tipo');
 
         res.json(stock);
@@ -1779,3 +2009,297 @@ exports.deleteTipoCompra = async (req, res) => {
         res.status(400).json({ message: e.message });
     }
 };
+
+// --- CARGO EQUIPAMIENTO (PREDETERMINADOS) ---
+
+exports.getCargoEquipamientos = async (req, res) => {
+    try {
+        const list = await CargoEquipamiento.find({ empresaRef: req.user.empresaRef })
+            .populate({
+                path: 'items.productoRef',
+                select: 'nombre sku fotos color tipo marca modelo categoria',
+                populate: { path: 'categoria', select: 'nombre icono' }
+            });
+        res.json(list);
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+
+exports.createCargoEquipamiento = async (req, res) => {
+    try {
+        const data = { ...req.body, empresaRef: req.user.empresaRef };
+        const nueva = new CargoEquipamiento(data);
+        await nueva.save();
+        
+        const populated = await CargoEquipamiento.findById(nueva._id)
+            .populate({
+                path: 'items.productoRef',
+                select: 'nombre sku fotos color tipo marca modelo categoria',
+                populate: { path: 'categoria', select: 'nombre icono' }
+            });
+            
+        res.status(201).json(populated);
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.updateCargoEquipamiento = async (req, res) => {
+    try {
+        const actualizada = await CargoEquipamiento.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            req.body,
+            { new: true }
+        ).populate({
+            path: 'items.productoRef',
+            select: 'nombre sku fotos color tipo marca modelo categoria',
+            populate: { path: 'categoria', select: 'nombre icono' }
+        });
+        
+        if (!actualizada) return res.status(404).json({ message: 'Configuración de cargo no encontrada' });
+        res.json(actualizada);
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.deleteCargoEquipamiento = async (req, res) => {
+    try {
+        const eliminada = await CargoEquipamiento.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!eliminada) return res.status(404).json({ message: 'Configuración de cargo no encontrada' });
+        res.json({ message: 'Configuración de cargo eliminada con éxito' });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+// --- OBSERVACIONES STOCK ---
+exports.createObservacionStock = async (req, res) => {
+    try {
+        const { tecnicoRef, productoRef, comentario, fotoUrl } = req.body;
+        const empresaRef = req.user.empresaRef;
+
+        const tecnico = await Tecnico.findOne({ _id: tecnicoRef, empresaRef });
+        if (!tecnico) return res.status(404).json({ message: 'Técnico no encontrado' });
+
+        const supervisorRef = tecnico.supervisorId || null;
+
+        const nuevaObs = new ObservacionStock({
+            tecnicoRef,
+            productoRef,
+            supervisorRef,
+            comentario,
+            fotoUrl: fotoUrl || '',
+            empresaRef,
+            estado: 'Abierto'
+        });
+
+        await nuevaObs.save();
+
+        if (supervisorRef) {
+            await notificationService.notifyAction({
+                actor: req.user,
+                moduleKey: 'logistica_inventario',
+                action: 'reportó observación',
+                entityName: `Activo ${productoRef}`,
+                entityId: nuevaObs._id,
+                companyRef: empresaRef,
+                targetUserId: supervisorRef,
+                isImportant: true
+            });
+        }
+
+        res.status(201).json(nuevaObs);
+    } catch (e) {
+        console.error("Error al crear observación de stock:", e);
+        res.status(500).json({ message: 'Error interno al crear la observación' });
+    }
+};
+
+exports.getObservacionesPorTecnico = async (req, res) => {
+    try {
+        const { tecnicoId } = req.params;
+        const empresaRef = req.user.empresaRef;
+
+        const observaciones = await ObservacionStock.find({
+            tecnicoRef: tecnicoId,
+            empresaRef,
+            estado: 'Abierto'
+        }).populate('productoRef', 'nombre sku');
+
+        res.json(observaciones);
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+
+exports.submitAutoAuditoria = async (req, res) => {
+    try {
+        const { tecnicoId, items } = req.body;
+        const empresaRef = req.user.empresaRef;
+
+        if (!tecnicoId || !items || !Array.isArray(items)) {
+            return res.status(400).json({ message: 'Datos incompletos para procesar la auto-auditoría.' });
+        }
+
+        const tecnico = await Tecnico.findById(tecnicoId);
+        if (!tecnico) return res.status(404).json({ message: 'Técnico no encontrado.' });
+
+        const supervisorRef = tecnico.supervisorId || null;
+        const observacionesToSave = [];
+
+        for (const item of items) {
+            if (item.estado === 'Malo' || item.estado === 'No Tengo') {
+                const tipo = item.estado === 'Malo' ? 'Daño' : 'Pérdida';
+                const obs = new ObservacionStock({
+                    tecnicoRef: tecnicoId,
+                    productoRef: item.productoRef,
+                    supervisorRef,
+                    comentario: item.comentario || `Reportado en Auto-Auditoría: ${item.estado}`,
+                    fotoUrl: item.fotoUrl || '',
+                    estado: 'Abierto',
+                    tipo,
+                    empresaRef
+                });
+                observacionesToSave.push(obs);
+            }
+        }
+
+        if (observacionesToSave.length > 0) {
+            await ObservacionStock.insertMany(observacionesToSave);
+
+            if (supervisorRef) {
+                await notificationService.notifyAction({
+                    actor: req.user,
+                    moduleKey: 'logistica_inventario',
+                    action: `reportó discrepancias en su auto-auditoría (${observacionesToSave.length} ítems)`,
+                    entityName: 'Auto-Auditoría',
+                    entityId: observacionesToSave[0]._id, // ref simple
+                    companyRef: empresaRef,
+                    targetUserId: supervisorRef,
+                    isImportant: true
+                });
+            }
+        }
+
+        res.status(200).json({ message: 'Auto-Auditoría procesada correctamente.', anomalías: observacionesToSave.length });
+    } catch (e) {
+        console.error('Error procesando auto-auditoría:', e);
+        res.status(500).json({ message: 'Error interno al procesar auto-auditoría' });
+    }
+};
+
+exports.bulkCreateCargoEquipamientos = async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body?.cargos) ? req.body.cargos : [];
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'Debes enviar el arreglo cargos con al menos un registro.' });
+        }
+
+        // 1. Obtener todos los productos para validar SKU y obtener ID
+        const productos = await Producto.find({ empresaRef: req.user.empresaRef }).select('_id sku nombre').lean();
+        const productosBySku = new Map(productos.map(p => [String(p.sku || '').trim().toUpperCase(), p]));
+
+        // 2. Agrupar filas de Excel por cargo/nombreTipoCargo
+        // La estructura de la fila es: { cargo, nombreTipoCargo, productoSku, cantidad, estadoProducto }
+        const groups = {};
+        const errores = [];
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cargo = String(row.cargo || '').trim();
+            const nombreTipoCargo = String(row.nombreTipoCargo || row.cargo || 'Técnico General').trim();
+            
+            if (!cargo) {
+                errores.push({ fila: i + 1, error: 'El campo "cargo" es obligatorio.' });
+                continue;
+            }
+
+            const sku = String(row.productoSku || row.sku || '').trim().toUpperCase();
+            if (!sku) {
+                errores.push({ fila: i + 1, error: `El SKU del producto es obligatorio para el cargo "${cargo}".` });
+                continue;
+            }
+
+            const matchedProd = productosBySku.get(sku);
+            if (!matchedProd) {
+                errores.push({ fila: i + 1, error: `El SKU de producto "${sku}" no existe en el catálogo para el cargo "${cargo}".` });
+                continue;
+            }
+
+            const qty = Math.max(1, parseInt(row.cantidad, 10) || 1);
+            let estado = String(row.estadoProducto || row.estado || 'Nuevo').trim();
+            if (!['Nuevo', 'Usado Bueno', 'Usado Malo', 'Merma'].includes(estado)) {
+                estado = 'Nuevo';
+            }
+
+            const key = nombreTipoCargo.toUpperCase();
+            if (!groups[key]) {
+                groups[key] = {
+                    cargo,
+                    nombreTipoCargo,
+                    itemsMap: {}
+                };
+            }
+
+            // Agrupar cantidades por productoRef y estadoProducto para evitar duplicados en el mismo cargo
+            const itemKey = `${matchedProd._id}_${estado}`;
+            if (!groups[key].itemsMap[itemKey]) {
+                groups[key].itemsMap[itemKey] = {
+                    productoRef: matchedProd._id,
+                    cantidad: 0,
+                    estadoProducto: estado
+                };
+            }
+            groups[key].itemsMap[itemKey].cantidad += qty;
+        }
+
+        let creados = 0;
+        let actualizados = 0;
+
+        // 3. Guardar en Base de Datos
+        const groupKeys = Object.keys(groups);
+        for (const key of groupKeys) {
+            try {
+                const grp = groups[key];
+                const items = Object.values(grp.itemsMap);
+
+                let existente = await CargoEquipamiento.findOne({ 
+                    empresaRef: req.user.empresaRef,
+                    nombreTipoCargo: grp.nombreTipoCargo 
+                });
+
+                if (existente) {
+                    existente.cargo = grp.cargo;
+                    existente.items = items;
+                    existente.status = 'Activo';
+                    await existente.save();
+                    actualizados += 1;
+                } else {
+                    const nuevo = new CargoEquipamiento({
+                        cargo: grp.cargo,
+                        nombreTipoCargo: grp.nombreTipoCargo,
+                        items,
+                        empresaRef: req.user.empresaRef,
+                        status: 'Activo'
+                    });
+                    await nuevo.save();
+                    creados += 1;
+                }
+            } catch (err) {
+                errores.push({ fila: 'Guardado', error: `Error guardando cargo "${groups[key].nombreTipoCargo}": ${err.message}` });
+            }
+        }
+
+        res.status(201).json({
+            message: `Carga masiva de cargos completada. Creados: ${creados}. Actualizados: ${actualizados}. Errores: ${errores.length}.`,
+            creados,
+            actualizados,
+            errores
+        });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+

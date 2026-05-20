@@ -10,6 +10,7 @@ router.use(protect);
 router.get('/tecnicos', authorize('logistica_dashboard:ver', ROLES.SUPERVISOR), logisticaController.getTecnicos);
 router.get('/buscar-tecnico', authorize('logistica_dashboard:ver', ROLES.SUPERVISOR), logisticaController.buscarTecnicoPorRut);
 router.get('/vehiculos', authorize('logistica_dashboard:ver'), logisticaController.getVehiculos);
+router.post('/tecnicos/:id/asignar-cargo', authorize('logistica_movimientos:crear', ROLES.SUPERVISOR), logisticaController.asignarCargoPredeterminado);
 
 // --- CATEGORÍAS ---
 router.get('/categorias', authorize('logistica_configuracion:ver', 'logistica_auditorias:ver', 'logistica_inventario:ver', ROLES.SUPERVISOR), logisticaController.getCategorias);
@@ -73,6 +74,18 @@ router.put('/solicitudes-compra/:id', authorize('logistica_compras:editar'), log
 
 router.get('/ordenes-compra', authorize('logistica_compras:ver'), logisticaController.getOrdenesCompra);
 router.post('/ordenes-compra', authorize('logistica_compras:crear'), logisticaController.createOrdenCompra);
+
+// --- CARGO EQUIPAMIENTO ---
+router.get('/cargo-equipamiento', authorize('logistica_configuracion:ver'), logisticaController.getCargoEquipamientos);
+router.post('/cargo-equipamiento', authorize('logistica_configuracion:crear'), logisticaController.createCargoEquipamiento);
+router.post('/cargo-equipamiento/bulk', authorize('logistica_configuracion:crear'), logisticaController.bulkCreateCargoEquipamientos);
+router.put('/cargo-equipamiento/:id', authorize('logistica_configuracion:editar', 'logistica_configuracion:crear'), logisticaController.updateCargoEquipamiento);
+router.delete('/cargo-equipamiento/:id', authorize('logistica_configuracion:eliminar', 'logistica_configuracion:crear'), logisticaController.deleteCargoEquipamiento);
+
+// --- OBSERVACIONES STOCK ---
+router.post('/observaciones-stock', authorize('logistica_inventario:ver', ROLES.TECNICO, 'user', 'operativo'), logisticaController.createObservacionStock);
+router.get('/observaciones-stock/tecnico/:tecnicoId', authorize('logistica_inventario:ver', ROLES.TECNICO, ROLES.SUPERVISOR, 'user', 'operativo'), logisticaController.getObservacionesPorTecnico);
+router.post('/auto-auditoria', authorize('logistica_inventario:ver', ROLES.TECNICO, 'user', 'operativo'), logisticaController.submitAutoAuditoria);
 
 console.log("✅ [LOGISTICA] Routes defined successfully.");
 module.exports = router;

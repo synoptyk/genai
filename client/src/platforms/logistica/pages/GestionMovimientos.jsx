@@ -34,6 +34,24 @@ const toSafeNumber = (value, fallback = 1) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const getAbbreviatedStatus = (status) => {
+    if (!status) return 'DESCONOCIDO';
+    if (status === 'ACTIVO') return 'ACTIVO';
+    if (status === 'PRE-INCORPORACION') return 'PRE-INC.';
+    if (status === 'POSTULANTE') return 'POSTULANTE';
+    if (status === 'FINIQUITADO') return 'FINIQUITADO';
+    return status;
+};
+
+const getEstadoTalentoBadge = (status) => {
+    const abbv = getAbbreviatedStatus(status);
+    if (abbv === 'ACTIVO') return <span className="inline-flex items-center text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">Activo</span>;
+    if (abbv === 'PRE-INC.') return <span className="inline-flex items-center text-[9px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100">Pre-Inc</span>;
+    if (abbv === 'POSTULANTE') return <span className="inline-flex items-center text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100">Postulante</span>;
+    if (abbv === 'FINIQUITADO') return <span className="inline-flex items-center text-[9px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">Finiquitado</span>;
+    return <span className="inline-flex items-center text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">{abbv}</span>;
+};
+
 const GestionMovimientos = () => {
     const [productos, setProductos] = useState([]);
     const [almacenes, setAlmacenes] = useState([]);
@@ -64,25 +82,32 @@ const GestionMovimientos = () => {
     const [tecSearch, setTecSearch] = useState('');
     const [filterProyecto, setFilterProyecto] = useState('');
     const [filterSede, setFilterSede] = useState('');
+    const [filterCargo, setFilterCargo] = useState('');
+    const [filterEstadoHR, setFilterEstadoHR] = useState('');
 
     // Multi-Item Builder: Lista de ítems a mover
     const [items, setItems] = useState([
         { id: Date.now(), productoRef: '', cantidad: 1, estadoProducto: 'Nuevo', serie: '' }
     ]);
+    const [cargoEquipamientos, setCargoEquipamientos] = useState([]);
 
     // Carga de datos iniciales
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [p, a, t] = await Promise.all([
+                const [p, a, t, c] = await Promise.all([
                     logisticaApi.get('/productos'),
                     logisticaApi.get('/almacenes'),
-                    logisticaApi.get('/tecnicos').catch(() => ({ data: [] }))
+                    logisticaApi.get('/tecnicos').catch(() => ({ data: [] })),
+                    logisticaApi.get('/configuracion-maestra').catch(() => ({ data: {} }))
                 ]);
                 setProductos(p.data || []);
                 setAlmacenes(a.data || []);
                 setTecnicos(t.data || []);
+                if (c.data && c.data.cargoEquipamientos) {
+                    setCargoEquipamientos(c.data.cargoEquipamientos);
+                }
             } catch (e) {
                 console.error("Error loading movements dependencies", e);
                 setStatus({ type: 'error', message: 'Error al cargar dependencias del sistema.' });
@@ -104,6 +129,16 @@ const GestionMovimientos = () => {
         return [...new Set(sedes)].sort();
     }, [tecnicos]);
 
+    const uniqueCargos = useMemo(() => {
+        const cargos = tecnicos.map(t => t.cargo).filter(Boolean);
+        return [...new Set(cargos)].sort();
+    }, [tecnicos]);
+
+    const uniqueEstadosHR = useMemo(() => {
+        const estados = tecnicos.map(t => t.estadoActual).filter(Boolean);
+        return [...new Set(estados)].sort();
+    }, [tecnicos]);
+
     // Filtrado de técnicos para asignación masiva
     const filteredTecnicos = useMemo(() => {
         return tecnicos.filter(t => {
@@ -112,11 +147,13 @@ const GestionMovimientos = () => {
                 (t.rut || '').toLowerCase().includes(tecSearch.toLowerCase());
             const matchesProyecto = filterProyecto ? t.proyecto === filterProyecto : true;
             const matchesSede = filterSede ? (t.sede === filterSede || t.ciudad === filterSede) : true;
-            const isFiniquitado = t.estadoActual === 'FINIQUITADO';
+            const matchesCargo = filterCargo ? t.cargo === filterCargo : true;
+            const matchesEstadoHR = filterEstadoHR ? t.estadoActual === filterEstadoHR : true;
+            const isFiniquitado = filterEstadoHR !== 'FINIQUITADO' && t.estadoActual === 'FINIQUITADO';
 
-            return matchesSearch && matchesProyecto && matchesSede && !isFiniquitado;
+            return matchesSearch && matchesProyecto && matchesSede && matchesCargo && matchesEstadoHR && !isFiniquitado;
         });
-    }, [tecnicos, tecSearch, filterProyecto, filterSede]);
+    }, [tecnicos, tecSearch, filterProyecto, filterSede, filterCargo, filterEstadoHR]);
 
     // Tipos de movimiento estructurados
     const movTypes = [
@@ -127,6 +164,33 @@ const GestionMovimientos = () => {
     ];
 
     // Funciones del Multi-Item Builder
+    const handleLoadCargoItems = (cargoId) => {
+        if (!cargoId) return;
+        const cargo = cargoEquipamientos.find(c => c._id === cargoId);
+        if (!cargo || !cargo.items || cargo.items.length === 0) {
+            setStatus({ type: 'error', message: 'La plantilla seleccionada no tiene ítems configurados.' });
+            return;
+        }
+
+        const newItems = cargo.items.map((it, idx) => {
+            const prodId = typeof it.productoRef === 'object' ? it.productoRef?._id : it.productoRef;
+            return {
+                id: Date.now() + Math.random() + idx,
+                productoRef: prodId,
+                cantidad: it.cantidad || 1,
+                estadoProducto: it.estadoProducto || 'Nuevo',
+                serie: ''
+            };
+        });
+
+        if (items.length === 1 && !items[0].productoRef) {
+            setItems(newItems);
+        } else {
+            setItems([...items, ...newItems]);
+        }
+        setStatus({ type: 'success', message: `¡Se cargaron ${newItems.length} ítems desde la plantilla predeterminada!` });
+    };
+
     const handleAddItem = () => {
         setItems([
             ...items,
@@ -676,6 +740,28 @@ const GestionMovimientos = () => {
                                             </div>
                                         </div>
 
+                                        {/* Botones de Selección Rápida (Pills) */}
+                                        <div className="space-y-2 pt-1 border-t border-slate-100">
+                                            <div className="space-y-1.5">
+                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">Filtrar por Cargo</span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <button type="button" onClick={() => setFilterCargo('')} className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${filterCargo === '' ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>Todos</button>
+                                                    {uniqueCargos.map(c => (
+                                                        <button key={c} type="button" onClick={() => setFilterCargo(c)} className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${filterCargo === c ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>{c}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider">Estado en RRHH</span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <button type="button" onClick={() => setFilterEstadoHR('')} className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${filterEstadoHR === '' ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>Todos</button>
+                                                    {uniqueEstadosHR.map(e => (
+                                                        <button key={e} type="button" onClick={() => setFilterEstadoHR(e)} className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${filterEstadoHR === e ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>{e}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         {/* Controles de Selección Masiva */}
                                         <div className="flex gap-2 justify-between pt-1">
                                             <button
@@ -731,14 +817,21 @@ const GestionMovimientos = () => {
                                                                 {isChecked && <CheckSquare size={12} />}
                                                             </div>
                                                             <div>
-                                                                <p className="text-xs font-bold text-slate-800">{tec.nombreCompleto}</p>
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{tec.rut}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-xs font-bold text-slate-800">{tec.nombreCompleto}</p>
+                                                                    {getEstadoTalentoBadge(tec.estadoActual)}
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{tec.rut}</p>
+                                                                    <span className="text-[9px] text-slate-300">•</span>
+                                                                    <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider">{tec.cargo || 'Sin Cargo'}</p>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
                                                             <span className="block text-[9px] font-black text-slate-500 uppercase truncate max-w-[120px]">{tec.proyecto || 'Sin Proyecto'}</span>
                                                             {!tecWh && (
-                                                                <span className="inline-flex items-center gap-0.5 text-[7px] font-black text-rose-500 bg-rose-50 px-1 py-0.5 rounded uppercase tracking-wider">
+                                                                <span className="inline-flex items-center gap-0.5 text-[7px] font-black text-rose-500 bg-rose-50 px-1 py-0.5 rounded uppercase tracking-wider mt-0.5">
                                                                     <AlertTriangle size={8} /> Sin Bodega
                                                                 </span>
                                                             )}
@@ -817,13 +910,29 @@ const GestionMovimientos = () => {
                                     Agregue uno o más productos a esta transacción del sistema.
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleAddItem}
-                                className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 hover:bg-slate-800 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
-                            >
-                                <Plus size={14} /> Agregar Fila
-                            </button>
+                            <div className="flex items-center gap-3">
+                                {cargoEquipamientos.length > 0 && (
+                                    <select 
+                                        onChange={(e) => {
+                                            handleLoadCargoItems(e.target.value);
+                                            e.target.value = ''; // reset after load
+                                        }}
+                                        className="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-[10px] uppercase tracking-wider outline-none max-w-[180px] hover:bg-indigo-100 transition-colors"
+                                    >
+                                        <option value="">Cargar Plantilla...</option>
+                                        {cargoEquipamientos.map(c => (
+                                            <option key={c._id} value={c._id}>{c.cargo}</option>
+                                        ))}
+                                    </select>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleAddItem}
+                                    className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 hover:bg-slate-800 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
+                                >
+                                    <Plus size={14} /> Agregar Fila
+                                </button>
+                            </div>
                         </div>
 
                         {/* Listado de Items Agregados */}
