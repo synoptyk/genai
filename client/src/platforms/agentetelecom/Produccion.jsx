@@ -282,8 +282,8 @@ export default function Produccion() {
             </span>
             <ChevronDown size={11} className="text-slate-400" />
             {showEstadoFilters && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[200px] p-2" onClick={e => e.stopPropagation()}>
-                {['Completado', 'Cancelado', 'Pendiente', 'No Realizado', 'No Realizada'].map(st => (
+              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[200px] p-2 max-h-60 overflow-y-auto" onClick={e => e.stopPropagation()}>
+                {(serverData?.estados?.map(e => e.estado) || ['Completado', 'Cancelado', 'Pendiente', 'No Realizado', 'No Realizada']).map(st => (
                   <label key={st} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg cursor-pointer text-[10px] text-slate-200">
                     <input
                       type="checkbox"
