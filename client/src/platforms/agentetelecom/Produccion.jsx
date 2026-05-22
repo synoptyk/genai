@@ -73,10 +73,11 @@ export default function Produccion() {
   const [selectedMonths,   setSelectedMonths]   = useState([]);
   const [selectedWeeks,    setSelectedWeeks]    = useState([]);
   const [selectedProyectos, setSelectedProyectos] = useState([]);
-  const [estadoFilter,     setEstadoFilter]     = useState('Completado');
+  const [selectedEstados,   setSelectedEstados]   = useState(['Completado']);
   const [actividadFilter,  setActividadFilter]  = useState('');
   const [searchTech,       setSearchTech]       = useState('');
   const [showFilters,      setShowFilters]       = useState(false);
+  const [showEstadoFilters, setShowEstadoFilters] = useState(false);
 
   // Data
   const [serverData,   setServerData]   = useState(null);
@@ -117,7 +118,7 @@ export default function Produccion() {
       const params = {
         desde: dateFrom,
         hasta: dateTo,
-        estado: estadoFilter,
+        estado: selectedEstados.length > 0 ? selectedEstados.join(',') : 'todos',
         type: '',
         months: selectedMonths.join(','),
         weeks: selectedWeeks.join(','),
@@ -157,7 +158,7 @@ export default function Produccion() {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, estadoFilter, actividadFilter, selectedMonths, selectedWeeks, selectedProyectos]);
+  }, [dateFrom, dateTo, selectedEstados, actividadFilter, selectedMonths, selectedWeeks, selectedProyectos]);
 
   // Fetch inicial y al cambiar filtros
   const fetchTimer = useRef(null);
@@ -272,18 +273,31 @@ export default function Produccion() {
           </div>
 
           {/* Estado */}
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300">
+          <div className="relative flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300 cursor-pointer transition-all" onClick={() => setShowEstadoFilters(f => !f)}>
             <Activity size={11} className="text-indigo-400" />
-            <select
-              value={estadoFilter}
-              onChange={e => setEstadoFilter(e.target.value)}
-              className="bg-transparent outline-none text-white font-bold cursor-pointer"
-            >
-              <option value="todos" className="bg-slate-900">Estado: Todos</option>
-              <option value="Completado" className="bg-slate-900">Completado</option>
-              <option value="Cancelado" className="bg-slate-900">Cancelado</option>
-              <option value="Pendiente" className="bg-slate-900">Pendiente</option>
-            </select>
+            <span className="font-bold">
+              {selectedEstados.length === 0
+                ? 'Estado: Todos'
+                : `${selectedEstados.length} Estado(s)`}
+            </span>
+            <ChevronDown size={11} className="text-slate-400" />
+            {showEstadoFilters && (
+              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[200px] p-2" onClick={e => e.stopPropagation()}>
+                {['Completado', 'Cancelado', 'Pendiente', 'No Realizado', 'No Realizada'].map(st => (
+                  <label key={st} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg cursor-pointer text-[10px] text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={selectedEstados.includes(st)}
+                      onChange={() => setSelectedEstados(prev =>
+                        prev.includes(st) ? prev.filter(x => x !== st) : [...prev, st]
+                      )}
+                      className="accent-indigo-500"
+                    />
+                    {st}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Actividad */}

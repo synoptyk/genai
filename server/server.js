@@ -1791,6 +1791,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
     // Para que Actividad.find nos traiga todos los estados posibles para este rango/empresa
     const selectedStatus = estado || 'Completado';
+    const selectedStatusArr = selectedStatus === 'todos' ? [] : selectedStatus.split(',').map(s => s.trim().toLowerCase());
     delete filtro.Estado;
 
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
@@ -2196,7 +2197,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       }
 
       // ── FILTRO DE ESTADO SELECCIONADO (Solo para métricas del dashboard) ──
-      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
+      if (selectedStatus !== 'todos' && !selectedStatusArr.includes(cleanEstado.toLowerCase())) continue;
 
       // ── FILTRO DE ACTIVIDAD SELECCIONADA ──
       if (selectedActividad && descLpu !== selectedActividad) continue;
@@ -3421,6 +3422,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
 
     // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE PARA PROCESAMIENTO DINÁMICO
     const selectedStatus = estado || 'Completado';
+    const selectedStatusArr = selectedStatus === 'todos' ? [] : selectedStatus.split(',').map(s => s.trim().toLowerCase());
     delete filtro.Estado;
 
     const ConfigProduccion = require(`${PLATFORM_PATH}/models/ConfigProduccion`);
@@ -3577,7 +3579,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
 
       // --- 5. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
       estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
-      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
+      if (selectedStatus !== 'todos' && !selectedStatusArr.includes(cleanEstado.toLowerCase())) continue;
 
       const tCliName = (t.cliente || '').toUpperCase();
       const contractor = tCliName.includes('ZENER') ? 'ZENER' : (tCliName.includes('COMFICA') ? 'COMFICA' : 'OTROS');
