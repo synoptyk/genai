@@ -114,20 +114,23 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
     const rectHeight = 16;
     
     let finalX = x;
-    let finalY = y - offset;
-    
-    if (position === 'inside') {
-      finalX = x + (width || 0) / 2;
-      finalY = y + (height || 0) / 2;
-    } else if (position === 'insideBottom') {
-      if (width !== undefined) finalX = x + width / 2;
-      finalY = y + (height || 0) - offset;
-    } else if (position === 'bottom') {
-      if (width !== undefined) finalX = x + width / 2;
-      finalY = y + offset;
-    } else if (position === 'top') {
-      if (width !== undefined) finalX = x + width / 2;
-      finalY = y - offset;
+    let finalY = y;
+
+    if (viewBox) {
+      finalX = viewBox.x + viewBox.width / 2;
+      if (position === 'top') {
+        finalY = viewBox.y - offset;
+      } else if (position === 'inside') {
+        finalY = viewBox.y + viewBox.height / 2;
+      } else if (position === 'insideBottom') {
+        finalY = viewBox.y + viewBox.height - offset;
+      } else if (position === 'bottom') {
+        finalY = viewBox.y + viewBox.height + offset;
+      }
+    } else {
+      if (position === 'top') finalY = y - offset;
+      else if (position === 'bottom') finalY = y + offset;
+      else if (position === 'insideBottom') finalY = y - offset;
     }
 
     return (
@@ -400,22 +403,21 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
           </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barGap={-14}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis xAxisId="0" dataKey="dia" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={<CustomXAxisTick />} />
-                <XAxis xAxisId="1" dataKey="dia" hide={true} />
+                <XAxis dataKey="dia" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={<CustomXAxisTick />} />
                 <YAxis yAxisId="left" stroke="#818cf8" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis yAxisId="right" orientation="right" stroke="#e879f9" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
-                <Bar xAxisId="0" yAxisId="left" dataKey="ptsAsignados" name="Puntos Asignados" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={14}>
+                <Bar yAxisId="left" dataKey="ptsAsignados" name="Puntos Asignados" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={14}>
                   <LabelList dataKey="ptsAsignados" content={<CustomLabel bgColor="#831843" textColor="#fbcfe8" offset={25} position="top" />} />
-                  <LabelList dataKey="diffAsignadosMeta" content={<CustomLabel bgColor="#1e293b" textColor="#94a3b8" offset={10} position="insideBottom" />} />
+                  <LabelList dataKey="diffAsignadosMeta" content={<CustomLabel bgColor="#1e293b" textColor="#94a3b8" offset={15} position="insideBottom" />} />
                 </Bar>
-                <Bar xAxisId="1" yAxisId="left" dataKey="pts" name="Puntos Generados" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={14}>
+                <Bar yAxisId="left" dataKey="pts" name="Puntos Generados" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={14}>
                   <LabelList dataKey="pts" content={<CustomLabel bgColor="#312e81" textColor="#818cf8" offset={0} position="inside" />} />
                 </Bar>
-                <Line xAxisId="0" yAxisId="left" type="monotone" dataKey="metaPuntosLine" name="Meta (Puntos)" stroke="#e879f9" strokeWidth={3} strokeDasharray="5 5" connectNulls={true} dot={{ r: 3, fill: '#e879f9', strokeWidth: 0 }}>
+                <Line yAxisId="left" type="monotone" dataKey="metaPuntosLine" name="Meta (Puntos)" stroke="#e879f9" strokeWidth={3} strokeDasharray="5 5" connectNulls={true} dot={{ r: 3, fill: '#e879f9', strokeWidth: 0 }}>
                   <LabelList dataKey="metaPuntosLine" content={<CustomLabel bgColor="#4a044e" textColor="#f0abfc" offset={20} position="bottom" />} />
                 </Line>
               </ComposedChart>
