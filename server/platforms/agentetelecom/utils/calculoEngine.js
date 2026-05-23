@@ -292,6 +292,8 @@ function calcularBaremos(doc, tarifas) {
     const ptsBase    = (mejorMatch && !esAltoValor) ? mejorMatch.puntos : 0;
     const codigoBase = mejorMatch ? mejorMatch.codigo : '';
     const descBase   = mejorMatch ? mejorMatch.descripcion : '';
+    const grupoBase  = mejorMatch ? mejorMatch.grupo : '';
+    const catBase    = mejorMatch ? mejorMatch.categoria : '';
 
     // ── 2. EQUIPOS ADICIONALES ───────────────────────────────────────────────
     // REPARACIONES: no pagan decos adicionales (solo valor reparación)
@@ -339,6 +341,8 @@ function calcularBaremos(doc, tarifas) {
         'Pts_Actividad_Base':   ptsBase,
         'Codigo_LPU_Base':      codigoBase,
         'Desc_LPU_Base':        descBase,
+        'Grupo_LPU_Base':       grupoBase,
+        'Categoria_LPU_Base':   catBase,
         'Pts_Deco_Cable':       ptsDecoCable,
         'Pts_Deco_Adicional':   ptsDecoCable + ptsDecoWifi,   // alias legacy
         'Pts_Deco_WiFi':        ptsDecoWifi,

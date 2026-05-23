@@ -6,7 +6,7 @@ import { proyectosApi } from '../rrhh/rrhhApi';
 import {
   RefreshCw, Filter, Download, Presentation, Layers,
   BarChart3, Trophy, Activity, Calendar, Users, Target,
-  ChevronDown, Search, FileSpreadsheet
+  ChevronDown, Search, FileSpreadsheet, ListFilter
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -17,6 +17,7 @@ import ProduccionSemanal from './components/ProduccionSemanal';
 import ProduccionActividades from './components/ProduccionActividades';
 import ProduccionProyectos from './components/ProduccionProyectos';
 import ProduccionZonas from './components/ProduccionZonas';
+import DashboardSeguimientoDia from './components/DashboardSeguimientoDia';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const toInputDate = (d) => {
@@ -38,6 +39,7 @@ const todayUTC = () => {
 const TABS = [
   { id: 'resumen',       label: 'Resumen',        icon: Presentation },
   { id: 'produccion',   label: 'Producción/Día',  icon: Layers },
+  { id: 'seguimiento',  label: 'Dashboard Seg. Día', icon: Activity },
   { id: 'ranking',      label: 'Ranking',         icon: Trophy },
   { id: 'semanal',      label: 'Semanal',         icon: BarChart3 },
   { id: 'actividades',  label: 'Actividades',     icon: Activity },
@@ -78,6 +80,16 @@ export default function Produccion() {
   const [searchTech,       setSearchTech]       = useState('');
   const [showFilters,      setShowFilters]       = useState(false);
   const [showEstadoFilters, setShowEstadoFilters] = useState(false);
+  
+  const [selectedZonas,    setSelectedZonas]    = useState([]);
+  const [selectedTecnicos, setSelectedTecnicos] = useState([]);
+  const [selectedCategorias, setSelectedCategorias] = useState([]);
+  const [showZonasFilters, setShowZonasFilters] = useState(false);
+  const [showTecnicosFilters, setShowTecnicosFilters] = useState(false);
+  const [showCategoriasFilters, setShowCategoriasFilters] = useState(false);
+  
+  const [availableZonas, setAvailableZonas] = useState([]);
+  const [availableTecnicos, setAvailableTecnicos] = useState([]);
 
   // Data
   const [serverData,   setServerData]   = useState(null);
@@ -124,6 +136,9 @@ export default function Produccion() {
         weeks: selectedWeeks.join(','),
         proyectos: selectedProyectos.join(','),
         actividad: actividadFilter,
+        zonas: selectedZonas.join(','),
+        tecnicos: selectedTecnicos.join(','),
+        categorias: selectedCategorias.join(','),
       };
 
       const res = await api.get('/bot/produccion-stats', { params });
@@ -158,7 +173,24 @@ export default function Produccion() {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, selectedEstados, actividadFilter, selectedMonths, selectedWeeks, selectedProyectos]);
+  }, [dateFrom, dateTo, selectedEstados, actividadFilter, selectedMonths, selectedWeeks, selectedProyectos, selectedZonas, selectedTecnicos, selectedCategorias]);
+
+  useEffect(() => {
+    if (serverData) {
+      if (selectedZonas.length === 0) {
+        setAvailableZonas(Object.keys(serverData.cities || {}).sort());
+      }
+      if (selectedTecnicos.length === 0) {
+        setAvailableTecnicos(serverData.tecnicos || []);
+      }
+    }
+  }, [serverData, selectedZonas.length, selectedTecnicos.length]);
+
+  // Cascada de filtros: Si cambia la zona, limpiar los técnicos seleccionados
+  // Esto obliga a que la lista de availableTecnicos se re-calcule con la nueva zona.
+  useEffect(() => {
+    setSelectedTecnicos([]);
+  }, [selectedZonas]);
 
   // Fetch inicial y al cambiar filtros
   const fetchTimer = useRef(null);
@@ -257,6 +289,65 @@ export default function Produccion() {
             )}
           </div>
 
+          {/* Zonas */}
+          <div className="relative flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300 cursor-pointer transition-all" onClick={() => setShowZonasFilters(f => !f)}>
+            <Filter size={11} className="text-indigo-400" />
+            <span className="font-bold">
+              {selectedZonas.length === 0
+                ? 'Lista de Zonas'
+                : `${selectedZonas.length} Zona(s)`}
+            </span>
+            <ChevronDown size={11} className="text-slate-400" />
+            {showZonasFilters && availableZonas.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[200px] max-h-60 overflow-y-auto p-2" onClick={e => e.stopPropagation()}>
+                {availableZonas.map(z => (
+                  <label key={z} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg cursor-pointer text-[10px] text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={selectedZonas.includes(z)}
+                      onChange={() => setSelectedZonas(prev =>
+                        prev.includes(z) ? prev.filter(x => x !== z) : [...prev, z]
+                      )}
+                      className="accent-indigo-500"
+                    />
+                    {z}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Técnicos */}
+          <div className="relative flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300 cursor-pointer transition-all" onClick={() => setShowTecnicosFilters(f => !f)}>
+            <Users size={11} className="text-indigo-400" />
+            <span className="font-bold">
+              {selectedTecnicos.length === 0
+                ? 'Lista de Técnicos'
+                : `${selectedTecnicos.length} Técnico(s)`}
+            </span>
+            <ChevronDown size={11} className="text-slate-400" />
+            {showTecnicosFilters && availableTecnicos.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[280px] max-h-60 overflow-y-auto p-2" onClick={e => e.stopPropagation()}>
+                {availableTecnicos.map(t => {
+                  const techId = t.idRecursoToa || t.name;
+                  return (
+                    <label key={techId} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg cursor-pointer text-[10px] text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={selectedTecnicos.includes(techId)}
+                        onChange={() => setSelectedTecnicos(prev =>
+                          prev.includes(techId) ? prev.filter(x => x !== techId) : [...prev, techId]
+                        )}
+                        className="accent-indigo-500"
+                      />
+                      {t.idRecursoToa} - {t.name}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Mes */}
           <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300">
             <Calendar size={11} className="text-indigo-400" />
@@ -294,6 +385,34 @@ export default function Produccion() {
                       className="accent-indigo-500"
                     />
                     {st}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Categorías (Altas/Inst, Rutinas, Reparaciones) */}
+          <div className="relative flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300 cursor-pointer transition-all" onClick={() => setShowCategoriasFilters(f => !f)}>
+            <ListFilter size={11} className="text-indigo-400" />
+            <span className="font-bold">
+              {selectedCategorias.length === 0
+                ? 'Categorías: Todas'
+                : `${selectedCategorias.length} Categoría(s)`}
+            </span>
+            <ChevronDown size={11} className="text-slate-400" />
+            {showCategoriasFilters && (
+              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[200px] p-2 max-h-60 overflow-y-auto" onClick={e => e.stopPropagation()}>
+                {['Altas/Inst', 'Rutinas', 'Reparaciones'].map(cat => (
+                  <label key={cat} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg cursor-pointer text-[10px] text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategorias.includes(cat)}
+                      onChange={() => setSelectedCategorias(prev =>
+                        prev.includes(cat) ? prev.filter(x => x !== cat) : [...prev, cat]
+                      )}
+                      className="accent-indigo-500"
+                    />
+                    {cat}
                   </label>
                 ))}
               </div>
@@ -411,6 +530,11 @@ export default function Produccion() {
             dashboardData={dashboardData} 
             metaConfig={metaConfig}
             stats={stats}
+            tecnicos={tecnicos}
+            clientProjects={serverData?.clientProjects || []}
+            cities={serverData?.cities || {}}
+            dateFrom={dateFrom}
+            lpuActivities={serverData?.lpuActivities || []}
           />
         )}
 
@@ -500,6 +624,16 @@ export default function Produccion() {
         {activeTab === 'zonas' && (
           <ProduccionZonas 
             cities={serverData?.cities || {}} 
+          />
+        )}
+
+        {/* Seguimiento Día */}
+        {activeTab === 'seguimiento' && (
+          <DashboardSeguimientoDia
+            tecnicos={tecnicos}
+            dateFrom={dateFrom}
+            selectedMonths={selectedMonths}
+            metaConfig={metaConfig}
           />
         )}
       </div>

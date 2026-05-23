@@ -1612,7 +1612,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = req.user.role === 'system_admin';
-    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut, months, weeks, proyectos, actividad } = req.query;
+    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut, months, weeks, proyectos, actividad, zonas, tecnicos: tecnicosFilter, categorias } = req.query;
     let statsHastaFilter = null;
     console.log(`🔍 [DEBUG] Paso 1: Query Params recibidos - Email: ${currentEmail}`);
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
@@ -1687,23 +1687,68 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
        queryConditions.push({ empresaRef: empresaFilter });
     }
 
-    let filtro = queryConditions.length > 1 ? { $and: queryConditions } : (queryConditions[0] || {});
+    if (zonas && zonas.length > 0) {
+      const rawZonas = String(zonas).split(',').map(s => s.trim()).filter(Boolean);
+      if (rawZonas.length > 0) {
+        const zonasArr = [];
+        rawZonas.forEach(z => {
+          zonasArr.push(z);
+          zonasArr.push(z.toUpperCase());
+          zonasArr.push(z.toLowerCase());
+        });
+        queryConditions.push({
+          $or: [
+            { "CIUDAD": { $in: zonasArr } },
+            { "COMUNA": { $in: zonasArr } },
+            { "Sede": { $in: zonasArr } }
+          ]
+        });
+      }
+    }
+
+    if (tecnicosFilter && tecnicosFilter.length > 0) {
+      const rawTechs = String(tecnicosFilter).split(',').map(s => s.trim()).filter(Boolean);
+      if (rawTechs.length > 0) {
+        const techsArr = [];
+        rawTechs.forEach(t => {
+          techsArr.push(t);
+          const stripped = t.replace(/^0+/, '');
+          if (stripped) techsArr.push(stripped);
+          const n = parseInt(t);
+          if (!isNaN(n)) techsArr.push(n);
+        });
+        queryConditions.push({
+          $or: [
+            { "RECURSO": { $in: techsArr } },
+            { "ID Recurso": { $in: techsArr } },
+            { "ID_Recurso": { $in: techsArr } },
+            { "Recurso": { $in: techsArr } },
+            { idRecurso: { $in: techsArr } },
+            { idRecursoToa: { $in: techsArr } }
+          ]
+        });
+      }
+    }
 
     if (rut) {
       const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
-      filtro.$or = [
-        { tecnicoRut: r },
-        { rut: r }
-      ];
+      queryConditions.push({
+        $or: [
+          { tecnicoRut: r },
+          { rut: r }
+        ]
+      });
     } else if (supervisorId) {
       const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('idRecursoToa');
       const ids = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
-      filtro.$or = [
-        { "RECURSO": { $in: ids } },
-        { "RECURSO": { $in: ids } },
-        { idRecurso: { $in: ids } },
-        { "Recurso": { $in: ids } }
-      ];
+      queryConditions.push({
+        $or: [
+          { "RECURSO": { $in: ids } },
+          { "RECURSO": { $in: ids } },
+          { idRecurso: { $in: ids } },
+          { "Recurso": { $in: ids } }
+        ]
+      });
     }
 
     if (tipo) {
@@ -1711,21 +1756,27 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
       const normTipo = tMap[tipo] || tipo.toLowerCase();
       if (normTipo === 'reparacion') {
-        filtro.$or = [
-          { ordenId: { $regex: /^INC/i } },
-          { "ID_Orden": { $regex: /^INC/i } },
-          { "Número_de_Petición": { $regex: /^INC/i } }
-        ];
+        queryConditions.push({
+          $or: [
+            { ordenId: { $regex: /^INC/i } },
+            { "ID_Orden": { $regex: /^INC/i } },
+            { "Número_de_Petición": { $regex: /^INC/i } }
+          ]
+        });
       } else if (normTipo === 'provision') {
         // Difícil hacer un "NOT STARTS WITH" eficiente en $or, así que lo manejaremos en el loop mejor
-        // Pero para reducir la carga inicial, podemos intentar:
-        filtro.ordenId = { $not: /^INC/i };
+        queryConditions.push({ ordenId: { $not: /^INC/i } });
       }
     }
 
+    let filtro = queryConditions.length > 1 ? { $and: queryConditions } : (queryConditions[0] || {});
+
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
-      filtro.Estado = estado;
+      const estadosArr = String(estado).split(',').map(s => s.trim()).filter(Boolean);
+      if (estadosArr.length > 0) {
+        filtro.Estado = { $in: estadosArr };
+      }
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
@@ -2180,12 +2231,23 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const subtipoAct = clean['Subtipo_de_Actividad'] || clean['Subtipo de Actividad'] || '';
       const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
       
+      // Parsear Duración de la actividad
+      let minDuracion = 0;
+      const durRaw = clean['Duración de la actividad'] || clean['Duración_de_la_actividad'] || clean['duracion'] || '';
+      if (durRaw && typeof durRaw === 'string' && durRaw.includes(':')) {
+        const parts = durRaw.split(':');
+        if (parts.length === 2) {
+          minDuracion = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+        }
+      }
+
+      
       // ── REGISTRAR ESTADOS Y ACTIVIDADES (Antes de filtrar para el dropdown) ──
       const cleanEstado = clean.Estado || 'Sin Estado';
       estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
       const codigoLpu = baremos.Codigo_LPU_Base || '';
       if (descLpu) {
-        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0 };
+        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0, grupo: baremos.Grupo_LPU_Base || '', categoria: baremos.Categoria_LPU_Base || '' };
       }
 
       // DateKey
@@ -2202,8 +2264,46 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       // ── FILTRO DE ACTIVIDAD SELECCIONADA ──
       if (selectedActividad && descLpu !== selectedActividad) continue;
 
+      // ── FILTRO DE CATEGORÍAS (Altas/Inst, Rutinas, Reparaciones) ──
+      if (categorias && categorias.length > 0) {
+        const grupo = (baremos.Grupo_LPU_Base || '').toUpperCase();
+        const categoriaDoc = (baremos.Categoria_LPU_Base || '').toUpperCase();
+        
+        // Determinar qué es cada actividad basándonos en su Grupo/Categoría oficial primero
+        let isAlta = /INSTALACION|BANDA ANCHA|TELEVISION|VOZ|RED/i.test(grupo);
+        let isRutina = /RUTINA|PREVENTIVO/i.test(grupo) || /MANTENIMIENTO/i.test(categoriaDoc);
+        let isReparacion = /AVERIA|RESOLUCION|REPARACION/i.test(grupo) || /AVER[IÍ]A/i.test(categoriaDoc);
+
+        // Fallback a regex si no está configurada la tarifa LPU
+        if (!isAlta && !isRutina && !isReparacion) {
+           isAlta = /ALTA|INSTALACI[OÓ]N|MIGRACI[OÓ]N|TRASLADO|PROVISI[OÓ]N/i.test(descLpu) || /^PROV/i.test(ordenId);
+           isRutina = /RUTINA|RP\s|RETIRO|CAMBIO/i.test(descLpu);
+           isReparacion = /AVER[IÍ]A|RECLAMO|MANTENIMIENTO|REPOSICI[OÓ]N|REPARACI[OÓ]N|FALLA/i.test(descLpu) || /^INC/i.test(ordenId);
+        }
+        
+        const catsArr = String(categorias).split(',').map(s => s.trim());
+        let passCat = false;
+        if (isAlta && catsArr.includes('Altas/Inst')) passCat = true;
+        if (isRutina && catsArr.includes('Rutinas')) passCat = true;
+        if (isReparacion && catsArr.includes('Reparaciones')) passCat = true;
+        
+        // Si la orden no coincide con ninguna regex clara, asumiremos que es Alta por defecto
+        if (!isAlta && !isRutina && !isReparacion && catsArr.includes('Altas/Inst')) passCat = true;
+        
+        if (!passCat) continue;
+      }
+
       // Una vez pasado los filtros, sumamos a los totales reactivos
-      if (descLpu && lpuMap[descLpu]) {
+      if (descLpu) {
+        if (!lpuMap[descLpu]) {
+          lpuMap[descLpu] = { 
+            desc: descLpu, 
+            count: 0, 
+            totalPts: 0, 
+            grupo: baremos.Grupo_LPU_Base || '',
+            categoria: baremos.Categoria_LPU_Base || ''
+          };
+        }
         lpuMap[descLpu].count++;
         lpuMap[descLpu].totalPts += pTotal;
       }
@@ -2260,9 +2360,47 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         if (clienteName && !t.cliente) { t.cliente = clienteName; t.proyecto = proyectoName; }
         if (dateKey) {
           t.days.add(dateKey);
-          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, byActivity: {} };
+          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, byActivity: {}, completadas: 0, noRealizadas: 0, minTotal: 0, minAlta: 0, minReparacion: 0, minRutina: 0, ordersAlta: 0, ordersReparacion: 0, ordersRutina: 0 };
           t.dailyMap[dateKey].orders++;
           t.dailyMap[dateKey].pts += pTotal;
+          
+          const estLower = (cleanEstado || '').toLowerCase();
+          const isCompleted = estLower.includes('completad') || estLower.includes('finalizad') || estLower.includes('ok') || estLower.includes('ejecutad');
+          if (isCompleted) {
+            t.dailyMap[dateKey].completadas++;
+            t.dailyMap[dateKey].minTotal += minDuracion;
+            t.dailyMap[dateKey].ptsCompletados = (t.dailyMap[dateKey].ptsCompletados || 0) + pTotal;
+          } else {
+            t.dailyMap[dateKey].noRealizadas++;
+            t.dailyMap[dateKey].ptsNoRealizados = (t.dailyMap[dateKey].ptsNoRealizados || 0) + pTotal;
+          }
+          const isAlta = /ALTA|INSTALACI[OÓ]N|MIGRACI[OÓ]N|TRASLADO/i.test(descLpu);
+          const isRutina = /RUTINA|RP\s/i.test(descLpu);
+          const isReparacion = /AVER[IÍ]A|RECLAMO|MANTENIMIENTO|REPOSICI[OÓ]N|REPARACI[OÓ]N/i.test(descLpu);
+
+          if (isAlta) t.dailyMap[dateKey].ordersAlta++;
+          else if (isRutina) t.dailyMap[dateKey].ordersRutina++;
+          else if (isReparacion) t.dailyMap[dateKey].ordersReparacion++;
+          
+          if (isCompleted) {
+            if (isAlta) t.dailyMap[dateKey].minAlta += minDuracion;
+            else if (isRutina) t.dailyMap[dateKey].minRutina += minDuracion;
+            else if (isReparacion) t.dailyMap[dateKey].minReparacion += minDuracion;
+          }
+
+          // APLICAR 40 MINS (30 despl + 10 contac) POR CADA ORDEN (Completadas + No Realizadas)
+          t.dailyMap[dateKey].minTotal += 40;
+          if (isAlta) {
+            t.dailyMap[dateKey].minAlta += 40;
+          } else if (isRutina) {
+            t.dailyMap[dateKey].minRutina += 40;
+          } else if (isReparacion) {
+            t.dailyMap[dateKey].minReparacion += 40;
+          } else {
+            // Si no se detecta, se suma por defecto a Alta
+            t.dailyMap[dateKey].minAlta += 40;
+            t.dailyMap[dateKey].ordersAlta++;
+          }
           if (descLpu) {
             if (!t.dailyMap[dateKey].byActivity[descLpu]) t.dailyMap[dateKey].byActivity[descLpu] = { count: 0, pts: 0 };
             t.dailyMap[dateKey].byActivity[descLpu].count++;
@@ -2384,9 +2522,20 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       if (!canon || !canon.isVinculado) continue;
       // Fusionar dailyMap
       Object.entries(orphanEntry.dailyMap || {}).forEach(([dk, dd]) => {
-        if (!canon.dailyMap[dk]) canon.dailyMap[dk] = { orders: 0, pts: 0, byActivity: {} };
+        if (!canon.dailyMap[dk]) canon.dailyMap[dk] = { orders: 0, pts: 0, byActivity: {}, completadas: 0, noRealizadas: 0, minTotal: 0, minAlta: 0, minReparacion: 0, minRutina: 0, ordersAlta: 0, ordersReparacion: 0, ordersRutina: 0 };
         canon.dailyMap[dk].orders += dd.orders;
         canon.dailyMap[dk].pts += dd.pts;
+        canon.dailyMap[dk].ptsCompletados = (canon.dailyMap[dk].ptsCompletados || 0) + (dd.ptsCompletados || 0);
+        canon.dailyMap[dk].ptsNoRealizados = (canon.dailyMap[dk].ptsNoRealizados || 0) + (dd.ptsNoRealizados || 0);
+        canon.dailyMap[dk].completadas = (canon.dailyMap[dk].completadas || 0) + (dd.completadas || 0);
+        canon.dailyMap[dk].noRealizadas = (canon.dailyMap[dk].noRealizadas || 0) + (dd.noRealizadas || 0);
+        canon.dailyMap[dk].minTotal = (canon.dailyMap[dk].minTotal || 0) + (dd.minTotal || 0);
+        canon.dailyMap[dk].minAlta = (canon.dailyMap[dk].minAlta || 0) + (dd.minAlta || 0);
+        canon.dailyMap[dk].minReparacion = (canon.dailyMap[dk].minReparacion || 0) + (dd.minReparacion || 0);
+        canon.dailyMap[dk].minRutina = (canon.dailyMap[dk].minRutina || 0) + (dd.minRutina || 0);
+        canon.dailyMap[dk].ordersAlta = (canon.dailyMap[dk].ordersAlta || 0) + (dd.ordersAlta || 0);
+        canon.dailyMap[dk].ordersReparacion = (canon.dailyMap[dk].ordersReparacion || 0) + (dd.ordersReparacion || 0);
+        canon.dailyMap[dk].ordersRutina = (canon.dailyMap[dk].ordersRutina || 0) + (dd.ordersRutina || 0);
         Object.entries(dd.byActivity || {}).forEach(([act, stat]) => {
           if (!canon.dailyMap[dk].byActivity[act]) canon.dailyMap[dk].byActivity[act] = { count: 0, pts: 0 };
           canon.dailyMap[dk].byActivity[act].count += stat.count;
@@ -2422,10 +2571,23 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         const isFiniquitado = String(t.status || '').toLowerCase().includes('finiquit') || 
                              String(t.status || '').toLowerCase().includes('egreso') ||
                              String(t.status || '').toLowerCase().includes('retir');
+                             
+        // REQUERIMIENTO: Si hay filtro de técnicos explícito, solo dejar pasar a los solicitados
+        if (tecnicosFilter && tecnicosFilter.length > 0) {
+          const rawTechs = String(tecnicosFilter).split(',').map(s => s.trim()).filter(Boolean);
+          if (rawTechs.length > 0) {
+            const idDoc = String(t.idRecursoToa || t.idRecurso || '').trim();
+            const nameDoc = String(t.name || '').trim();
+            if (!rawTechs.includes(idDoc) && !rawTechs.includes(nameDoc)) {
+              return false;
+            }
+          }
+        }
+
         if (isFiniquitado) {
           return t.orders > 0;
         }
-        return true; // Activos/Contratados se ven siempre
+        return true; // Activos/Contratados se ven siempre (si no fueron filtrados arriba)
       })
       .map(([key, t]) => ({
         idUnique: key,
@@ -3711,7 +3873,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
         tipoTrabajoMap[tipoTrabajo].clp += valorCLP; tipoTrabajoMap[tipoTrabajo].pts += pTotal; tipoTrabajoMap[tipoTrabajo].orders++;
       }
       if (descLpu) {
-        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, count: 0, totalPts: 0, totalCLP: 0 };
+        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, count: 0, totalPts: 0, totalCLP: 0, grupo: baremos.Grupo_LPU_Base || '', categoria: baremos.Categoria_LPU_Base || '' };
         lpuMap[descLpu].count++; lpuMap[descLpu].totalPts += pTotal; lpuMap[descLpu].totalCLP += valorCLP;
       }
     }
