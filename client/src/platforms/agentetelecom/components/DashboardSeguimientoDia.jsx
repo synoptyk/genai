@@ -106,7 +106,7 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
 
   // Custom Label for Charts
   const CustomLabel = (props) => {
-    const { x, y, value, width, height, position, bgColor, textColor, offset = 10 } = props;
+    const { x, y, value, width, height, position, bgColor, textColor, offset = 10, viewBox } = props;
     if (!value && value !== 0) return null;
     
     const textStr = String(value);
