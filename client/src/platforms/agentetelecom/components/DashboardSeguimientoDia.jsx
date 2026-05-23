@@ -78,7 +78,8 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
         horasAlta: Number((minAlta / 60).toFixed(1)),
         horasReparacion: Number((minReparacion / 60).toFixed(1)),
         completadasPct: asignadas > 0 ? ((completadas / asignadas) * 100).toFixed(0) + '%' : '',
-        noRealizadasPct: asignadas > 0 && noRealizadas > 0 ? ((noRealizadas / asignadas) * 100).toFixed(0) + '%' : ''
+        noRealizadasPct: asignadas > 0 && noRealizadas > 0 ? ((noRealizadas / asignadas) * 100).toFixed(0) + '%' : '',
+        diffAsignadosMeta: Number((ptsAsignados - metaPuntos).toFixed(1))
       };
     });
   }, [tecnicos, year, month]);
@@ -119,8 +120,8 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
       finalX = x + (width || 0) / 2;
       finalY = y + (height || 0) / 2;
     } else if (position === 'insideBottom') {
-      finalX = x; 
-      finalY = y + offset;
+      if (width !== undefined) finalX = x + width / 2;
+      finalY = y + (height || 0) - offset;
     } else if (position === 'bottom') {
       if (width !== undefined) finalX = x + width / 2;
       finalY = y + offset;
@@ -134,6 +135,25 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
         <rect x={finalX - rectWidth / 2} y={finalY - rectHeight / 2} width={rectWidth} height={rectHeight} fill={bgColor} rx={4} ry={4} stroke={textColor} strokeWidth={0.5} strokeOpacity={0.5} />
         <text x={finalX} y={finalY} fill={textColor} fontSize={8} fontWeight="bold" textAnchor="middle" dominantBaseline="central">
           {value}
+        </text>
+      </g>
+    );
+  };
+
+  // Custom XAxis Tick
+  const CustomXAxisTick = (props) => {
+    const { x, y, payload } = props;
+    const diaNum = payload.value;
+    const dObj = data.find(d => d.dia === diaNum);
+    const techCount = dObj ? dObj.tecnicosActivos : 0;
+    
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={12} textAnchor="middle" fill="#475569" fontSize={10} fontWeight="bold">
+          {diaNum}
+        </text>
+        <text x={0} y={0} dy={24} textAnchor="middle" fill="#64748b" fontSize={8} fontWeight="bold">
+          {techCount} T
         </text>
       </g>
     );
@@ -382,17 +402,18 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis xAxisId="0" dataKey="dia" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                <XAxis xAxisId="0" dataKey="dia" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={<CustomXAxisTick />} />
                 <XAxis xAxisId="1" dataKey="dia" hide={true} />
                 <YAxis yAxisId="left" stroke="#818cf8" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis yAxisId="right" orientation="right" stroke="#e879f9" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
                 <Bar xAxisId="0" yAxisId="left" dataKey="ptsAsignados" name="Puntos Asignados" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={14}>
-                  <LabelList dataKey="ptsAsignados" content={<CustomLabel bgColor="#831843" textColor="#fbcfe8" offset={30} position="top" />} />
+                  <LabelList dataKey="ptsAsignados" content={<CustomLabel bgColor="#831843" textColor="#fbcfe8" offset={25} position="top" />} />
+                  <LabelList dataKey="diffAsignadosMeta" content={<CustomLabel bgColor="#1e293b" textColor="#94a3b8" offset={10} position="insideBottom" />} />
                 </Bar>
                 <Bar xAxisId="1" yAxisId="left" dataKey="pts" name="Puntos Generados" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={14}>
-                  <LabelList dataKey="pts" content={<CustomLabel bgColor="#312e81" textColor="#818cf8" offset={10} position="top" />} />
+                  <LabelList dataKey="pts" content={<CustomLabel bgColor="#312e81" textColor="#818cf8" offset={0} position="inside" />} />
                 </Bar>
                 <Line xAxisId="0" yAxisId="left" type="monotone" dataKey="metaPuntosLine" name="Meta (Puntos)" stroke="#e879f9" strokeWidth={3} strokeDasharray="5 5" connectNulls={true} dot={{ r: 3, fill: '#e879f9', strokeWidth: 0 }}>
                   <LabelList dataKey="metaPuntosLine" content={<CustomLabel bgColor="#4a044e" textColor="#f0abfc" offset={20} position="bottom" />} />
