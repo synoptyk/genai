@@ -297,6 +297,19 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
                     const m2 = text.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
                     if (m2) return `${m2[3]}-${m2[2]}-${m2[1]}`;
+                    const m3 = text.match(/(\d{1,2})\s+(?:de\s+)?(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+(\d{4})/i);
+                    if (m3) {
+                        const m = { ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',jul:'07',ago:'08',sep:'09',oct:'10',nov:'11',dic:'12' };
+                        const d = m3[1].padStart(2, '0');
+                        return `${m3[3]}-${m[m3[2].toLowerCase()]}-${d}`;
+                    }
+                    // English fallback
+                    const m4 = text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/i);
+                    if (m4) {
+                        const m = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
+                        const d = m4[2].padStart(2, '0');
+                        return `${m4[3]}-${m[m4[1].toLowerCase()]}-${d}`;
+                    }
                     return null;
                 }).catch(() => null);
             };
@@ -1012,7 +1025,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
                     while ((node = walker.nextNode())) {
-                        if (/\d{4}[\/\-]\d{2}[\/\-]\d{2}|\d{2}[\/\-]\d{2}[\/\-]\d{4}/.test(node.textContent)) {
+                        if (/\d{4}[\/\-]\d{2}[\/\-]\d{2}|\d{2}[\/\-]\d{2}[\/\-]\d{4}|\d{1,2}\s+(?:de\s+)?(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}/i.test(node.textContent)) {
                             let el = node.parentElement;
                             for (let i = 0; i < 5 && el; i++) {
                                 const r = el.getBoundingClientRect();
