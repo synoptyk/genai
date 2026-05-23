@@ -310,6 +310,16 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         const d = m4[2].padStart(2, '0');
                         return `${m4[3]}-${m[m4[1].toLowerCase()]}-${d}`;
                     }
+                    const m5 = text.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic|jan|apr|aug|dec)[a-z]*\.?\s+(\d{1,2})[^0-9]+(\d{4})/i);
+                    if (m5) {
+                        const mesTexto = m5[1].toLowerCase();
+                        const m = { 
+                            ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',jul:'07',ago:'08',sep:'09',oct:'10',nov:'11',dic:'12',
+                            jan:'01',apr:'04',aug:'08',dec:'12'
+                        };
+                        const d = m5[2].padStart(2, '0');
+                        return `${m5[3]}-${m[mesTexto]}-${d}`;
+                    }
                     return null;
                 }).catch(() => null);
             };
@@ -1025,7 +1035,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
                     while ((node = walker.nextNode())) {
-                        if (/\d{4}[\/\-]\d{2}[\/\-]\d{2}|\d{2}[\/\-]\d{2}[\/\-]\d{4}|\d{1,2}\s+(?:de\s+)?(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}/i.test(node.textContent)) {
+                        if (/(?:\d{4}[\/\-]\d{2}[\/\-]\d{2}|\d{2}[\/\-]\d{2}[\/\-]\d{4}|\d{1,2}\s+(?:de\s+)?(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+\d{4}|(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic|jan|apr|aug|dec)[a-z]*\.?\s+\d{1,2}[^0-9]+\d{4})/i.test(node.textContent)) {
                             let el = node.parentElement;
                             for (let i = 0; i < 5 && el; i++) {
                                 const r = el.getBoundingClientRect();
