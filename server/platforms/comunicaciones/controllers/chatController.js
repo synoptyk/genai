@@ -455,3 +455,22 @@ exports.searchUsers = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// 9. Enviar notificación en tiempo real a un usuario específico a través de SSE
+exports.notifyUser = (userId, payload) => {
+    const targetUserIdStr = String(userId);
+    let sentCount = 0;
+    clients.forEach(client => {
+        if (String(client.userId) === targetUserIdStr) {
+            try {
+                client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
+                sentCount++;
+            } catch (err) {
+                console.error(`[SSE Notify] Error writing to client ${client.id}:`, err);
+            }
+        }
+    });
+    console.log(`🔌 [SSE Notify] Notificación del tipo "${payload.type}" enviada a usuario ${targetUserIdStr}. Conexiones activas notificadas: ${sentCount}`);
+    return sentCount > 0;
+};
+

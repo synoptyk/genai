@@ -16,9 +16,13 @@ import {
     Activity, Archive,
     ClipboardList,
     TrendingUp, Star, Trophy, Settings,
-    Wrench, Shield, Cpu, Layers, Hammer, Gauge
+    Wrench, Shield, Cpu, Layers, Hammer, Gauge, Timer
 } from 'lucide-react';
 import logisticaApi from '../../logistica/logisticaApi';
+import {
+    ResponsiveContainer, ComposedChart, BarChart, Bar, XAxis, YAxis,
+    Tooltip as RechartsTooltip, Line, Cell, Area, AreaChart
+} from 'recharts';
 
 const getLocation = () => {
     return new Promise((resolve, reject) => {
@@ -711,7 +715,7 @@ const PortalColaborador = () => {
                     <Card icon={Truck} title="Mis Activos" subtitle={`Vehículo: ${vehiculo?.patente || tecnico?.patente || 'No asignado'}`} color="bg-sky-500" onClick={() => setActiveView('equipamiento')} />
                     <Card icon={PenTool} title="AST Nueva" subtitle="Registra tu inicio de faena" color="bg-amber-500" next="Reportar Ahora" onClick={() => window.location.href = '/prevencion/ast'} />
                     <Card icon={Calendar} title="Solicitudes" subtitle="Vacaciones, Permisos y Licencias" color="bg-rose-500" onClick={() => setActiveView('solicitudes')} badge={perfil?.vacaciones?.filter(v => v.estado === 'Pendiente')?.length} />
-                    <Card icon={BarChart3} title="Rendimiento" subtitle="Tu avance productivo y metas" color="bg-emerald-600" onClick={() => setActiveView('produccion')} />
+                    <Card icon={BarChart3} title="Mis KPI's" subtitle="Producción, tendencias y análisis de desempeño" color="bg-emerald-600" onClick={() => setActiveView('produccion')} />
                     <Card icon={ShieldCheck} title="HSE & Seguridad" subtitle="Certificaciones y Licencias" color="bg-violet-600" onClick={() => setActiveView('cumplimiento')} />
                     <Card icon={Fuel} title="Solicitud Combustible" subtitle={lastFuelRequest?.estado === 'Pendiente' ? 'Estado: Pendiente de Aprobación' : 'Registra tu carga del día'} color="bg-orange-600" onClick={() => setActiveView('combustible')} />
                     <Card icon={ClipboardList} title="Mi Inventario 360" subtitle={`Total: ${Array.from(new Set(miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).map(item => item.productoRef?.categoria?.nombre || item.categoria || 'Otros'))).length} categorías asignadas`} color="bg-slate-800" onClick={() => setActiveView('inventario')} />
@@ -786,8 +790,8 @@ const PortalColaborador = () => {
                                         <div className="p-2 bg-indigo-50 rounded-xl"><BarChart3 size={18} className="text-indigo-600" /></div>
                                         <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">{grupo}</h3>
                                     </div>
-                                    <div className="overflow-hidden border border-slate-100 rounded-2xl">
-                                        <table className="w-full text-left">
+                                    <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                                        <table className="w-full min-w-[600px] text-left">
                                             <thead className="bg-slate-50 border-b border-slate-100">
                                                 <tr>
                                                     <th className="px-5 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Actividad</th>
@@ -1024,8 +1028,8 @@ const PortalColaborador = () => {
                                 <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex-1">Puntos No Calculables (se restan antes de aplicar tramo)</span>
                                 <span className="bg-white text-amber-700 px-3 py-1 rounded-xl text-sm font-black border border-amber-200">{puntosNoCalculables} pts</span>
                             </div>
-                            <div className="overflow-hidden border border-slate-100 rounded-2xl">
-                                <table className="w-full text-left">
+                            <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                                <table className="w-full min-w-[500px] text-left">
                                     <thead className="bg-slate-50 border-b border-slate-100">
                                         <tr>
                                             <th className="px-5 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Desde (Pts)</th>
@@ -1055,8 +1059,8 @@ const PortalColaborador = () => {
                                     <div className="p-2 bg-emerald-50 rounded-xl"><TrendingUp size={16} className="text-emerald-600" /></div>
                                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Calidad RR</h4>
                                 </div>
-                                <div className="overflow-hidden border border-emerald-100 rounded-2xl">
-                                    <table className="w-full text-left">
+                                <div className="overflow-x-auto border border-emerald-100 rounded-2xl">
+                                    <table className="w-full min-w-[300px] text-left">
                                         <thead className="bg-emerald-50/50 border-b border-emerald-100">
                                             <tr>
                                                 <th className="px-4 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Operador / Rango</th>
@@ -1083,8 +1087,8 @@ const PortalColaborador = () => {
                                     <div className="p-2 bg-blue-50 rounded-xl"><Settings size={16} className="text-blue-600" /></div>
                                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Calidad AI</h4>
                                 </div>
-                                <div className="overflow-hidden border border-blue-100 rounded-2xl">
-                                    <table className="w-full text-left">
+                                <div className="overflow-x-auto border border-blue-100 rounded-2xl">
+                                    <table className="w-full min-w-[300px] text-left">
                                         <thead className="bg-blue-50/50 border-b border-blue-100">
                                             <tr>
                                                 <th className="px-4 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Operador / Rango</th>
@@ -1279,7 +1283,7 @@ const PortalColaborador = () => {
         return (
             <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
-                    {renderHeader("Producción Operativa Online", BarChart3)}
+                    {renderHeader("Mis KPI's & Producción", BarChart3)}
                     {/* Month Selector y acceso a Configuración de Cálculo */}
                     <div className="flex gap-2 p-1.5 bg-slate-100 rounded-3xl border border-slate-200">
                         {availableMonths.map(m => (
@@ -1376,80 +1380,366 @@ const PortalColaborador = () => {
                     </div>
                 ) : (
                     <div className="space-y-12">
-                        {/* Dashboard Stats */}
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                            {/* Meta Proyectada */}
-                            <div className="lg:col-span-2 bg-slate-900 rounded-[4rem] p-12 text-white relative overflow-hidden group shadow-2xl shadow-slate-200">
-                                <TrendingUp size={240} className="absolute -right-20 -bottom-20 text-white/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000" />
-                                <div className="relative z-10 flex flex-col h-full justify-between">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h4 className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em] italic mb-4">Avance Meta Mensual ({availableMonths.find(m => m.id === selectedMonth)?.name})</h4>
-                                            <p className="text-7xl font-black italic tracking-tighter">{cumplimientoMeta}%</p>
+                        {(() => {
+                            // --- Cálculo de KPIs Telecom ---
+                            const META_DIARIA_KPI = 7.5;
+
+                            const asignadas = prod?.recientes?.length || 0;
+                            const completadas = prod?.recientes?.filter(act => {
+                                const estLower = (act.Estado || act.estado || '').toLowerCase();
+                                return estLower.includes('completad') || estLower.includes('finalizad') || estLower.includes('ok') || estLower.includes('ejecutad');
+                            }).length || 0;
+                            const eficienciaPct = asignadas > 0 ? Math.round((completadas / asignadas) * 100) : 0;
+
+                            let totalMinutos = 0;
+                            (prod?.recientes || []).forEach(act => {
+                                const estLower = (act.Estado || act.estado || '').toLowerCase();
+                                const isCompleted = estLower.includes('completad') || estLower.includes('finalizad') || estLower.includes('ok') || estLower.includes('ejecutad');
+                                
+                                let minDur = 0;
+                                const durRaw = act['Duración de la actividad'] || act['Duración_de_la_actividad'] || act['duracion'] || '';
+                                if (durRaw && typeof durRaw === 'string' && durRaw.includes(':')) {
+                                    const parts = durRaw.split(':');
+                                    if (parts.length === 2) {
+                                        minDur = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+                                    }
+                                }
+                                
+                                const descLpu = (act.actividadVisible || act.Actividad || '').toUpperCase();
+                                const isAlta = /ALTA|INSTALACI[OÓ]N|MIGRACI[OÓ]N|TRASLADO/i.test(descLpu);
+                                const isRutina = /RUTINA|RP\s/i.test(descLpu);
+                                const isReparacion = /AVER[IÍ]A|RECLAMO|MANTENIMIENTO|REPOSICI[OÓ]N|REPARACI[OÓ]N/i.test(descLpu);
+
+                                if (isCompleted) {
+                                    totalMinutos += minDur;
+                                }
+                                
+                                // Sumamos 40 minutos fijos por traslado/contacto
+                                totalMinutos += 40;
+                            });
+
+                            const totalHoras = Math.round((totalMinutos / 60) * 10) / 10;
+                            const avgMinutos = completadas > 0 ? Math.round(totalMinutos / completadas) : 0;
+
+                            const promedioDiario = prod?.resumen?.promedioPorDia || 0;
+                            const rendimientoMetaPct = Math.min(100, Math.round((promedioDiario / META_DIARIA_KPI) * 100));
+
+                            // --- Dataset 1: Tendencia Diaria de Puntos ---
+                            const dailyMap = {};
+                            (prod?.recientes || []).forEach(act => {
+                                if (!act.fecha) return;
+                                const d = act.fecha.split('T')[0];
+                                if (!dailyMap[d]) dailyMap[d] = { date: d, pts: 0, ots: 0 };
+                                dailyMap[d].pts += (act.PTS_TOTAL_BAREMO || act.ptsVisible || 0);
+                                dailyMap[d].ots += 1;
+                            });
+                            const dailyTrend = Object.values(dailyMap)
+                                .sort((a, b) => a.date.localeCompare(b.date))
+                                .map(d => ({
+                                    ...d,
+                                    label: d.date.split('-').slice(1).reverse().join('/'),
+                                    pts: Math.round(d.pts * 10) / 10
+                                }));
+
+                            // --- Dataset 2: Promedio por Día de Semana ---
+                            const dowMap = {
+                                1: { day: 'Lu', pts: 0, days: new Set() },
+                                2: { day: 'Ma', pts: 0, days: new Set() },
+                                3: { day: 'Mi', pts: 0, days: new Set() },
+                                4: { day: 'Ju', pts: 0, days: new Set() },
+                                5: { day: 'Vi', pts: 0, days: new Set() },
+                                6: { day: 'Sá', pts: 0, days: new Set() },
+                                0: { day: 'Do', pts: 0, days: new Set() }
+                            };
+                            (prod?.recientes || []).forEach(act => {
+                                if (!act.fecha) return;
+                                const dObj = new Date(act.fecha);
+                                const dayNum = dObj.getDay();
+                                const dateStr = act.fecha.split('T')[0];
+                                if (dowMap[dayNum]) {
+                                    dowMap[dayNum].pts += (act.PTS_TOTAL_BAREMO || act.ptsVisible || 0);
+                                    dowMap[dayNum].days.add(dateStr);
+                                }
+                            });
+                            const dowData = [1, 2, 3, 4, 5, 6, 0].map(num => {
+                                const item = dowMap[num];
+                                const activeDaysCount = item.days.size;
+                                return {
+                                    day: item.day,
+                                    avg: activeDaysCount > 0 ? Math.round((item.pts / activeDaysCount) * 10) / 10 : 0
+                                };
+                            });
+
+                            // --- Dataset 3: Top Actividades ---
+                            const activityMap = {};
+                            (prod?.recientes || []).forEach(act => {
+                                const name = act.actividadVisible || act.Actividad || 'Op. Técnica';
+                                if (!activityMap[name]) activityMap[name] = { name, pts: 0, count: 0 };
+                                activityMap[name].pts += (act.PTS_TOTAL_BAREMO || act.ptsVisible || 0);
+                                activityMap[name].count += 1;
+                            });
+                            const topActivities = Object.values(activityMap)
+                                .sort((a, b) => b.pts - a.pts)
+                                .slice(0, 5)
+                                .map(a => ({
+                                    ...a,
+                                    pts: Math.round(a.pts * 10) / 10
+                                }));
+
+                            // Componentes Auxiliares Locales
+                            const KpiTooltip = ({ active, payload, label, unit = 'pts' }) => {
+                                if (!active || !payload?.length) return null;
+                                return (
+                                    <div className="bg-slate-900 border border-indigo-500/30 rounded-2xl p-4 shadow-2xl min-w-[140px] text-left">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">{label}</p>
+                                        <p className="text-xl font-black text-white leading-none">
+                                            {payload[0].value?.toLocaleString('es-CL', { minimumFractionDigits: 1 })}
+                                            <span className="text-[10px] text-indigo-400 font-bold ml-1">{unit}</span>
+                                        </p>
+                                    </div>
+                                );
+                            };
+
+                            const DowLabel = (props) => {
+                                const { x, y, width, value } = props;
+                                if (value === 0) return null;
+                                return (
+                                    <text 
+                                        x={x + width / 2} 
+                                        y={y - 8} 
+                                        fill="#475569" 
+                                        fontSize={10} 
+                                        fontWeight={900} 
+                                        textAnchor="middle"
+                                        className="font-black italic"
+                                    >
+                                        {value}
+                                    </text>
+                                );
+                            };
+
+                            return (
+                                <div className="space-y-12">
+                                    {/* ── TARJETA PREMIUM DE AVANCE UNIFICADA ── */}
+                                    <div className="bg-slate-900 rounded-[3rem] sm:rounded-[4rem] p-8 sm:p-12 text-white relative overflow-hidden group shadow-2xl shadow-slate-200">
+                                        <div className="absolute -right-20 -bottom-20 text-white/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000">
+                                            <TrendingUp size={300} />
                                         </div>
-                                        <div className="px-6 py-3 bg-white/10 backdrop-blur-xl rounded-[2rem] border border-white/10 text-center shadow-2xl">
-                                            <p className="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">Días Laborales</p>
-                                            <p className="text-2xl font-black uppercase italic">{diasTrabajados} <span className="text-[10px] opacity-20">DE 24</span></p>
+                                        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8 h-full">
+                                            <div className="flex-1 space-y-6">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="text-[10px] sm:text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em] italic mb-3">Avance Meta Mensual ({availableMonths.find(m => m.id === selectedMonth)?.name})</h4>
+                                                        <p className="text-5xl sm:text-7xl font-black italic tracking-tighter">{cumplimientoMeta}%</p>
+                                                    </div>
+                                                    <div className="px-6 py-3.5 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 text-center shadow-2xl flex flex-col items-center justify-center">
+                                                        <p className="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">Días Laborales</p>
+                                                        <p className="text-xl sm:text-2xl font-black uppercase italic leading-none">{diasTrabajados} <span className="text-[10px] opacity-20">DE 24</span></p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="space-y-4">
+                                                    <div className="flex justify-between items-end text-[11px] sm:text-[12px] font-black uppercase tracking-[0.2em]">
+                                                        <span className="text-white/60">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts acumulados</span>
+                                                        <span className="text-indigo-400">Meta: {META_MENSUAL} pts</span>
+                                                    </div>
+                                                    <div className="h-5 sm:h-6 bg-white/5 rounded-full overflow-hidden p-1.5 border border-white/10">
+                                                        <div 
+                                                            className="h-full bg-gradient-to-r from-emerald-400 via-indigo-500 to-violet-600 rounded-full transition-all duration-1000 shadow-[0_0_30px_rgba(99,102,241,0.4)]"
+                                                            style={{ width: `${cumplimientoMeta}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="hidden lg:block w-px h-32 bg-white/10 mx-8" />
+
+                                            <div className="flex flex-col sm:flex-row lg:flex-col gap-4 sm:gap-6 lg:gap-4 justify-between lg:justify-center items-center shrink-0">
+                                                <div className="flex items-center gap-4 bg-white/5 rounded-3xl p-5 border border-white/10 min-w-[200px] shadow-xl">
+                                                    <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-500/30">
+                                                        <Award size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Puntos Netos</p>
+                                                        <p className="text-2xl font-black text-white leading-none italic">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1 })} <span className="text-[10px] opacity-40 not-italic">PTS</span></p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-4 bg-emerald-500/10 rounded-3xl p-5 border border-emerald-500/20 min-w-[200px] shadow-xl">
+                                                    <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center border border-emerald-500/30">
+                                                        <Trophy size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest leading-none mb-1">Posición Ranking</p>
+                                                        <p className="text-2xl font-black text-white leading-none italic">#{prod?.resumen?.ranking?.posicion || '—'} <span className="text-[10px] opacity-40 not-italic">/ {prod?.resumen?.ranking?.total || 0}</span></p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="mt-12 space-y-6">
-                                        <div className="flex justify-between items-end text-[12px] font-black uppercase tracking-[0.2em]">
-                                            <span className="text-white/60">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts acumulados</span>
-                                            <span className="text-indigo-400">Meta: {META_MENSUAL} pts</span>
+
+                                    {/* ── ROW DE 3 TARJETAS KPI TELECOM ── */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000" />
+                                            <div className="flex items-center gap-4 mb-6 relative z-10">
+                                                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm">
+                                                    <Zap size={22} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Métrica de Calidad</p>
+                                                    <h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Eficiencia Operativa</h4>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-end mt-4">
+                                                <div>
+                                                    <p className="text-5xl font-black text-slate-800 leading-none italic tracking-tighter">{eficienciaPct}%</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">{completadas} de {asignadas} OTs completadas</p>
+                                                </div>
+                                                <div className="w-16 h-16 relative flex items-center justify-center shrink-0">
+                                                    <svg className="w-full h-full transform -rotate-90">
+                                                        <circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
+                                                        <circle cx="32" cy="32" r="26" stroke="#10b981" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 26} strokeDashoffset={2 * Math.PI * 26 * (1 - eficienciaPct/100)} strokeLinecap="round" />
+                                                    </svg>
+                                                    <span className="absolute text-[10px] font-black text-emerald-600 tracking-tighter">{eficienciaPct}%</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="h-6 bg-white/5 rounded-full overflow-hidden p-1.5 border border-white/10">
-                                            <div 
-                                                className="h-full bg-gradient-to-r from-emerald-400 via-indigo-500 to-violet-600 rounded-full transition-all duration-1000 shadow-[0_0_30px_rgba(99,102,241,0.4)]"
-                                                style={{ width: `${cumplimientoMeta}%` }}
-                                            />
+
+                                        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000" />
+                                            <div className="flex items-center gap-4 mb-6 relative z-10">
+                                                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl shadow-sm">
+                                                    <Clock size={22} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Gestión de Tiempos</p>
+                                                    <h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Horas de Actividad</h4>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-end mt-4">
+                                                <div>
+                                                    <p className="text-5xl font-black text-slate-800 leading-none italic tracking-tighter">{totalHoras} <span className="text-xs opacity-40 not-italic uppercase">HRS</span></p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">Promedio: {avgMinutos} min por actividad</p>
+                                                </div>
+                                                <div className="w-12 h-12 bg-amber-50 border border-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
+                                                    <Timer size={24} className="animate-pulse" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000" />
+                                            <div className="flex items-center gap-4 mb-6 relative z-10">
+                                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm">
+                                                    <Gauge size={22} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Productividad Diaria</p>
+                                                    <h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Puntos por Día</h4>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-end mt-4">
+                                                <div>
+                                                    <p className="text-5xl font-black text-slate-800 leading-none italic tracking-tighter">{(Math.round(promedioDiario * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1 })} <span className="text-xs opacity-40 not-italic uppercase">PTS</span></p>
+                                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-3 italic">{rendimientoMetaPct}% de meta diaria ({META_DIARIA_KPI} pts)</p>
+                                                </div>
+                                                <div className="w-16 h-16 relative flex items-center justify-center shrink-0">
+                                                    <svg className="w-full h-full transform -rotate-90">
+                                                        <circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
+                                                        <circle cx="32" cy="32" r="26" stroke="#6366f1" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 26} strokeDashoffset={2 * Math.PI * 26 * (1 - rendimientoMetaPct/100)} strokeLinecap="round" />
+                                                    </svg>
+                                                    <span className="absolute text-[10px] font-black text-indigo-600 tracking-tighter">{rendimientoMetaPct}%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* ── SECCIÓN DE GRÁFICOS DE RENDIMIENTO ── */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
+                                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic flex items-center gap-2"><TrendingUp size={16} className="text-indigo-500" /> Tendencia de Puntos Diarios</h4>
+                                                <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-[9px] font-black text-indigo-600 uppercase">Meta: {META_DIARIA_KPI} pts/día</span>
+                                            </div>
+                                            <div className="h-[220px] w-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <ComposedChart data={dailyTrend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                                                        <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 800, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                                        <YAxis tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                                        <RechartsTooltip content={<KpiTooltip unit="pts" />} />
+                                                        <Area type="monotone" dataKey="pts" fill="url(#colorPts)" stroke="#6366f1" strokeWidth={3} activeDot={{ r: 6 }} />
+                                                        <Line type="monotone" dataKey="pts" stroke="#6366f1" strokeWidth={3} dot={{ r: 3, stroke: '#6366f1', strokeWidth: 2, fill: '#fff' }} />
+                                                        <defs>
+                                                            <linearGradient id="colorPts" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                                                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0}/>
+                                                            </linearGradient>
+                                                        </defs>
+                                                    </ComposedChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic flex items-center gap-2"><Calendar size={16} className="text-emerald-500" /> Promedio por Día de Semana</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase">Cumple Meta</span>
+                                                </div>
+                                            </div>
+                                            <div className="h-[220px] w-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={dowData} margin={{ top: 15, right: 10, left: -25, bottom: 0 }}>
+                                                        <XAxis dataKey="day" tick={{ fontSize: 10, fontWeight: 900, fill: '#475569' }} axisLine={false} tickLine={false} />
+                                                        <YAxis tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                                        <RechartsTooltip content={<KpiTooltip unit="PB" />} />
+                                                        <Bar dataKey="avg" radius={[8, 8, 0, 0]} maxBarSize={32} label={<DowLabel />}>
+                                                            {dowData.map((entry, index) => (
+                                                                <Cell key={index} fill={entry.avg >= META_DIARIA_KPI ? '#10b981' : entry.avg > 0 ? '#f59e0b' : '#e2e8f0'} />
+                                                            ))}
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 sm:p-8 mt-8">
+                                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic mb-6 flex items-center gap-2"><Trophy size={16} className="text-amber-500" /> Top Actividades por Puntos Baremo</h4>
+                                        <div className="h-[220px] w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={topActivities} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                                                    <XAxis type="number" tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fontWeight: 800, fill: '#475569' }} width={120} axisLine={false} tickLine={false} />
+                                                    <RechartsTooltip content={<KpiTooltip unit="pts" />} />
+                                                    <Bar dataKey="pts" radius={[0, 8, 8, 0]} fill="#6366f1" maxBarSize={20}>
+                                                        {topActivities.map((entry, index) => (
+                                                            <Cell key={index} fill={index === 0 ? '#4f46e5' : index === 1 ? '#6366f1' : index === 2 ? '#818cf8' : '#a5b4fc'} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            );
+                        })()}
 
-                            {/* Puntos y Promedio */}
-                            <div className="bg-white rounded-[4rem] border border-slate-100 p-10 shadow-sm flex flex-col justify-between items-center text-center">
-                                <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-xl shadow-indigo-50 border border-indigo-100">
-                                    <Award size={40} />
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Puntos Acumulados</p>
-                                    <p className="text-5xl font-black text-slate-900 leading-none italic">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm opacity-20">PTS</span></p>
-                                </div>
-                                <div className="w-full h-px bg-slate-50 my-8" />
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Promedio Diario</p>
-                                    <p className="text-5xl font-black text-indigo-600 leading-none italic">{(Math.round((prod?.resumen?.promedioPorDia || 0) * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm opacity-20">PB</span></p>
-                                </div>
-                            </div>
-
-                            {/* Ranking Card */}
-                            <div className="bg-emerald-500 rounded-[4rem] p-10 text-white text-center flex flex-col justify-between items-center relative overflow-hidden group shadow-2xl shadow-emerald-100">
-                                <Trophy size={180} className="absolute -right-10 -bottom-10 text-white/20 -rotate-12 group-hover:rotate-0 transition-transform duration-700" />
-                                <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-[2.5rem] flex items-center justify-center text-white mb-6 border border-white/20 shadow-xl">
-                                    <Star size={40} />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.2em] mb-2 relative z-10 opacity-70">Posición en Ranking</p>
-                                    <p className="text-7xl font-black italic relative z-10 tracking-tighter">#{prod?.resumen?.ranking?.posicion || '—'}</p>
-                                    <p className="text-[11px] font-bold opacity-60 uppercase relative z-10 mt-4 tracking-widest italic">de {prod?.resumen?.ranking?.total || 0} Especialistas</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Operative Log (The Table) */}
-                        <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 overflow-hidden">
-                            <div className="bg-slate-900 px-12 py-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-                                <div className="flex items-center gap-6">
+                        {/* Operative Log (The Bitacora) */}
+                        <div className="bg-white rounded-[2.5rem] sm:rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 overflow-hidden">
+                            <div className="bg-slate-900 px-6 sm:px-12 py-8 sm:py-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6 sm:gap-8">
+                                <div className="flex items-center gap-4 sm:gap-6">
                                     <div className="w-3 h-12 bg-emerald-500 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)]" />
                                     <div>
-                                        <h4 className="text-white font-black uppercase text-lg tracking-[0.1em] italic leading-none">Bitácora Técnica de Producción</h4>
-                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-2 italic opacity-60">Sincronización Real-Time con TOA</p>
+                                        <h4 className="text-white font-black uppercase text-base sm:text-lg tracking-[0.1em] italic leading-none">Bitácora Técnica de Producción</h4>
+                                        <p className="text-[9px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-2 sm:mt-2 italic opacity-60">Sincronización Real-Time con TOA</p>
                                     </div>
                                 </div>
                                 
-                                <div className="flex flex-1 items-center gap-4 lg:ml-12">
-                                    <div className="relative flex-1 max-w-md">
+                                <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-4 xl:ml-12">
+                                    <div className="relative flex-1">
                                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                                         <input 
                                             type="text" 
@@ -1460,7 +1750,7 @@ const PortalColaborador = () => {
                                         />
                                     </div>
                                     <select 
-                                        className="bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[10px] font-black uppercase text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer tracking-widest min-w-[180px]"
+                                        className="bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[10px] font-black uppercase text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer tracking-widest min-w-[160px]"
                                         value={filterType}
                                         onChange={e => setFilterType(e.target.value)}
                                     >
@@ -1472,14 +1762,15 @@ const PortalColaborador = () => {
                                     </select>
                                 </div>
 
-                                <button onClick={handleExportProduccionCsv} className="px-8 py-4 bg-white/10 text-white rounded-2xl hover:bg-white/20 transition-all border border-white/10 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-xl">
+                                <button onClick={handleExportProduccionCsv} className="px-6 sm:px-8 py-4 bg-white/10 text-white rounded-2xl hover:bg-white/20 transition-all border border-white/10 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-xl">
                                     <FileText size={18} />
                                     <span>Exportar CSV</span>
                                 </button>
                             </div>
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                            {/* Vista de Escritorio - Tabla Completa */}
+                            <div className="hidden lg:block overflow-x-auto">
+                                <table className="w-full min-w-[900px] text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50/50 border-b border-slate-100">
                                             <th className="px-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] italic">Fecha / ID</th>
@@ -1572,6 +1863,78 @@ const PortalColaborador = () => {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+
+                            {/* Vista Móvil - Lista de Tarjetas */}
+                            <div className="block lg:hidden divide-y divide-slate-100">
+                                {(!prod?.recientes || prod.recientes.length === 0) ? (
+                                    <div className="py-20 text-center flex flex-col items-center">
+                                        <Activity className="text-slate-100 mb-6 animate-pulse" size={60} />
+                                        <p className="text-xs font-black text-slate-300 uppercase tracking-widest italic">Sin registros para el periodo</p>
+                                    </div>
+                                ) : (
+                                    prod.recientes
+                                        .filter(act => {
+                                            const matchSearch = (act.ordenId || act.ID_Orden || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                                               (act.actividadVisible || act.Actividad || '').toLowerCase().includes(searchQuery.toLowerCase());
+                                            const matchType = filterType === 'Todos' || (act.Subtipo_de_Actividad || act.Actividad || '').toUpperCase().includes(filterType);
+                                            return matchSearch && matchType;
+                                        })
+                                        .map((act, idx) => {
+                                            const ptsBase = act.Pts_Actividad_Base || 0;
+                                            const ptsDecos = act.Pts_Deco_Adicional || 0;
+                                            const ptsRepes = act.Pts_Repetidor_WiFi || 0;
+                                            const cantDecos = parseInt(act.Decos_Adicionales || 0);
+                                            const cantRepes = parseInt(act.Repetidores_WiFi || 0);
+                                            const total = act.PTS_TOTAL_BAREMO || act.ptsVisible || 0;
+
+                                            return (
+                                                <div 
+                                                    key={idx} 
+                                                    onClick={() => openOTDetail(act)}
+                                                    className="p-6 hover:bg-slate-50 active:bg-slate-100/80 transition-all cursor-pointer flex flex-col gap-4"
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-black text-slate-900 italic tracking-tight">{act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '—'}</span>
+                                                        <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                                                            OT: {act.ordenId || act.ID_Orden || 'N/A'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <p className="text-sm font-black text-slate-800 uppercase italic leading-tight">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{act.Subtipo_de_Actividad || 'General'}</p>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center pt-2">
+                                                        <div className="flex gap-1.5 flex-wrap">
+                                                            {cantDecos > 0 && (
+                                                                <span className="px-2 py-1 bg-indigo-50 border border-indigo-100 text-[9px] font-black text-indigo-700 rounded-lg">
+                                                                    {cantDecos} STB
+                                                                </span>
+                                                            )}
+                                                            {cantRepes > 0 && (
+                                                                <span className="px-2 py-1 bg-amber-50 border border-amber-100 text-[9px] font-black text-amber-700 rounded-lg">
+                                                                    {cantRepes} WIFI
+                                                                </span>
+                                                            )}
+                                                            {!cantDecos && !cantRepes && (
+                                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic">Base Sola</span>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="text-right flex items-center gap-3">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-2xl font-black text-slate-800 italic tracking-tighter leading-none">{total.toLocaleString('es-CL', { minimumFractionDigits: 1 })}</span>
+                                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Puntos</span>
+                                                            </div>
+                                                            <div className={`w-2 h-2 rounded-full ${act.Estado?.toLowerCase().includes('complet') ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                )}
                             </div>
                         </div>
 

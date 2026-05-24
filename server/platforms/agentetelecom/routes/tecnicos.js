@@ -1124,23 +1124,36 @@ router.get('/:id/produccion', async (req, res) => {
 // --- REGISTRAR APELACIÓN DE PRODUCCIÓN ---
 router.post('/produccion/apelacion', async (req, res) => {
   try {
-    const { actividadId, tecnicoId, rut, equipos, observacion } = req.body;
+    const { actividadId, tecnicoId, rut, equipos, codigoLpu, puntosBase, observacion, motivo } = req.body;
     const Actividad = require('../models/Actividad');
 
     // Buscar la actividad para validar empresa
-    const act = await Actividad.findOne({ _id: actividadId, empresaRef: req.user.empresaRef });
+    const act = await Actividad.findOne({ _id: actividadId });
     if (!act) return res.status(404).json({ error: 'Actividad no encontrada o fuera del alcance' });
 
-    // Actualizar actividad con datos de apelación
+    // Validar pertenencia de empresa de forma robusta
+    if (act.empresaRef && String(act.empresaRef) !== String(req.user.empresaRef)) {
+      return res.status(403).json({ error: 'No tienes permisos para acceder a esta actividad' });
+    }
+
+    // Actualizar actividad con datos de apelación y asegurar empresaRef
     await Actividad.updateOne(
       { _id: actividadId },
       {
         $set: {
+          empresaRef: req.user.empresaRef, // Asociar empresaRef si faltaba en el registro local
           apelacion: {
             tecnicoId,
             rut,
-            equipos,
+            equipos: {
+              decos: parseInt(equipos?.decos || 0),
+              repetidores: parseInt(equipos?.repetidores || 0),
+              telefonos: parseInt(equipos?.telefonos || 0)
+            },
+            codigoLpu: codigoLpu || '',
+            puntosBase: parseFloat(puntosBase) || 0,
             observacion,
+            motivo: motivo || '',
             fechaSolicitud: new Date(),
             status: 'por_validar'
           }
@@ -1151,6 +1164,308 @@ router.post('/produccion/apelacion', async (req, res) => {
     res.json({ success: true, message: 'Apelación registrada para validación' });
   } catch (err) {
     console.error('Error apelación técnico:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- OBTENER TODAS LAS APELACIONES DE LA EMPRESA (PARA SUPERVISORES/ADMINS) ---
+router.get('/produccion/apelaciones', protect, async (req, res) => {
+  try {
+    const Actividad = require('../models/Actividad');
+    const PlatformUser = require('../../auth/PlatformUser');
+    const Candidato = require('../../rrhh/models/Candidato');
+    const Tecnico = require('../models/Tecnico');
+
+    const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '');
+    const formatRut = (rut) => {
+      if (!rut) return '';
+      let clean = String(rut).replace(/[^0-9kK]/g, '');
+      if (clean.length < 2) return clean;
+      let cuerpo = clean.slice(0, -1);
+      let dv = clean.slice(-1).toUpperCase();
+      let formattedCuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      return `${formattedCuerpo}-${dv}`;
+    };
+
+    // Buscar actividades que tengan objeto "apelacion" y pertenezcan a la empresa
+    const query = {
+      empresaRef: req.user.empresaRef,
+      'apelacion.status': { $exists: true }
+    };
+
+    const actividades = await Actividad.find(query).sort({ 'apelacion.fechaSolicitud': -1 }).lean();
+
+    // Obtener todos los RUTs únicos para buscar los técnicos
+    const ruts = [...new Set(actividades.map(a => a.apelacion?.rut).filter(Boolean))];
+    const cleanedRuts = ruts.map(r => cleanRut(r));
+    const formattedRuts = ruts.map(r => formatRut(r));
+    const allSearchRuts = [...new Set([...ruts, ...cleanedRuts, ...formattedRuts])];
+
+    // Buscar en PlatformUser (Perfiles de usuario)
+    const users = await PlatformUser.find({
+      rut: { $in: allSearchRuts }
+    }).lean();
+
+    // Buscar en Candidato (Captura de Talento)
+    const candidatos = await Candidato.find({
+      rut: { $in: allSearchRuts }
+    }).lean();
+
+    // Buscar en Tecnico (Técnicos)
+    const tecnicos = await Tecnico.find({
+      rut: { $in: allSearchRuts }
+    }).lean();
+
+    // Mapear por RUT para búsquedas rápidas
+    const usersMap = {};
+    users.forEach(u => {
+      if (u.rut) {
+        usersMap[cleanRut(u.rut)] = u;
+      }
+    });
+
+    const candidatosMap = {};
+    candidatos.forEach(c => {
+      if (c.rut) {
+        candidatosMap[cleanRut(c.rut)] = c;
+      }
+    });
+
+    const tecnicosMap = {};
+    tecnicos.forEach(t => {
+      if (t.rut) {
+        tecnicosMap[cleanRut(t.rut)] = t;
+      }
+    });
+
+    // Mapear el nombre del técnico, TOA ID, rut formateado y retornar las actividades
+    const result = actividades.map(a => {
+      const appealRut = cleanRut(a.apelacion?.rut || a.rut);
+      
+      // Buscar información en orden de prioridad: 
+      // 1. PlatformUser (Página de perfil)
+      // 2. Candidato (Captura de Talento)
+      // 3. Tecnico (Registro de técnicos)
+      const userProfile = usersMap[appealRut] || null;
+      const candidateProfile = candidatosMap[appealRut] || null;
+      const tecnicoProfile = tecnicosMap[appealRut] || null;
+
+      // Determinar nombre oficial
+      let officialName = 'Técnico';
+      if (userProfile && userProfile.name) {
+        officialName = userProfile.name;
+      } else if (candidateProfile && candidateProfile.fullName) {
+        officialName = candidateProfile.fullName;
+      } else if (tecnicoProfile && (tecnicoProfile.nombres || tecnicoProfile.apellidos)) {
+        officialName = `${tecnicoProfile.nombres || ''} ${tecnicoProfile.apellidos || ''}`.trim();
+      } else {
+        officialName = a.NOMBRE || a.Nombre || a.TECNICO || a.Técnico || formatRut(a.apelacion?.rut) || 'Técnico';
+      }
+
+      // Determinar TOA ID oficial
+      let officialToaId = 'SIN';
+      if (tecnicoProfile && tecnicoProfile.idRecursoToa) {
+        officialToaId = tecnicoProfile.idRecursoToa;
+      } else if (candidateProfile && candidateProfile.idRecursoToa) {
+        officialToaId = candidateProfile.idRecursoToa;
+      } else if (a.idRecursoToa || a.RECURSO || a.idRecurso) {
+        officialToaId = a.idRecursoToa || a.RECURSO || a.idRecurso;
+      }
+
+      // Estandarizar RUT con guion medio
+      const finalRut = formatRut(a.apelacion?.rut || a.rut);
+
+      return {
+        ...a,
+        tecnicoNombre: officialName,
+        tecnicoEmail: userProfile?.email || candidateProfile?.email || tecnicoProfile?.email || '',
+        tecnicoAvatar: userProfile?.avatar || '',
+        tecnicoRutFormateado: finalRut,
+        tecnicoToaId: officialToaId
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Error listando apelaciones:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- RESOLVER APELACIÓN DE PRODUCCIÓN ---
+router.post('/produccion/apelacion/:actividadId/resolver', protect, async (req, res) => {
+  try {
+    const { status, respuesta } = req.body; // status: 'aprobada' o 'rechazada', respuesta: comentario del supervisor
+    const { actividadId } = req.params;
+
+    if (!['aprobada', 'rechazada'].includes(status)) {
+      return res.status(400).json({ error: 'Estado de resolución inválido' });
+    }
+
+    const Actividad = require('../models/Actividad');
+    const act = await Actividad.findOne({ _id: actividadId });
+    if (!act) {
+      return res.status(404).json({ error: 'Actividad no encontrada' });
+    }
+
+    // Validar empresa
+    if (act.empresaRef && String(act.empresaRef) !== String(req.user.empresaRef)) {
+      return res.status(403).json({ error: 'No autorizado para resolver esta apelación' });
+    }
+
+    // Si es aprobada, actualizar los equipos adicionales reales de la actividad
+    let updateFields = {
+      'apelacion.status': status,
+      'apelacion.respuesta': respuesta,
+      'apelacion.fechaRespuesta': new Date()
+    };
+
+    if (status === 'aprobada') {
+      const decosVal = parseInt(act.apelacion?.equipos?.decos || 0);
+      const repetidoresVal = parseInt(act.apelacion?.equipos?.repetidores || 0);
+      const telefonosVal = parseInt(act.apelacion?.equipos?.telefonos || 0);
+      const codigoLpuVal = act.apelacion?.codigoLpu || '';
+      const puntosBaseVal = parseFloat(act.apelacion?.puntosBase) || 0;
+
+      // Actualizar equipos adicionales en el documento
+      updateFields.Decos_Adicionales = String(decosVal);
+      updateFields.DECOS_ADICIONALES = decosVal;
+      updateFields.Repetidores_WiFi = String(repetidoresVal);
+      updateFields.REPETIDORES_WIFI = repetidoresVal;
+      updateFields.Telefonos = String(telefonosVal);
+      updateFields.TELEFONOS = telefonosVal;
+
+      if (codigoLpuVal) {
+        updateFields.CODIGO_LPU_BASE = codigoLpuVal;
+        updateFields['Cód LPU'] = codigoLpuVal;
+        updateFields.COD_LPU = codigoLpuVal;
+        updateFields.LPU_COD = codigoLpuVal;
+        updateFields.SUBTIPO_DE_ACTIVIDAD = codigoLpuVal;
+        updateFields.subtipo = codigoLpuVal;
+      }
+
+      if (puntosBaseVal > 0) {
+        updateFields.Pts_Actividad_Base = puntosBaseVal;
+        updateFields.PTS_ACTIVIDAD_BASE = puntosBaseVal;
+      }
+
+      // Recalcular baremos de forma reactiva e inmediata
+      const TarifaLPU = require('../models/TarifaLPU');
+      const { obtenerTarifasEmpresa, calcularBaremos, valorizarBaremos, construirMapaValorizacion } = require('../utils/calculoEngine');
+      
+      const [tarifas, mapaValor] = await Promise.all([
+        obtenerTarifasEmpresa(req.user.empresaRef, TarifaLPU),
+        construirMapaValorizacion(req.user.empresaRef)
+      ]);
+
+      // Generar el objeto clonado con los nuevos equipos aplicados para que calcularBaremos funcione
+      const tempDoc = {
+        ...act.toObject(),
+        Decos_Adicionales: String(decosVal),
+        DECOS_ADICIONALES: decosVal,
+        Repetidores_WiFi: String(repetidoresVal),
+        REPETIDORES_WIFI: repetidoresVal,
+        Telefonos: String(telefonosVal),
+        TELEFONOS: telefonosVal,
+        ...(codigoLpuVal ? {
+          CODIGO_LPU_BASE: codigoLpuVal,
+          'Cód LPU': codigoLpuVal,
+          COD_LPU: codigoLpuVal,
+          LPU_COD: codigoLpuVal,
+          SUBTIPO_DE_ACTIVIDAD: codigoLpuVal,
+          subtipo: codigoLpuVal
+        } : {}),
+        ...(puntosBaseVal > 0 ? {
+          Pts_Actividad_Base: puntosBaseVal,
+          PTS_ACTIVIDAD_BASE: puntosBaseVal
+        } : {})
+      };
+
+      const baremo = calcularBaremos(tempDoc, tarifas) || {};
+
+      // Combinar los baremos nuevos en el doc para que valorizarBaremos los use
+      const docParaValorizar = {
+        ...tempDoc,
+        ...baremo,
+        ID_Recurso: act.idRecursoToa || act.RECURSO || act.idRecurso,
+        Pts_Total_Baremo: baremo.Pts_Total_Baremo
+      };
+
+      const val = valorizarBaremos(docParaValorizar, mapaValor) || {};
+
+      // Mezclar en updateFields
+      Object.assign(updateFields, {
+        ...baremo,
+        ...val,
+        ptsTotalBaremo: baremo.ptsTotalBaremo || 0,
+        PTS_TOTAL_BAREMO: baremo.ptsTotalBaremo || 0,
+        Total_Puntos_Baremo: baremo.ptsTotalBaremo || 0
+      });
+    }
+
+    await Actividad.updateOne(
+      { _id: actividadId },
+      { $set: updateFields }
+    );
+
+    // --- ENVIAR NOTIFICACIÓN EN TIEMPO REAL AL TÉCNICO (WSP SOUND/STYLE) ---
+    try {
+      const userRut = act.apelacion?.rut || act.rut;
+      if (userRut) {
+        const cleanRutStr = String(userRut).replace(/[^0-9kK]/g, '').toUpperCase();
+        const PlatformUser = require('../../auth/PlatformUser');
+        
+        // Buscar todos los usuarios de la empresa para normalización segura de RUT
+        const allUsers = await PlatformUser.find({ empresaRef: act.empresaRef }).lean();
+        const targetUser = allUsers.find(u => {
+          const rLimpio = String(u.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+          return rLimpio === cleanRutStr;
+        });
+
+        if (targetUser) {
+          const chatController = require('../../comunicaciones/controllers/chatController');
+          chatController.notifyUser(targetUser._id, {
+            type: 'appeal_resolved',
+            data: {
+              actividadId: act._id,
+              orden: act.idOrdenTrabajo || act.ORDEN_TRABAJO || act.OT || 'OT sin código',
+              status: status,
+              respuesta: respuesta || 'Sin comentarios adicionales.',
+              fechaRespuesta: new Date()
+            }
+          });
+          console.log(`🔌 [SSE Resolver] Notificación de apelación resuelta enviada a ${targetUser.name} (${targetUser._id})`);
+        } else {
+          console.warn(`⚠️ [SSE Resolver] No se encontró PlatformUser en la empresa para el RUT ${userRut} (${cleanRutStr})`);
+        }
+      }
+    } catch (sseErr) {
+      console.error('❌ Error enviando SSE para apelación resuelta:', sseErr);
+    }
+
+    res.json({ success: true, message: `Apelación ${status} correctamente` });
+  } catch (err) {
+    console.error('Error al resolver apelación:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- OBTENER DETALLE DE UNA ACTIVIDAD INDIVIDUAL ---
+router.get('/produccion/actividad/:actividadId', protect, async (req, res) => {
+  try {
+    const { actividadId } = req.params;
+    const Actividad = require('../models/Actividad');
+    const act = await Actividad.findById(actividadId).lean();
+    if (!act) return res.status(404).json({ error: 'Actividad no encontrada' });
+    
+    // Validar empresa
+    if (act.empresaRef && String(act.empresaRef) !== String(req.user.empresaRef)) {
+      return res.status(403).json({ error: 'No autorizado para ver esta actividad' });
+    }
+    
+    res.json(act);
+  } catch (err) {
+    console.error('Error obteniendo actividad:', err);
     res.status(500).json({ error: err.message });
   }
 });

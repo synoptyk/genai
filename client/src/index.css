@@ -76,10 +76,10 @@ body {
   transition: transform 0.3s ease;
 }
 
-@media (max-width: 210mm) {
+@media (max-width: 794px) {
   .pdf-page-sim {
-    transform: scale(calc(100vw / 210mm * 0.9));
-    margin-bottom: calc(-297mm * (1 - (100vw / 210mm * 0.9)));
+    transform: scale(calc(100vw / 794 * 0.9));
+    margin-bottom: calc(-1123px * (1 - (100vw / 794 * 0.9)));
   }
 }
 

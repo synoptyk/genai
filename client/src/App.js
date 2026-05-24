@@ -40,6 +40,7 @@ import Tarifario from './platforms/agentetelecom/Tarifario';
 import DescargaTOA from './platforms/agentetelecom/DescargaTOA';
 import BonificacionesTelco from './platforms/agentetelecom/BonificacionesTelco';
 import Ajustes from './platforms/agentetelecom/Ajustes';
+import ApelacionesPanel from './platforms/agentetelecom/ApelacionesPanel';
 import RecursosHumanos from './platforms/agentetelecom/modules/RecursosHumanos';
 import Proyectos from './platforms/rrhh/pages/Proyectos';
 import Conexiones from './platforms/agentetelecom/Conexiones';
@@ -219,6 +220,7 @@ function AppRoutes() {
       <Route path="/industria/distribucion/historial-rutas" element={<ProtectedRoute allowPermissions={['dist_historial_rutas']}><AppShell><HistorialRutas /></AppShell></ProtectedRoute>} />
       <Route path="/industria/distribucion/rutas-guiadas" element={<ProtectedRoute allowPermissions={['dist_rutas_guiadas']}><AppShell><RutasGuiadas /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento" element={<ProtectedRoute allowPermissions={['rend_operativo']}><AppShell><Produccion /></AppShell></ProtectedRoute>} />
+      <Route path="/rendimiento/apelaciones" element={<ProtectedRoute allowPermissions={['rend_operativo']}><AppShell><ApelacionesPanel /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento/cierre-bonos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos', 'rrhh_nomina']}><AppShell><BonificacionesTelco /></AppShell></ProtectedRoute>} />
       <Route path="/produccion-financiera" element={<ProtectedRoute allowPermissions={['rend_financiero']}><AppShell><ProduccionVenta /></AppShell></ProtectedRoute>} />
       <Route path="/tarifario" element={<ProtectedRoute allowPermissions={['rend_tarifario']}><AppShell><Tarifario /></AppShell></ProtectedRoute>} />

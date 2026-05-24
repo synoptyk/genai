@@ -1010,6 +1010,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 <ExpandedSection color="emerald">
                   <SubModule label="Telecomunicaciones" icon={Activity} isOpen={openSections.industriaTelecom} onToggle={() => toggle('industriaTelecom')} accent="sky">
                     {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Panel Telecomunicaciones" accent="sky" isActive={isActive('/rendimiento')} />}
+                    {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento/apelaciones" icon={ClipboardCheck} label="Apelaciones" accent="sky" isActive={isActive('/rendimiento/apelaciones')} />}
                     {hasSubAccess('op_mapa_calor') && <MenuLink path="/mapa-calor" icon={MapPin} label="Mapa de Calor" accent="sky" isActive={isActive('/mapa-calor')} />}
                     {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="sky" isActive={isActive('/produccion-financiera')} />}
                     {hasSubAccess('rend_tarifario') && <MenuLink path="/tarifario" icon={ClipboardList} label="Tarifario & Baremos" accent="sky" isActive={isActive('/tarifario')} />}

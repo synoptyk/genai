@@ -18,6 +18,7 @@ import ProduccionActividades from './components/ProduccionActividades';
 import ProduccionProyectos from './components/ProduccionProyectos';
 import ProduccionZonas from './components/ProduccionZonas';
 import DashboardSeguimientoDia from './components/DashboardSeguimientoDia';
+import ProduccionRanking from './components/ProduccionRanking';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const toInputDate = (d) => {
@@ -555,41 +556,11 @@ export default function Produccion() {
 
         {/* Ranking */}
         {activeTab === 'ranking' && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Trophy size={16} className="text-amber-500" />
-              Ranking de Especialistas
-            </h2>
-            {tecnicos.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-sm">No hay datos para el período seleccionado</div>
-            ) : (
-              <div className="space-y-2">
-                {[...tecnicos]
-                  .filter(t => !searchTech || (t.name || t.fullName || '').toLowerCase().includes(searchTech.toLowerCase()))
-                  .sort((a, b) => (b.monthTotal || b.ptsTotal || 0) - (a.monthTotal || a.ptsTotal || 0))
-                  .map((t, i) => {
-                    const pts = t.monthTotal || t.ptsTotal || 0;
-                    const meta = (metaConfig.metaProduccionDia || 7.5) * (serverData?.productiveDaysCount || 22);
-                    const pct = meta > 0 ? Math.min(100, (pts / meta) * 100) : 0;
-                    return (
-                      <div key={t.name || i} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100">
-                        <span className={`w-7 h-7 flex items-center justify-center rounded-full text-[10px] font-black ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                          {i + 1}
-                        </span>
-                        <span className="text-sm font-bold text-slate-800 flex-1">{t.name || t.fullName}</span>
-                        <span className="text-xs text-slate-500">{t.proyecto || '—'}</span>
-                        <div className="flex items-center gap-2 min-w-[120px]">
-                          <div className="h-2 bg-slate-200 rounded-full flex-1 overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-[10px] font-black text-indigo-600 w-10 text-right">{pts.toFixed(1)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
+          <ProduccionRanking
+            tecnicos={tecnicos}
+            metaConfig={metaConfig}
+            productiveDaysCount={serverData?.productiveDaysCount || 22}
+          />
         )}
 
         {/* Semanal */}

@@ -106,8 +106,17 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
 
   // Custom Label for Charts
   const CustomLabel = (props) => {
-    const { x, y, value, width, height, position, bgColor, textColor, offset = 10, viewBox } = props;
-    if (!value && value !== 0) return null;
+    const { x, y, value, bgColor, textColor, labelType, viewBox } = props;
+    
+    // Helper to check if value is zero or empty
+    const isZeroOrEmpty = (val) => {
+      if (val === null || val === undefined || val === '') return true;
+      const str = String(val).replace('%', '').trim();
+      const num = parseFloat(str);
+      return isNaN(num) || num === 0;
+    };
+
+    if (isZeroOrEmpty(value)) return null;
     
     const textStr = String(value);
     const rectWidth = textStr.length * 6 + 8;
@@ -116,21 +125,38 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
     let finalX = x;
     let finalY = y;
 
-    if (viewBox) {
-      finalX = viewBox.x + viewBox.width / 2;
-      if (position === 'top') {
-        finalY = viewBox.y - offset;
-      } else if (position === 'inside') {
-        finalY = viewBox.y + viewBox.height / 2;
-      } else if (position === 'insideBottom') {
-        finalY = viewBox.y + viewBox.height - offset;
-      } else if (position === 'bottom') {
-        finalY = viewBox.y + viewBox.height + offset;
+    // Use viewBox if available for precise Bar Chart positioning
+    if (viewBox && typeof viewBox.height === 'number' && viewBox.height > 0) {
+      const { x: bx, y: by, width: bw, height: bh } = viewBox;
+      finalX = bx + bw / 2;
+
+      if (labelType === 'ptsAsignados') {
+        // Top of the bar
+        finalY = by - 10;
+      } else if (labelType === 'ptsGenerados') {
+        // Middle of the bar
+        finalY = by + bh / 2;
+        
+        // If the bar is too short, shift it upwards to avoid overlap with 'diferencia' label at the bottom.
+        // Bottom label is at (by + bh - 10). Let's keep a distance of at least 18px.
+        const bottomY = by + bh - 10;
+        if (bottomY - finalY < 18) {
+          finalY = bottomY - 18;
+        }
+        // Also make sure it doesn't cross the top of the bar too much
+        if (finalY < by + 4) {
+          finalY = by + 4;
+        }
+      } else if (labelType === 'diferencia') {
+        // Bottom of the bar inside
+        finalY = by + bh - 10;
+      } else if (labelType === 'horasAlta') {
+        // Middle of the bottom stacked segment
+        finalY = by + bh / 2;
+      } else if (labelType === 'horasReparacion') {
+        // Top of the top stacked segment
+        finalY = by - 10;
       }
-    } else {
-      if (position === 'top') finalY = y - offset;
-      else if (position === 'bottom') finalY = y + offset;
-      else if (position === 'insideBottom') finalY = y - offset;
     }
 
     return (
@@ -166,6 +192,7 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const isHoras = payload.some(p => p.dataKey === 'horasAlta' || p.dataKey === 'horasReparacion');
+      const isPuntos = payload.some(p => p.dataKey === 'pts' || p.dataKey === 'ptsAsignados');
       const dataPoint = payload[0]?.payload || {};
       
       return (
@@ -178,6 +205,26 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
               <span className="text-white ml-auto">{entry.value}</span>
             </div>
           ))}
+          {isPuntos && (
+            <div className="mt-2 pt-2 border-t border-slate-700 space-y-1">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-slate-400">DIFERENCIA (ASIG - META):</span>
+                <span className="text-slate-300 ml-auto">{dataPoint.diffAsignadosMeta > 0 ? '+' : ''}{dataPoint.diffAsignadosMeta}</span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-slate-400">RENDIMIENTO:</span>
+                <span className="text-indigo-400 ml-auto">
+                  {dataPoint.ptsAsignados > 0 ? ((dataPoint.pts / dataPoint.ptsAsignados) * 100).toFixed(1) : '0.0'}%
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-slate-400">S/META:</span>
+                <span className="text-fuchsia-400 ml-auto">
+                  {dataPoint.metaPuntos > 0 ? ((dataPoint.ptsAsignados / dataPoint.metaPuntos) * 100).toFixed(1) : '0.0'}%
+                </span>
+              </div>
+            </div>
+          )}
           {isHoras && (
             <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest my-1 mt-2 pt-1 border-t border-slate-700">
               <div className="w-2 h-2 rounded-full bg-blue-400" />
@@ -291,16 +338,16 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
               <Area type="monotone" dataKey="completadas" name="Completadas" stroke="#10b981" strokeWidth={3} fill="url(#colorComp)">
-                <LabelList dataKey="completadasPct" content={<CustomLabel bgColor="#064e3b" textColor="#34d399" offset={20} position="top" />} />
+                <LabelList dataKey="completadasPct" position="top" offset={10} content={<CustomLabel labelType="completadas" bgColor="#064e3b" textColor="#34d399" />} />
               </Area>
               <Area type="monotone" dataKey="noRealizadas" name="No Realizadas" stroke="#f43f5e" strokeWidth={3} fill="url(#colorNR)">
-                <LabelList dataKey="noRealizadasPct" content={<CustomLabel bgColor="#881337" textColor="#fb7185" offset={25} position="insideBottom" />} />
+                <LabelList dataKey="noRealizadasPct" position="bottom" offset={10} content={<CustomLabel labelType="noRealizadas" bgColor="#881337" textColor="#fb7185" />} />
               </Area>
               <Line type="monotone" dataKey="asignadas" name="Asignadas" stroke="#ec4899" strokeWidth={3} dot={{ r: 4, fill: '#ec4899', strokeWidth: 0 }}>
-                <LabelList dataKey="asignadas" content={<CustomLabel bgColor="#831843" textColor="#fbcfe8" offset={20} position="bottom" />} />
+                <LabelList dataKey="asignadas" position="top" offset={25} content={<CustomLabel labelType="asignadas" bgColor="#831843" textColor="#fbcfe8" />} />
               </Line>
               <Line type="monotone" dataKey="metaOrdenesLine" name="Meta (Órdenes)" stroke="#e879f9" strokeWidth={3} strokeDasharray="5 5" connectNulls={true} dot={{ r: 3, fill: '#e879f9', strokeWidth: 0 }}>
-                <LabelList dataKey="metaOrdenesLine" content={<CustomLabel bgColor="#4a044e" textColor="#f0abfc" offset={20} position="top" />} />
+                <LabelList dataKey="metaOrdenesLine" position="bottom" offset={25} content={<CustomLabel labelType="metaOrdenes" bgColor="#4a044e" textColor="#f0abfc" />} />
               </Line>
             </ComposedChart>
           </ResponsiveContainer>
@@ -411,14 +458,14 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
                 <Bar yAxisId="left" dataKey="ptsAsignados" name="Puntos Asignados" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={14}>
-                  <LabelList dataKey="ptsAsignados" content={<CustomLabel bgColor="#831843" textColor="#fbcfe8" offset={25} position="top" />} />
-                  <LabelList dataKey="diffAsignadosMeta" content={<CustomLabel bgColor="#1e293b" textColor="#94a3b8" offset={15} position="insideBottom" />} />
+                  <LabelList dataKey="ptsAsignados" position="top" offset={15} content={<CustomLabel labelType="ptsAsignados" bgColor="#831843" textColor="#fbcfe8" />} />
+                  <LabelList dataKey="diffAsignadosMeta" position="insideBottom" offset={10} content={<CustomLabel labelType="diferencia" bgColor="#1e293b" textColor="#94a3b8" />} />
                 </Bar>
                 <Bar yAxisId="left" dataKey="pts" name="Puntos Generados" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={14}>
-                  <LabelList dataKey="pts" content={<CustomLabel bgColor="#312e81" textColor="#818cf8" offset={0} position="inside" />} />
+                  <LabelList dataKey="pts" position="inside" content={<CustomLabel labelType="ptsGenerados" bgColor="#312e81" textColor="#818cf8" />} />
                 </Bar>
                 <Line yAxisId="left" type="monotone" dataKey="metaPuntosLine" name="Meta (Puntos)" stroke="#e879f9" strokeWidth={3} strokeDasharray="5 5" connectNulls={true} dot={{ r: 3, fill: '#e879f9', strokeWidth: 0 }}>
-                  <LabelList dataKey="metaPuntosLine" content={<CustomLabel bgColor="#4a044e" textColor="#f0abfc" offset={20} position="bottom" />} />
+                  <LabelList dataKey="metaPuntosLine" position="bottom" offset={10} content={<CustomLabel labelType="metaPuntos" bgColor="#4a044e" textColor="#f0abfc" />} />
                 </Line>
               </ComposedChart>
             </ResponsiveContainer>
@@ -539,13 +586,13 @@ export default function DashboardSeguimientoDia({ tecnicos = [], dateFrom, selec
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
                 <Bar yAxisId="left" dataKey="horasAlta" stackId="horas" name="Horas Altas/Inst." fill="#3b82f6">
-                  <LabelList dataKey="horasAlta" content={<CustomLabel bgColor="#1e3a8a" textColor="#93c5fd" position="inside" />} />
+                  <LabelList dataKey="horasAlta" position="inside" content={<CustomLabel labelType="horasAlta" bgColor="#1e3a8a" textColor="#93c5fd" />} />
                 </Bar>
                 <Bar yAxisId="left" dataKey="horasReparacion" stackId="horas" name="Horas Reparaciones" fill="#f97316" radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="horasReparacion" content={<CustomLabel bgColor="#7c2d12" textColor="#fdba74" offset={10} position="top" />} />
+                  <LabelList dataKey="horasReparacion" position="top" offset={10} content={<CustomLabel labelType="horasReparacion" bgColor="#7c2d12" textColor="#fdba74" />} />
                 </Bar>
                 <Line yAxisId="right" type="monotone" dataKey="metaHorasLine" name="Meta (Horas)" stroke="#e879f9" strokeWidth={3} strokeDasharray="5 5" connectNulls={true} dot={{ r: 3, fill: '#e879f9', strokeWidth: 0 }}>
-                  <LabelList dataKey="metaHorasLine" content={<CustomLabel bgColor="#4a044e" textColor="#f0abfc" offset={20} position="bottom" />} />
+                  <LabelList dataKey="metaHorasLine" position="bottom" offset={15} content={<CustomLabel labelType="metaHoras" bgColor="#4a044e" textColor="#f0abfc" />} />
                 </Line>
               </ComposedChart>
             </ResponsiveContainer>
