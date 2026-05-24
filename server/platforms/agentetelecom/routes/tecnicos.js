@@ -1150,8 +1150,8 @@ router.post('/produccion/apelacion', async (req, res) => {
               repetidores: parseInt(equipos?.repetidores || 0),
               telefonos: parseInt(equipos?.telefonos || 0)
             },
-            codigoLpu: codigoLpu || '',
-            puntosBase: parseFloat(puntosBase) || 0,
+            ...(codigoLpu !== undefined ? { codigoLpu } : {}),
+            ...(puntosBase !== undefined && puntosBase !== null && puntosBase !== "" ? { puntosBase: parseFloat(puntosBase) } : {}),
             observacion,
             motivo: motivo || '',
             fechaSolicitud: new Date(),

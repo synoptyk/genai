@@ -515,7 +515,7 @@ export default function ApelacionesPanel() {
                         <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Puntos Base</td>
                         <td className="px-4 py-3 font-mono font-bold text-slate-800">{selectedAppeal.Pts_Actividad_Base || selectedAppeal.PTS_ACTIVIDAD_BASE || 0} PTS</td>
                         <td className="px-4 py-3 bg-indigo-50/20 font-mono font-black text-indigo-700">
-                          {selectedAppeal.apelacion?.puntosBase !== undefined ? (
+                          {selectedAppeal.apelacion?.puntosBase && selectedAppeal.apelacion?.puntosBase > 0 ? (
                             <div className="flex items-center gap-1.5">
                               <span>{selectedAppeal.apelacion.puntosBase} PTS</span>
                               {selectedAppeal.apelacion.puntosBase !== (selectedAppeal.Pts_Actividad_Base || selectedAppeal.PTS_ACTIVIDAD_BASE || 0) && (
@@ -526,7 +526,7 @@ export default function ApelacionesPanel() {
                               )}
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic">—</span>
+                            <span className="text-slate-400 italic">Sin cambios propuestos</span>
                           )}
                         </td>
                       </tr>

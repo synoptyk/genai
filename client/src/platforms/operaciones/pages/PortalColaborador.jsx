@@ -1657,7 +1657,7 @@ const PortalColaborador = () => {
 
                                     {/* ── SECCIÓN DE GRÁFICOS DE RENDIMIENTO ── */}
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
-                                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8">
+                                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8 min-w-0">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic flex items-center gap-2"><TrendingUp size={16} className="text-indigo-500" /> Tendencia de Puntos Diarios</h4>
                                                 <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-[9px] font-black text-indigo-600 uppercase">Meta: {META_DIARIA_KPI} pts/día</span>
@@ -1681,7 +1681,7 @@ const PortalColaborador = () => {
                                             </div>
                                         </div>
 
-                                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8">
+                                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8 min-w-0">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic flex items-center gap-2"><Calendar size={16} className="text-emerald-500" /> Promedio por Día de Semana</h4>
                                                 <div className="flex items-center gap-2">
@@ -1706,7 +1706,7 @@ const PortalColaborador = () => {
                                         </div>
                                     </div>
 
-                                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 sm:p-8 mt-8">
+                                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 sm:p-8 mt-8 min-w-0">
                                         <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic mb-6 flex items-center gap-2"><Trophy size={16} className="text-amber-500" /> Top Actividades por Puntos Baremo</h4>
                                         <div className="h-[220px] w-full">
                                             <ResponsiveContainer width="100%" height="100%">
