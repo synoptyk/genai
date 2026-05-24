@@ -1122,7 +1122,7 @@ router.get('/:id/produccion', async (req, res) => {
 });
 
 // --- REGISTRAR APELACIÓN DE PRODUCCIÓN ---
-router.post('/produccion/apelacion', async (req, res) => {
+router.post('/produccion/apelacion', protect, async (req, res) => {
   try {
     const { actividadId, tecnicoId, rut, equipos, codigoLpu, puntosBase, observacion, motivo } = req.body;
     const Actividad = require('../models/Actividad');
@@ -1160,6 +1160,31 @@ router.post('/produccion/apelacion', async (req, res) => {
         }
       }
     );
+
+    // --- ENVIAR NOTIFICACIÓN EN TIEMPO REAL A LOS SUPERVISORES ---
+    try {
+      const PlatformUser = require('../../auth/PlatformUser');
+      const supervisors = await PlatformUser.find({
+        empresaRef: act.empresaRef,
+        role: { $in: ['admin', 'supervisor'] }
+      }).lean();
+
+      const chatController = require('../../comunicaciones/controllers/chatController');
+      supervisors.forEach(sup => {
+        chatController.notifyUser(sup._id, {
+          type: 'new_appeal',
+          data: {
+            actividadId: act._id,
+            tecnicoNombre: req.user?.name || 'Técnico de Terreno',
+            orden: act.idOrdenTrabajo || act.ORDEN_TRABAJO || act.OT || act.ordenId || 'OT sin código',
+            fechaSolicitud: new Date()
+          }
+        });
+      });
+      console.log(`🔌 [SSE New Appeal] Notificación enviada a ${supervisors.length} supervisores de la empresa`);
+    } catch (sseErr) {
+      console.error('❌ Error enviando SSE para nueva apelación:', sseErr);
+    }
 
     res.json({ success: true, message: 'Apelación registrada para validación' });
   } catch (err) {

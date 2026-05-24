@@ -101,6 +101,35 @@ const GlobalChatNotification = () => {
             return;
           }
 
+          if (parsed.type === 'new_appeal') {
+            const data = parsed.data;
+            console.log('🔔 [SSE Notification] Recibida nueva apelación de técnico:', data);
+            
+            // Dispatch browser event to reload list in ApelacionesPanel
+            const ev = new CustomEvent('newAppealNotif', { detail: data });
+            window.dispatchEvent(ev);
+
+            // Solo mostrar la notificación si el usuario es un administrador o supervisor
+            if (['admin', 'supervisor'].includes(user?.role)) {
+              const newNotif = {
+                 id: data.actividadId || Date.now(),
+                 isNewAppeal: true,
+                 text: `${data.tecnicoNombre} ingresó una apelación por la OT ${data.orden}.`,
+                 senderName: `Nueva Apelación ⚠️`,
+                 roomName: `Orden de Trabajo #${data.orden}`,
+                 actividadId: data.actividadId
+              };
+
+              setNotifications(prev => {
+                 if (prev.find(p => p.id === newNotif.id)) return prev;
+                 return [...prev, newNotif];
+              });
+
+              new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
+            }
+            return;
+          }
+
           if (parsed.type === 'global_notification') {
             const msg = parsed.data;
             if (msg.senderRef?._id === user._id) return;
@@ -228,6 +257,61 @@ const GlobalChatNotification = () => {
                  <span className="text-[9px] font-black uppercase text-indigo-500 group-hover:underline">Haga clic para ver</span>
                  <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 ${isAprobada ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'}`}>
                    Ver Detalles
+                 </span>
+               </div>
+            </div>
+          );
+        }
+
+        if (n.isNewAppeal) {
+          const iconBg = 'bg-amber-500 shadow-amber-200';
+          
+          return (
+            <div 
+              key={n.id} 
+              onClick={(e) => {
+                e.stopPropagation();
+                // Navegar al centro de apelaciones
+                navigate('/rendimiento/apelaciones');
+                // Remover notificación de la pantalla
+                setNotifications(prev => prev.filter(item => item.id !== n.id));
+              }} 
+              className="bg-white/98 backdrop-blur-md p-4 rounded-3xl shadow-[0_15px_50px_-10px_rgba(245,158,11,0.25)] border-l-4 border-l-amber-500 border-amber-100 border flex flex-col gap-3 cursor-pointer hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 animate-in slide-in-from-bottom-5 w-[350px] relative group overflow-hidden"
+            >
+               {/* Efecto Glow de Fondo */}
+               <div className="absolute -right-10 -bottom-10 w-28 h-28 rounded-full bg-amber-50/40 blur-2xl group-hover:scale-125 transition-transform duration-500" />
+               
+               <div className="flex items-start gap-3.5 relative z-10">
+                 <div className={`w-11 h-11 rounded-2xl flex-shrink-0 flex items-center justify-center text-white font-black shadow-lg ${iconBg} transform group-hover:rotate-12 transition-transform duration-300 text-lg`}>
+                   ⚠️
+                 </div>
+                 
+                 <div className="flex flex-col flex-grow min-w-0">
+                   <div className="flex items-center gap-1.5">
+                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                     <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">
+                       Nueva Apelación Recibida
+                     </span>
+                   </div>
+                   <span className="text-xs font-black text-slate-800 tracking-tight leading-snug mt-1 truncate">{n.roomName}</span>
+                   <p className="text-[11px] text-slate-500 leading-snug mt-1 line-clamp-2 italic bg-slate-50 p-2 rounded-xl border border-slate-100 font-bold">
+                     "{n.text}"
+                   </p>
+                 </div>
+ 
+                 <button 
+                   onClick={(e) => handleClose(n.id, e)} 
+                   className="text-slate-300 hover:text-slate-500 rounded-lg p-1.5 transition-colors absolute top-0.5 right-0.5 z-20"
+                 >
+                    <X size={14} />
+                 </button>
+               </div>
+ 
+               {/* Botón Interactivo Ver Detalles */}
+               <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 mt-0.5 relative z-10">
+                 <span className="text-[9px] font-black uppercase text-amber-500 group-hover:underline">Haga clic para auditar</span>
+                 <span className="px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                   Revisar
                  </span>
                </div>
             </div>

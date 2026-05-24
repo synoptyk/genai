@@ -474,6 +474,52 @@ const PortalColaborador = () => {
         fetchData();
     }, [user]);
 
+    useEffect(() => {
+        const handleAppealResolved = async (e) => {
+            console.log("🔄 [PortalColaborador] Recibida notificación de apelación resuelta en tiempo real:", e.detail);
+            if (tecnico?._id) {
+                // Volver a cargar la producción del mes seleccionado para reflejar los puntos actualizados inmediatamente
+                await loadProduccion(selectedMonth, tecnico._id);
+            }
+        };
+
+        const handleOpenOTById = async (e) => {
+            const actividadId = e.detail;
+            console.log("🔍 [PortalColaborador] Solicitud para abrir OT por ID:", actividadId);
+            
+            // Si la producción ya está cargada y contiene la actividad, la abrimos de inmediato
+            if (produccion?.recientes) {
+                const act = produccion.recientes.find(a => String(a._id) === String(actividadId));
+                if (act) {
+                    openOTDetail(act);
+                    return;
+                }
+            }
+            
+            // Si no está, cargamos de nuevo e intentamos buscarla
+            if (tecnico?._id) {
+                await loadProduccion(selectedMonth, tecnico._id);
+                // Esperamos un brevísimo instante para el seteo del estado
+                setTimeout(() => {
+                    if (produccion?.recientes) {
+                        const act = produccion.recientes.find(a => String(a._id) === String(actividadId));
+                        if (act) {
+                            openOTDetail(act);
+                        }
+                    }
+                }, 150);
+            }
+        };
+
+        window.addEventListener('appealResolvedNotif', handleAppealResolved);
+        window.addEventListener('openOTById', handleOpenOTById);
+
+        return () => {
+            window.removeEventListener('appealResolvedNotif', handleAppealResolved);
+            window.removeEventListener('openOTById', handleOpenOTById);
+        };
+    }, [tecnico?._id, selectedMonth, produccion?.recientes]);
+
     const handleMonthChange = (monthId) => {
         const safeMonth = Math.max(monthId, MIN_VISIBLE_MONTH);
         setSelectedMonth(safeMonth);
@@ -1799,6 +1845,8 @@ const PortalColaborador = () => {
                                                     return matchSearch && matchType;
                                                 })
                                                 .map((act, idx) => {
+                                                const hasAppeal = !!act.apelacion;
+                                                const appealStatus = act.apelacion?.status;
                                                 const ptsBase = act.Pts_Actividad_Base || 0;
                                                 const ptsDecos = act.Pts_Deco_Adicional || 0;
                                                 const ptsRepes = act.Pts_Repetidor_WiFi || 0;
@@ -1808,18 +1856,41 @@ const PortalColaborador = () => {
 
                                                 return (
                                                     <tr 
-                                                        key={idx} 
-                                                        onClick={() => openOTDetail(act)}
-                                                        className="hover:bg-slate-50/80 transition-all cursor-pointer group"
-                                                    >
-                                                        <td className="px-12 py-8 min-w-[180px]">
-                                                            <div className="flex flex-col gap-1.5">
-                                                                <span className="text-sm font-black text-slate-900 italic tracking-tight">{act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '—'}</span>
-                                                                <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit border border-slate-200 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all">
-                                                                    OT: {act.ordenId || act.ID_Orden || 'N/A'}
-                                                                </span>
-                                                            </div>
-                                                        </td>
+                                                         key={idx} 
+                                                         onClick={() => openOTDetail(act)}
+                                                         className={`transition-all cursor-pointer group ${
+                                                             hasAppeal ? (
+                                                                 appealStatus === 'por_validar' ? 'bg-amber-50/20 hover:bg-amber-50/40' :
+                                                                 appealStatus === 'aprobada' ? 'bg-emerald-50/20 hover:bg-emerald-50/40' :
+                                                                 'bg-rose-50/10 hover:bg-rose-50/20'
+                                                             ) : 'hover:bg-slate-50/80'
+                                                         }`}
+                                                     >
+                                                         <td className={`px-12 py-8 min-w-[180px] ${
+                                                             hasAppeal ? (
+                                                                 appealStatus === 'por_validar' ? 'border-l-4 border-amber-500' :
+                                                                 appealStatus === 'aprobada' ? 'border-l-4 border-emerald-500' :
+                                                                 'border-l-4 border-rose-500'
+                                                             ) : ''
+                                                         }`}>
+                                                             <div className="flex flex-col gap-1.5">
+                                                                 <span className="text-sm font-black text-slate-900 italic tracking-tight">{act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '—'}</span>
+                                                                 <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit border border-slate-200 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all">
+                                                                     OT: {act.ordenId || act.ID_Orden || 'N/A'}
+                                                                 </span>
+                                                                 {hasAppeal && (
+                                                                     <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest w-fit border mt-1.5 animate-pulse ${
+                                                                         appealStatus === 'por_validar' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                                                         appealStatus === 'aprobada' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                                                         'bg-rose-50 text-rose-600 border-rose-200'
+                                                                     }`}>
+                                                                         {appealStatus === 'por_validar' && '⚠️ Pendiente'}
+                                                                         {appealStatus === 'aprobada' && '✅ Aprobada'}
+                                                                         {appealStatus === 'rechazada' && '❌ Rechazada'}
+                                                                     </span>
+                                                                 )}
+                                                             </div>
+                                                         </td>
                                                         <td className="px-8 py-8 min-w-[320px]">
                                                             <div className="space-y-1.5">
                                                                 <p className="text-sm font-black text-slate-900 uppercase italic leading-none tracking-tight group-hover:text-indigo-600 transition-colors uppercase">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
@@ -1892,10 +1963,29 @@ const PortalColaborador = () => {
                                                 <div 
                                                     key={idx} 
                                                     onClick={() => openOTDetail(act)}
-                                                    className="p-6 hover:bg-slate-50 active:bg-slate-100/80 transition-all cursor-pointer flex flex-col gap-4"
+                                                    className={`p-6 transition-all cursor-pointer flex flex-col gap-4 ${
+                                                        hasAppeal ? (
+                                                            appealStatus === 'por_validar' ? 'bg-amber-50/30 border-l-4 border-amber-500 border-b border-slate-100' :
+                                                            appealStatus === 'aprobada' ? 'bg-emerald-50/30 border-l-4 border-emerald-500 border-b border-slate-100' :
+                                                            'bg-rose-50/20 border-l-4 border-rose-500 border-b border-slate-100'
+                                                        ) : 'hover:bg-slate-50 active:bg-slate-100/80 border-b border-slate-100'
+                                                    }`}
                                                 >
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-xs font-black text-slate-900 italic tracking-tight">{act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '—'}</span>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-xs font-black text-slate-900 tracking-tight">{act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '—'}</span>
+                                                            {hasAppeal && (
+                                                                <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest w-fit border animate-pulse ${
+                                                                    appealStatus === 'por_validar' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                                                    appealStatus === 'aprobada' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                                                    'bg-rose-50 text-rose-600 border-rose-200'
+                                                                }`}>
+                                                                    {appealStatus === 'por_validar' && '⚠️ Pendiente'}
+                                                                    {appealStatus === 'aprobada' && '✅ Aprobada'}
+                                                                    {appealStatus === 'rechazada' && '❌ Rechazada'}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest">
                                                             OT: {act.ordenId || act.ID_Orden || 'N/A'}
                                                         </span>
@@ -2005,19 +2095,66 @@ const PortalColaborador = () => {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="pt-6">
-                                                        <button 
-                                                            onClick={() => setIsAppealing(true)}
-                                                            disabled={selectedOT.apelacion?.status === 'por_validar'}
-                                                            className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl hover:bg-slate-800 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-4"
-                                                        >
-                                                            {selectedOT.apelacion?.status === 'por_validar' ? (
-                                                                <>Solicitud en Proceso de Revisión <Clock size={16} /></>
-                                                            ) : (
-                                                                <>¿Detectas un Error? Apelar Cálculo <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform" /></>
-                                                            )}
-                                                        </button>
-                                                    </div>
+                                                    
+                                                    {selectedOT.apelacion && (
+                                                         <div className={`p-6 rounded-[2.5rem] border ${
+                                                             selectedOT.apelacion.status === 'por_validar' ? 'bg-amber-50/50 border-amber-200 text-amber-900' :
+                                                             selectedOT.apelacion.status === 'aprobada' ? 'bg-emerald-50/50 border-emerald-200 text-emerald-900' :
+                                                             'bg-rose-50/30 border-rose-200 text-rose-900'
+                                                         } space-y-4`}>
+                                                             <div className="flex justify-between items-center">
+                                                                 <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Historial de Apelación</span>
+                                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                                     selectedOT.apelacion.status === 'por_validar' ? 'bg-amber-100 text-amber-700' :
+                                                                     selectedOT.apelacion.status === 'aprobada' ? 'bg-emerald-100 text-emerald-700' :
+                                                                     'bg-rose-100 text-rose-700'
+                                                                 }`}>
+                                                                     {selectedOT.apelacion.status === 'por_validar' && 'Pendiente'}
+                                                                     {selectedOT.apelacion.status === 'aprobada' && 'Aprobada'}
+                                                                     {selectedOT.apelacion.status === 'rechazada' && 'Rechazada'}
+                                                                 </span>
+                                                             </div>
+                                                             <div className="space-y-2 text-xs">
+                                                                 <p className="font-bold opacity-75">
+                                                                     <span className="font-black uppercase tracking-wider text-[9px] mr-1 block text-slate-500">Equipos Solicitados:</span>
+                                                                     {selectedOT.apelacion.equipos?.decos || 0} Decos, {selectedOT.apelacion.equipos?.repetidores || 0} Repetidores
+                                                                 </p>
+                                                                 {selectedOT.apelacion.observacion && (
+                                                                     <p className="font-medium bg-white/60 p-4 rounded-xl border border-slate-100/50 italic">
+                                                                         "{selectedOT.apelacion.observacion}"
+                                                                     </p>
+                                                                 )}
+                                                                 {selectedOT.apelacion.respuesta && (
+                                                                     <div className="mt-4 pt-3 border-t border-slate-200/50 space-y-1">
+                                                                         <span className="font-black uppercase tracking-wider text-[9px] block text-slate-500">Respuesta de Supervisión:</span>
+                                                                         <p className="font-bold italic bg-white/80 p-4 rounded-xl border border-slate-200/40">
+                                                                             "{selectedOT.apelacion.respuesta}"
+                                                                         </p>
+                                                                     </div>
+                                                                 )}
+                                                             </div>
+                                                         </div>
+                                                     )}
+
+                                                     <div className="pt-6">
+                                                         <button 
+                                                             onClick={() => setIsAppealing(true)}
+                                                             disabled={!!selectedOT.apelacion?.status}
+                                                             className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl hover:bg-slate-800 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-4"
+                                                         >
+                                                             {selectedOT.apelacion?.status ? (
+                                                                 selectedOT.apelacion.status === 'por_validar' ? (
+                                                                     <>Solicitud en Proceso de Revisión <Clock size={16} /></>
+                                                                 ) : selectedOT.apelacion.status === 'aprobada' ? (
+                                                                     <>Apelación Procesada (Aprobada) <BadgeCheck size={16} /></>
+                                                                 ) : (
+                                                                     <>Apelación Procesada (Rechazada) <XCircle size={16} /></>
+                                                                 )
+                                                             ) : (
+                                                                 <>¿Detectas un Error? Apelar Cálculo <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform" /></>
+                                                             )}
+                                                         </button>
+                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div className="space-y-6 animate-in slide-in-from-bottom duration-500">

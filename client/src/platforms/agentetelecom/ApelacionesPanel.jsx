@@ -44,6 +44,16 @@ export default function ApelacionesPanel() {
 
   useEffect(() => {
     fetchAppeals();
+
+    const handleNewAppeal = () => {
+      console.log("🔄 [ApelacionesPanel] Recibida notificación de nueva apelación en tiempo real. Recargando...");
+      fetchAppeals();
+    };
+
+    window.addEventListener('newAppealNotif', handleNewAppeal);
+    return () => {
+      window.removeEventListener('newAppealNotif', handleNewAppeal);
+    };
   }, []);
 
   const showNotification = (type, message) => {
