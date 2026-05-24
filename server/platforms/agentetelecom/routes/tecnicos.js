@@ -1401,6 +1401,11 @@ router.post('/produccion/apelacion/:actividadId/resolver', protect, async (req, 
         PTS_TOTAL_BAREMO: baremo.ptsTotalBaremo || 0,
         Total_Puntos_Baremo: baremo.ptsTotalBaremo || 0
       });
+
+      // Evitar conflicto de MongoDB al actualizar 'apelacion.status' y el objeto 'apelacion' al mismo tiempo
+      delete updateFields.apelacion;
+      delete updateFields._id;
+      delete updateFields.__v;
     }
 
     await Actividad.updateOne(
