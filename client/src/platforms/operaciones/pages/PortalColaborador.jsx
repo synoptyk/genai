@@ -1952,6 +1952,8 @@ const PortalColaborador = () => {
                                             return matchSearch && matchType;
                                         })
                                         .map((act, idx) => {
+                                            const hasAppeal = !!act.apelacion;
+                                            const appealStatus = act.apelacion?.status;
                                             const ptsBase = act.Pts_Actividad_Base || 0;
                                             const ptsDecos = act.Pts_Deco_Adicional || 0;
                                             const ptsRepes = act.Pts_Repetidor_WiFi || 0;
