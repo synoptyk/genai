@@ -28,37 +28,85 @@ const CierreBonos = () => {
   const fetchBonusContext = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Check for existing closure (API returns array)
-      const closureRes = await api.get(`/admin/bonos/closure/${year}/${month}`);
+      // 1. Check for existing closure, models and techs
+      const [closureRes, modelRes, tecnicosRes] = await Promise.all([
+        api.get(`/admin/bonos/closure/${year}/${month}`).catch(() => ({ data: [] })),
+        api.get('/admin/bonos/active').catch(() => ({ data: [] })),
+        api.get('/tecnicos').catch(() => ({ data: [] }))
+      ]);
+
       const closures = closureRes.data;
       const closure = Array.isArray(closures) && closures.length > 0 ? closures[0] : null;
       setExistingClosure(closure);
 
-      // 2. Get active bonus model
-      const modelRes = await api.get('/admin/bonos/active');
-      const activeModel = modelRes.data;
+      // 2. Get active bonus models
+      const activeModels = Array.isArray(modelRes.data) ? modelRes.data : [modelRes.data];
+      const activeModel = activeModels.find(m => m && m.tipo === 'BAREMO_PUNTOS') || activeModels[0] || null;
       setModel(activeModel);
+
+      // 3. Map RUTs
+      const tecnicosData = Array.isArray(tecnicosRes?.data) ? tecnicosRes.data : [];
+      const rutMap = {};
+      tecnicosData.forEach(t => {
+          if (t.idRecursoToa) rutMap[String(t.idRecursoToa).replace(/^0+/, '').trim()] = t.rutFormateado || t.rut;
+          if (t.nombre) rutMap[t.nombre.toLowerCase().trim()] = t.rutFormateado || t.rut;
+      });
 
       // ── Cargar desde cierre existente ──
       const calculos = Array.isArray(closure?.calculos) ? closure.calculos : [];
       if (calculos.length > 0) {
-        setTechs(calculos.map(c => ({
-            ...c,
-            name:         c.nombre    || c.name    || 'Sin nombre',
-            ptsTotal:     c.puntos    ?? c.ptsTotal ?? 0,
-            idRecursoToa: c.tecnicoId || c.idRecursoToa || '',
-        })));
+        setTechs(calculos.map(c => {
+            const techName = c.nombre    || c.name    || 'Sin nombre';
+            const idRecursoRaw = String(c.tecnicoId || c.idRecursoToa || '').replace(/^0+/, '').trim();
+            const techRut = c.rut || rutMap[idRecursoRaw] || rutMap[techName.toLowerCase().trim()] || '';
+            return {
+                ...c,
+                name:         techName,
+                ptsTotal:     c.puntos    ?? c.ptsTotal ?? 0,
+                idRecursoToa: c.tecnicoId || c.idRecursoToa || '',
+                rut:          techRut,
+            };
+        }));
       } else {
         // ── Cargar stats de producción frescos ──
         const daysInMonth = new Date(year, month, 0).getDate();
         const desde = `${year}-${String(month).padStart(2, '0')}-01`;
         const hasta  = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
-        const statsRes = await api
-            .get('/bot/produccion-stats', { params: { desde, hasta, estado: 'Completado' } })
-            .catch(() => ({ data: null }));
+        // ── Cargar Garantías (Mes Desfasado) ──
+        // El mes desfasado es el mes anterior al mes de la producción.
+        let prevMonth = month - 1;
+        let prevYear = year;
+        if (prevMonth === 0) {
+           prevMonth = 12;
+           prevYear = year - 1;
+        }
+        const prevDaysInMonth = new Date(prevYear, prevMonth, 0).getDate();
+        const desdeGarantias = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+        const hastaGarantias = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevDaysInMonth).padStart(2, '0')}`;
+
+        const [statsRes, garantiasRes] = await Promise.all([
+           api.get('/bot/produccion-stats', { params: { desde, hasta, estado: 'Completado' } }).catch(() => ({ data: null })),
+           api.get('/bot/garantias-stats', { params: { desde: desdeGarantias, hasta: hastaGarantias } }).catch(() => ({ data: null }))
+        ]);
 
         setStats(statsRes?.data || null);
+
+        // Mapear resultados de garantías por Técnico ID
+        const garantiasMap = {};
+        if (garantiasRes?.data?.statsTecnicos) {
+            garantiasRes.data.statsTecnicos.forEach(t => {
+                const cleanId = String(t.id).replace(/^0+/, '').trim();
+                garantiasMap[cleanId] = t;
+            });
+        }
+
+        const tecnicosData = Array.isArray(tecnicosRes?.data) ? tecnicosRes.data : [];
+        const rutMap = {};
+        tecnicosData.forEach(t => {
+            if (t.idRecursoToa) rutMap[String(t.idRecursoToa).replace(/^0+/, '').trim()] = t.rutFormateado || t.rut;
+            if (t.nombre) rutMap[t.nombre.toLowerCase().trim()] = t.rutFormateado || t.rut;
+        });
 
         const tecnicos = Array.isArray(statsRes?.data?.tecnicos) ? statsRes.data.tecnicos : [];
 
@@ -97,21 +145,33 @@ const CierreBonos = () => {
                     }
                 }
 
-                // Datos RR reales del backend
-                const rrFails       = t.rrFails       || 0;
-                const rrOrdersCount = t.rrOrdersCount || 0;
-                const rrRealPercent = t.rrRealPercent || 0;
-                const rrValue       = Math.round(rrRealPercent * 100) / 100;
+                // Extraer el ID único del técnico para cruzar con Garantías
+                const idRecursoRaw = String(t.idRecursoToa || t.idRecurso || t._id || '').replace(/^0+/, '').trim();
+                const garantiasTec = garantiasMap[idRecursoRaw] || {};
 
-                // AI real (Inicializado en 0; el usuario debe editarlo manualmente si no viene en el reporte)
-                const aiValue  = 0;
+                // Datos RR y AI desde el módulo de Garantías (mes desfasado)
+                const rrValue       = Math.round((garantiasTec.rrValue || 0) * 100) / 100;
+                const rrFails       = garantiasTec.fallasReparaciones || 0;
+                const rrOrdersCount = garantiasTec.evaluadasReparaciones || 0;
+
+                const aiValue       = Math.round((garantiasTec.aiValue || 0) * 100) / 100;
+                const aiFails       = garantiasTec.fallasAltas || 0;
+                const aiOrdersCount = garantiasTec.evaluadasAltas || 0;
 
                 if (activeModel && t.orders > 0) {
-                    rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
-                    aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
+                    const ptsExcluidos = activeModel.puntosExcluidos || 0;
+                    const calculablePts = Math.max(0, (parseFloat(pts) || 0) - ptsExcluidos);
+                    if (calculablePts > 0) {
+                        rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
+                        aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
+                    } else {
+                        rrBonus = 0;
+                        aiBonus = 0;
+                    }
                 }
 
-                return { ...t, name: techName, multiplier, baremoBonus, tramoLogrado, rrFails, rrOrdersCount, rrValue, aiValue, rrBonus, aiBonus };
+                const techRut = rutMap[idRecursoRaw] || rutMap[techName.toLowerCase().trim()] || '';
+                return { ...t, rut: techRut, name: techName, multiplier, baremoBonus, tramoLogrado, rrFails, rrOrdersCount, rrValue, aiFails, aiOrdersCount, aiValue, rrBonus, aiBonus };
             });
             setTechs(transformed);
         }
@@ -153,8 +213,17 @@ const CierreBonos = () => {
         const newTech = { ...t, [field]: val };
 
         // Recalculate component bonuses
-        if (field === 'rrValue') newTech.rrBonus = calculateTierBonus(val, model.tramosRR);
-        if (field === 'aiValue') newTech.aiBonus = calculateTierBonus(val, model.tramosAI);
+        const currentPts = parseFloat(newTech.ptsTotal) || 0;
+        const ptsExcluidos = model?.puntosExcluidos || 0;
+        const calculablePts = Math.max(0, currentPts - ptsExcluidos);
+
+        if (calculablePts > 0) {
+            if (field === 'rrValue') newTech.rrBonus = calculateTierBonus(val, model.tramosRR);
+            if (field === 'aiValue') newTech.aiBonus = calculateTierBonus(val, model.tramosAI);
+        } else {
+            newTech.rrBonus = 0;
+            newTech.aiBonus = 0;
+        }
         return newTech;
     }));
   };
@@ -170,6 +239,7 @@ const CierreBonos = () => {
             status,
             calculos: techs.map(t => ({
                 tecnicoId: t.idRecursoToa || t._id,
+                rut: t.rut,
                 nombre: t.name,
                 puntos: t.ptsTotal,
                 multiplier: t.multiplier,
@@ -276,7 +346,7 @@ const CierreBonos = () => {
               <div className={`p-2 rounded-xl shadow-lg ${existingClosure ? 'bg-slate-800 shadow-slate-200' : 'bg-emerald-500 shadow-emerald-100'}`}>
                 {existingClosure ? <Lock className="w-5 h-5 text-white" /> : <CalendarCheck className="w-5 h-5 text-white" />}
               </div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Cierre de Bonos</h1>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Bonos Variables Telecom</h1>
               {existingClosure && (
                   <span className={`px-4 py-1 border rounded-full text-[10px] font-black uppercase tracking-widest ml-2 ${existingClosure.status === 'CERRADO' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-amber-100 text-amber-600 border-amber-200'}`}>
                       {existingClosure.status === 'CERRADO' ? 'Cerrado' : 'Borrador'}
@@ -347,8 +417,8 @@ const CierreBonos = () => {
 
       <div className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           <StatCard icon={Target} label="Puntos Totales" value={totals.pts.toLocaleString('es-CL')} sub="Producción Real" color="indigo" />
-          <StatCard icon={Zap} label="Incentivo Baremo" value={CLP(totals.baremo)} sub="Por cumplimiento Baremo" color="emerald" />
-          <StatCard icon={ShieldCheck} label="Bonific. Calidad" value={CLP(totals.rr + totals.ai)} sub="Meta RR + AI" color="blue" />
+          <StatCard icon={Zap} label="Incentivo Baremo" value={CLP(totals.baremo)} sub="LRE-2102: Bono Producción" color="emerald" />
+          <StatCard icon={ShieldCheck} label="Bonific. Calidad" value={CLP(totals.rr + totals.ai)} sub="LRE-2110: Metas RR+AI" color="blue" />
           <StatCard icon={Award} label="Total Pagar" value={CLP(totals.total)} sub={`${techs.length} Operarios`} color="purple" />
       </div>
 
@@ -388,9 +458,18 @@ const CierreBonos = () => {
                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-32">RUT</th>
                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Operario</th>
                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Pts Mes</th>
-                          <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Bono Baremo</th>
-                          <th className="px-8 py-5 text-[9px] font-black text-emerald-600 uppercase tracking-widest border-b border-slate-100 text-center">DAT <span className="opacity-50 mx-1">|</span> RR% <span className="opacity-50 mx-1">|</span> BONO</th>
-                          <th className="px-8 py-5 text-[9px] font-black text-blue-600 uppercase tracking-widest border-b border-slate-100 text-center">AI (Auditoría)</th>
+                          <th className="px-8 py-5 border-b border-slate-100 text-right">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Bono Baremo</span>
+                              <span className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block">[LRE-2102]</span>
+                          </th>
+                          <th className="px-8 py-5 border-b border-slate-100 text-center">
+                              <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block">DAT <span className="opacity-50 mx-1">|</span> RR% <span className="opacity-50 mx-1">|</span> BONO</span>
+                              <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded mt-1 inline-block">[LRE-2110]</span>
+                          </th>
+                          <th className="px-8 py-5 border-b border-slate-100 text-center">
+                              <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest block">AI (Auditoría)</span>
+                              <span className="text-[8px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded mt-1 inline-block">[LRE-2110]</span>
+                          </th>
                           <th className="px-8 py-5 text-[9px] font-black text-slate-900 uppercase tracking-widest border-b border-slate-100 text-right">Monto Bono</th>
                           <th className="px-4 py-5 border-b border-slate-100"></th>
                       </tr>
@@ -448,16 +527,22 @@ const CierreBonos = () => {
                                   </div>
                               </td>
                               <td className="px-8 py-6">
-                                  <div className="flex flex-col items-center gap-1">
-                                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                                  <div className="flex flex-col items-center gap-1.5">
+                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.aiFails || 0} / {t.aiOrdersCount || 0}</span>
+                                      <div className="flex items-center gap-1 bg-white border border-blue-200 shadow-sm rounded-lg px-2 py-0.5 transition-all focus-within:border-blue-400">
                                           <input 
                                             type="number" step="0.1" value={t.aiValue} 
                                             onChange={(e) => updateTechQuality(techs.indexOf(t), 'aiValue', e.target.value)}
                                             disabled={existingClosure && existingClosure.status === 'CERRADO'}
-                                            className="w-10 bg-transparent text-center font-black text-[11px] text-blue-600 outline-none disabled:text-slate-400" 
+                                            className="w-12 bg-transparent text-center font-black text-[12px] text-blue-600 outline-none disabled:text-slate-400" 
                                           />
+                                          <span className="text-[10px] font-black text-blue-400">%</span>
                                       </div>
-                                      {t.aiBonus > 0 && <span className="text-[10px] font-black text-blue-500">{CLP(t.aiBonus)}</span>}
+                                      {t.aiBonus > 0 ? (
+                                           <span className="text-[10px] font-black text-blue-600 mt-0.5 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">{CLP(t.aiBonus)}</span>
+                                      ) : (
+                                           <span className="text-[8px] font-black text-slate-300 tracking-widest uppercase">SIN BONO</span>
+                                      )}
                                   </div>
                               </td>
                               <td className="px-8 py-6 text-right font-black text-slate-900 tabular-nums">

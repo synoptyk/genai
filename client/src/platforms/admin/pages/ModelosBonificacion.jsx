@@ -98,7 +98,7 @@ const TIPOS_MODELO = {
   },
 };
 
-const INDUSTRIAS = ['TODOS', 'TELCO', 'CONSTRUCCION', 'RETAIL', 'SERVICIOS', 'MANUFACTURA', 'SALUD'];
+const INDUSTRIAS = ['TODOS', 'TELECOMUNICACIONES', 'MINERÍA', 'ENERGÍA & ELECTRICIDAD', 'DISTRIBUCIÓN', 'CONSTRUCCIÓN', 'TRANSPORTE', 'MANUFACTURA', 'AGRÍCOLA', 'PESQUERO'];
 const FRECUENCIAS = ['MENSUAL', 'BIMESTRAL', 'TRIMESTRAL', 'SEMESTRAL', 'ANUAL', 'UNICO'];
 const COLORES = ['indigo', 'emerald', 'amber', 'violet', 'teal', 'rose', 'slate', 'sky'];
 const COLOR_PILL = {
@@ -106,6 +106,31 @@ const COLOR_PILL = {
   violet: 'bg-violet-500', teal: 'bg-teal-500', rose: 'bg-rose-500',
   slate: 'bg-slate-500', sky: 'bg-sky-500',
 };
+
+const LRE_CODES = [
+  { code: '2101', name: 'Sueldo', tipo: 'IMPONIBLE', baseLegal: 'Art. 42 letra a) del Código del Trabajo' },
+  { code: '2102', name: 'Sobresueldo', tipo: 'IMPONIBLE', baseLegal: 'Art. 42 letra b) del Código del Trabajo' },
+  { code: '2103', name: 'Comisión', tipo: 'IMPONIBLE', baseLegal: 'Art. 42 letra c) del Código del Trabajo' },
+  { code: '2104', name: 'Participación', tipo: 'IMPONIBLE', baseLegal: 'Art. 42 letra d) del Código del Trabajo' },
+  { code: '2105', name: 'Gratificación legal', tipo: 'IMPONIBLE', baseLegal: 'Art. 42 letra e) del Código del Trabajo' },
+  { code: '2106', name: 'Gratificación contractual', tipo: 'IMPONIBLE', baseLegal: 'Art. 42 letra e) del Código del Trabajo' },
+  { code: '2107', name: 'Bono de Producción', tipo: 'IMPONIBLE', baseLegal: 'Acuerdo Contractual (Imponible según Art. 41)' },
+  { code: '2108', name: 'Trato', tipo: 'IMPONIBLE', baseLegal: 'Art. 41 del Código del Trabajo' },
+  { code: '2109', name: 'Bono Asistencia / Puntualidad', tipo: 'IMPONIBLE', baseLegal: 'Acuerdo Contractual (Imponible según Art. 41)' },
+  { code: '2110', name: 'Aguinaldo (Imponible)', tipo: 'IMPONIBLE', baseLegal: 'Acuerdo Contractual (Imponible según Art. 41)' },
+  { code: '2111', name: 'Bono de Responsabilidad', tipo: 'IMPONIBLE', baseLegal: 'Acuerdo Contractual (Imponible según Art. 41)' },
+  { code: '3101', name: 'Asignación Familiar', tipo: 'NO_IMPONIBLE', baseLegal: 'DFL 150 de 1981' },
+  { code: '3110', name: 'Asignación de Pérdida de Caja', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 41 inc. 2 del Código del Trabajo' },
+  { code: '3111', name: 'Asignación de Movilización', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 41 inc. 2 del Código del Trabajo' },
+  { code: '3112', name: 'Asignación de Colación', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 41 inc. 2 del Código del Trabajo' },
+  { code: '3113', name: 'Viáticos', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 41 inc. 2 del Código del Trabajo' },
+  { code: '3114', name: 'Indemnización Años de Servicio (Legal)', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 163 del Código del Trabajo' },
+  { code: '3115', name: 'Indemnización Años de Servicio (Contractual)', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 163 del Código del Trabajo' },
+  { code: '3116', name: 'Indemnización Voluntaria', tipo: 'NO_IMPONIBLE', baseLegal: 'Inc. 2 Art. 41 Código del Trabajo' },
+  { code: '3117', name: 'Indemnización Sustitutiva Aviso Previo', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 162 del Código del Trabajo' },
+  { code: '3118', name: 'Indemnización Feriado Anual', tipo: 'NO_IMPONIBLE', baseLegal: 'Art. 73 del Código del Trabajo' },
+  { code: '3119', name: 'Aguinaldo (No Imponible)', tipo: 'NO_IMPONIBLE', baseLegal: 'Bono Ocasional no imponible' },
+];
 
 const blankModel = (tipo = 'BAREMO_PUNTOS') => ({
   nombre: '', description: '', tipo,
@@ -616,20 +641,44 @@ const ModelosBonificacion = () => {
   const [newTipo, setNewTipo] = useState('BAREMO_PUNTOS');
   const [newNombre, setNewNombre] = useState('');
 
+  const [availableCargos, setAvailableCargos] = useState([]);
+
   const flash = (type, msg) => { setAlertMsg({ type, msg }); setTimeout(() => setAlertMsg(null), 3500); };
 
   const fetchModels = async () => {
     setLoading(true);
     try {
-      const [{ data: mr }, { data: cr }] = await Promise.all([api.get('/admin/bonos'), bonosConfigApi.getAll()]);
+      const [{ data: mr }, { data: cr }, { data: er }] = await Promise.all([
+        api.get('/admin/bonos'), 
+        bonosConfigApi.getAll(),
+        api.get('/rrhh/config').catch(() => ({ data: {} }))
+      ]);
       setTiposBono(cr || []);
       setModels(mr || []);
+      if (er?.cargos) {
+        setAvailableCargos(er.cargos.map(c => typeof c === 'string' ? c : c.nombre));
+      }
       if (mr?.length) setSelectedId(mr[0]._id);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchModels(); }, []);
+
+  useEffect(() => {
+    if (!loading && models.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const modelId = params.get('editModelo');
+      if (modelId) {
+        const modelExists = models.some(m => (m._id || m.id) === modelId);
+        if (modelExists) {
+          setSelectedId(modelId);
+          // Limpiar el parámetro de la URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+  }, [loading, models]);
 
   const selected = useMemo(() => models.find(m => (m._id || m.id) === selectedId), [models, selectedId]);
 
@@ -648,14 +697,29 @@ const ModelosBonificacion = () => {
     if (!selected?._id && !canCreate) { flash('error', 'No tienes permiso para crear modelos'); return; }
     if (selected?._id && !canEdit) { flash('error', 'No tienes permiso para editar modelos'); return; }
     setIsSaving(true);
+    
+    // Extract legal fields for backend cascade save
+    const legalObj = selected.tipoBonoRef || {};
+    const payload = {
+      ...selected,
+      tipoLegal: legalObj.tipo || 'IMPONIBLE',
+      codigoDT: legalObj.codigoDT || '',
+      frecuenciaPago: legalObj.frecuencia || 'MENSUAL',
+      baseLegal: legalObj.baseLegal || '',
+      limiteReferencial: legalObj.limiteReferencial || 0,
+      avisoLegal: legalObj.avisoLegal || '',
+      pagoProporcional: legalObj.pagoProporcional ?? true,
+      tipoBonoRef: legalObj._id || null
+    };
+
     try {
       if (!selected._id) {
-        const { data } = await api.post('/admin/bonos', selected);
+        const { data } = await api.post('/admin/bonos', payload);
         setModels(prev => prev.map(m => m.id === selectedId ? data : m));
         setSelectedId(data._id);
         flash('success', 'Modelo creado');
       } else {
-        const { data } = await api.put(`/admin/bonos/${selected._id}`, selected);
+        const { data } = await api.put(`/admin/bonos/${selected._id}`, payload);
         setModels(prev => prev.map(m => m._id === selected._id ? data : m));
         flash('success', 'Modelo actualizado');
       }
@@ -883,18 +947,85 @@ const ModelosBonificacion = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Vínculo Legal DT — Nómina LRE</label>
-                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 focus-within:border-indigo-300 rounded-xl px-3 py-2">
-                        <Scale size={12} className="text-indigo-500 flex-shrink-0" />
-                        <select value={selected.tipoBonoRef || ''} onChange={e => updateField({ tipoBonoRef: e.target.value })}
-                          className="flex-1 bg-transparent text-[10px] font-black text-slate-600 focus:outline-none cursor-pointer">
-                          <option value="">Sin vínculo DT</option>
-                          {tiposBono.map(t => <option key={t._id} value={t._id}>{t.nombre} ({t.codigoDT}) — {t.tipo}</option>)}
-                        </select>
-                      </div>
+                  </div>
+                </div>
+
+                {/* Card: Legal DT */}
+                <div className="bg-white border border-slate-200 rounded-[2.5rem] p-7 shadow-sm">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center"><Scale size={14} className="text-amber-600" /></div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Configuración Legal LRE</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Parámetros requeridos por la Dirección del Trabajo</p>
                     </div>
                   </div>
+                  
+                  {(() => {
+                    const legal = selected.tipoBonoRef || {};
+                    const setLegal = (f, v) => updateField({ tipoBonoRef: { ...legal, [f]: v } });
+                    
+                    const handleCodigoChange = (e) => {
+                      const code = e.target.value;
+                      const lre = LRE_CODES.find(c => c.code === code);
+                      if (lre) {
+                        updateField({ 
+                          tipoBonoRef: { 
+                            ...legal, 
+                            codigoDT: lre.code, 
+                            tipo: lre.tipo, 
+                            baseLegal: lre.baseLegal 
+                          } 
+                        });
+                      } else {
+                        setLegal('codigoDT', code);
+                      }
+                    };
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="md:col-span-2">
+                          <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Código LRE (DT)</label>
+                          <select value={legal.codigoDT || ''} onChange={handleCodigoChange}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-black text-slate-700 focus:outline-none focus:border-amber-300 cursor-pointer">
+                            <option value="">Seleccione un Código LRE...</option>
+                            <optgroup label="Haberes Imponibles (Afectos a cotizaciones)">
+                              {LRE_CODES.filter(c => c.tipo === 'IMPONIBLE').map(c => (
+                                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Haberes No Imponibles (Exentos)">
+                              {LRE_CODES.filter(c => c.tipo === 'NO_IMPONIBLE').map(c => (
+                                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Naturaleza Imponible</label>
+                          <select value={legal.tipo || 'IMPONIBLE'} onChange={e => setLegal('tipo', e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-black text-slate-700 focus:outline-none focus:border-amber-300 cursor-pointer disabled:opacity-50">
+                            <option value="IMPONIBLE">Sí, es Imponible</option>
+                            <option value="NO_IMPONIBLE">No Imponible</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Frecuencia Informada</label>
+                          <select value={legal.frecuencia || 'MENSUAL'} onChange={e => setLegal('frecuencia', e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-black text-slate-700 focus:outline-none focus:border-amber-300 cursor-pointer">
+                            <option value="MENSUAL">Mensual</option>
+                            <option value="OCASIONAL">Ocasional / Una vez</option>
+                            <option value="POR_EVENTO">Por Evento (Aguinaldo)</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Base Legal / Artículo</label>
+                          <input type="text" value={legal.baseLegal || ''} onChange={e => setLegal('baseLegal', e.target.value)}
+                            placeholder="Ej: Art 42 letra a"
+                            className="w-full bg-amber-50/50 border border-amber-100 rounded-xl px-3 py-2 text-[10px] font-black text-amber-900 focus:outline-none focus:border-amber-400 transition-colors" />
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Card: Aplicabilidad */}
@@ -914,16 +1045,35 @@ const ModelosBonificacion = () => {
                     </button>
                   </div>
                   {!selected.aplicaA?.todos && (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Cargos (Enter para agregar)</label>
-                        <TagInput tags={selected.aplicaA?.cargos || []}
-                          onAdd={v => updateField({ aplicaA: { ...selected.aplicaA, cargos: [...(selected.aplicaA?.cargos || []), v] } })}
-                          onRemove={v => updateField({ aplicaA: { ...selected.aplicaA, cargos: (selected.aplicaA?.cargos || []).filter(x => x !== v) } })}
-                          placeholder="Ej: Técnico Terreno" />
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3">Cargos Disponibles (Múltiple Selección)</label>
+                        {availableCargos.length === 0 ? (
+                          <p className="text-[10px] text-slate-400 italic bg-slate-50 p-4 rounded-xl text-center">No hay cargos registrados en Captura de Talento.</p>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto pr-2 space-y-1.5 custom-scrollbar">
+                            {availableCargos.map(cargo => {
+                              const isSelected = (selected.aplicaA?.cargos || []).includes(cargo);
+                              return (
+                                <button key={cargo}
+                                  onClick={() => {
+                                    const current = selected.aplicaA?.cargos || [];
+                                    const next = isSelected ? current.filter(c => c !== cargo) : [...current, cargo];
+                                    updateField({ aplicaA: { ...selected.aplicaA, cargos: next } });
+                                  }}
+                                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-[10px] font-bold uppercase transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'}`}>
+                                  <span className="truncate pr-2">{cargo}</span>
+                                  <div className={`w-4 h-4 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                    {isSelected && <Check size={10} className="text-white" />}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Sectores / Áreas (Enter para agregar)</label>
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3">Sectores / Áreas (Enter para agregar)</label>
                         <TagInput tags={selected.aplicaA?.sectores || []}
                           onAdd={v => updateField({ aplicaA: { ...selected.aplicaA, sectores: [...(selected.aplicaA?.sectores || []), v] } })}
                           onRemove={v => updateField({ aplicaA: { ...selected.aplicaA, sectores: (selected.aplicaA?.sectores || []).filter(x => x !== v) } })}

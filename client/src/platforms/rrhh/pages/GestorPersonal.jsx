@@ -56,6 +56,8 @@ const defaultPermisosModulos = {
 
     // 4. Flota & GPS
     flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
+    flota_eficiencia: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
+    flota_proveedores: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
     flota_gps: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
     dist_conecta_gps: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
     dist_mis_conductores: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
@@ -744,6 +746,8 @@ const GestorPersonal = () => {
                                                 category: 'Flota & GPS', icon: Globe, color: 'sky',
                                                 modules: [
                                                     { id: 'flota_vehiculos',      label: 'Flota de Vehículos' },
+                                                    { id: 'flota_eficiencia',     label: 'Eficiencia Flota' },
+                                                    { id: 'flota_proveedores',    label: 'Proveedores Leasing' },
                                                     { id: 'flota_gps',            label: 'GPS SIMPLE' },
                                                     { id: 'dist_conecta_gps',     label: 'Conecta GPS' },
                                                     { id: 'dist_mis_conductores', label: 'Mis Conductores' },

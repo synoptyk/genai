@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import api from '../../../api/api';
-import { candidatosApi } from '../../rrhh/rrhhApi';
+import { candidatosApi, aprobacionesRrhhApi } from '../../rrhh/rrhhApi';
 import logisticaApi from '../../logistica/logisticaApi';
 import FichaIngresoPremium from '../../../components/FichaIngresoPremium';
 import FirmaAvanzada from '../../../components/FirmaAvanzada';
@@ -208,6 +208,46 @@ const normalizeOperationItems = (inspecciones, combustibles) => {
   return [...inspectionItems, ...fuelItems];
 };
 
+const normalizeRrhhTransactions = ({ beneficios, descuentos }) => {
+  const pending = [];
+  const allTx = [
+    ...(beneficios || []).map(b => ({ ...b, txType: 'Beneficio Salarial' })),
+    ...(descuentos || []).map(d => ({ ...d, txType: 'Descuento/Retención' }))
+  ];
+
+  allTx.forEach(tx => {
+    if (tx.estadoAprobacion && tx.candidatoRef) {
+      pending.push({
+        id: `${tx._id}-${tx.txType === 'Beneficio Salarial' ? 'ben' : 'desc'}`,
+        domain: 'rrhh',
+        _id: tx.candidatoRef._id,
+        txId: tx._id,
+        fullName: tx.candidatoRef.fullName,
+        rut: tx.candidatoRef.rut,
+        position: tx.candidatoRef.position,
+        createdAt: tx.createdAt,
+        status: tx.estadoAprobacion,
+        approvalType: tx.txType,
+        isTx: true,
+        details: tx,
+        currentChain: [{
+          id: 'step-gerencia',
+          name: 'Gerencia General',
+          position: 'Aprobador',
+          status: tx.estadoAprobacion,
+          comment: tx.motivoRechazo || '',
+          updatedAt: tx.updatedAt
+        }],
+        priority: getRrhhPriority(tx.txType, tx),
+        sla: buildSla(tx.createdAt),
+        raw: tx
+      });
+    }
+  });
+
+  return pending;
+};
+
 const Aprobaciones360 = () => {
   const { user } = useAuth();
   const { hasPermission } = useCheckPermission();
@@ -233,14 +273,18 @@ const Aprobaciones360 = () => {
   const fetchAll = async (selectionToKeep = null) => {
     setLoading(true);
     try {
-      const [rrhhRes, purchaseRes, inspeccionesRes, combustibleRes] = await Promise.all([
+      const [rrhhRes, purchaseRes, inspeccionesRes, combustibleRes, txRes] = await Promise.all([
         candidatosApi.getAll(),
         logisticaApi.get('/solicitudes-compra'),
         api.get('/api/prevencion/inspecciones').catch(() => ({ data: [] })),
-        api.get('/api/operaciones/combustible/aprobaciones').catch(() => ({ data: [] }))
+        api.get('/api/operaciones/combustible/aprobaciones').catch(() => ({ data: [] })),
+        aprobacionesRrhhApi.getPendientes().catch(() => ({ data: { beneficios: [], descuentos: [] } }))
       ]);
 
-      const nextRrhh = normalizeRrhhItems(rrhhRes.data || []);
+      let nextRrhh = normalizeRrhhItems(rrhhRes.data || []);
+      const rrhhTx = normalizeRrhhTransactions(txRes.data || { beneficios: [], descuentos: [] });
+      nextRrhh = [...nextRrhh, ...rrhhTx];
+
       const nextPurchases = normalizePurchaseItems(purchaseRes.data || []);
       const nextOperations = normalizeOperationItems(inspeccionesRes.data || [], combustibleRes.data || []);
 
@@ -410,7 +454,21 @@ const Aprobaciones360 = () => {
 
       const allApproved = newChain.every((step) => step.status === 'Aprobado');
 
-      if (selectedItem.approvalType === 'Ingreso') {
+      if (selectedItem.isTx) {
+        if (selectedItem.approvalType === 'Beneficio Salarial') {
+          await aprobacionesRrhhApi.updateBeneficio(selectedItem.txId, {
+            estado: 'Aprobado',
+            comentarioAprobador: rrhhComment,
+            firmaBase64: currentStepFirma.imagenBase64
+          });
+        } else {
+          await aprobacionesRrhhApi.updateDescuento(selectedItem.txId, {
+            estado: 'Aprobado',
+            comentarioAprobador: rrhhComment,
+            firmaBase64: currentStepFirma.imagenBase64
+          });
+        }
+      } else if (selectedItem.approvalType === 'Ingreso') {
         await candidatosApi.updateStatus(selectedItem._id, {
           approvalChain: newChain,
           status: allApproved ? 'Contratado' : selectedItem.status
@@ -445,7 +503,19 @@ const Aprobaciones360 = () => {
           : step
       );
 
-      if (selectedItem.approvalType === 'Ingreso') {
+      if (selectedItem.isTx) {
+        if (selectedItem.approvalType === 'Beneficio Salarial') {
+          await aprobacionesRrhhApi.updateBeneficio(selectedItem.txId, {
+            estado: 'Rechazado',
+            comentarioAprobador: rrhhComment
+          });
+        } else {
+          await aprobacionesRrhhApi.updateDescuento(selectedItem.txId, {
+            estado: 'Rechazado',
+            comentarioAprobador: rrhhComment
+          });
+        }
+      } else if (selectedItem.approvalType === 'Ingreso') {
         await candidatosApi.updateStatus(selectedItem._id, {
           approvalChain: newChain,
           status: 'Rechazado'
@@ -610,7 +680,7 @@ const Aprobaciones360 = () => {
           </div>
         </div>
 
-        {selectedItem.approvalType !== 'Ingreso' && selectedItem.details && (
+        {selectedItem.approvalType !== 'Ingreso' && selectedItem.details && !selectedItem.isTx && (
           <div className="bg-cyan-50 border border-cyan-100 rounded-2xl p-6 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-white rounded-xl text-cyan-600 shadow-sm"><Clock size={20} /></div>
@@ -624,6 +694,26 @@ const Aprobaciones360 = () => {
             <div className="text-right">
               <p className="text-[9px] font-black text-slate-400 uppercase">Días hábiles</p>
               <p className="text-2xl font-black text-slate-800">{selectedItem.details.diasHabiles}</p>
+            </div>
+          </div>
+        )}
+
+        {selectedItem.isTx && (
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white rounded-xl text-blue-600 shadow-sm"><FileText size={20} /></div>
+              <div>
+                <p className="text-[9px] font-black text-blue-600 uppercase mb-1">Detalle del Trámite</p>
+                <p className="font-black text-slate-800">
+                  {selectedItem.details.tipoBeneficioRef?.nombre || selectedItem.details.tipoDescuentoRef?.nombre} 
+                  ({selectedItem.details.tipoBeneficioRef?.codigoDT || selectedItem.details.tipoDescuentoRef?.codigoDT})
+                </p>
+                <p className="text-xs text-slate-500 mt-1">{selectedItem.details.nota || 'Sin observaciones de RRHH'}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] font-black text-slate-400 uppercase">Monto</p>
+              <p className="text-2xl font-black text-slate-800">${(selectedItem.details.monto || 0).toLocaleString('es-CL')}</p>
             </div>
           </div>
         )}

@@ -130,7 +130,6 @@ const empresaSchema = new mongoose.Schema({
             rrhh_vacaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_asistencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_turnos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-            rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_contratos_anexos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_finiquitos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -149,6 +148,7 @@ const empresaSchema = new mongoose.Schema({
 
             // 4. Flota & GPS
             flota_vehiculos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            flota_eficiencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_conecta_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_mis_conductores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },

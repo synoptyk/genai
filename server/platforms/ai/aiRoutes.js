@@ -243,34 +243,65 @@ function inferIntentLabel(message = '') {
   return bestScore > 0 ? bestLabel : 'general';
 }
 
-function cleanupChatMemory() {
-  const now = Date.now();
-  for (const [key, data] of CHAT_MEMORY.entries()) {
-    if (!data?.expiresAt || now > data.expiresAt) CHAT_MEMORY.delete(key);
+async function getSessionMemory(req, chatSessionId) {
+  if (!chatSessionId || !req.user) return [];
+  try {
+    const AiMemory = require('./models/AiMemory');
+    const memory = await AiMemory.findOne({
+      empresaRef: req.user.empresaRef,
+      userId: req.user._id,
+      chatSessionId
+    }).lean();
+    if (!memory) return [];
+    
+    // Map DB turns format to Gemini expected format
+    return memory.turns.map(t => {
+      const part = {};
+      if (t.content) part.text = t.content;
+      if (t.functionCall) part.functionCall = t.functionCall;
+      if (t.functionResponse) part.functionResponse = t.functionResponse;
+      return {
+        role: t.role === 'assistant' ? 'model' : (t.role === 'function' || t.role === 'tool' ? 'function' : 'user'),
+        parts: [part]
+      };
+    });
+  } catch (error) {
+    logger.error('Error fetching AiMemory', { error: error.message });
+    return [];
   }
 }
 
-function getSessionMemory(req, chatSessionId) {
-  cleanupChatMemory();
-  if (!chatSessionId) return [];
-  const key = `${String(req.user?.empresaRef || 'no-company')}:${String(req.user?._id || 'no-user')}:${chatSessionId}`;
-  const found = CHAT_MEMORY.get(key);
-  if (!found) return [];
-  found.expiresAt = Date.now() + CHAT_TTL_MS;
-  return Array.isArray(found.turns) ? found.turns : [];
-}
+async function appendSessionMemory(req, chatSessionId, newTurns) {
+  if (!chatSessionId || !req.user || !newTurns || newTurns.length === 0) return;
+  try {
+    const AiMemory = require('./models/AiMemory');
+    const turnsToAdd = newTurns.map(t => {
+      const part = t.parts?.[0] || {};
+      return {
+        role: t.role,
+        content: part.text || '',
+        name: part.functionCall?.name || part.functionResponse?.name,
+        functionCall: part.functionCall,
+        functionResponse: part.functionResponse,
+        timestamp: new Date()
+      };
+    });
 
-function appendSessionMemory(req, chatSessionId, message, answer) {
-  if (!chatSessionId) return;
-  const key = `${String(req.user?.empresaRef || 'no-company')}:${String(req.user?._id || 'no-user')}:${chatSessionId}`;
-  const current = CHAT_MEMORY.get(key) || { turns: [], expiresAt: Date.now() + CHAT_TTL_MS };
-  current.turns.push({ role: 'user', text: String(message || '').slice(0, 700) });
-  current.turns.push({ role: 'assistant', text: String(answer || '').slice(0, 1200) });
-  if (current.turns.length > CHAT_MAX_TURNS * 2) {
-    current.turns = current.turns.slice(-CHAT_MAX_TURNS * 2);
+    await AiMemory.findOneAndUpdate(
+      { 
+        empresaRef: req.user.empresaRef,
+        userId: req.user._id,
+        chatSessionId 
+      },
+      { 
+        $push: { turns: { $each: turnsToAdd } },
+        $set: { expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) } // 14 days
+      },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    logger.error('Error saving AiMemory', { error: error.message });
   }
-  current.expiresAt = Date.now() + CHAT_TTL_MS;
-  CHAT_MEMORY.set(key, current);
 }
 
 function isGreeting(text = '') {
@@ -292,10 +323,11 @@ function isGenAIDomainQuestion(text = '') {
     'administracion', 'sii', 'previred', 'dashboard', 'aprobaciones',
     'empresa360', 'facturacion', 'tesoreria', 'biometria', 'beneficios', 'lms', 'evaluaciones',
     'chat', 'video', 'comunicaciones',
-    'error', 'soporte', 'ayuda', 'configuracion', 'configuración'
+    'error', 'soporte', 'ayuda', 'configuracion', 'configuración',
+    'orden', 'rut', 'actividad', 'peticion', 'petición', 'inc', 'reparacion', 'reparación', 'reclamo', 'cliente'
   ];
 
-  return allowedHints.some((hint) => msg.includes(hint));
+  return allowedHints.some((hint) => msg.includes(hint)) || /\b(inc\d{5,}|\d{7,9}[-0-9kK])\b/i.test(msg);
 }
 
 function getRolePersona(user, contexto) {
@@ -722,47 +754,144 @@ router.post('/chat', protect, async (req, res) => {
     const fuentes = await rankManualsByQuery(mensajeLimpio, 3);
     const intentLabel = inferIntentLabel(mensajeLimpio);
     const chatSessionId = contexto?.chatSessionId || null;
-    const sessionTurns = getSessionMemory(req, chatSessionId);
+    const sessionTurns = await getSessionMemory(req, chatSessionId);
     const isFirstTurn = sessionTurns.length === 0;
     const persona = getRolePersona(req.user, contexto);
 
-    if (process.env.OPENAI_API_KEY) {
-      // ── Modo OpenAI ──────────────────────────────────────────────────────
-      const axios = require('axios');
+    // ── Tools definition (Function Calling for Gemini) ─────────────────────
+    const tools = [{
+      functionDeclarations: [
+        {
+          name: 'buscar_orden_mongodb',
+          description: 'Busca una orden de trabajo o actividad en MongoDB usando un RUT o un Número de Petición/INC.',
+          parameters: {
+            type: 'OBJECT',
+            properties: {
+              searchTerm: {
+                type: 'STRING',
+                description: 'El RUT del cliente o el Número de Petición (ej. INC000038780885)'
+              }
+            },
+            required: ['searchTerm']
+          }
+        }
+      ]
+    }];
+
+    if (process.env.GEMINI_API_KEY) {
+      // ── Modo Google Gemini (Ultra Inteligente con Tools) ───────────────────
+      const { GoogleGenAI } = require('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const personaStyle = PERSONA_SYSTEM_STYLE[persona] || PERSONA_SYSTEM_STYLE.colaborador;
+      
       const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform GENAI360. 
-Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención, y actuar como mesa de ayuda del ecosistema.
+Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención, y actuar como mesa de ayuda del ecosistema. Eres Ultra Inteligente: usas tus herramientas (tools) para buscar en la base de datos cuando se te pida analizar una orden o RUT.
 Responde siempre en español. ${personaStyle}
     Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
   ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}
-  ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}
-  ${sessionTurns.length > 0 ? `Historial temporal de la sesión actual (mantener continuidad): ${JSON.stringify(sessionTurns.slice(-8))}` : ''}`;
+  ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}`;
 
-      const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: mensajeLimpio },
-          ],
-          max_tokens: 800,
-          temperature: 0.4,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
+      let currentMessages = [
+        ...sessionTurns,
+        { role: 'user', parts: [{ text: mensajeLimpio }] }
+      ];
+
+      // First AI Request
+      let response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: currentMessages,
+        config: {
+          systemInstruction: systemPrompt,
+          tools: tools,
+          temperature: 0.4
         }
-      );
+      });
 
-      const raw = response.data.choices?.[0]?.message?.content || 'Sin respuesta del modelo.';
+      // Handle Tool Calls (Autonomous DB Search)
+      if (response.functionCalls && response.functionCalls.length > 0) {
+        // Add model's tool call to history
+        currentMessages.push({
+          role: 'model',
+          parts: response.functionCalls.map(fc => ({ functionCall: fc }))
+        });
+        
+        let toolResponsesParts = [];
+        
+        for (const toolCall of response.functionCalls) {
+          if (toolCall.name === 'buscar_orden_mongodb') {
+            const args = toolCall.args;
+            let toolResult = '';
+            try {
+              const mongoose = require('mongoose');
+              let ActividadModel;
+              try { ActividadModel = mongoose.model('Actividad'); } catch (e) { ActividadModel = require('../agentetelecom/models/Actividad'); }
+              const searchTerm = String(args.searchTerm || '').toUpperCase();
+              const cleanTerm = searchTerm.replace('-', '');
+              const query = {
+                $or: [
+                  { RUT_DEL_CLIENTE: new RegExp(searchTerm, 'i') },
+                  { RUT_DEL_CLIENTE: new RegExp(cleanTerm, 'i') },
+                  { NUMERO_DE_PETICION: new RegExp(searchTerm, 'i') },
+                  { ORDENID: new RegExp(searchTerm, 'i') },
+                  { ordenId: new RegExp(searchTerm, 'i') },
+                  { 'Número de Petición': new RegExp(searchTerm, 'i') },
+                  { 'Numero orden': new RegExp(searchTerm, 'i') },
+                  { 'RUT del cliente': new RegExp(searchTerm, 'i') },
+                  { 'RUT del cliente': new RegExp(cleanTerm, 'i') }
+                ]
+              };
+              const orderResults = await ActividadModel.find(query).sort({ fecha: -1 }).limit(5).lean();
+              if (orderResults.length > 0) {
+                toolResult = orderResults.map(o => ({
+                  fecha: o.fecha, peticion: o.NUMERO_DE_PETICION, rut: o.RUT_DEL_CLIENTE,
+                  tecnico: o.nombreTecnico || o.idRecursoToa, estado: o.ESTADO_DE_LA_ACTIVIDAD,
+                  tipo_trabajo: o.TIPO_DE_TRABAJO, observaciones: o.OBSERVACIONES_DE_LA_ORDEN
+                }));
+              } else {
+                toolResult = { message: `No se encontraron resultados para la búsqueda "${searchTerm}".` };
+              }
+            } catch (err) {
+              toolResult = { error: `Error al buscar en base de datos operativa: ${err.message}` };
+            }
+            
+            toolResponsesParts.push({
+              functionResponse: {
+                name: toolCall.name,
+                response: { result: toolResult }
+              }
+            });
+          }
+        }
+
+        // Push function responses to history
+        currentMessages.push({
+          role: 'function',
+          parts: toolResponsesParts
+        });
+
+        // Second Request after tool results
+        response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: currentMessages,
+          config: {
+            systemInstruction: systemPrompt,
+            tools: tools,
+            temperature: 0.4
+          }
+        });
+      }
+
+      const raw = response.text || 'Sin respuesta del modelo.';
       const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
       const respuesta = humanizeResponse({ user: req.user, answer: raw, isFirstTurn, persona });
-      appendSessionMemory(req, chatSessionId, mensajeLimpio, respuesta);
-      return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage, intentLabel, fuentes: payloadSources, sessionMemory: { ttlMs: CHAT_TTL_MS } });
+      
+      const newTurns = [
+        { role: 'user', parts: [{ text: mensajeLimpio }] },
+        { role: 'model', parts: [{ text: respuesta }] }
+      ];
+      await appendSessionMemory(req, chatSessionId, newTurns);
+
+      return res.json({ ok: true, modo: 'gemini', respuesta, tokens: response.usageMetadata || {}, intentLabel, fuentes: payloadSources });
     } else {
       // ── Modo análisis local (sin API key) ────────────────────────────────
       const lower = mensajeLimpio.toLowerCase();
@@ -770,7 +899,10 @@ Responde siempre en español. ${personaStyle}
 
       const respuestaManual = buildManualGuidedLocalAnswer(mensajeLimpio, liveCtx, fuentes);
 
-      if (lower.includes('produccion') || lower.includes('producción') || lower.includes('actividad')) {
+      if (dbContext && dbContext.includes('Base de datos operativa (Búsqueda')) {
+        // Formatear resultados DB para modo local
+        respuesta = `**Resultados de Búsqueda de Órdenes:**\n${dbContext}\n\n*Nota: Para un análisis más natural de esta información, asegúrate de activar la llave de Inteligencia Artificial (OpenAI).*`;
+      } else if (lower.includes('produccion') || lower.includes('producción') || lower.includes('actividad')) {
         respuesta = `Producción en vivo (30 días): ${liveCtx.totalActividades30d} actividades, ${liveCtx.totalPuntos30d} puntos, promedio ${liveCtx.promedioActividadesDia30d} actividades/día. Revisa Insights de Producción para tendencia y proyección.`;
       } else if (lower.includes('rrhh') || lower.includes('personal') || lower.includes('dotacion') || lower.includes('asistencia') || intentLabel === 'rrhh_operacion') {
         respuesta = `RRHH en vivo: dotación ${liveCtx.totalPersonal} personas y asistencia 7d ${liveCtx.tasaAsistencia7d ?? 'N/D'}%. ${liveCtx.tasaAsistencia7d !== null && liveCtx.tasaAsistencia7d < 80 ? 'Alerta: asistencia bajo 80%.' : 'Sin alerta crítica de asistencia.'}`;
@@ -800,9 +932,9 @@ Responde siempre en español. ${personaStyle}
       return res.json({ ok: true, modo: 'local', respuesta: finalRespuesta, intentLabel, contextoVivo: liveCtx, fuentes: payloadSources, sessionMemory: { ttlMs: CHAT_TTL_MS } });
     }
   } catch (err) {
-    logger.error('AI chat error', { error: err.message });
-    // No exponer detalles de error interno al cliente
-    res.status(500).json({ ok: false, message: 'Error al procesar la consulta al asistente de IA.' });
+    logger.error('AI chat error', { error: err.message, stack: err.stack });
+    // Expose error details temporarily for debugging
+    res.status(500).json({ ok: false, message: 'Error al procesar la consulta.', err_msg: err.message, stack: err.stack });
   }
 });
 

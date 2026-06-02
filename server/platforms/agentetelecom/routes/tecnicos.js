@@ -153,13 +153,10 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
 
     const empresaRef = req.user.empresaRef;
-    const baseFilter = { empresaRef, status: 'Contratado' };
+    const baseFilter = { empresaRef };
 
-    const candidatos = await Candidato.find({
-      ...baseFilter,
-      position: { $regex: /(tecnico|t[eé]cnico|operativo|instalador|mantenedor)/i }
-    })
-      .select('fullName rut position email phone area departamento ceco sede projectId projectName idRecursoToa')
+    const candidatos = await Candidato.find(baseFilter)
+      .select('fullName rut position email phone area departamento ceco sede projectId projectName idRecursoToa status clienteNombre')
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -304,25 +301,24 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
     }
 
     const tecnicosFilter = { empresaRef, rut: { $in: ruts } };
-    if (isSupervisor && !isHighLevel) {
-      tecnicosFilter.$or = [
-        { supervisorId: req.user._id },
-        { rut: cleanRut(req.user.rut || '') }
-      ];
-    }
 
     const responsables = await Tecnico.find(tecnicosFilter)
       .select('_id rut nombres apellidos nombre cargo idRecursoToa area proyecto mandantePrincipal region telefono email usuarioToa ceco sede supervisorId patente')
       .sort({ nombre: 1, nombres: 1, apellidos: 1 })
       .lean();
 
+    const candMap = new Map(candidatos.map(c => [cleanRut(c.rut), c]));
+
     const salida = responsables.map(t => {
       const nombre = (t.nombre && String(t.nombre).trim()) || `${t.nombres || ''} ${t.apellidos || ''}`.trim() || 'Sin Nombre';
+      const cRut = cleanRut(t.rut || '');
+      const cand = candMap.get(cRut);
+      
       return {
         _id: t._id,
         nombre,
         rut: formatRutWithDash(t.rut || ''),
-        rutRaw: cleanRut(t.rut || ''),
+        rutRaw: cRut,
         cargo: t.cargo || 'Tecnico',
         idRecursoToa: t.idRecursoToa || '',
         area: t.area || '',
@@ -335,7 +331,9 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
         ceco: t.ceco || '',
         sede: t.sede || '',
         supervisorId: t.supervisorId || null,
-        patente: t.patente || ''
+        patente: t.patente || '',
+        estadoCaptura: cand ? (cand.status || 'Desconocido') : 'Supervisor',
+        cliente: cand ? (cand.clienteNombre || cand.projectName || t.mandantePrincipal || 'Sin Cliente') : (t.mandantePrincipal || 'Interno')
       };
     });
 
@@ -1154,6 +1152,7 @@ router.post('/produccion/apelacion', protect, async (req, res) => {
             ...(puntosBase !== undefined && puntosBase !== null && puntosBase !== "" ? { puntosBase: parseFloat(puntosBase) } : {}),
             observacion,
             motivo: motivo || '',
+            ...(req.body.evidenciaUrl ? { evidenciaUrl: req.body.evidenciaUrl } : {}),
             fechaSolicitud: new Date(),
             status: 'por_validar'
           }
@@ -1346,11 +1345,27 @@ router.post('/produccion/apelacion/:actividadId/resolver', protect, async (req, 
     };
 
     if (status === 'aprobada') {
-      const decosVal = parseInt(act.apelacion?.equipos?.decos || 0);
-      const repetidoresVal = parseInt(act.apelacion?.equipos?.repetidores || 0);
-      const telefonosVal = parseInt(act.apelacion?.equipos?.telefonos || 0);
-      const codigoLpuVal = act.apelacion?.codigoLpu || '';
-      const puntosBaseVal = parseFloat(act.apelacion?.puntosBase) || 0;
+      const decosVal = parseInt(req.body.overrideEquipos?.decos ?? act.apelacion?.equipos?.decos ?? 0);
+      const repetidoresVal = parseInt(req.body.overrideEquipos?.repetidores ?? act.apelacion?.equipos?.repetidores ?? 0);
+      const telefonosVal = parseInt(req.body.overrideEquipos?.telefonos ?? act.apelacion?.equipos?.telefonos ?? 0);
+      const codigoLpuVal = req.body.overrideLpu ?? act.apelacion?.codigoLpu ?? '';
+      const puntosBaseVal = parseFloat(req.body.overridePuntosBase ?? act.apelacion?.puntosBase ?? 0);
+
+      // Actualizar los valores en apelacion para mantener historia si los cambia el admin
+      if (req.body.overrideEquipos) {
+        updateFields['apelacion.equipos.decos'] = req.body.overrideEquipos.decos;
+        updateFields['apelacion.equipos.repetidores'] = req.body.overrideEquipos.repetidores;
+        updateFields['apelacion.equipos.telefonos'] = req.body.overrideEquipos.telefonos;
+      }
+      if (req.body.overrideLpu) {
+        updateFields['apelacion.codigoLpu'] = req.body.overrideLpu;
+      }
+      if (req.body.overridePuntosBase) {
+        updateFields['apelacion.puntosBase'] = req.body.overridePuntosBase;
+      }
+      if (req.body.evidenciaUrl) {
+        updateFields['apelacion.evidenciaSupervisorUrl'] = req.body.evidenciaUrl;
+      }
 
       // Actualizar equipos adicionales en el documento
       updateFields.Decos_Adicionales = String(decosVal);

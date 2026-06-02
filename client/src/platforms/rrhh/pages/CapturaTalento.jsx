@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import {
@@ -238,6 +238,8 @@ const CapturaTalento = () => {
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const [toast, setToast] = useState(null);
     const [actionMenu, setActionMenu] = useState(null); // { x, y, statusId, clientTitle, type }
+    const [isAiLoading, setIsAiLoading] = useState(false);
+    const cvInputRef = useRef(null);
     const [showCoverageModal, setShowCoverageModal] = useState(false);
     const [coverageData, setCoverageData] = useState(null);
     const [coverageMode, setCoverageMode] = useState('cargo'); // 'cargo' or 'project'
@@ -627,6 +629,40 @@ const CapturaTalento = () => {
             fetchCandidatos();
         } catch (err) { alert("Error al guardar"); }
         finally { setSaving(false); }
+    };
+
+    const handleParseCV = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        try {
+            setIsAiLoading(true);
+            showToast("✨ Analizando CV con Inteligencia Artificial...", "info");
+            
+            const formData = new FormData();
+            formData.append('cvFile', file);
+            
+            const response = await candidatosApi.parseCV(formData);
+            const aiData = response.data.parsedData;
+            
+            if (aiData) {
+                setForm(prev => ({
+                    ...prev,
+                    fullName: `${aiData.nombres || ''} ${aiData.apellidos || ''}`.trim() || prev.fullName,
+                    rut: aiData.rut ? formatRut(aiData.rut) : prev.rut,
+                    phone: aiData.telefono || prev.phone,
+                    email: aiData.email || prev.email,
+                    position: aiData.cargo_sugerido || prev.position
+                }));
+                showToast("✅ CV Autocompletado con éxito");
+            }
+        } catch (error) {
+            console.error("Error AI CV:", error);
+            showToast("❌ Error al extraer datos del CV", "error");
+        } finally {
+            setIsAiLoading(false);
+            if (cvInputRef.current) cvInputRef.current.value = ''; // Reset input
+        }
     };
 
     const getOriginalStatus = (abb) => {
@@ -1755,6 +1791,24 @@ const CapturaTalento = () => {
                             <Shield size={12} className="text-emerald-500" /> Registro seguro y validado en sistema central
                         </p>
                     </div>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                    <input 
+                        type="file" 
+                        ref={cvInputRef} 
+                        onChange={handleParseCV} 
+                        className="hidden" 
+                        accept=".pdf,.doc,.docx,image/*" 
+                    />
+                    <button 
+                        onClick={() => cvInputRef.current?.click()}
+                        disabled={isAiLoading}
+                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
+                    >
+                        {isAiLoading ? <Loader2 className="animate-spin" size={16} /> : <Star size={16} className="text-yellow-300 fill-yellow-300" />}
+                        {isAiLoading ? 'Analizando...' : 'Autocompletar CV'}
+                    </button>
                 </div>
                 
                 {/* Tabs Flotantes */}

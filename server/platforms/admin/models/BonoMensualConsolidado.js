@@ -8,6 +8,7 @@ const BonoMensualConsolidadoSchema = new mongoose.Schema({
   status: { type: String, enum: ['ABIERTO', 'CERRADO', 'BORRADOR'], default: 'CERRADO' },
   calculos: [{
     tecnicoId: { type: String }, // idRecursoToa or MongoId
+    rut: { type: String },
     nombre: { type: String },
     puntos: { type: Number },
     multiplier: { type: Number },

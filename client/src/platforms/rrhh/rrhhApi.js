@@ -80,6 +80,40 @@ export const candidatosApi = {
     bulkCreate: (candidatos) => rrhhApi.post('/candidatos/bulk', { candidatos }),
     remove: (id) => rrhhApi.delete(`/candidatos/${id}`),
     syncBase: () => rrhhApi.post('/candidatos/sincronizar-base'),
+    parseCV: (formData) => rrhhApi.post('/candidatos-ai/parse-cv', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+};
+
+export const liquidacionesApi = {
+    getAll: () => rrhhApi.get('/nomina'),
+    generar: (data) => rrhhApi.post('/nomina/generar', data),
+    getOne: (id) => rrhhApi.get(`/nomina/${id}`),
+    update: (id, data) => rrhhApi.put(`/nomina/${id}`, data),
+    delete: (id) => rrhhApi.delete(`/nomina/${id}`),
+    preview: (data) => rrhhApi.post('/nomina/preview', data)
+};
+
+export const descuentosApi = {
+    getTipos: () => rrhhApi.get('/descuentos/tipos'),
+    createTipo: (data) => rrhhApi.post('/descuentos/tipos', data),
+    updateTipo: (id, data) => rrhhApi.put(`/descuentos/tipos/${id}`, data),
+    getTransacciones: (periodo) => rrhhApi.get(`/descuentos/transacciones/${periodo}`),
+    saveTransacciones: (candidatoId, periodo, data) => rrhhApi.post(`/descuentos/transacciones/${candidatoId}/${periodo}`, data),
+    uploadExcel: (periodo, data) => rrhhApi.post(`/descuentos/upload/${periodo}`, data)
+};
+
+export const beneficiosApi = {
+    getTipos: () => rrhhApi.get('/beneficios/tipos'),
+    createTipo: (data) => rrhhApi.post('/beneficios/tipos', data),
+    updateTipo: (id, data) => rrhhApi.put(`/beneficios/tipos/${id}`, data),
+    getTransacciones: (periodo) => rrhhApi.get(`/beneficios/transacciones/${periodo}`),
+    saveTransacciones: (candidatoId, periodo, data) => rrhhApi.post(`/beneficios/transacciones/${candidatoId}/${periodo}`, data),
+    uploadExcel: (periodo, data) => rrhhApi.post(`/beneficios/upload/${periodo}`, data)
+};
+
+export const aprobacionesRrhhApi = {
+    getPendientes: () => rrhhApi.get('/aprobaciones/pendientes'),
+    updateBeneficio: (id, data) => rrhhApi.put(`/aprobaciones/beneficios/${id}/estado`, data),
+    updateDescuento: (id, data) => rrhhApi.put(`/aprobaciones/descuentos/${id}/estado`, data),
 };
 
 export const proyectosApi = {
@@ -122,6 +156,13 @@ export const plantillasApi = {
     create: (data) => rrhhApi.post('/plantillas', data),
     update: (id, data) => rrhhApi.put(`/plantillas/${id}`, data),
     remove: (id) => rrhhApi.delete(`/plantillas/${id}`),
+};
+
+export const notificacionesApi = {
+    getAll: () => rrhhApi.get('/notificaciones'),
+    markAsRead: (id) => rrhhApi.put(`/notificaciones/${id}/read`),
+    firmar: (id, data) => rrhhApi.post(`/notificaciones/${id}/firmar`, data),
+    rechazar: (id, data) => rrhhApi.post(`/notificaciones/${id}/rechazar`, data)
 };
 
 export const nominaApi = {
@@ -198,4 +239,6 @@ export const bonosConfigApi = {
 };
 export const bonificadoresApi = bonosConfigApi;
 
-
+export const modelosBonificacionApi = {
+    getAll: () => genApi.get('/admin/bonos'),
+};

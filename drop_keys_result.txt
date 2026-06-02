@@ -1,0 +1,2 @@
+◇ injected env (21) from server/.env // tip: ⌘ suppress logs { quiet: true }
+No activity found with DROP property in actividades_mayo.

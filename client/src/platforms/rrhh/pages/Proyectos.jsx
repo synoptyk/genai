@@ -6,7 +6,7 @@ import {
     BarChart3, Search, UserPlus, Clock, UserCheck, UserX,
     RefreshCw, Target, Briefcase, FileText, Waypoints, Activity, DollarSign
 } from 'lucide-react';
-import { proyectosApi, configApi, adminApi, bonosConfigApi } from '../rrhhApi';
+import { proyectosApi, configApi, adminApi, bonosConfigApi, modelosBonificacionApi } from '../rrhhApi';
 import SearchableSelect from '../../../components/SearchableSelect';
 import MultiSearchableSelect from '../../../components/MultiSearchableSelect';
 
@@ -36,54 +36,8 @@ const pct = (cubiertos, total) => total > 0 ? Math.round((cubiertos / total) * 1
 const totalRequerido = (dotacion) => dotacion.reduce((a, d) => a + (d.cantidad || 0), 0);
 const totalCubierto = (dotacion) => dotacion.reduce((a, d) => a + (d.cubiertos || 0), 0);
 
-const TIPOS_BONOS = [
-    // 1. REMUNERACIÓN BASE (CONCEPTOS 1010/1020)
-    { type: 'Sueldo Base',                       codigoDT: '1010', isImponible: true,  category: 'BASE',                     description: 'Imponible. Remuneración fija mensual pactada.' },
-    { type: 'Sobresueldo (Horas Extra)',          codigoDT: '1020', isImponible: true,  category: 'BASE',                     description: 'Imponible. Pago de jornada extraordinaria.' },
-    
-    // 2. GRATIFICACIONES (CONCEPTO 1050)
-    { type: 'Gratificación Legal (Mensual)',     codigoDT: '1050', isImponible: true,  category: 'GRATIFICACIÓN',            description: 'Imponible. Adelanto mensual del 25% con tope legal.' },
-    { type: 'Gratificación Legal (Anual)',       codigoDT: '1050', isImponible: true,  category: 'GRATIFICACIÓN',            description: 'Imponible. Pago anual de utilidades según Art. 47.' },
+// Constante legada TIPOS_BONOS removida por la centralización de Modelos de Bonificación
 
-    // 3. COMISIONES Y PRODUCCIÓN (CONCEPTO 1030)
-    { type: 'Comisiones y Ventas',                  codigoDT: '1030', isImponible: true,  category: 'VARIABLE',                 description: 'Imponible. Porcentaje sobre volumen de ventas.' },
-    { type: 'Bono de Metas / Productividad',    codigoDT: '1030', isImponible: true,  category: 'VARIABLE',                 description: 'Imponible. Por cumplimiento de objetivos de producción.' },
-    { type: 'Modelo Estándar Operativo',            codigoDT: '1030', isImponible: true,  category: 'VARIABLE',                 description: 'Imponible. Basado en rendimiento operativo estándar.' },
-    { type: 'Bono de Cobertura / Ruta',          codigoDT: '1030', isImponible: true,  category: 'VARIABLE',                 description: 'Imponible. Por cumplimiento de cobertura de zona.' },
-
-    // 4. BONOS IMPONIBLES (CONCEPTO 1040)
-    { type: 'Bono de Responsabilidad / Cargo',      codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por ejercicio de cargo o funciones.' },
-    { type: 'Bono de Supervisión / Jefat.',     codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por supervisión de equipos.' },
-    { type: 'Bono de Título / Académico',        codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por grado profesional o técnico.' },
-    { type: 'Bono de Antigüedad',                  codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por permanencia en la empresa.' },
-    { type: 'Bono por Turno / Nocturnidad',        codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Trabajo nocturno o festivo.' },
-    { type: 'Bono por Disponibilidad / Retén',  codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por disponibilidad fuera de jornada.' },
-    { type: 'Bono por Estancia / Campam.',      codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Trabajo en condiciones de campamento.' },
-    { type: 'Bono de Zona / Ubicación',          codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por trabajo en zona geográfica extrema.' },
-    { type: 'Bono de Bilingüismo',                 codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por uso de segundo idioma.' },
-    { type: 'Aguinaldo Fiestas Patrias',           codigoDT: '1040', isImponible: true,  category: 'AGUINALDOS',               description: 'Imponible. Pago único por festividades nacionales.' },
-    { type: 'Aguinaldo Navidad',                   codigoDT: '1040', isImponible: true,  category: 'AGUINALDOS',               description: 'Imponible. Pago único por festividad navideña.' },
-    { type: 'Bono de Vacaciones',                   codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Incentivo por uso de feriado legal.' },
-    { type: 'Bono de Desempeño / KPI',           codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por cumplimiento de indicadores de gestión.' },
-    { type: 'Bono de Calidad / Auditoría',          codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Por resultados en auditorías externas/internas.' },
-    { type: 'Bonificación Especial',               codigoDT: '1040', isImponible: true,  category: 'IMPONIBLE',                description: 'Imponible. Otros pagos imponibles no clasificados.' },
-    
-    // 5. BONOS DE ASISTENCIA (CONCEPTO 1041)
-    { type: 'Bono de Asistencia Plena',            codigoDT: '1041', isImponible: true,  category: 'ASISTENCIA',               description: 'Imponible. Por cumplimiento del 100% de asistencia.' },
-    { type: 'Bono de Puntualidad',                 codigoDT: '1041', isImponible: true,  category: 'ASISTENCIA',               description: 'Imponible. Por cumplimiento estricto de horarios.' },
-
-    // 6. ASIGNACIONES NO IMPONIBLES (CONCEPTO 20xx)
-    { type: 'Asignación de Colación',            codigoDT: '2030', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Compensación por gastos de alimentación.' },
-    { type: 'Asignación de Movilización',        codigoDT: '2020', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Compensación por gastos de traslado.' },
-    { type: 'Viático / Terreno',                 codigoDT: '2010', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Por gastos de alojamiento y terreno.' },
-    { type: 'Asignación de Caja',                 codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Para cubrir pérdida pecuniaria (cajeros).' },
-    { type: 'Asignación Familiar (Legal)',         codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Cargas legales según tramos del IPS/CCAF.' },
-    { type: 'Asignación de Teletrabajo / Conect.', codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Gastos de internet y electricidad en casa.' },
-    { type: 'Asignación de Herramientas',         codigoDT: '2040', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Por uso de herramientas propias.' },
-    { type: 'Asignación de Desgaste (EPP)',        codigoDT: '2040', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Por desgaste de ropa de trabajo propia.' },
-    { type: 'Bono Sala Cuna (Compensatorio)',    codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Compensación legal por falta de sala cuna.' },
-    { type: 'Bono Escolaridad',                    codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLE',           description: 'No Imponible. Ayuda para estudios de hijos.' },
-];
 
 // ── COMPONENT ──────────────────────────────────────────────────────────────────
 const Proyectos = () => {
@@ -110,7 +64,7 @@ const Proyectos = () => {
         try {
             const [projRes, bonosRes] = await Promise.all([
                 proyectosApi.getAll(),
-                bonosConfigApi.getAll().catch(() => ({ data: [] }))
+                modelosBonificacionApi.getAll().catch(() => ({ data: [] }))
             ]);
             setProyectos(projRes.data);
             setBonosMaster(bonosRes.data || []);
@@ -170,8 +124,16 @@ const Proyectos = () => {
         setModal('create');
     };
 
-    const openEdit = (p) => {
+    const openEdit = useCallback((p) => {
         setSelected(p);
+        // Normalizar dotacion: si bonoRef viene populado (objeto), extraer solo su _id
+        const dotacionNormalizada = (p.dotacion || []).map(d => ({
+            ...d,
+            bonos: (d.bonos || []).map(b => ({
+                ...b,
+                bonoRef: b.bonoRef?._id || b.bonoRef || null
+            }))
+        }));
         setForm({
             centroCosto: p.centroCosto || '',
             nombreProyecto: p.nombreProyecto || p.projectName || '',
@@ -183,10 +145,25 @@ const Proyectos = () => {
             fechaInicio: p.fechaInicio ? p.fechaInicio.substring(0, 10) : '',
             fechaFin: p.fechaFin ? p.fechaFin.substring(0, 10) : '',
             notes: p.notes || '',
-            dotacion: p.dotacion ? [...p.dotacion] : []
+            dotacion: dotacionNormalizada
         });
         setModal('edit');
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!loading && proyectos.length > 0) {
+            const params = new URLSearchParams(window.location.search);
+            const projectId = params.get('editProyecto');
+            if (projectId) {
+                const proj = proyectos.find(p => p._id === projectId);
+                if (proj) {
+                    openEdit(proj);
+                    // Clear the query parameter from URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }
+        }
+    }, [loading, proyectos, openEdit]);
 
     const handleSave = async () => {
         if (!form.centroCosto || !form.nombreProyecto) {
@@ -281,7 +258,7 @@ const Proyectos = () => {
             ...f,
             dotacion: f.dotacion.map((d, i) => i === idx ? ({
                 ...d,
-                bonos: [...(d.bonos || []), { bonoRef: '', monto: 0, modality: 'Fijo', description: '' }]
+                bonos: [...(d.bonos || []), { bonoRef: '', description: '' }]
             }) : d)
         }));
     };
@@ -889,7 +866,7 @@ const Proyectos = () => {
                                                     {d.bonos && d.bonos.length > 0 && (
                                                         <div className="mt-10 space-y-5">
                                                             {d.bonos.map((b, bidx) => (
-                                                                <div key={bidx} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm hover:border-indigo-200 transition-all animate-in slide-in-from-top-4 duration-300 relative overflow-hidden group/bonus">
+                                                                <div key={bidx} className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm hover:border-indigo-200 transition-all animate-in slide-in-from-top-4 duration-300 relative group/bonus">
                                                                     <div className="absolute top-0 right-0 p-4 opacity-0 group-hover/bonus:opacity-100 transition-opacity z-10">
                                                                         <button onClick={() => removeDotacionBonus(idx, bidx)}
                                                                             className="h-10 w-10 flex items-center justify-center bg-rose-50 text-rose-400 border border-rose-100 rounded-xl hover:bg-rose-500 hover:text-white transition-all duration-300 shadow-sm active:scale-90">
@@ -898,142 +875,101 @@ const Proyectos = () => {
                                                                     </div>
 
                                                                     <div className="grid grid-cols-12 gap-8 items-start">
-                                                                        <div className="col-span-12 lg:col-span-4">
+                                                                        <div className="col-span-12 lg:col-span-6">
                                                                             <SearchableSelect
                                                                                 label="Concepto de Pago"
                                                                                 options={[
-                                                                                    { label: 'BONIFICADORES CONFIGURADOS (MAESTRO)', header: true },
-                                                                                    ...bonosMaster.map(bm => ({
-                                                                                        label: `${bm.nombre} [${bm.payroll?.codigoDT || '1040'}]`,
-                                                                                        value: bm._id,
-                                                                                        description: bm.description || bm.payroll?.observacionDT || 'Cálculo automatizado'
-                                                                                    })),
-                                                                                    { label: 'BONOS Y ASIGNACIONES LEGALES (LEGACY)', header: true },
-                                                                                    ...TIPOS_BONOS.map(tb => ({ 
-                                                                                        label: `${tb.type} [${tb.codigoDT}]`, 
-                                                                                        value: tb.type,
-                                                                                        description: tb.description 
-                                                                                    })),
-                                                                                    { label: 'OPCIONES PERSONALIZADAS', header: true },
-                                                                                    { label: '[+] CREAR BONO NO REGISTRADO', value: 'CUSTOM', description: 'Define un nombre propio y vincúlalo a la ley DT.' }
+                                                                                    { label: 'MODELOS DE BONIFICACIÓN', header: true },
+                                                                                    ...bonosMaster.map(bm => {
+                                                                                        const isFijo = bm.tipo === 'BONO_FIJO';
+                                                                                        const montoText = isFijo && bm.bonoFijo?.monto ? ` ($${Number(bm.bonoFijo.monto).toLocaleString('es-CL')})` : ' (Variable)';
+                                                                                        const isImponible = bm.tipoBonoRef?.tipo !== 'NO_IMPONIBLE';
+                                                                                        return {
+                                                                                            label: `${bm.nombre}${montoText} [${bm.tipoBonoRef?.codigoDT || '0000'}]`,
+                                                                                            value: bm._id,
+                                                                                            description: isImponible ? '🔴 Imponible' : '🟢 No Imponible'
+                                                                                        };
+                                                                                    })
                                                                                 ]}
                                                                                 value={b.bonoRef}
-                                                                                onChange={val => {
-                                                                                    const master = bonosMaster.find(bm => bm._id === val);
-                                                                                    const legacy = TIPOS_BONOS.find(tb => tb.type === val);
-                                                                                    updateDotacionBonus(idx, bidx, 'bonoRef', val);
-                                                                                    
-                                                                                    if (val === 'CUSTOM') {
-                                                                                        updateDotacionBonus(idx, bidx, 'isCustom', true);
-                                                                                        updateDotacionBonus(idx, bidx, 'modality', 'Fijo');
-                                                                                    } else {
-                                                                                        updateDotacionBonus(idx, bidx, 'isCustom', false);
-                                                                                        if (master) {
-                                                                                            updateDotacionBonus(idx, bidx, 'modality', master.strategy || 'Fijo');
-                                                                                            updateDotacionBonus(idx, bidx, 'monto', master.config?.monto || 0);
-                                                                                        } else if (legacy) {
-                                                                                            updateDotacionBonus(idx, bidx, 'modality', legacy.isImponible ? 'Variable' : 'Fijo');
-                                                                                        }
-                                                                                    }
-                                                                                }}
+                                                                                onChange={val => updateDotacionBonus(idx, bidx, 'bonoRef', val)}
                                                                                 placeholder="— SELECCIONAR CONCEPTO —"
                                                                                 className="!bg-white"
                                                                                 icon={DollarSign}
                                                                             />
                                                                         </div>
 
-                                                                        {b.bonoRef === 'CUSTOM' ? (
-                                                                            <div className="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-indigo-50/30 p-6 rounded-[2rem] border border-indigo-100/50 shadow-inner">
-                                                                                <div className="space-y-2">
-                                                                                    <label className="block text-[8px] font-black text-indigo-600 uppercase tracking-widest pl-1">Nombre que verá el trabajador</label>
-                                                                                    <input type="text" value={b.customName || ''}
-                                                                                        onChange={e => updateDotacionBonus(idx, bidx, 'customName', e.target.value)}
-                                                                                        className="w-full h-12 px-6 bg-white border-2 border-indigo-100 rounded-2xl text-sm font-black text-indigo-700 focus:outline-none focus:border-indigo-400 transition-all shadow-sm"
-                                                                                        placeholder="Ej: Bono de Excelencia Pro..." />
-                                                                                </div>
-                                                                                <div className="space-y-2">
-                                                                                    <SearchableSelect
-                                                                                        label="Vincular a Ley Salarial (DT)"
-                                                                                        options={TIPOS_BONOS.map(tb => ({ 
-                                                                                            label: `${tb.type} [${tb.codigoDT}]`, 
-                                                                                            value: tb.type,
-                                                                                            description: `Se procesará como concepto ${tb.codigoDT}` 
-                                                                                        }))}
-                                                                                        value={b.dtMapping}
-                                                                                        onChange={val => updateDotacionBonus(idx, bidx, 'dtMapping', val)}
-                                                                                        placeholder="— VINCULAR A LEY —"
-                                                                                    />
-                                                                                </div>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <>
-                                                                                <div className="col-span-6 lg:col-span-2">
-                                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase mb-2 px-1 tracking-widest">Modalidad</label>
-                                                                                    <select value={b.modality} onChange={e => updateDotacionBonus(idx, bidx, 'modality', e.target.value)} 
-                                                                                        className="w-full h-12 px-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-black uppercase text-indigo-700 focus:outline-none focus:border-indigo-400 transition-all cursor-pointer shadow-inner">
-                                                                                        <option value="Fijo">Fijo</option>
-                                                                                        <option value="Variable">Variable</option>
-                                                                                    </select>
-                                                                                </div>
-                                                                                
-                                                                                <div className="col-span-6 lg:col-span-2">
-                                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase mb-2 px-1 tracking-widest">Monto Base</label>
-                                                                                    <div className="relative">
-                                                                                        <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                                                        <input type="number" min={0} value={b.monto || 0}
-                                                                                            onChange={e => updateDotacionBonus(idx, bidx, 'monto', e.target.value)}
-                                                                                            className="w-full h-12 pl-10 pr-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-black text-slate-900 focus:outline-none focus:border-indigo-400 transition-all shadow-inner"
-                                                                                            placeholder="0" />
-                                                                                    </div>
-                                                                                </div>
-                                                                                
-                                                                                <div className="col-span-12 lg:col-span-4">
-                                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase mb-2 px-1 tracking-widest">Nota Administrativa</label>
-                                                                                    <input type="text" value={b.description || ''}
-                                                                                        onChange={e => updateDotacionBonus(idx, bidx, 'description', e.target.value)}
-                                                                                        className="w-full h-12 px-5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-bold text-slate-600 focus:outline-none focus:border-indigo-400 transition-all shadow-inner placeholder:italic"
-                                                                                        placeholder="Eje: Meta trimestral..." />
-                                                                                </div>
-                                                                            </>
-                                                                        )}
+                                                                        <div className="col-span-12 lg:col-span-6">
+                                                                            <label className="block text-[8px] font-black text-slate-400 uppercase mb-2 px-1 tracking-widest">Nota Administrativa</label>
+                                                                            <input type="text" value={b.description || ''}
+                                                                                onChange={e => updateDotacionBonus(idx, bidx, 'description', e.target.value)}
+                                                                                className="w-full h-12 px-5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-bold text-slate-600 focus:outline-none focus:border-indigo-400 transition-all shadow-inner placeholder:italic"
+                                                                                placeholder="Eje: Meta trimestral..." />
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     )}
                                                     {/* Resumen Inteligente de Remuneraciones del Cargo */}
-                                                    {(d.sueldoBaseLiquido > 0 || (d.bonos && d.bonos.length > 0)) && (
-                                                        <div className="mt-8 flex flex-wrap gap-4 p-6 bg-slate-900 rounded-[2rem] border border-slate-800 shadow-2xl shadow-indigo-100 animate-in fade-in zoom-in duration-500">
-                                                            <div className="flex-1 min-w-[150px]">
-                                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Base Líquida</p>
-                                                                <p className="text-xl font-black text-white">${Number(d.sueldoBaseLiquido || 0).toLocaleString('es-CL')}</p>
+                                                    {(d.sueldoBaseLiquido > 0 || (d.bonos && d.bonos.length > 0)) && (() => {
+                                                        let sumImponibles = 0;
+                                                        let sumNoImponibles = 0;
+                                                        let hasVariables = false;
+
+                                                        (d.bonos || []).forEach(b => {
+                                                            const model = bonosMaster.find(bm => bm._id === b.bonoRef);
+                                                            if (!model) return;
+
+                                                            const isImponible = model.tipoBonoRef?.tipo !== 'NO_IMPONIBLE';
+                                                            const isFijo = model.tipo === 'BONO_FIJO';
+                                                            const amount = isFijo ? (Number(model.bonoFijo?.monto) || 0) : 0;
+
+                                                            if (isImponible) sumImponibles += amount;
+                                                            else sumNoImponibles += amount;
+
+                                                            if (!isFijo) hasVariables = true;
+                                                        });
+
+                                                        const totalBase = Number(d.sueldoBaseLiquido || 0);
+                                                        const totalImponiblesFinal = totalBase + sumImponibles;
+                                                        const totalHaberesFinal = totalBase + sumImponibles + sumNoImponibles;
+
+                                                        return (
+                                                            <div className="mt-8 flex flex-wrap gap-4 p-6 bg-slate-900 rounded-[2rem] border border-slate-800 shadow-2xl shadow-indigo-100 animate-in fade-in zoom-in duration-500">
+                                                                <div className="flex-1 min-w-[150px]">
+                                                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Base Líquida</p>
+                                                                    <p className="text-xl font-black text-white">${totalBase.toLocaleString('es-CL')}</p>
+                                                                </div>
+                                                                <div className="flex-1 min-w-[150px] border-l border-slate-800 pl-6">
+                                                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Total Imponibles</p>
+                                                                    <div className="flex items-baseline gap-2">
+                                                                        <p className="text-xl font-black text-emerald-400">
+                                                                            ${totalImponiblesFinal.toLocaleString('es-CL')}
+                                                                        </p>
+                                                                        {hasVariables && <span className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-md" title="Monto base. La proyección final será mayor por bonos variables.">+ Variables</span>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex-1 min-w-[150px] border-l border-slate-800 pl-6">
+                                                                    <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1">Haberes No Imp.</p>
+                                                                    <div className="flex items-baseline gap-2">
+                                                                        <p className="text-xl font-black text-amber-400">
+                                                                            ${sumNoImponibles.toLocaleString('es-CL')}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex-1 min-w-[150px] bg-gradient-to-br from-indigo-500 to-indigo-700 p-4 rounded-2xl shadow-lg -my-2 -mr-2 flex flex-col justify-center">
+                                                                    <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mb-1">Total Haberes</p>
+                                                                    <div className="flex items-baseline gap-2">
+                                                                        <p className="text-xl font-black text-white">
+                                                                            ${totalHaberesFinal.toLocaleString('es-CL')}
+                                                                        </p>
+                                                                        {hasVariables && <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-md" title="Monto base. La proyección final será mayor por bonos variables.">+ Var.</span>}
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex-1 min-w-[150px] border-l border-slate-800 pl-6">
-                                                                <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Total Imponibles</p>
-                                                                <p className="text-xl font-black text-emerald-400">
-                                                                    ${(Number(d.sueldoBaseLiquido || 0) + (d.bonos || []).reduce((acc, b) => {
-                                                                        const ref = TIPOS_BONOS.find(tb => tb.type === (b.isCustom ? b.dtMapping : b.bonoRef));
-                                                                        return acc + (ref?.isImponible !== false ? Number(b.monto || 0) : 0);
-                                                                    }, 0)).toLocaleString('es-CL')}
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex-1 min-w-[150px] border-l border-slate-800 pl-6">
-                                                                <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1">Haberes No Imp.</p>
-                                                                <p className="text-xl font-black text-amber-400">
-                                                                    ${(d.bonos || []).reduce((acc, b) => {
-                                                                        const ref = TIPOS_BONOS.find(tb => tb.type === (b.isCustom ? b.dtMapping : b.bonoRef));
-                                                                        return acc + (ref?.isImponible === false ? Number(b.monto || 0) : 0);
-                                                                    }, 0).toLocaleString('es-CL')}
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex-1 min-w-[150px] bg-gradient-to-br from-indigo-500 to-indigo-700 p-4 rounded-2xl shadow-lg -my-2 -mr-2">
-                                                                <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mb-1">Total Haberes</p>
-                                                                <p className="text-xl font-black text-white">
-                                                                    ${(Number(d.sueldoBaseLiquido || 0) + (d.bonos || []).reduce((acc, b) => acc + Number(b.monto || 0), 0)).toLocaleString('es-CL')}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         ))}

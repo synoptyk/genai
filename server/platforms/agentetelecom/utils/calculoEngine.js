@@ -29,23 +29,27 @@ function invalidarCacheTarifas(empresaId) {
 
 /**
  * Parsea el XML de Productos_y_Servicios_Contratados de TOA
+ * Extrae la cantidad de equipos adicionales del string XML de Productos_y_Servicios_Contratados de TOA.
+ * Ahora recibe el tipo de trabajo real para no confundir Averías con Altas.
  */
-function parsearProductosServiciosTOA(xmlStr) {
-    if (!xmlStr || typeof xmlStr !== 'string' || !xmlStr.includes('<ProductService>')) return null;
+function parsearProductosServiciosTOA(xmlString, tipoTrabajoReal = '', subtipoReal = '') {
+    if (!xmlString || typeof xmlString !== 'string' || !xmlString.includes('<ProductService>')) return null;
+
     const productos = [];
     const regex = /<ProductService>([\s\S]*?)<\/ProductService>/g;
     let match;
-    while ((match = regex.exec(xmlStr)) !== null) {
+    
+    while ((match = regex.exec(xmlString)) !== null) {
         const bloque = match[1];
-        const get = (tag) => { 
-            const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`, 'i')); 
-            return m ? m[1].trim().replace(/_+$/g, '') : ''; 
+        const get = (tag) => {
+            const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`, 'i'));
+            return m ? m[1].trim().replace(/_+$/g, '') : '';
         };
-        
-        const monto = get('Monto') || get('Precio') || get('Price') || '';
+
+        const montoStr = get('Monto') || get('Precio') || get('Price') || '';
+        const monto = parseFloat(montoStr) || 0;
         const tipoPreco = get('TipoPrecio') || get('TipoPrecoItem') || get('CON_PRECO') || get('ConPreco') || '';
-        const itemConPreco = (tipoPreco && tipoPreco !== '0' && tipoPreco.toUpperCase() !== 'NO') || 
-                            (parseFloat(monto) > 0);
+        const itemConPreco = (tipoPreco && tipoPreco !== '0' && tipoPreco.toUpperCase() !== 'NO') || (parseFloat(montoStr) > 0);
 
         productos.push({ 
             codigo: get('Codigo'), 
@@ -79,10 +83,11 @@ function parsearProductosServiciosTOA(xmlStr) {
 
     const getEquipos = (reg) => equiposFiltrados.filter(p => reg.test(p.descripcion));
     
-    // Decos: Evitar contar el mismo equipo fisico si viene duplicado por servicio
     const decosTodosRaw = getEquipos(/adicional|deco|iptv|dta|stb|receptor|box|streming|android|smart.tv|4k|vip|nagrav|pds/i);
-    // Agrupar por descripción para evitar duplicidad de items idénticos en el mismo bloque XML si TOA los repite
-    const decosTodos = decosTodosRaw;
+    
+    // Regla de negocio: Por defecto, todos los decos adicionales son WiFi, a menos que el nombre especifique explícitamente cable/cableado/coaxial
+    const decosCable = decosTodosRaw.filter(p => /cable|cableado|coax|rg6|ethernet|utp/i.test(p.descripcion));
+    const decosWifi = decosTodosRaw.filter(p => !/cable|cableado|coax|rg6|ethernet|utp/i.test(p.descripcion));
 
     const repetidores = getEquipos(/repetidor|extensor|extender|wifi|mesh|punto.acceso|access.point|amplificador|modul.wifi|repro.senal/i)
         .filter(p => !/deco|iptv|stb|receptor|box/i.test(p.descripcion));
@@ -101,17 +106,32 @@ function parsearProductosServiciosTOA(xmlStr) {
         return q;
     };
 
-    let ctWifi = decosTodos.reduce((s, p) => s + getQtyReal(p), 0);
+    let ctWifi = decosWifi.reduce((s, p) => s + getQtyReal(p), 0);
+    let ctCable = decosCable.reduce((s, p) => s + getQtyReal(p), 0);
     let ctRepetidores = repetidores.reduce((s, p) => s + getQtyReal(p), 0);
     let ctTelefonos = telefonosTodos.reduce((s, p) => s + getQtyReal(p), 0);
 
-    let tipoOp = 'Alta nueva';
-    if (bajas.length > 0 && altas.length > 0) tipoOp = 'Cambio/Migración';
-    else if (bajas.length > 0 && altas.length === 0) tipoOp = 'Baja';
+    // Deducir el tipo de operación basado estrictamente en si es realmente un alta
+    const esRealmenteAlta = /alta/i.test(tipoTrabajoReal) || /alta/i.test(subtipoReal);
+    const esRealmenteMigracion = /migraci|traslado/i.test(tipoTrabajoReal) || /migraci|traslado/i.test(subtipoReal);
+    const esAveria = /reclamo|averia|reparacion|sin potencia/i.test(tipoTrabajoReal) || /reclamo|averia|reparacion|sin potencia/i.test(subtipoReal);
 
-    // Descuento de equipo principal (1 Deco o 1 Repetidor no cuentan como adicional en Altas/Migraciones)
-    if ((tipoOp === 'Alta nueva' || tipoOp === 'Cambio/Migración') && (ctWifi > 0 || ctRepetidores > 0)) {
-        if (ctWifi > 0) ctWifi--; 
+    let tipoOp = 'Alta nueva';
+    if (esAveria) {
+        tipoOp = 'Avería/Reclamo';
+    } else if (esRealmenteMigracion || (bajas.length > 0 && altas.length > 0)) {
+        tipoOp = 'Cambio/Migración';
+    } else if (bajas.length > 0 && altas.length === 0) {
+        tipoOp = 'Baja';
+    } else {
+        tipoOp = 'Alta nueva';
+    }
+
+    // Descuento de equipo principal (1 Deco o 1 Repetidor no cuentan como adicional SOLO en Altas/Migraciones Reales)
+    // El deco principal siempre asume ser de Cable si hay, si no, se descuenta de WiFi
+    if (tipoOp === 'Alta nueva' || tipoOp === 'Cambio/Migración') {
+        if (ctCable > 0) ctCable--;
+        else if (ctWifi > 0) ctWifi--; 
         else if (ctRepetidores > 0) ctRepetidores--;
     }
 
@@ -119,7 +139,7 @@ function parsearProductosServiciosTOA(xmlStr) {
         ctTelefonos--;
     }
     
-    const tienePreco = decosTodos.some(p => p.conPreco) || repetidores.some(p => p.conPreco) || telefonosTodos.some(p => p.conPreco);
+    const tienePreco = decosTodosRaw.some(p => p.conPreco) || repetidores.some(p => p.conPreco) || telefonosTodos.some(p => p.conPreco);
     
     return {
         'Velocidad_Internet': velocidadInternet, 
@@ -127,9 +147,9 @@ function parsearProductosServiciosTOA(xmlStr) {
         'Telefonia': toipAlta ? toipAlta.descripcion : '',
         'Modem': modem ? modem.descripcion : '', 
         'Deco_Principal': (tipoOp === 'Alta nueva' || tipoOp === 'Cambio/Migración') ? 'Sí' : 'No',
-        'Decos_Cable_Adicionales': '0',
+        'Decos_Cable_Adicionales': String(Math.max(0, ctCable)),
         'Decos_WiFi_Adicionales': String(Math.max(0, ctWifi)),
-        'Decos_Adicionales': String(Math.max(0, ctWifi)),
+        'Decos_Adicionales': '0', // Ya no lo usamos general para evitar doble conteo, usar WiFi o Cable
         'Repetidores_WiFi': String(Math.max(0, ctRepetidores)), 
         'Telefonos': String(Math.max(0, ctTelefonos)),
         'Total_Equipos_Extras': String(Math.max(0, ctWifi + ctRepetidores + ctTelefonos)), 
@@ -157,16 +177,17 @@ function calcularBaremos(doc, tarifas) {
         clean[k.replace(/[\.\s]/g, '_')] = v;
     }
 
-    // Re-parsear XML si faltan campos derivados de equipos
-    if ((!clean.Decos_Cable_Adicionales || !clean.Decos_WiFi_Adicionales) &&
-        (clean.Productos_y_Servicios_Contratados || clean['Productos_y_Servicios_Contratados'])) {
-        const xmlVal = clean.Productos_y_Servicios_Contratados || '';
-        const derivados = parsearProductosServiciosTOA(xmlVal);
+    // Re-parsear XML si no existen explícitamente los campos derivados o si están en '0'
+    const xmlVal = clean.Productos_y_Servicios_Contratados || clean['Productos_y_Servicios_Contratados'] || clean['Productos_y_Servicios_Contratados_String'] || clean['PRODUCTOS_Y_SERVICIOS_CONTRATADOS_STRING'] || '';
+    if (xmlVal) {
+        const derivados = parsearProductosServiciosTOA(xmlVal, clean.Tipo_Trabajo || clean.Tipo_de_Trabajo || '', clean.Subtipo_de_Actividad || '');
         if (derivados) {
-            Object.assign(clean, derivados);
-            // Mantener aliases UPPER para compatibilidad con rutas legacy
+            // Solo sobreescribimos si en clean no existen, o si el XML aporta un valor mayor a cero
             Object.entries(derivados).forEach(([k, v]) => {
-                clean[k.toUpperCase().replace(/[\.\s]/g, '_')] = v;
+                if (!clean[k] || parseInt(clean[k]) === 0 || clean[k] === '0') {
+                    clean[k] = v;
+                    clean[k.toUpperCase().replace(/[\.\s]/g, '_')] = v;
+                }
             });
         }
     }
@@ -180,29 +201,17 @@ function calcularBaremos(doc, tarifas) {
     const acometida = (clean.Acometida || clean.ACOMETIDA || clean['Acometida_Exterior'] || clean['Acometida_Interior'] || '').toUpperCase();
     clean.Acometida = acometida; // Asegurar que esté disponible para condicion_extra
 
-    // ── REGLA DE NEGOCIO: ACTIVIDADES NO VALORIZABLES ──
-    const actividadesNoValorizables = [
-        'INSTALACIÓN FTTX, DROP O FIBRA ÓPTICA ENTRE CTO Y DEPENDENCIA DEL CLIENTE',
-        'INSTALACION FTTX, DROP O FIBRA ÓPTICA ENTRE CTO Y DEPENDENCIA DEL CLIENTE',
-        'FTTX'
-    ];
-    if (actividadesNoValorizables.some(a => subtipo.toUpperCase().includes(a) || tipoTrabajo.toUpperCase().includes(a))) {
-        return {
-            ...clean,
-            'Pts_Actividad_Base': 0,
-            'Pts_Total_Baremo': 0,
-            'ptsTotalBaremo': 0,
-            'PTS_TOTAL_BAREMO': 0,
-            'Desc_LPU_Base': 'Actividad no valorizable (FTTX/Drop)',
-            'Codigo_LPU_Base': 'N/V'
-        };
-    }
-
+    const eqNuevos = parseInt(clean.CANTIDAD_DE_EQUIPOS_NUEVOS || clean.Cantidad_de_Equipos_Nuevos || 0);
     const decosCableAd = parseInt(clean.Decos_Cable_Adicionales || 0);
     const decosWifiAd  = parseInt(clean.Decos_WiFi_Adicionales  || 0);
-    const decosAd      = parseInt(clean.Decos_Adicionales        || 0);
+    let decosAd      = parseInt(clean.Decos_Adicionales       || 0);
     const repetidores  = parseInt(clean.Repetidores_WiFi         || 0);
     const telefonos    = parseInt(clean.Telefonos                 || 0);
+    
+    // Si no tenemos decos explícitos ni por XML pero tenemos CANTIDAD_DE_EQUIPOS_NUEVOS, usamos ese valor
+    if (decosCableAd === 0 && decosWifiAd === 0 && decosAd === 0 && eqNuevos > 0) {
+        decosAd = eqNuevos;
+    }
 
     // Códigos LPU explícitos que puede traer el bot o el documento
     const codigosDoc = [
@@ -249,8 +258,16 @@ function calcularBaremos(doc, tarifas) {
 
         // Coincidencia por Reutilización DROP
         if (m.requiere_reutilizacion_drop) {
-            if (m.requiere_reutilizacion_drop === reutDrop) score += 3;
-            else if (reutDrop) score -= 5;
+            // Si la tarifa especifica 'SI', el documento debe tener 'SI'.
+            // Si la tarifa especifica 'NO', el documento debe tener 'NO'.
+            // Consideramos valores vacíos en el documento como 'NO' por defecto.
+            const docReut = reutDrop === 'SI' ? 'SI' : 'NO';
+            const tarReut = m.requiere_reutilizacion_drop.toUpperCase();
+            if (tarReut === docReut) {
+                score += 5; // Más peso para asegurar que gane la tarifa correcta
+            } else {
+                score -= 10; // Fuerte penalización si hay colisión (ej. tarifa es con DROP pero doc no tiene DROP)
+            }
         }
 
         // Coincidencia por Con_Preco
@@ -297,39 +314,86 @@ function calcularBaremos(doc, tarifas) {
 
     // ── 2. EQUIPOS ADICIONALES ───────────────────────────────────────────────
     // REPARACIONES: no pagan decos adicionales (solo valor reparación)
-    const esReparacion = mejorMatch && /REPARACIÓN|REPARACION|AVERÍA|AVERIA|AVERA|RESOLUCIÓN|RESOLUCION/.test(categoria);
+    const esReparacion = mejorMatch && /REPARACIÓN|REPARACION|AVERÍA|AVERIA|AVERA|RESOLUCIÓN|RESOLUCION|RUTINA|PREVENTIV/i.test(categoria);
 
     // Sumar todos los decos adicionales detectados (WiFi, Cable o Genéricos)
     // Usamos Math.max para WiFi/Adicionales por si son alias, y sumamos Cable por si vienen separados
     const decosEfectivos = !esReparacion && !esAltoValor ? (Math.max(decosWifiAd, decosAd) + decosCableAd) : 0;
 
-    // Tarifa deco: siempre la de MÍNIMO puntos entre todos los candidatos (WiFi 0.25 gana sobre cable 0.5)
-    const decoTarifaWifi = tarifasEquipos
-      .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || ''))
-      .sort((a, b) => a.puntos - b.puntos)[0];
+    // Determinar contexto para elegir la tarifa correcta de equipo adicional
+    // (Ej. "Deco coincidente en Alta" vs "Deco independiente")
+    const esAlta = clean.Tipo_Operacion === 'Alta nueva' || 
+                   /ALTA/i.test(mejorMatch?.descripcion || '') || 
+                   /ALTA/i.test(mejorMatch?.categoria || '');
+
+    function seleccionarTarifaEquipo(tarifasCandidatas) {
+        if (!tarifasCandidatas || !tarifasCandidatas.length) return null;
+        
+        const tarifasEnAlta = tarifasCandidatas.filter(t => /ALTA|COINCIDENTE/i.test(t.descripcion));
+        const tarifasNormales = tarifasCandidatas.filter(t => !/ALTA|COINCIDENTE/i.test(t.descripcion));
+
+        if (esAlta) {
+            // Si la orden es una Alta, preferimos tarifas específicas de Alta
+            if (tarifasEnAlta.length > 0) return tarifasEnAlta.sort((a, b) => b.puntos - a.puntos)[0];
+            return tarifasNormales.sort((a, b) => b.puntos - a.puntos)[0];
+        } else {
+            // Si NO es un Alta (ej. ticket técnico, visita), preferimos tarifa normal
+            if (tarifasNormales.length > 0) return tarifasNormales.sort((a, b) => b.puntos - a.puntos)[0];
+            return tarifasCandidatas.sort((a, b) => a.puntos - b.puntos)[0]; // Fallback
+        }
+    }
 
     let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
     let codigoDecoWifi = '', codigoRepetidor = '';
 
-    // Aplicar tarifa WiFi (mínima) a decos ADICIONALES WiFi solo (no en reparaciones)
-    if (!esReparacion && !esAltoValor && decoTarifaWifi && decosEfectivos > 0) {
-      ptsDecoWifi  = decoTarifaWifi.puntos * decosEfectivos;
-      codigoDecoWifi = decoTarifaWifi.codigo;
-    }
-
     // En reparaciones o Alto Valor: no calcular decos ni repetidores
     if (!esReparacion && !esAltoValor) {
-        for (const t of tarifasEquipos) {
-            const campo     = t.mapeo?.campo_cantidad || '';
-            const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
-            if (tConPreco && tConPreco !== conPreco) continue;
-            
-            if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
-                ptsRepetidor   = t.puntos * repetidores;
-                codigoRepetidor = t.codigo;
-            } else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) {
-                ptsTelefono    = t.puntos * telefonos;
+        
+        // 1. Decodificadores WiFi
+        if (decosWifiAd > 0 || decosAd > 0) {
+            const qtyWifi = Math.max(decosWifiAd, decosAd); // Compatibilidad legacy
+            const tarifasWifi = tarifasEquipos.filter(t => 
+                ['Decos_WiFi_Adicionales', 'Decos_Adicionales'].includes(t.mapeo?.campo_cantidad || '') &&
+                ((t.mapeo?.con_preco || '').toUpperCase() === conPreco || !(t.mapeo?.con_preco))
+            );
+            const tarifaWifi = seleccionarTarifaEquipo(tarifasWifi);
+            if (tarifaWifi) {
+                ptsDecoWifi = tarifaWifi.puntos * qtyWifi;
+                codigoDecoWifi = tarifaWifi.codigo;
             }
+        }
+
+        // 1.5 Decodificadores Cable
+        if (decosCableAd > 0) {
+            const tarifasCable = tarifasEquipos.filter(t => 
+                t.mapeo?.campo_cantidad === 'Decos_Cable_Adicionales' &&
+                ((t.mapeo?.con_preco || '').toUpperCase() === conPreco || !(t.mapeo?.con_preco))
+            );
+            // Si no hay tarifa de cable específica, hacer fallback a genérica
+            const tarifaCable = seleccionarTarifaEquipo(tarifasCable.length > 0 ? tarifasCable : tarifasEquipos.filter(t => t.mapeo?.campo_cantidad === 'Decos_Adicionales'));
+            if (tarifaCable) {
+                ptsDecoCable = tarifaCable.puntos * decosCableAd;
+            }
+        }
+
+        // 2. Repetidores y Teléfonos
+        const tarifasRepetidores = tarifasEquipos.filter(t => 
+            t.mapeo?.campo_cantidad === 'Repetidores_WiFi' && 
+            ((t.mapeo?.con_preco || '').toUpperCase() === conPreco || !(t.mapeo?.con_preco))
+        );
+        const repTarifa = seleccionarTarifaEquipo(tarifasRepetidores);
+        if (repTarifa && repetidores > 0) {
+            ptsRepetidor = repTarifa.puntos * repetidores;
+            codigoRepetidor = repTarifa.codigo;
+        }
+
+        const tarifasTelefonos = tarifasEquipos.filter(t => 
+            t.mapeo?.campo_cantidad === 'Telefonos' && 
+            ((t.mapeo?.con_preco || '').toUpperCase() === conPreco || !(t.mapeo?.con_preco))
+        );
+        const telTarifa = seleccionarTarifaEquipo(tarifasTelefonos);
+        if (telTarifa && telefonos > 0) {
+            ptsTelefono = telTarifa.puntos * telefonos;
         }
     }
 
@@ -355,6 +419,11 @@ function calcularBaremos(doc, tarifas) {
         'ptsTotalBaremo':       ptsTotal,   // nombre usado en DB (canonico)
         'PTS_TOTAL_BAREMO':     ptsTotal,   // alias UPPER para rutas legacy
         'Total_Puntos_Baremo':  ptsTotal,   // alias alternativo
+        
+        // Cantidades efectivas procesadas (para mostrar en Descarga TOA)
+        'Decos_Efectivos':      decosEfectivos,
+        'Repetidores_Efectivos': repetidores,
+        'Telefonos_Efectivos':  telefonos
     };
 }
 

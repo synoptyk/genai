@@ -5,6 +5,7 @@ import {
     BarChart3, X, AlertTriangle, Camera
 } from 'lucide-react';
 import { astApi } from '../prevencionApi';
+import SlideOverFichaEvento from '../components/SlideOverFichaEvento';
 
 const PrevHseConsole = () => {
     const [loading, setLoading] = useState(false);
@@ -228,70 +229,7 @@ const PrevHseConsole = () => {
                 )}
             </div>
 
-            {/* MODAL VISOR PDF (PLACEHOLDER REAL) */}
-            {selectedAst && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/90 backdrop-blur-xl p-4 md:p-12">
-                    <div className="bg-white rounded-[3rem] w-full max-w-6xl h-full flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95">
-                        <div className="p-8 bg-slate-900 text-white flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-rose-600 rounded-xl"><FileText size={20} /></div>
-                                <h3 className="font-black uppercase italic tracking-tighter">Expediente Digital: {selectedAst.ot}</h3>
-                            </div>
-                            <button onClick={() => setSelectedAst(null)} className="p-4 hover:bg-white/10 rounded-full transition-all"><X size={24} /></button>
-                        </div>
-                        <div className="flex-1 bg-slate-100 p-2 md:p-8 overflow-y-auto custom-scrollbar flex items-start md:items-center justify-center">
-                            {/* PDF Premium A4 con escalado responsivo */}
-                            <div className="pdf-page-sim p-[10mm] md:p-[20mm] relative flex flex-col text-left">
-                                <div className="border-b-4 border-rose-600 pb-10 mb-10 flex flex-col md:flex-row justify-between items-start gap-4">
-                                    <div>
-                                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Análisis Seguro <span className="text-rose-600">de Trabajo (AST)</span></h1>
-                                        <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.4em]">GENAI360 v8.2 Intelligence</p>
-                                    </div>
-                                    <div className="text-left md:text-right">
-                                        <p className="text-[12px] font-black text-slate-900 uppercase">OT: {selectedAst.ot}</p>
-                                        <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">{selectedAst.empresa}</p>
-                                    </div>
-                                </div>
-
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 opacity-60 grayscale scale-95 pointer-events-none">
-                                    <div className="space-y-6">
-                                        <div className="h-4 bg-slate-100 rounded w-3/4"></div>
-                                        <div className="h-4 bg-slate-100 rounded w-1/2"></div>
-                                        <div className="h-4 bg-slate-100 rounded w-5/6"></div>
-                                        <div className="h-48 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200"></div>
-                                    </div>
-                                    <div className="space-y-6">
-                                        <div className="h-4 bg-slate-100 rounded w-1/2"></div>
-                                        <div className="h-4 bg-slate-100 rounded w-3/4"></div>
-                                        <div className="h-48 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300 font-bold uppercase text-[8px]">Mapa Georreferenciado</div>
-                                    </div>
-                                </div>
-                                <div className="mt-auto border-t-2 border-slate-100 pt-10 flex flex-col md:flex-row justify-between items-end gap-8">
-                                    <div className="space-y-2">
-                                        <div className="w-40 h-10 border-b border-slate-200 flex items-center justify-center">
-                                            {selectedAst.firmaColaborador && <img src={selectedAst.firmaColaborador} className="max-h-full grayscale" alt="firma" />}
-                                        </div>
-                                        <p className="text-[9px] font-black uppercase text-slate-900">Firma Colaborador</p>
-                                    </div>
-                                    <div className="bg-slate-900 text-white p-6 rounded-3xl flex gap-4 items-center w-full md:w-auto">
-                                        <div className="bg-white p-2 rounded-xl">
-                                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=AST-${selectedAst._id}`} className="w-12 h-12" alt="qr" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[9px] font-black italic text-rose-400 leading-none">VALIDACIÓN HSE</p>
-                                            <p className="text-[7px] text-slate-500 mt-1 uppercase">{selectedAst.estado}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-12 opacity-[0.03] select-none">
-                                    <h1 className="text-[60px] md:text-[120px] font-black uppercase tracking-tighter">GENAI360</h1>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <SlideOverFichaEvento isOpen={selectedAst !== null} onClose={() => setSelectedAst(null)} evento={selectedAst} showActions={true} onStatusChange={fetchData} />
 
             {/* MODAL DE REPORTE DE INCONSISTENCIA */}
             {feedbackAst && (

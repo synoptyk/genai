@@ -6,7 +6,7 @@ import { proyectosApi } from '../rrhh/rrhhApi';
 import {
   RefreshCw, Filter, Download, Presentation, Layers,
   BarChart3, Trophy, Activity, Calendar, Users, Target,
-  ChevronDown, Search, FileSpreadsheet, ListFilter
+  ChevronDown, Search, FileSpreadsheet, ListFilter, ShieldAlert
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -19,6 +19,8 @@ import ProduccionProyectos from './components/ProduccionProyectos';
 import ProduccionZonas from './components/ProduccionZonas';
 import DashboardSeguimientoDia from './components/DashboardSeguimientoDia';
 import ProduccionRanking from './components/ProduccionRanking';
+import ProduccionAgenda from './components/ProduccionAgenda';
+import GarantiasTab from './components/GarantiasTab';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const toInputDate = (d) => {
@@ -42,10 +44,12 @@ const TABS = [
   { id: 'produccion',   label: 'Producción/Día',  icon: Layers },
   { id: 'seguimiento',  label: 'Dashboard Seg. Día', icon: Activity },
   { id: 'ranking',      label: 'Ranking',         icon: Trophy },
+  { id: 'agenda',       label: 'Agenda',          icon: Calendar },
   { id: 'semanal',      label: 'Semanal',         icon: BarChart3 },
   { id: 'actividades',  label: 'Actividades',     icon: Activity },
   { id: 'proyectos',    label: 'Proyectos',       icon: Target },
   { id: 'zonas',        label: 'Zonas',           icon: Users },
+  { id: 'garantias',    label: 'Garantías',       icon: ShieldAlert },
 ];
 
 // ─── Meses disponibles ────────────────────────────────────────────────────────
@@ -563,6 +567,15 @@ export default function Produccion() {
           />
         )}
 
+        {/* Agenda */}
+        {activeTab === 'agenda' && (
+          <ProduccionAgenda
+            tecnicos={tecnicos}
+            dateFrom={dateFrom}
+            selectedMonths={selectedMonths}
+          />
+        )}
+
         {/* Semanal */}
         {activeTab === 'semanal' && (
           <ProduccionSemanal 
@@ -605,6 +618,20 @@ export default function Produccion() {
             dateFrom={dateFrom}
             selectedMonths={selectedMonths}
             metaConfig={metaConfig}
+          />
+        )}
+
+        {/* Garantías (Calidad) */}
+        {activeTab === 'garantias' && (
+          <GarantiasTab
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            selectedZonas={selectedZonas}
+            selectedProyectos={selectedProyectos}
+            selectedCategorias={selectedCategorias}
+            selectedMonths={selectedMonths}
+            selectedTecnicos={selectedTecnicos}
+            actividadFilter={actividadFilter}
           />
         )}
       </div>

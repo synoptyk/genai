@@ -5,6 +5,11 @@ const ChecklistVehicularSchema = new mongoose.Schema({
     tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', required: true },
     supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser', required: true },
     empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
+    // --- REPORTADOR ---
+    quienReportaTipo: { type: String, enum: ['Conductor Asignado', 'Supervisor', 'Administrador de Flota'], default: 'Conductor Asignado' },
+    quienReportaRut: { type: String, trim: true },
+    quienReportaNombre: { type: String, trim: true },
+    quienReportaCargo: { type: String, trim: true },
 
     // --- CONTEXTO ---
     fecha: { type: Date, default: Date.now },
@@ -13,6 +18,11 @@ const ChecklistVehicularSchema = new mongoose.Schema({
     tipo: { type: String, enum: ['Asignación', 'Devolución', 'Inspección Rutinaria'], default: 'Asignación' },
     kmActual: { type: Number },
     nivelCombustible: { type: String, enum: ['Reserva', '1/4', '1/2', '3/4', 'Lleno'] },
+    cuponElectronico: { type: String, enum: ['Sin Cupón', 'Cupón Titular', 'Cupón Reemplazo'] },
+    numeroCupon: { type: String, trim: true },
+    conductorRut: { type: String, trim: true },
+    conductorNombre: { type: String, trim: true },
+    conductorCargo: { type: String, trim: true },
 
     // --- DETALLES TÉCNICOS ---
     items: {
@@ -61,6 +71,11 @@ const ChecklistVehicularSchema = new mongoose.Schema({
     // --- FIRMAS Y VALIDACIÓN ---
     firmaColaborador: { type: String }, // Base64 del canvas — Técnico/Colaborador
     firmaSupervisor: { type: String },  // Base64 del canvas — Supervisor
+    fechaFirmaSupervisor: { type: Date },
+    // Novedad: Módulo de Recepción Universal
+    origenRecepcion: { type: String, enum: ['Trabajador', 'Taller', 'Proveedor', 'Otro'], default: 'Trabajador' },
+    subMotivoRecepcion: { type: String, trim: true },
+    detallesRecepcion: { type: String, trim: true },
     emailPersonal: { type: String, trim: true },
     qrCodeId: { type: String, unique: true }, // ID único para validación externa
 

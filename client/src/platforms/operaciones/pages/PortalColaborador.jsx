@@ -16,13 +16,17 @@ import {
     Activity, Archive,
     ClipboardList,
     TrendingUp, Star, Trophy, Settings,
-    Wrench, Shield, Cpu, Layers, Hammer, Gauge, Timer
+    Wrench, Shield, Cpu, Layers, Hammer, Gauge, Timer, Target, Check,
+    Upload, Image as ImageIcon, RefreshCw
 } from 'lucide-react';
 import logisticaApi from '../../logistica/logisticaApi';
 import {
     ResponsiveContainer, ComposedChart, BarChart, Bar, XAxis, YAxis,
-    Tooltip as RechartsTooltip, Line, Cell, Area, AreaChart
+    Tooltip as RechartsTooltip, Line, Cell, Area, AreaChart, ReferenceLine
 } from 'recharts';
+import GarantiasTab from '../../agentetelecom/components/GarantiasTab';
+import AgendaColaboradorTab from '../components/AgendaColaboradorTab';
+import NotificacionesTramites from './NotificacionesTramites';
 
 const getLocation = () => {
     return new Promise((resolve, reject) => {
@@ -141,6 +145,21 @@ const SignaturePad = ({ onSave, onCancel }) => {
 };
 
 
+// ── Helper: Clasificar tipo de actividad ──
+const getCategory = (act) => {
+    const sub = String(act.Subtipo_de_Actividad || act.subtipo || act.Actividad || '').toLowerCase();
+    const type = String(act.Tipo_Trabajo || act.actividadVisible || '').toLowerCase();
+    if (sub.includes('alta') || type.includes('alta')) return 'alta';
+    if (sub.includes('repar') || sub.includes('aver') || sub.includes('reclamo') ||
+        type.includes('repar') || type.includes('aver') || type.includes('reclamo')) return 'reparacion';
+    return 'rutina';
+};
+
+const CATEGORY_STYLES = {
+    alta:      { label: 'Alta',       cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    reparacion:{ label: 'Reparación', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+    rutina:    { label: 'Rutina',     cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+};
 
 const PortalColaborador = () => {
     const { user } = useAuth();
@@ -166,6 +185,7 @@ const PortalColaborador = () => {
     const [produccion, setProduccion] = useState(null); // null = no cargado, objeto = cargado
     const [vehiculo, setVehiculo] = useState(null);
     const [loadingProduccion, setLoadingProduccion] = useState(false);
+    const [garantiasMetrics, setGarantiasMetrics] = useState({ aiValue: 0, rrValue: 0, aiFails: 0, aiTotal: 0, rrFails: 0, rrTotal: 0 });
     const [fuelForm, setFuelForm] = useState({
         patente: '',
         kmActual: '',
@@ -181,10 +201,12 @@ const PortalColaborador = () => {
     const [selectedMonth, setSelectedMonth] = useState(() => Math.max(new Date().getMonth(), MIN_VISIBLE_MONTH));
     const [selectedOT, setSelectedOT] = useState(null);
     const [isAppealing, setIsAppealing] = useState(false);
-    const [appealForm, setAppealForm] = useState({ decos: 0, repetidores: 0, observacion: '' });
+    const [appealForm, setAppealForm] = useState({ decos: 0, repetidores: 0, telefonos: 0, codigoLpu: '', observacion: '', actividadIncorrecta: false, evidenciaUrl: '' });
+    const [uploadingImage, setUploadingImage] = useState(false);
     const [submittingAppeal, setSubmittingAppeal] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('Todos'); // Todos, Altas, Averías, etc
+    const [filterDate, setFilterDate] = useState(''); // YYYY-MM-DD o vacío = todos
     const [equipamientoFilter, setEquipamientoFilter] = useState('');
     const [selectedCategoryTab, setSelectedCategoryTab] = useState('TODOS');
     const [misObservacionesActivas, setMisObservacionesActivas] = useState([]);
@@ -282,6 +304,33 @@ const PortalColaborador = () => {
             
             const r = await api.get(`/api/tecnicos/${tecnicoId}/produccion?desde=${desde}&hasta=${hasta}`);
             setProduccion(r.data);
+
+            // Cargar Garantías del mes desfasado (mes anterior)
+            let prevMonthForApi = monthId; // 0-indexed. Enero = 0, así que el mes previo es Diciembre = 12 (para el string)
+            let prevYearForApi = year;
+            if (prevMonthForApi === 0) {
+               prevMonthForApi = 12;
+               prevYearForApi = year - 1;
+            }
+            const prevDaysInMonth = new Date(prevYearForApi, prevMonthForApi, 0).getDate();
+            const desdeGarantias = `${prevYearForApi}-${String(prevMonthForApi).padStart(2, '0')}-01`;
+            const hastaGarantias = `${prevYearForApi}-${String(prevMonthForApi).padStart(2, '0')}-${String(prevDaysInMonth).padStart(2, '0')}`;
+
+            const gRes = await api.get('/api/bot/garantias-stats', { params: { desde: desdeGarantias, hasta: hastaGarantias, tecnicoId: tecnicoId } }).catch(() => ({ data: { statsTecnicos: {} } }));
+            let gData = {};
+            if (gRes?.data?.statsTecnicos) {
+                const values = Object.values(gRes.data.statsTecnicos);
+                if (values.length > 0) gData = values[0];
+            }
+            
+            setGarantiasMetrics({
+                aiValue: gData.aiValue || 0,
+                rrValue: gData.rrValue || 0,
+                aiFails: gData.fallasAltas || 0,
+                aiTotal: gData.evaluadasAltas || 0,
+                rrFails: gData.fallasReparaciones || 0,
+                rrTotal: gData.evaluadasReparaciones || 0
+            });
         } catch (err) {
             console.error("Error loading production history:", err);
             setProduccion({ recientes: [], resumen: { totalPuntos: 0 } });
@@ -336,7 +385,8 @@ const PortalColaborador = () => {
             const matchSearch = (act.ordenId || act.ID_Orden || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (act.actividadVisible || act.Actividad || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchType = filterType === 'Todos' || (act.Subtipo_de_Actividad || act.Actividad || '').toUpperCase().includes(filterType);
-            return matchSearch && matchType;
+            const matchDate = !filterDate || (act.fecha && new Date(act.fecha).toISOString().slice(0,10) === filterDate);
+            return matchSearch && matchType && matchDate;
         });
 
         const header = ['Fecha', 'OT', 'Actividad', 'Subtipo', 'Estado', 'Puntos'];
@@ -534,8 +584,40 @@ const PortalColaborador = () => {
         setAppealForm({
             decos: ot.Decos_Adicionales || 0,
             repetidores: ot.Repetidores_WiFi || 0,
-            observacion: ot.apelacion?.observacion || ''
+            telefonos: ot.Telefonos || 0,
+            codigoLpu: ot.apelacion?.codigoLpu || '',
+            observacion: ot.apelacion?.observacion || '',
+            evidenciaUrl: ot.apelacion?.evidenciaUrl || '',
+            actividadIncorrecta: ot.apelacion?.motivo === 'actividad_incorrecta' || !!ot.apelacion?.codigoLpu || false
         });
+    };
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor selecciona un archivo de imagen válido.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('imagen', file);
+
+        setUploadingImage(true);
+        try {
+            const res = await api.post('/api/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data && res.data.url) {
+                setAppealForm({ ...appealForm, evidenciaUrl: res.data.url });
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            alert('Error al subir la imagen. Intente nuevamente.');
+        } finally {
+            setUploadingImage(false);
+        }
     };
 
     const handleSendAppeal = async () => {
@@ -548,8 +630,11 @@ const PortalColaborador = () => {
                 rut: tecnico.rut,
                 equipos: {
                     decos: appealForm.decos,
-                    repetidores: appealForm.repetidores
+                    repetidores: appealForm.repetidores,
+                    telefonos: appealForm.telefonos
                 },
+                codigoLpu: appealForm.actividadIncorrecta ? appealForm.codigoLpu : undefined,
+                evidenciaUrl: appealForm.evidenciaUrl,
                 observacion: appealForm.observacion
             });
             
@@ -761,6 +846,7 @@ const PortalColaborador = () => {
                     <Card icon={Truck} title="Mis Activos" subtitle={`Vehículo: ${vehiculo?.patente || tecnico?.patente || 'No asignado'}`} color="bg-sky-500" onClick={() => setActiveView('equipamiento')} />
                     <Card icon={PenTool} title="AST Nueva" subtitle="Registra tu inicio de faena" color="bg-amber-500" next="Reportar Ahora" onClick={() => window.location.href = '/prevencion/ast'} />
                     <Card icon={Calendar} title="Solicitudes" subtitle="Vacaciones, Permisos y Licencias" color="bg-rose-500" onClick={() => setActiveView('solicitudes')} badge={perfil?.vacaciones?.filter(v => v.estado === 'Pendiente')?.length} />
+                    <Card icon={Mail} title="Bandeja & Trámites" subtitle="Firma electrónica y avisos" color="bg-pink-600" onClick={() => setActiveView('notificaciones')} badge={null} />
                     <Card icon={BarChart3} title="Mis KPI's" subtitle="Producción, tendencias y análisis de desempeño" color="bg-emerald-600" onClick={() => setActiveView('produccion')} />
                     <Card icon={ShieldCheck} title="HSE & Seguridad" subtitle="Certificaciones y Licencias" color="bg-violet-600" onClick={() => setActiveView('cumplimiento')} />
                     <Card icon={Fuel} title="Solicitud Combustible" subtitle={lastFuelRequest?.estado === 'Pendiente' ? 'Estado: Pendiente de Aprobación' : 'Registra tu carga del día'} color="bg-orange-600" onClick={() => setActiveView('combustible')} />
@@ -1323,7 +1409,31 @@ const PortalColaborador = () => {
                         }
                     }
                 }
-                const bonoImponible = Math.round(puntosCalculables * valorTramo);
+                const bonoBaremo = Math.round(puntosCalculables * valorTramo);
+
+                const calculateTierBonus = (val, tramosArr) => {
+                    if (!tramosArr || tramosArr.length === 0) return 0;
+                    const value = parseFloat(val) || 0;
+                    const matchingTiers = tramosArr.filter(t => {
+                        if (t.operator === '<') return value < t.limit;
+                        if (t.operator === '>') return value > t.limit;
+                        if (t.operator === '<=') return value <= t.limit;
+                        if (t.operator === '>=') return value >= t.limit;
+                        const hasta = t.hasta === 'Más' || t.hasta === 'mas' || t.hasta === null ? 999999 : parseFloat(t.hasta);
+                        return value >= parseFloat(t.desde) && value <= hasta;
+                    });
+                    if (matchingTiers.length === 0) return 0;
+                    return Math.max(...matchingTiers.map(t => t.valor || 0));
+                };
+
+                let rrBonus = 0;
+                let aiBonus = 0;
+                if (puntosCalculables > 0) {
+                    rrBonus = calculateTierBonus(garantiasMetrics.rrValue, tramosRRState);
+                    aiBonus = calculateTierBonus(garantiasMetrics.aiValue, tramosAIState);
+                }
+
+                const bonoTotalFinal = bonoBaremo + rrBonus + aiBonus;
 
 
         return (
@@ -1355,52 +1465,133 @@ const PortalColaborador = () => {
                         >
                             Actividades LPU
                         </button>
+                        <button
+                            onClick={() => setActiveView('garantias')}
+                            className="px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-rose-50 text-rose-700 border border-rose-100 hover:bg-rose-100 ml-2 flex items-center gap-2"
+                        >
+                            <ShieldAlert size={14} /> Mis Garantías
+                        </button>
+                        <button
+                            onClick={() => setActiveView('agenda')}
+                            className="px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 ml-2 flex items-center gap-2"
+                        >
+                            <Calendar size={14} /> Mi Agenda
+                        </button>
                     </div>
                 </div>
 
                                 {/* Bono Imponible Alcanzado */}
-                                <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200 rounded-2xl shadow-lg p-8 flex items-center gap-8 mb-12">
-                                    <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-emerald-100 border-2 border-emerald-200">
-                                        <DollarSign size={48} className="text-emerald-600" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-xl font-black text-emerald-700">Bono Imponible Alcanzado</span>
-                                            <span className="ml-2 text-xs text-amber-500 font-bold">(Tramo: {valorTramo ? `$${valorTramo.toLocaleString('es-CL')}` : '$0'} CLP x PB)</span>
-                                        </div>
-                                        <div className="text-4xl font-black text-emerald-700">${bonoImponible.toLocaleString('es-CL')}</div>
-                                        <div className="text-xs text-amber-700 font-bold mt-1">* El bono mostrado es imponible y corresponde a tu producción acumulada neta (descontando puntos no calculables) según tabla de bonificación vigente.</div>
+                                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-3xl shadow-xl overflow-hidden mb-12 relative">
+                                    {/* Abstract background blobs */}
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-200/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-200/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
 
-                                        {/* Desglose de cálculo para transparencia */}
-                                        <div className="mt-6 bg-white/80 border border-emerald-100 rounded-xl p-4 shadow-inner">
-                                            {loadingBonos ? (
-                                                <div className="text-xs text-slate-400 italic">Cargando modelo de bonificación...</div>
-                                            ) : (
-                                                <table className="w-full text-xs">
-                                                    <tbody>
-                                                        <tr>
-                                                            <td className="font-bold text-slate-600 py-1 pr-2">Puntos totales técnico</td>
-                                                            <td className="text-right font-mono text-slate-800">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="font-bold text-slate-600 py-1 pr-2">Tramo logrado (valor por PB)</td>
-                                                            <td className="text-right font-mono text-emerald-700">{valorTramo ? `$${valorTramo.toLocaleString('es-CL')}` : '$0'}</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="font-bold text-slate-600 py-1 pr-2">Puntos no calculables</td>
-                                                            <td className="text-right font-mono text-slate-800">{puntosNoCalculables}</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="font-bold text-slate-600 py-1 pr-2">Total puntos calculables</td>
-                                                            <td className="text-right font-mono text-emerald-700">{puntosCalculables.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="font-bold text-slate-900 py-2 pr-2 border-t border-emerald-100">Total bono imponible</td>
-                                                            <td className="text-right font-mono text-emerald-900 font-black border-t border-emerald-100">${bonoImponible.toLocaleString('es-CL')}</td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            )}
+                                    <div className="relative z-10 p-8 flex flex-col xl:flex-row items-start xl:items-center gap-8">
+                                        <div className="flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-lg shadow-emerald-200 border-4 border-white shrink-0">
+                                            <DollarSign size={48} strokeWidth={2.5} />
+                                        </div>
+                                        <div className="flex-1 w-full">
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                                                <div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-2xl font-black text-emerald-800 uppercase tracking-tight">Total Bono Mensual</span>
+                                                        <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase rounded-full tracking-widest border border-emerald-200">Bono Imponible</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">
+                                                    ${bonoTotalFinal.toLocaleString('es-CL')}
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-emerald-700/80 font-medium mb-6">
+                                                * El monto total se calcula sumando la producción de Puntos Baremos más los bonos de calidad alcanzados (Avería de Infancia y Garantías).
+                                            </div>
+
+                                            {/* Desglose en tarjetas (Puntos Baremos, Calidad AI, Calidad RR) */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                                                
+                                                {/* Card 1: Puntos Baremos */}
+                                                <div className="bg-white/80 backdrop-blur border border-emerald-100 rounded-2xl p-5 shadow-sm">
+                                                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-50">
+                                                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                                                            <Target size={16} />
+                                                        </div>
+                                                        <span className="text-sm font-black text-slate-700 uppercase tracking-wide">Puntos Baremos</span>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">Puntos Totales:</span>
+                                                            <span className="font-mono font-bold text-slate-800">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">No Calculables:</span>
+                                                            <span className="font-mono text-slate-500">-{puntosNoCalculables}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">Tramo Alcanzado:</span>
+                                                            <span className="font-mono font-bold text-emerald-600">${valorTramo ? valorTramo.toLocaleString('es-CL') : 0} c/u</span>
+                                                        </div>
+                                                        <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between items-center">
+                                                            <span className="text-[10px] font-black uppercase text-slate-400">Total Producción</span>
+                                                            <span className="text-lg font-black text-emerald-700">${bonoBaremo.toLocaleString('es-CL')}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card 2: Avería Infancia (AI) */}
+                                                <div className="bg-white/80 backdrop-blur border border-emerald-100 rounded-2xl p-5 shadow-sm relative overflow-hidden group">
+                                                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-50">
+                                                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                                            <Activity size={16} />
+                                                        </div>
+                                                        <span className="text-sm font-black text-slate-700 uppercase tracking-wide">Avería Infancia</span>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">Fallas Altas / Totales:</span>
+                                                            <span className="font-mono font-bold text-slate-800">{garantiasMetrics.aiFails} / {garantiasMetrics.aiTotal}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">% Logrado:</span>
+                                                            <span className={`font-mono font-bold ${garantiasMetrics.aiValue > 10 ? 'text-rose-500' : 'text-blue-600'}`}>{Number(garantiasMetrics.aiValue).toFixed(1)}%</span>
+                                                        </div>
+                                                        {puntosCalculables <= 0 && (
+                                                            <div className="text-[10px] font-bold text-rose-500 text-center uppercase tracking-wider py-1">No cumple pts mínimos</div>
+                                                        )}
+                                                        <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between items-center">
+                                                            <span className="text-[10px] font-black uppercase text-slate-400">Bono Calidad AI</span>
+                                                            <span className="text-lg font-black text-emerald-700">${aiBonus.toLocaleString('es-CL')}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card 3: Repetido Reparado (RR) */}
+                                                <div className="bg-white/80 backdrop-blur border border-emerald-100 rounded-2xl p-5 shadow-sm relative overflow-hidden group">
+                                                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-50">
+                                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                                            <Wrench size={16} />
+                                                        </div>
+                                                        <span className="text-sm font-black text-slate-700 uppercase tracking-wide">Repetido Reparado</span>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">Repetidas / Totales:</span>
+                                                            <span className="font-mono font-bold text-slate-800">{garantiasMetrics.rrFails} / {garantiasMetrics.rrTotal}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">% Logrado:</span>
+                                                            <span className={`font-mono font-bold ${garantiasMetrics.rrValue > 10 ? 'text-rose-500' : 'text-indigo-600'}`}>{Number(garantiasMetrics.rrValue).toFixed(1)}%</span>
+                                                        </div>
+                                                        {puntosCalculables <= 0 && (
+                                                            <div className="text-[10px] font-bold text-rose-500 text-center uppercase tracking-wider py-1">No cumple pts mínimos</div>
+                                                        )}
+                                                        <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between items-center">
+                                                            <span className="text-[10px] font-black uppercase text-slate-400">Bono Calidad RR</span>
+                                                            <span className="text-lg font-black text-emerald-700">${rrBonus.toLocaleString('es-CL')}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1435,13 +1626,21 @@ const PortalColaborador = () => {
                                 const estLower = (act.Estado || act.estado || '').toLowerCase();
                                 return estLower.includes('completad') || estLower.includes('finalizad') || estLower.includes('ok') || estLower.includes('ejecutad');
                             }).length || 0;
+                            const pendientes = asignadas - completadas;
                             const eficienciaPct = asignadas > 0 ? Math.round((completadas / asignadas) * 100) : 0;
+
+                            // --- Clasificación y Tiempos por Tipo de Actividad ---
+                            const tipoMap = {
+                                alta:       { label: 'Altas / Instalaciones', icon: '🟢', completadas: 0, asignadas: 0, minutos: 0, count: 0, pts: 0 },
+                                reparacion: { label: 'Reparaciones / Averías', icon: '🔴', completadas: 0, asignadas: 0, minutos: 0, count: 0, pts: 0 },
+                                rutina:     { label: 'Rutinas / Otros',        icon: '🔵', completadas: 0, asignadas: 0, minutos: 0, count: 0, pts: 0 },
+                            };
 
                             let totalMinutos = 0;
                             (prod?.recientes || []).forEach(act => {
                                 const estLower = (act.Estado || act.estado || '').toLowerCase();
                                 const isCompleted = estLower.includes('completad') || estLower.includes('finalizad') || estLower.includes('ok') || estLower.includes('ejecutad');
-                                
+
                                 let minDur = 0;
                                 const durRaw = act['Duración de la actividad'] || act['Duración_de_la_actividad'] || act['duracion'] || '';
                                 if (durRaw && typeof durRaw === 'string' && durRaw.includes(':')) {
@@ -1450,18 +1649,18 @@ const PortalColaborador = () => {
                                         minDur = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
                                     }
                                 }
-                                
-                                const descLpu = (act.actividadVisible || act.Actividad || '').toUpperCase();
-                                const isAlta = /ALTA|INSTALACI[OÓ]N|MIGRACI[OÓ]N|TRASLADO/i.test(descLpu);
-                                const isRutina = /RUTINA|RP\s/i.test(descLpu);
-                                const isReparacion = /AVER[IÍ]A|RECLAMO|MANTENIMIENTO|REPOSICI[OÓ]N|REPARACI[OÓ]N/i.test(descLpu);
+                                // 40 min fijos por traslado/contacto
+                                minDur += 40;
+                                if (isCompleted) totalMinutos += minDur;
 
+                                const cat = getCategory(act);
+                                tipoMap[cat].asignadas += 1;
+                                tipoMap[cat].pts += (act.PTS_TOTAL_BAREMO || act.ptsVisible || 0);
                                 if (isCompleted) {
-                                    totalMinutos += minDur;
+                                    tipoMap[cat].completadas += 1;
+                                    tipoMap[cat].minutos += minDur;
+                                    tipoMap[cat].count += 1;
                                 }
-                                
-                                // Sumamos 40 minutos fijos por traslado/contacto
-                                totalMinutos += 40;
                             });
 
                             const totalHoras = Math.round((totalMinutos / 60) * 10) / 10;
@@ -1469,6 +1668,20 @@ const PortalColaborador = () => {
 
                             const promedioDiario = prod?.resumen?.promedioPorDia || 0;
                             const rendimientoMetaPct = Math.min(100, Math.round((promedioDiario / META_DIARIA_KPI) * 100));
+                            const ptsVsMetaMensual = Math.min(100, Math.round((totalPuntos / META_MENSUAL) * 100));
+
+                            // Velocidad por tipo
+                            const velocidadTipos = Object.entries(tipoMap).map(([key, t]) => ({
+                                key,
+                                label: t.label,
+                                icon: t.icon,
+                                asignadas: t.asignadas,
+                                completadas: t.completadas,
+                                efPct: t.asignadas > 0 ? Math.round((t.completadas / t.asignadas) * 100) : 0,
+                                avgMin: t.count > 0 ? Math.round(t.minutos / t.count) : 0,
+                                pts: Math.round(t.pts * 10) / 10,
+                                ptsAvg: t.completadas > 0 ? Math.round((t.pts / t.completadas) * 10) / 10 : 0,
+                            })).filter(t => t.asignadas > 0);
 
                             // --- Dataset 1: Tendencia Diaria de Puntos ---
                             const dailyMap = {};
@@ -1529,7 +1742,9 @@ const PortalColaborador = () => {
                                 .slice(0, 5)
                                 .map(a => ({
                                     ...a,
-                                    pts: Math.round(a.pts * 10) / 10
+                                    pts: Math.round(a.pts * 10) / 10,
+                                    avg: a.count > 0 ? Math.round((a.pts / a.count) * 10) / 10 : 0,
+                                    nameShort: a.name.length > 28 ? a.name.slice(0, 26) + '…' : a.name,
                                 }));
 
                             // Componentes Auxiliares Locales
@@ -1542,24 +1757,46 @@ const PortalColaborador = () => {
                                             {payload[0].value?.toLocaleString('es-CL', { minimumFractionDigits: 1 })}
                                             <span className="text-[10px] text-indigo-400 font-bold ml-1">{unit}</span>
                                         </p>
+                                        {payload[1] && <p className="text-[9px] text-slate-400 mt-1">{payload[1].name}: {payload[1].value}</p>}
                                     </div>
                                 );
                             };
 
                             const DowLabel = (props) => {
                                 const { x, y, width, value } = props;
-                                if (value === 0) return null;
+                                if (!value || value === 0) return null;
+                                const cumple = value >= META_DIARIA_KPI;
                                 return (
-                                    <text 
-                                        x={x + width / 2} 
-                                        y={y - 8} 
-                                        fill="#475569" 
-                                        fontSize={10} 
-                                        fontWeight={900} 
+                                    <text
+                                        x={x + width / 2}
+                                        y={y - 6}
+                                        fill={cumple ? '#10b981' : '#f59e0b'}
+                                        fontSize={10}
+                                        fontWeight={900}
                                         textAnchor="middle"
-                                        className="font-black italic"
                                     >
                                         {value}
+                                    </text>
+                                );
+                            };
+
+                            const TrendLabel = (props) => {
+                                const { x, y, value } = props;
+                                if (!value || value === 0) return null;
+                                const cumple = value >= META_DIARIA_KPI;
+                                return (
+                                    <text x={x} y={y - 8} fill={cumple ? '#10b981' : '#6366f1'} fontSize={9} fontWeight={900} textAnchor="middle">
+                                        {value}
+                                    </text>
+                                );
+                            };
+
+                            const TopActLabel = (props) => {
+                                const { x, y, width, value } = props;
+                                if (!value || value === 0) return null;
+                                return (
+                                    <text x={x + width + 6} y={y + 10} fill="#475569" fontSize={10} fontWeight={900}>
+                                        {value} pts
                                     </text>
                                 );
                             };
@@ -1626,76 +1863,170 @@ const PortalColaborador = () => {
 
                                     {/* ── ROW DE 3 TARJETAS KPI TELECOM ── */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
+
+                                        {/* ── TARJETA 1: EFICIENCIA OPERATIVA ── */}
+                                        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-emerald-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000" />
                                             <div className="flex items-center gap-4 mb-6 relative z-10">
-                                                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm">
-                                                    <Zap size={22} />
-                                                </div>
+                                                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm"><Zap size={22} /></div>
                                                 <div>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Métrica de Calidad</p>
                                                     <h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Eficiencia Operativa</h4>
                                                 </div>
                                             </div>
-                                            <div className="flex justify-between items-end mt-4">
+                                            <div className="flex justify-between items-center mt-2 relative z-10">
                                                 <div>
-                                                    <p className="text-5xl font-black text-slate-800 leading-none italic tracking-tighter">{eficienciaPct}%</p>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">{completadas} de {asignadas} OTs completadas</p>
+                                                    <p className="text-5xl font-black text-slate-800 leading-none italic tracking-tighter">{eficienciaPct}<span className="text-xl opacity-40">%</span></p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic">{completadas} de {asignadas} asignadas</p>
+                                                    <div className="flex items-center gap-2 mt-1.5">
+                                                        <span className="flex items-center gap-1 text-[9px] font-black text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />{completadas} realizadas</span>
+                                                        <span className="text-slate-200">·</span>
+                                                        <span className="flex items-center gap-1 text-[9px] font-black text-rose-500"><span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />{pendientes} no realizadas</span>
+                                                    </div>
                                                 </div>
                                                 <div className="w-16 h-16 relative flex items-center justify-center shrink-0">
                                                     <svg className="w-full h-full transform -rotate-90">
                                                         <circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
-                                                        <circle cx="32" cy="32" r="26" stroke="#10b981" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 26} strokeDashoffset={2 * Math.PI * 26 * (1 - eficienciaPct/100)} strokeLinecap="round" />
+                                                        <circle cx="32" cy="32" r="26" stroke={eficienciaPct >= 90 ? '#10b981' : eficienciaPct >= 70 ? '#f59e0b' : '#ef4444'} strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 26} strokeDashoffset={2 * Math.PI * 26 * (1 - eficienciaPct / 100)} strokeLinecap="round" />
                                                     </svg>
-                                                    <span className="absolute text-[10px] font-black text-emerald-600 tracking-tighter">{eficienciaPct}%</span>
+                                                    <span className={`absolute text-[10px] font-black tracking-tighter ${eficienciaPct >= 90 ? 'text-emerald-600' : eficienciaPct >= 70 ? 'text-amber-500' : 'text-rose-500'}`}>{eficienciaPct}%</span>
                                                 </div>
                                             </div>
+                                            {/* Desglose por tipo */}
+                                            {velocidadTipos.length > 0 && (
+                                                <div className="mt-6 pt-5 border-t border-slate-100 space-y-3 relative z-10">
+                                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2">Desglose por Tipo</p>
+                                                    {velocidadTipos.map(t => (
+                                                        <div key={t.key}>
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="text-[9px] font-black text-slate-600 flex items-center gap-1.5">{t.icon} {t.label.split('/')[0].trim()}</span>
+                                                                <span className="text-[9px] font-black text-slate-500">{t.completadas}/{t.asignadas} · <span className={t.efPct >= 90 ? 'text-emerald-600' : t.efPct >= 70 ? 'text-amber-500' : 'text-rose-500'}>{t.efPct}%</span></span>
+                                                            </div>
+                                                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                <div className={`h-full rounded-full transition-all duration-700 ${t.efPct >= 90 ? 'bg-emerald-400' : t.efPct >= 70 ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${t.efPct}%` }} />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
 
-                                        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
+                                        {/* ── TARJETA 2: HORAS DE ACTIVIDAD ── */}
+                                        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-amber-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000" />
                                             <div className="flex items-center gap-4 mb-6 relative z-10">
-                                                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl shadow-sm">
-                                                    <Clock size={22} />
-                                                </div>
+                                                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl shadow-sm"><Clock size={22} /></div>
                                                 <div>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Gestión de Tiempos</p>
                                                     <h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Horas de Actividad</h4>
                                                 </div>
                                             </div>
-                                            <div className="flex justify-between items-end mt-4">
+                                            <div className="flex justify-between items-center mt-2 relative z-10">
                                                 <div>
                                                     <p className="text-5xl font-black text-slate-800 leading-none italic tracking-tighter">{totalHoras} <span className="text-xs opacity-40 not-italic uppercase">HRS</span></p>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">Promedio: {avgMinutos} min por actividad</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic">Prom. Global: {avgMinutos} min/actividad</p>
                                                 </div>
                                                 <div className="w-12 h-12 bg-amber-50 border border-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
                                                     <Timer size={24} className="animate-pulse" />
                                                 </div>
                                             </div>
+                                            {/* Velocidad por tipo de actividad con metas */}
+                                            {(() => {
+                                                // Metas de tiempo por tipo
+                                                const metaMin = { alta: 90, reparacion: 45, rutina: 30 }; // minutos
+                                                const metaLabel = { alta: '1.5 hrs', reparacion: '45 min', rutina: '30 min' };
+                                                return velocidadTipos.length > 0 && (
+                                                    <div className="mt-6 pt-5 border-t border-slate-100 space-y-3 relative z-10">
+                                                        <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2">Velocidad por Tipo vs Meta</p>
+                                                        {velocidadTipos.map(t => {
+                                                            const meta = metaMin[t.key] || 60;
+                                                            const pct = meta > 0 ? Math.min(100, Math.round((t.avgMin / meta) * 100)) : 0;
+                                                            // Verde = debajo de la meta (más rápido), rojo = supera la meta (más lento)
+                                                            const cumple = t.avgMin <= meta || t.avgMin === 0;
+                                                            return (
+                                                                <div key={t.key} className="py-2 px-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                                    <div className="flex justify-between items-center mb-1.5">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-sm">{t.icon}</span>
+                                                                            <div>
+                                                                                <p className="text-[9px] font-black text-slate-700 leading-none">{t.label.split('/')[0].trim()}</p>
+                                                                                <p className="text-[8px] font-bold text-slate-400 mt-0.5">{t.completadas} ej. · Meta: {metaLabel[t.key]}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <p className={`text-sm font-black italic ${cumple ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                                                {t.avgMin > 0 ? t.avgMin : '—'}<span className="text-[8px] font-bold text-slate-400 not-italic ml-0.5">min</span>
+                                                                            </p>
+                                                                            <p className="text-[8px] font-bold text-slate-400">{t.ptsAvg} pts/OT</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    {t.avgMin > 0 && (
+                                                                        <div className="relative h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className={`h-full rounded-full transition-all duration-700 ${cumple ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                                                                                style={{ width: `${Math.min(100, pct)}%` }}
+                                                                            />
+                                                                            {/* Marca de meta al 100% */}
+                                                                            <div className="absolute right-0 top-0 h-full w-0.5 bg-slate-400 opacity-60" />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
 
+                                        {/* ── TARJETA 3: PUNTOS POR DÍA vs META ── */}
                                         <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100/50 hover:-translate-y-1 transition-all relative overflow-hidden group">
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-1000" />
                                             <div className="flex items-center gap-4 mb-6 relative z-10">
-                                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm">
-                                                    <Gauge size={22} />
-                                                </div>
+                                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm"><Gauge size={22} /></div>
                                                 <div>
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Productividad Diaria</p>
                                                     <h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Puntos por Día</h4>
                                                 </div>
                                             </div>
-                                            <div className="flex justify-between items-end mt-4">
+                                            <div className="flex justify-between items-center mt-2 relative z-10">
                                                 <div>
                                                     <p className="text-5xl font-black text-slate-800 leading-none italic tracking-tighter">{(Math.round(promedioDiario * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1 })} <span className="text-xs opacity-40 not-italic uppercase">PTS</span></p>
-                                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-3 italic">{rendimientoMetaPct}% de meta diaria ({META_DIARIA_KPI} pts)</p>
+                                                    <p className={`text-[10px] font-black uppercase tracking-widest mt-2 italic ${rendimientoMetaPct >= 100 ? 'text-emerald-600' : rendimientoMetaPct >= 70 ? 'text-amber-500' : 'text-rose-500'}`}>
+                                                        {rendimientoMetaPct}% de meta diaria ({META_DIARIA_KPI} pts)
+                                                    </p>
                                                 </div>
                                                 <div className="w-16 h-16 relative flex items-center justify-center shrink-0">
                                                     <svg className="w-full h-full transform -rotate-90">
                                                         <circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
-                                                        <circle cx="32" cy="32" r="26" stroke="#6366f1" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 26} strokeDashoffset={2 * Math.PI * 26 * (1 - rendimientoMetaPct/100)} strokeLinecap="round" />
+                                                        <circle cx="32" cy="32" r="26" stroke={rendimientoMetaPct >= 100 ? '#10b981' : rendimientoMetaPct >= 70 ? '#f59e0b' : '#6366f1'} strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 26} strokeDashoffset={2 * Math.PI * 26 * (1 - rendimientoMetaPct / 100)} strokeLinecap="round" />
                                                     </svg>
-                                                    <span className="absolute text-[10px] font-black text-indigo-600 tracking-tighter">{rendimientoMetaPct}%</span>
+                                                    <span className={`absolute text-[10px] font-black tracking-tighter ${rendimientoMetaPct >= 100 ? 'text-emerald-600' : rendimientoMetaPct >= 70 ? 'text-amber-500' : 'text-indigo-600'}`}>{rendimientoMetaPct}%</span>
+                                                </div>
+                                            </div>
+                                            {/* Análisis vs Meta */}
+                                            <div className="mt-6 pt-5 border-t border-slate-100 space-y-3 relative z-10">
+                                                <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2">Análisis vs Meta</p>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-center">
+                                                        <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Meta Diaria</p>
+                                                        <p className="text-base font-black text-indigo-700 italic">{META_DIARIA_KPI}<span className="text-[9px] opacity-60 ml-0.5 not-italic">pts</span></p>
+                                                    </div>
+                                                    <div className={`rounded-2xl p-3 text-center border ${rendimientoMetaPct >= 100 ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+                                                        <p className={`text-[8px] font-black uppercase tracking-widest ${rendimientoMetaPct >= 100 ? 'text-emerald-400' : 'text-amber-400'}`}>Promedio Real</p>
+                                                        <p className={`text-base font-black italic ${rendimientoMetaPct >= 100 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                                            {(Math.round(promedioDiario * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1 })}<span className="text-[9px] opacity-60 ml-0.5 not-italic">pts</span>
+                                                        </p>
+                                                    </div>
+                                                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 text-center">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Días Activos</p>
+                                                        <p className="text-base font-black text-slate-700 italic">{dailyTrend.length}<span className="text-[9px] opacity-60 ml-0.5 not-italic">días</span></p>
+                                                    </div>
+                                                    <div className={`rounded-2xl p-3 text-center border ${promedioDiario >= META_DIARIA_KPI ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                                                        <p className={`text-[8px] font-black uppercase tracking-widest ${promedioDiario >= META_DIARIA_KPI ? 'text-emerald-400' : 'text-rose-400'}`}>Estado Meta</p>
+                                                        <p className={`text-[11px] font-black italic leading-tight ${promedioDiario >= META_DIARIA_KPI ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                                            {promedioDiario >= META_DIARIA_KPI ? '✅ Cumple' : '⚠️ Por alcanzar'}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1703,45 +2034,49 @@ const PortalColaborador = () => {
 
                                     {/* ── SECCIÓN DE GRÁFICOS DE RENDIMIENTO ── */}
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
+                                        {/* Tendencia diaria con etiquetas */}
                                         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8 min-w-0">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic flex items-center gap-2"><TrendingUp size={16} className="text-indigo-500" /> Tendencia de Puntos Diarios</h4>
                                                 <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-[9px] font-black text-indigo-600 uppercase">Meta: {META_DIARIA_KPI} pts/día</span>
                                             </div>
-                                            <div className="h-[220px] w-full">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <ComposedChart data={dailyTrend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                                            <div className="h-[240px] w-full">
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                                                    <ComposedChart data={dailyTrend} margin={{ top: 22, right: 10, left: -25, bottom: 0 }}>
                                                         <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 800, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                                         <YAxis tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                                                         <RechartsTooltip content={<KpiTooltip unit="pts" />} />
-                                                        <Area type="monotone" dataKey="pts" fill="url(#colorPts)" stroke="#6366f1" strokeWidth={3} activeDot={{ r: 6 }} />
-                                                        <Line type="monotone" dataKey="pts" stroke="#6366f1" strokeWidth={3} dot={{ r: 3, stroke: '#6366f1', strokeWidth: 2, fill: '#fff' }} />
+                                                        <ReferenceLine y={META_DIARIA_KPI} stroke="#10b981" strokeDasharray="5 3" strokeWidth={2} label={{ value: `Meta ${META_DIARIA_KPI}`, position: 'right', fontSize: 9, fontWeight: 900, fill: '#10b981', dx: 4 }} />
                                                         <defs>
                                                             <linearGradient id="colorPts" x1="0" y1="0" x2="0" y2="1">
                                                                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
                                                                 <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0}/>
                                                             </linearGradient>
                                                         </defs>
+                                                        <Area type="monotone" dataKey="pts" fill="url(#colorPts)" stroke="#6366f1" strokeWidth={3} activeDot={{ r: 6 }} />
+                                                        <Line type="monotone" dataKey="pts" stroke="#6366f1" strokeWidth={3} dot={{ r: 3, stroke: '#6366f1', strokeWidth: 2, fill: '#fff' }} label={<TrendLabel />} />
                                                     </ComposedChart>
                                                 </ResponsiveContainer>
                                             </div>
                                         </div>
 
+                                        {/* Promedio por día de semana con etiquetas y meta coloreada */}
                                         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-6 sm:p-8 min-w-0">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic flex items-center gap-2"><Calendar size={16} className="text-emerald-500" /> Promedio por Día de Semana</h4>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase">Cumple Meta</span>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase">≥ Meta</span></div>
+                                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /><span className="text-[9px] font-black text-slate-400 uppercase">Bajo Meta</span></div>
                                                 </div>
                                             </div>
-                                            <div className="h-[220px] w-full">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <BarChart data={dowData} margin={{ top: 15, right: 10, left: -25, bottom: 0 }}>
+                                            <div className="h-[240px] w-full">
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                                                    <BarChart data={dowData} margin={{ top: 22, right: 10, left: -25, bottom: 0 }}>
                                                         <XAxis dataKey="day" tick={{ fontSize: 10, fontWeight: 900, fill: '#475569' }} axisLine={false} tickLine={false} />
                                                         <YAxis tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                                        <RechartsTooltip content={<KpiTooltip unit="PB" />} />
-                                                        <Bar dataKey="avg" radius={[8, 8, 0, 0]} maxBarSize={32} label={<DowLabel />}>
+                                                        <RechartsTooltip content={<KpiTooltip unit="pts" />} />
+                                                        <ReferenceLine y={META_DIARIA_KPI} stroke="#10b981" strokeDasharray="5 3" strokeWidth={2} label={{ value: `${META_DIARIA_KPI} pts`, position: 'right', fontSize: 9, fontWeight: 900, fill: '#10b981', dx: 4 }} />
+                                                        <Bar dataKey="avg" radius={[8, 8, 0, 0]} maxBarSize={36} label={<DowLabel />}>
                                                             {dowData.map((entry, index) => (
                                                                 <Cell key={index} fill={entry.avg >= META_DIARIA_KPI ? '#10b981' : entry.avg > 0 ? '#f59e0b' : '#e2e8f0'} />
                                                             ))}
@@ -1752,15 +2087,19 @@ const PortalColaborador = () => {
                                         </div>
                                     </div>
 
+                                    {/* Top Actividades con etiquetas y columna de cantidad */}
                                     <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 sm:p-8 mt-8 min-w-0">
-                                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic mb-6 flex items-center gap-2"><Trophy size={16} className="text-amber-500" /> Top Actividades por Puntos Baremo</h4>
-                                        <div className="h-[220px] w-full">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart data={topActivities} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic flex items-center gap-2"><Trophy size={16} className="text-amber-500" /> Top Actividades por Puntos Baremo</h4>
+                                            <span className="px-3 py-1 bg-amber-50 border border-amber-100 rounded-lg text-[9px] font-black text-amber-600 uppercase">{topActivities.length} tipos distintos</span>
+                                        </div>
+                                        <div className="h-[260px] w-full">
+                                            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                                                <BarChart data={topActivities} layout="vertical" margin={{ top: 5, right: 80, left: 10, bottom: 5 }}>
                                                     <XAxis type="number" tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fontWeight: 800, fill: '#475569' }} width={120} axisLine={false} tickLine={false} />
+                                                    <YAxis type="category" dataKey="nameShort" tick={{ fontSize: 9, fontWeight: 800, fill: '#475569' }} width={130} axisLine={false} tickLine={false} />
                                                     <RechartsTooltip content={<KpiTooltip unit="pts" />} />
-                                                    <Bar dataKey="pts" radius={[0, 8, 8, 0]} fill="#6366f1" maxBarSize={20}>
+                                                    <Bar dataKey="pts" radius={[0, 8, 8, 0]} maxBarSize={22} label={<TopActLabel />}>
                                                         {topActivities.map((entry, index) => (
                                                             <Cell key={index} fill={index === 0 ? '#4f46e5' : index === 1 ? '#6366f1' : index === 2 ? '#818cf8' : '#a5b4fc'} />
                                                         ))}
@@ -1768,6 +2107,38 @@ const PortalColaborador = () => {
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         </div>
+                                        {/* Tabla resumen por actividad con % de peso */}
+                                        {topActivities.length > 0 && (() => {
+                                            const totalPtsTop = topActivities.reduce((s, a) => s + a.pts, 0);
+                                            const totalOtsTop = topActivities.reduce((s, a) => s + a.count, 0);
+                                            return (
+                                                <div className="mt-4 pt-4 border-t border-slate-100">
+                                                    <div className="grid grid-cols-5 gap-2 text-[8px] font-black text-slate-300 uppercase tracking-widest mb-2 px-2">
+                                                        <span className="col-span-2">Actividad</span>
+                                                        <span className="text-center">OTs</span>
+                                                        <span className="text-center">Pts/OT</span>
+                                                        <span className="text-center">% Peso</span>
+                                                    </div>
+                                                    {topActivities.map((t, i) => {
+                                                        const pesoPts = totalPtsTop > 0 ? Math.round((t.pts / totalPtsTop) * 100) : 0;
+                                                        const pesoOts = totalOtsTop > 0 ? Math.round((t.count / totalOtsTop) * 100) : 0;
+                                                        return (
+                                                            <div key={i} className="grid grid-cols-5 gap-2 items-center py-2 px-2 rounded-xl hover:bg-slate-50 transition-colors">
+                                                                <span className="col-span-2 text-[9px] font-bold text-slate-600 truncate">{t.nameShort}</span>
+                                                                <span className="text-[10px] font-black text-slate-700 text-center">{t.count}</span>
+                                                                <span className="text-[10px] font-black text-indigo-600 text-center">{t.avg}</span>
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="text-[10px] font-black text-amber-600">{pesoPts}%</span>
+                                                                    <div className="w-full h-1 bg-slate-100 rounded-full mt-0.5 overflow-hidden">
+                                                                        <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pesoPts}%` }} />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             );
@@ -1785,6 +2156,7 @@ const PortalColaborador = () => {
                                 </div>
                                 
                                 <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-4 xl:ml-12">
+                                    {/* Búsqueda por texto */}
                                     <div className="relative flex-1">
                                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                                         <input 
@@ -1795,6 +2167,39 @@ const PortalColaborador = () => {
                                             onChange={e => setSearchQuery(e.target.value)}
                                         />
                                     </div>
+
+                                    {/* Filtro por Fecha */}
+                                    <div className="relative flex items-center gap-2">
+                                        <div className="relative">
+                                            <input
+                                                type="date"
+                                                className="bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-5 text-[11px] font-black text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:bg-white/10 transition-all cursor-pointer tracking-widest appearance-none min-w-[160px] [color-scheme:dark]"
+                                                value={filterDate}
+                                                onChange={e => setFilterDate(e.target.value)}
+                                            />
+                                            {filterDate && (
+                                                <button
+                                                    onClick={() => setFilterDate('')}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                                                    title="Limpiar fecha"
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => setFilterDate(new Date().toISOString().slice(0, 10))}
+                                            className={`px-4 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                                filterDate === new Date().toISOString().slice(0, 10)
+                                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                                                    : 'bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
+                                            }`}
+                                        >
+                                            Hoy
+                                        </button>
+                                    </div>
+
+                                    {/* Filtro por Tipo */}
                                     <select 
                                         className="bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[10px] font-black uppercase text-slate-300 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 appearance-none cursor-pointer tracking-widest min-w-[160px]"
                                         value={filterType}
@@ -1842,7 +2247,8 @@ const PortalColaborador = () => {
                                                     const matchSearch = (act.ordenId || act.ID_Orden || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
                                                                        (act.actividadVisible || act.Actividad || '').toLowerCase().includes(searchQuery.toLowerCase());
                                                     const matchType = filterType === 'Todos' || (act.Subtipo_de_Actividad || act.Actividad || '').toUpperCase().includes(filterType);
-                                                    return matchSearch && matchType;
+                                                    const matchDate = !filterDate || (act.fecha && new Date(act.fecha).toISOString().slice(0,10) === filterDate);
+                                                    return matchSearch && matchType && matchDate;
                                                 })
                                                 .map((act, idx) => {
                                                 const hasAppeal = !!act.apelacion;
@@ -1891,12 +2297,34 @@ const PortalColaborador = () => {
                                                                  )}
                                                              </div>
                                                          </td>
-                                                        <td className="px-8 py-8 min-w-[320px]">
-                                                            <div className="space-y-1.5">
-                                                                <p className="text-sm font-black text-slate-900 uppercase italic leading-none tracking-tight group-hover:text-indigo-600 transition-colors uppercase">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[280px] tracking-widest opacity-60">{act.Subtipo_de_Actividad || 'General'}</p>
-                                                            </div>
-                                                        </td>
+                                                        <td className="px-8 py-8 min-w-[340px]">
+                                                             <div className="space-y-2.5">
+                                                                 {/* Nombre actividad + badge categoría */}
+                                                                 <div className="flex items-start gap-2 flex-wrap">
+                                                                     <p className="text-sm font-black text-slate-900 uppercase italic leading-none tracking-tight group-hover:text-indigo-600 transition-colors">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
+                                                                     {(() => { const cat = getCategory(act); const s = CATEGORY_STYLES[cat]; return <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border whitespace-nowrap ${s.cls}`}>{s.label}</span>; })()}
+                                                                 </div>
+                                                                 <p className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[300px] tracking-widest opacity-60">{act.Subtipo_de_Actividad || 'General'}</p>
+                                                                 {/* Datos cliente */}
+                                                                 <div className="flex flex-col gap-1 pt-1 border-t border-slate-100">
+                                                                     {(act.Nombre || act.nombre_cliente) && (
+                                                                         <div className="flex items-center gap-1.5">
+                                                                             <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Cliente</span>
+                                                                             <span className="text-[10px] font-bold text-slate-600 truncate max-w-[240px]">{act.Nombre || act.nombre_cliente}</span>
+                                                                         </div>
+                                                                     )}
+                                                                     {(act.Direccion || act.direccion) && (
+                                                                         <div className="flex items-center gap-1.5">
+                                                                             <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Dir.</span>
+                                                                             <span className="text-[10px] font-bold text-slate-500 truncate max-w-[240px]">{act.Direccion || act.direccion}</span>
+                                                                         </div>
+                                                                     )}
+                                                                     {(act.Comuna || act.comuna) && (
+                                                                         <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 border border-slate-200 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-widest w-fit">{act.Comuna || act.comuna}</span>
+                                                                     )}
+                                                                 </div>
+                                                             </div>
+                                                         </td>
                                                         <td className="px-8 py-8 text-center text-sm font-black italic text-slate-700">
                                                             {ptsBase} <span className="text-[9px] opacity-40 not-italic uppercase">PB</span>
                                                         </td>
@@ -1949,7 +2377,8 @@ const PortalColaborador = () => {
                                             const matchSearch = (act.ordenId || act.ID_Orden || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
                                                                (act.actividadVisible || act.Actividad || '').toLowerCase().includes(searchQuery.toLowerCase());
                                             const matchType = filterType === 'Todos' || (act.Subtipo_de_Actividad || act.Actividad || '').toUpperCase().includes(filterType);
-                                            return matchSearch && matchType;
+                                            const matchDate = !filterDate || (act.fecha && new Date(act.fecha).toISOString().slice(0,10) === filterDate);
+                                            return matchSearch && matchType && matchDate;
                                         })
                                         .map((act, idx) => {
                                             const hasAppeal = !!act.apelacion;
@@ -1993,10 +2422,34 @@ const PortalColaborador = () => {
                                                         </span>
                                                     </div>
 
-                                                    <div className="space-y-1">
-                                                        <p className="text-sm font-black text-slate-800 uppercase italic leading-tight">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
+
+                                                    <div className="space-y-2">
+                                                        {/* Actividad + badge categoría */}
+                                                        <div className="flex items-start gap-2 flex-wrap">
+                                                            <p className="text-sm font-black text-slate-800 uppercase italic leading-tight">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
+                                                            {(() => { const cat = getCategory(act); const s = CATEGORY_STYLES[cat]; return <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border whitespace-nowrap ${s.cls}`}>{s.label}</span>; })()}
+                                                        </div>
                                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{act.Subtipo_de_Actividad || 'General'}</p>
+                                                        {/* Datos cliente en móvil */}
+                                                        <div className="flex flex-col gap-1 pt-2 border-t border-slate-100 mt-1">
+                                                            {(act.Nombre || act.nombre_cliente) && (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Cliente</span>
+                                                                    <span className="text-[10px] font-bold text-slate-600 truncate max-w-[220px]">{act.Nombre || act.nombre_cliente}</span>
+                                                                </div>
+                                                            )}
+                                                            {(act.Direccion || act.direccion) && (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Dir.</span>
+                                                                    <span className="text-[10px] font-bold text-slate-500 truncate max-w-[220px]">{act.Direccion || act.direccion}</span>
+                                                                </div>
+                                                            )}
+                                                            {(act.Comuna || act.comuna) && (
+                                                                <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 border border-slate-200 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-widest w-fit">{act.Comuna || act.comuna}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
+
 
                                                     <div className="flex justify-between items-center pt-2">
                                                         <div className="flex gap-1.5 flex-wrap">
@@ -2030,185 +2483,408 @@ const PortalColaborador = () => {
                             </div>
                         </div>
 
-                        {/* Modal de Detalle de OT & Apelación */}
+                        {/* Modal de Detalle de OT & Apelación (Mejorado) */}
                         {selectedOT && (
-                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xl animate-in fade-in duration-500">
-                                <div className="bg-white w-full max-w-2xl rounded-[4rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500 border border-slate-100">
-                                    <div className="bg-slate-50/50 p-12 border-b border-slate-100 flex justify-between items-start">
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-3">
-                                                <span className="px-4 py-1.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-indigo-100">Detalle Operativo</span>
-                                                {selectedOT.apelacion?.status === 'por_validar' && (
-                                                    <span className="px-4 py-1.5 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 shadow-lg shadow-amber-100 animate-pulse"><Clock size={12} /> Revisión Pendiente</span>
-                                                )}
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+                                <div className="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-slate-200 flex flex-col max-h-[90vh]">
+                                    
+                                    {/* Modal Header */}
+                                    <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shadow-sm">
+                                                <ClipboardCheck size={20} />
                                             </div>
                                             <div>
-                                                <h3 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{selectedOT.actividadVisible}</h3>
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.3em] mt-3 italic opacity-60">Orden de Trabajo: {selectedOT.ordenId || selectedOT.ID_Orden || 'N/A'}</p>
+                                                <div className="flex items-center gap-3">
+                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">Detalle Operativo & Apelación</h3>
+                                                    {selectedOT.apelacion?.status === 'por_validar' && (
+                                                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200 text-[9px] font-black uppercase flex items-center gap-1 shadow-sm"><Clock size={10} /> Pendiente</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">OT: {selectedOT.ordenId || selectedOT.ID_Orden || 'S/N'}</p>
                                             </div>
                                         </div>
-                                        <button onClick={() => setSelectedOT(null)} className="p-4 hover:bg-white hover:shadow-xl rounded-[2rem] transition-all border border-transparent hover:border-slate-100"><XCircle size={40} className="text-slate-200" /></button>
+                                        <button 
+                                            onClick={() => setSelectedOT(null)} 
+                                            className="w-8 h-8 rounded-lg hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all"
+                                        >
+                                            ✕
+                                        </button>
                                     </div>
 
-                                    <div className="p-12 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                                        <div className="grid grid-cols-2 gap-6 mb-10">
-                                            <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 group hover:bg-white hover:shadow-xl transition-all">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 italic">Baremo LPU Base</p>
-                                                <p className="text-4xl font-black text-slate-900 italic tracking-tighter tabular-nums">{selectedOT.Pts_Actividad_Base || 0} <span className="text-sm opacity-20 not-italic uppercase">PTS</span></p>
-                                            </div>
-                                            <div className="bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 group">
-                                                <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2 italic opacity-60">Total Producción</p>
-                                                <p className="text-4xl font-black italic tracking-tighter tabular-nums">{selectedOT.ptsVisible || 0} <span className="text-sm opacity-30 not-italic uppercase">PTS</span></p>
+                                    {/* Modal Body */}
+                                    <div className="p-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/30">
+                                        
+                                        {/* Información de Terreno (Compacta) */}
+                                        <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-3 mb-6 shadow-sm">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block border-b border-slate-100 pb-2 mb-2">Información de Terreno</span>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fecha de la Actividad</p>
+                                                    <p className="text-xs font-bold text-slate-800">{selectedOT.fecha ? new Date(selectedOT.fecha).toLocaleDateString('es-CL') : (selectedOT.Fecha_de_Cita || selectedOT['Fecha de Cita'] || 'N/A')}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente</p>
+                                                    <p className="text-xs font-bold text-slate-800 truncate" title={selectedOT.Nombre || selectedOT.NOMBRE}>{selectedOT.Nombre || selectedOT.NOMBRE || 'N/A'}</p>
+                                                </div>
+                                                <div className="sm:col-span-2">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Dirección</p>
+                                                    <p className="text-xs font-bold text-slate-800">
+                                                        {[selectedOT.Direccion || selectedOT.DIRECCION, selectedOT.Comuna || selectedOT.COMUNA].filter(Boolean).join(', ') || 'N/A'}
+                                                    </p>
+                                                </div>
+                                                
+                                                {/* Nuevos Campos Agregados */}
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Ventana de Servicio</p>
+                                                    <p className="text-xs font-bold text-slate-800">{selectedOT['Ventana de servicio'] || selectedOT.Ventana_de_servicio || 'N/A'}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Inicio - Fin (Visita)</p>
+                                                    <p className="text-xs font-bold text-slate-800">{selectedOT['Inicio - Fin'] || selectedOT['Inicio_-_Fin'] || selectedOT.Inicio_Fin || 'N/A'}</p>
+                                                </div>
+                                                {(selectedOT['Submotivo de Reparacion'] || selectedOT.Submotivo_de_Reparacion || selectedOT.Submotivo_de_Reparación) && (
+                                                    <div className="sm:col-span-2">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Submotivo de Reparación</p>
+                                                        <p className="text-xs font-bold text-slate-800">{selectedOT['Submotivo de Reparacion'] || selectedOT.Submotivo_de_Reparacion || selectedOT.Submotivo_de_Reparación}</p>
+                                                    </div>
+                                                )}
+
+                                                {(selectedOT.Observaciones || selectedOT.OBSERVACIONES || selectedOT.OBSERVACION) && (
+                                                    <div className="sm:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Observación del Trabajo (TOA)</p>
+                                                        <p className="text-xs font-medium text-slate-600 italic">"{selectedOT.Observaciones || selectedOT.OBSERVACIONES || selectedOT.OBSERVACION}"</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="space-y-8">
-                                            <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-b border-slate-100 pb-4 italic">Desglose de Equipamiento (TOA XML)</h4>
-                                            
-                                            {!isAppealing ? (
-                                                <div className="space-y-6">
-                                                    <div className="grid gap-4">
-                                                        <div className="flex flex-col gap-4 p-8 bg-slate-50 border border-slate-100 rounded-[3rem]">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Equipos Instalados</span>
-                                                                <div className="text-right">
-                                                                    <span className="text-sm font-black text-slate-900 block uppercase italic tracking-tight">{selectedOT.Equipos_Detalle?.split('|')[0] || '1 Terminal Principal'}</span>
-                                                                    <div className="flex flex-wrap gap-2 mt-2 justify-end">
-                                                                        {selectedOT.Equipos_Detalle?.split('|').slice(1).map((eq, i) => (
-                                                                            <span key={i} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[9px] font-black text-slate-500 uppercase">{eq}</span>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="h-px bg-slate-200" />
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Puntos Adicionales</span>
-                                                                <div className="flex gap-3">
-                                                                    {parseInt(selectedOT.Decos_Adicionales || 0) > 0 && 
-                                                                        <span className="px-4 py-1.5 bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-black uppercase">+{selectedOT.Pts_Deco_Adicional} (STB)</span>
-                                                                    }
-                                                                    {parseInt(selectedOT.Repetidores_WiFi || 0) > 0 && 
-                                                                        <span className="px-4 py-1.5 bg-amber-100 text-amber-700 rounded-xl text-[10px] font-black uppercase">+{selectedOT.Pts_Repetidor_WiFi} (WIFI)</span>
-                                                                    }
-                                                                    {(!selectedOT.Decos_Adicionales && !selectedOT.Repetidores_WiFi) && 
-                                                                        <span className="text-[10px] text-slate-400 italic font-bold uppercase tracking-widest opacity-40">Sin puntos adicionales detectados</span>
-                                                                    }
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                        {!isAppealing ? (
+                                            <div className="space-y-6 animate-in slide-in-from-bottom-2">
+                                                {/* Puntos y Desglose Actual */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     
-                                                    {selectedOT.apelacion && (
-                                                         <div className={`p-6 rounded-[2.5rem] border ${
-                                                             selectedOT.apelacion.status === 'por_validar' ? 'bg-amber-50/50 border-amber-200 text-amber-900' :
-                                                             selectedOT.apelacion.status === 'aprobada' ? 'bg-emerald-50/50 border-emerald-200 text-emerald-900' :
-                                                             'bg-rose-50/30 border-rose-200 text-rose-900'
-                                                         } space-y-4`}>
-                                                             <div className="flex justify-between items-center">
-                                                                 <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Historial de Apelación</span>
-                                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
-                                                                     selectedOT.apelacion.status === 'por_validar' ? 'bg-amber-100 text-amber-700' :
-                                                                     selectedOT.apelacion.status === 'aprobada' ? 'bg-emerald-100 text-emerald-700' :
-                                                                     'bg-rose-100 text-rose-700'
-                                                                 }`}>
-                                                                     {selectedOT.apelacion.status === 'por_validar' && 'Pendiente'}
-                                                                     {selectedOT.apelacion.status === 'aprobada' && 'Aprobada'}
-                                                                     {selectedOT.apelacion.status === 'rechazada' && 'Rechazada'}
-                                                                 </span>
-                                                             </div>
-                                                             <div className="space-y-2 text-xs">
-                                                                 <p className="font-bold opacity-75">
-                                                                     <span className="font-black uppercase tracking-wider text-[9px] mr-1 block text-slate-500">Equipos Solicitados:</span>
-                                                                     {selectedOT.apelacion.equipos?.decos || 0} Decos, {selectedOT.apelacion.equipos?.repetidores || 0} Repetidores
-                                                                 </p>
-                                                                 {selectedOT.apelacion.observacion && (
-                                                                     <p className="font-medium bg-white/60 p-4 rounded-xl border border-slate-100/50 italic">
-                                                                         "{selectedOT.apelacion.observacion}"
-                                                                     </p>
-                                                                 )}
-                                                                 {selectedOT.apelacion.respuesta && (
-                                                                     <div className="mt-4 pt-3 border-t border-slate-200/50 space-y-1">
-                                                                         <span className="font-black uppercase tracking-wider text-[9px] block text-slate-500">Respuesta de Supervisión:</span>
-                                                                         <p className="font-bold italic bg-white/80 p-4 rounded-xl border border-slate-200/40">
-                                                                             "{selectedOT.apelacion.respuesta}"
-                                                                         </p>
-                                                                     </div>
-                                                                 )}
-                                                             </div>
-                                                         </div>
-                                                     )}
+                                                    {/* Tarjeta de Producción */}
+                                                    <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-100/50 flex flex-col justify-center">
+                                                        <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1 opacity-80">Actividad Registrada</p>
+                                                        <h4 className="text-lg font-black leading-tight mb-4">{selectedOT.actividadVisible}</h4>
+                                                        
+                                                        <div className="flex justify-between items-end border-t border-indigo-500/50 pt-4 mt-auto">
+                                                            <div>
+                                                                <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1">Base LPU</p>
+                                                                <p className="text-xl font-black font-mono">{selectedOT.Pts_Actividad_Base || 0}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1">Total Calculado</p>
+                                                                <p className="text-3xl font-black font-mono">{selectedOT.ptsVisible || 0} <span className="text-sm font-bold opacity-50">pts</span></p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                                                     <div className="pt-6">
-                                                         <button 
-                                                             onClick={() => setIsAppealing(true)}
-                                                             disabled={!!selectedOT.apelacion?.status}
-                                                             className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.3em] shadow-2xl hover:bg-slate-800 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-4"
-                                                         >
-                                                             {selectedOT.apelacion?.status ? (
-                                                                 selectedOT.apelacion.status === 'por_validar' ? (
-                                                                     <>Solicitud en Proceso de Revisión <Clock size={16} /></>
-                                                                 ) : selectedOT.apelacion.status === 'aprobada' ? (
-                                                                     <>Apelación Procesada (Aprobada) <BadgeCheck size={16} /></>
-                                                                 ) : (
-                                                                     <>Apelación Procesada (Rechazada) <XCircle size={16} /></>
-                                                                 )
-                                                             ) : (
-                                                                 <>¿Detectas un Error? Apelar Cálculo <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform" /></>
-                                                             )}
-                                                         </button>
-                                                     </div>
+                                                    {/* Equipamiento TOA */}
+                                                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                                                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">Desglose de Equipos (TOA)</h4>
+                                                        
+                                                        <div className="space-y-4">
+                                                            <div>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Base Instalada</span>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[9px] font-black text-slate-600 uppercase">{selectedOT.Equipos_Detalle?.split('|')[0] || '1 Terminal'}</span>
+                                                                    {selectedOT.Equipos_Detalle?.split('|').slice(1).map((eq, i) => (
+                                                                        <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-150 rounded text-[9px] font-bold text-slate-500 uppercase">{eq}</span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Adicionales Puntuados</span>
+                                                                <div className="flex gap-2">
+                                                                    {parseInt(selectedOT.Decos_Adicionales || 0) > 0 ? (
+                                                                        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg text-[10px] font-black uppercase">{selectedOT.Decos_Adicionales} Decos (+{selectedOT.Pts_Deco_Adicional})</span>
+                                                                    ) : null}
+                                                                    {parseInt(selectedOT.Repetidores_WiFi || 0) > 0 ? (
+                                                                        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-[10px] font-black uppercase">{selectedOT.Repetidores_WiFi} WiFi (+{selectedOT.Pts_Repetidor_WiFi})</span>
+                                                                    ) : null}
+                                                                    {(!selectedOT.Decos_Adicionales && !selectedOT.Repetidores_WiFi) && (
+                                                                        <span className="text-[10px] text-slate-400 font-bold italic">No se detectaron adicionales</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            ) : (
-                                                <div className="space-y-6 animate-in slide-in-from-bottom duration-500">
-                                                    <div className="grid grid-cols-2 gap-6">
-                                                        <div className="space-y-3">
-                                                            <label className="text-[11px] font-black text-indigo-600 uppercase tracking-widest px-4 italic">Decos Reales Instalados</label>
-                                                            <input 
-                                                                type="number"
-                                                                value={appealForm.decos}
-                                                                onChange={e => setAppealForm({ ...appealForm, decos: e.target.value })}
-                                                                className="w-full bg-slate-50 border border-slate-100 p-6 rounded-[2rem] font-black text-xl italic tabular-nums focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all focus:outline-none"
-                                                            />
+
+                                                {/* Estado de Apelación Existente */}
+                                                {selectedOT.apelacion && (
+                                                    <div className={`p-5 rounded-2xl border shadow-sm ${
+                                                        selectedOT.apelacion.status === 'por_validar' ? 'bg-amber-50/50 border-amber-200' :
+                                                        selectedOT.apelacion.status === 'aprobada' ? 'bg-emerald-50/50 border-emerald-200' :
+                                                        'bg-rose-50/50 border-rose-200'
+                                                    }`}>
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Historial de Apelación</span>
+                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                                                                selectedOT.apelacion.status === 'por_validar' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                                                                selectedOT.apelacion.status === 'aprobada' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                                'bg-rose-100 text-rose-700 border-rose-200'
+                                                            }`}>
+                                                                {selectedOT.apelacion.status === 'por_validar' && 'En Revisión'}
+                                                                {selectedOT.apelacion.status === 'aprobada' && 'Aprobada'}
+                                                                {selectedOT.apelacion.status === 'rechazada' && 'Rechazada'}
+                                                            </span>
                                                         </div>
-                                                        <div className="space-y-3">
-                                                            <label className="text-[11px] font-black text-amber-600 uppercase tracking-widest px-4 italic">Repetidores Reales</label>
-                                                            <input 
-                                                                type="number"
-                                                                value={appealForm.repetidores}
-                                                                onChange={e => setAppealForm({ ...appealForm, repetidores: e.target.value })}
-                                                                className="w-full bg-slate-50 border border-slate-100 p-6 rounded-[2rem] font-black text-xl italic tabular-nums focus:bg-white focus:ring-4 focus:ring-amber-500/10 transition-all focus:outline-none"
-                                                            />
+                                                        <div className="text-xs text-slate-700 space-y-2">
+                                                            <div className="flex items-center gap-3">
+                                                                {selectedOT.apelacion.equipos?.decos > 0 && <span className="font-bold bg-white px-2 py-1 rounded shadow-sm border border-slate-100">{selectedOT.apelacion.equipos.decos} Decos</span>}
+                                                                {selectedOT.apelacion.equipos?.repetidores > 0 && <span className="font-bold bg-white px-2 py-1 rounded shadow-sm border border-slate-100">{selectedOT.apelacion.equipos.repetidores} Repetidores</span>}
+                                                                {selectedOT.apelacion.codigoLpu && <span className="font-bold bg-white px-2 py-1 rounded shadow-sm border border-slate-100">Actividad: {selectedOT.apelacion.codigoLpu}</span>}
+                                                            </div>
+                                                            {selectedOT.apelacion.observacion && (
+                                                                <p className="italic bg-white/60 p-3 rounded-lg border border-slate-100">"{selectedOT.apelacion.observacion}"</p>
+                                                            )}
+                                                            {selectedOT.apelacion.respuesta && (
+                                                                <div className="mt-3 pt-3 border-t border-slate-200/50">
+                                                                    <span className="font-black text-[9px] uppercase tracking-wider text-slate-500 block mb-1">Respuesta del Supervisor:</span>
+                                                                    <p className="font-medium bg-white p-3 rounded-lg border border-slate-200">"{selectedOT.apelacion.respuesta}"</p>
+                                                                    {selectedOT.apelacion.evidenciaSupervisorUrl && (
+                                                                        <a href={selectedOT.apelacion.evidenciaSupervisorUrl} target="_blank" rel="noopener noreferrer" className="mt-2 text-[10px] font-bold text-indigo-700 hover:underline flex items-center gap-1 bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-200 w-fit">
+                                                                            <ImageIcon size={14} className="text-indigo-500" /> Ver Respaldo del Supervisor
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-3">
-                                                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-4 italic">Justificación del Reclamo</label>
-                                                        <textarea 
-                                                            placeholder="Describe detalladamente los equipos instalados que no aparecen en el cálculo automático..."
-                                                            value={appealForm.observacion}
-                                                            onChange={e => setAppealForm({ ...appealForm, observacion: e.target.value })}
-                                                            className="w-full bg-slate-50 border border-slate-100 p-8 rounded-[2.5rem] font-bold text-sm h-32 resize-none focus:bg-white focus:ring-4 focus:ring-slate-500/10 transition-all focus:outline-none"
-                                                        />
-                                                    </div>
-                                                    <div className="flex gap-6 pt-6">
-                                                        <button onClick={() => setIsAppealing(false)} className="flex-1 py-6 bg-slate-100 text-slate-500 rounded-[2rem] font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all">Cancelar</button>
-                                                        <button 
-                                                            onClick={handleSendAppeal}
-                                                            disabled={submittingAppeal}
-                                                            className="flex-[2] py-6 bg-emerald-500 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-emerald-100 flex items-center justify-center gap-3 hover:bg-emerald-600 active:scale-95 transition-all disabled:opacity-50"
+                                                )}
+
+                                                {/* Botón Acción Principal */}
+                                                <div className="pt-2">
+                                                    <button 
+                                                        onClick={() => setIsAppealing(true)}
+                                                        disabled={!!selectedOT.apelacion?.status}
+                                                        className="w-full py-4 bg-slate-800 text-white rounded-xl font-black text-[11px] uppercase tracking-widest shadow-lg hover:bg-slate-700 active:bg-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-3"
+                                                    >
+                                                        {selectedOT.apelacion?.status ? (
+                                                            selectedOT.apelacion.status === 'por_validar' ? (
+                                                                <>Solicitud en Proceso de Revisión <Clock size={16} /></>
+                                                            ) : selectedOT.apelacion.status === 'aprobada' ? (
+                                                                <>Apelación Procesada (Aprobada) <BadgeCheck size={16} /></>
+                                                            ) : (
+                                                                <>Apelación Procesada (Rechazada) <XCircle size={16} /></>
+                                                            )
+                                                        ) : (
+                                                            <>¿Hubo un error en TOA? Generar Apelación <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" /></>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <button onClick={() => setIsAppealing(false)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors">
+                                                        <ChevronLeft size={18} />
+                                                    </button>
+                                                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Generar Apelación</h4>
+                                                </div>
+
+                                                <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5">
+                                                    
+                                                    {/* Error en LPU */}
+                                                    <div>
+                                                        <div 
+                                                            className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer border transition-all ${appealForm.actividadIncorrecta ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                                            onClick={() => setAppealForm({ ...appealForm, actividadIncorrecta: !appealForm.actividadIncorrecta })}
                                                         >
-                                                            {submittingAppeal ? <Loader2 className="animate-spin" size={20} /> : <BadgeCheck size={20} />}
-                                                            Enviar a Validación Técnica
-                                                        </button>
+                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${appealForm.actividadIncorrecta ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>
+                                                                {appealForm.actividadIncorrecta && <Check size={14} strokeWidth={4} />}
+                                                            </div>
+                                                            <div>
+                                                                <span className={`text-[11px] font-black uppercase tracking-wider block ${appealForm.actividadIncorrecta ? 'text-indigo-800' : 'text-slate-600'}`}>Error de Actividad (LPU)</span>
+                                                                <span className="text-[10px] text-slate-500 font-medium">Marcar si la actividad en TOA no corresponde a lo que realmente hiciste.</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {appealForm.actividadIncorrecta && (
+                                                            <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Selecciona la Actividad LPU Real</label>
+                                                                <select 
+                                                                    value={appealForm.codigoLpu}
+                                                                    onChange={e => setAppealForm({ ...appealForm, codigoLpu: e.target.value })}
+                                                                    className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-bold text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all"
+                                                                >
+                                                                    <option value="">Seleccione una actividad...</option>
+                                                                    {tarifasLPU.map(t => (
+                                                                        <option key={t.codigo} value={t.codigo}>[{t.codigo}] {t.descripcion} ({t.puntos} pts)</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Equipos Reales */}
+                                                    <div className="pt-4 border-t border-slate-100">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Equipos Reales Instalados</label>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Decos (STB)</label>
+                                                                <input 
+                                                                    type="number"
+                                                                    min="0"
+                                                                    value={appealForm.decos}
+                                                                    onChange={e => setAppealForm({ ...appealForm, decos: e.target.value })}
+                                                                    className="w-full bg-white border border-slate-200 p-2.5 rounded-lg font-black text-lg text-slate-800 tabular-nums focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all text-center"
+                                                                />
+                                                            </div>
+                                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Repetidores (WIFI)</label>
+                                                                <input 
+                                                                    type="number"
+                                                                    min="0"
+                                                                    value={appealForm.repetidores}
+                                                                    onChange={e => setAppealForm({ ...appealForm, repetidores: e.target.value })}
+                                                                    className="w-full bg-white border border-slate-200 p-2.5 rounded-lg font-black text-lg text-slate-800 tabular-nums focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all text-center"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Observaciones y Evidencia */}
+                                                    <div className="pt-4 border-t border-slate-100 space-y-4">
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Justificación del Reclamo</label>
+                                                            <textarea 
+                                                                placeholder="Explica brevemente la diferencia entre lo registrado y lo realizado..."
+                                                                value={appealForm.observacion}
+                                                                onChange={e => setAppealForm({ ...appealForm, observacion: e.target.value })}
+                                                                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl font-medium text-xs text-slate-700 h-24 resize-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all"
+                                                            />
+                                                        </div>
+                                                        
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                                <ImageIcon size={12} /> Respaldo / Captura TOA (Opcional)
+                                                            </label>
+                                                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                                                <label className={`flex items-center justify-center gap-2 px-4 py-2.5 ${uploadingImage ? 'bg-slate-100 text-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-white'} rounded-lg font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-colors shadow-sm`}>
+                                                                    {uploadingImage ? <RefreshCw className="animate-spin" size={14} /> : <Upload size={14} />}
+                                                                    {uploadingImage ? 'Subiendo...' : 'Adjuntar Imagen'}
+                                                                    <input 
+                                                                        type="file" 
+                                                                        accept="image/*" 
+                                                                        className="hidden" 
+                                                                        onChange={handleImageUpload} 
+                                                                        disabled={uploadingImage}
+                                                                    />
+                                                                </label>
+                                                                {appealForm.evidenciaUrl && (
+                                                                    <a href={appealForm.evidenciaUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-700 hover:underline flex items-center gap-1 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
+                                                                        <CheckCircle2 size={14} className="text-emerald-500" /> Imagen Adjunta
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
+
+                                                <div className="flex gap-4 pt-2">
+                                                    <button 
+                                                        onClick={() => setIsAppealing(false)} 
+                                                        className="flex-1 py-3.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-50 transition-colors"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                    <button 
+                                                        onClick={handleSendAppeal}
+                                                        disabled={submittingAppeal}
+                                                        className="flex-[2] py-3.5 bg-emerald-600 text-white rounded-xl font-black text-[11px] uppercase tracking-widest shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 hover:bg-emerald-500 active:bg-emerald-700 transition-all disabled:opacity-50"
+                                                    >
+                                                        {submittingAppeal ? <Loader2 className="animate-spin" size={16} /> : <BadgeCheck size={16} />}
+                                                        Enviar a Validación
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         )}
                     </div>
                 )}
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: GARANTIAS
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'garantias') {
+        const tecnicoFijo = tecnico?.idRecursoToa || tecnico?.idRecurso || tecnico?._id || user?.idRecurso || user?.id;
+        
+        return (
+            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+                <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
+                    {renderHeader("Mis Garantías", ShieldAlert)}
+                    {/* Month Selector */}
+                    <div className="flex gap-2 p-1.5 bg-slate-100 rounded-3xl border border-slate-200">
+                        {availableMonths.map(m => (
+                            <button
+                                key={m.id}
+                                onClick={() => handleMonthChange(m.id)}
+                                className={`px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedMonth === m.id ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                {m.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                
+                <div className="bg-slate-50 border border-slate-100 p-8 rounded-[3rem] shadow-inner mb-8 text-center max-w-3xl mx-auto">
+                   <p className="text-slate-500 font-medium text-sm italic">Aquí puedes revisar tu calidad y reingresos del mes seleccionado. Mantener un bajo nivel de fallas asegura un buen desempeño y bonificación.</p>
+                </div>
+                
+                <GarantiasTab 
+                    dateFrom={`${activeYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`} 
+                    dateTo={`${activeYear}-${String(selectedMonth + 1).padStart(2, '0')}-${new Date(activeYear, selectedMonth + 1, 0).getDate()}`} 
+                    selectedZonas={[]} 
+                    selectedProyectos={[]} 
+                    selectedCategorias={[]} 
+                    selectedMonths={[`${activeYear}-${String(selectedMonth + 1).padStart(2, '0')}`]} 
+                    tecnicoFijo={tecnicoFijo} 
+                />
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: AGENDA
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'agenda') {
+        const tecnicoFijo = tecnico?.idRecursoToa || tecnico?.idRecurso || tecnico?._id || user?.idRecurso || user?.id;
+        
+        return (
+            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+                <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
+                    {renderHeader("Mi Agenda", Calendar)}
+                    {/* Month Selector */}
+                    <div className="flex gap-2 p-1.5 bg-slate-100 rounded-3xl border border-slate-200">
+                        {availableMonths.map(m => (
+                            <button
+                                key={m.id}
+                                onClick={() => handleMonthChange(m.id)}
+                                className={`px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedMonth === m.id ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                {m.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                
+                <AgendaColaboradorTab 
+                    dateFrom={`${activeYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`} 
+                    dateTo={`${activeYear}-${String(selectedMonth + 1).padStart(2, '0')}-${new Date(activeYear, selectedMonth + 1, 0).getDate()}`} 
+                    selectedMonths={[`${activeYear}-${String(selectedMonth + 1).padStart(2, '0')}`]} 
+                    tecnicoFijo={tecnicoFijo} 
+                />
             </div>
         );
     }
@@ -3083,6 +3759,11 @@ const PortalColaborador = () => {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: NOTIFICACIONES
+    // ──────────────────────────────────────────────────────────────────────────
+    {activeView === 'notificaciones' && <NotificacionesTramites user={user} onBack={() => setActiveView('main')} perfil={perfil} />}
+
+    // ──────────────────────────────────────────────────────────────────────────
     // VIEW: MI PERFIL
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'perfil') {
@@ -3114,6 +3795,7 @@ const PortalColaborador = () => {
                         </div>
                         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                             {[
+                                { label: 'ID TOA', value: tecnico?.idRecursoToa || tecnico?.idRecurso || '—', icon: Fingerprint },
                                 { label: 'Correo Electrónico', value: tecnico?.email || perfil?.email || user?.email, icon: Mail },
                                 { label: 'Teléfono', value: tecnico?.telefono || perfil?.telefono || '—', icon: Phone },
                                 { label: 'Empresa / Mandante', value: tecnico?.empresaOrigen || tecnico?.mandantePrincipal || tecnico?.departamento || '—', icon: Building2 },

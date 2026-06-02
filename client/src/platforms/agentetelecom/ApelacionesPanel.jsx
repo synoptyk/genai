@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ClipboardCheck, Clock, CheckCircle2, XCircle, Search, 
   Filter, ArrowLeft, MessageSquare, Calendar, Hash, User, 
-  Tv, Wifi, ChevronRight, AlertCircle, RefreshCw, Phone, Award
+  Tv, Wifi, ChevronRight, AlertCircle, RefreshCw, Phone, Award, Upload, Image as ImageIcon
 } from 'lucide-react';
 import telecomApi from './telecomApi';
 
@@ -25,7 +25,11 @@ export default function ApelacionesPanel() {
   const [activeTab, setActiveTab] = useState('por_validar'); // 'por_validar', 'aprobada', 'rechazada', 'todas'
   const [selectedAppeal, setSelectedAppeal] = useState(null);
   const [feedback, setFeedback] = useState('');
+  const [evidenciaUrl, setEvidenciaUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [overrideData, setOverrideData] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [tarifasLPU, setTarifasLPU] = useState([]);
   const [notification, setNotification] = useState(null);
 
   // Fetch appeals from backend
@@ -45,6 +49,16 @@ export default function ApelacionesPanel() {
   useEffect(() => {
     fetchAppeals();
 
+    const fetchTarifas = async () => {
+      try {
+        const res = await telecomApi.get('/tarifa-lpu/catalogo');
+        setTarifasLPU(res.data || []);
+      } catch (err) {
+        console.error('Error fetching tarifas LPU:', err);
+      }
+    };
+    fetchTarifas();
+
     const handleNewAppeal = () => {
       console.log("🔄 [ApelacionesPanel] Recibida notificación de nueva apelación en tiempo real. Recargando...");
       fetchAppeals();
@@ -61,6 +75,36 @@ export default function ApelacionesPanel() {
     setTimeout(() => setNotification(null), 5000);
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showNotification('error', 'Por favor selecciona un archivo de imagen válido.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('imagen', file);
+
+    setUploadingImage(true);
+    try {
+      // Usar axios directo o telecomApi si la ruta base cuadra
+      const res = await telecomApi.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data && res.data.url) {
+        setEvidenciaUrl(res.data.url);
+        showNotification('success', 'Imagen de respaldo subida correctamente.');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      showNotification('error', 'Error al subir la imagen. Intente nuevamente.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   // Resolve Appeal (Approve or Reject)
   const handleResolve = async (status) => {
     if (!selectedAppeal) return;
@@ -73,12 +117,20 @@ export default function ApelacionesPanel() {
     try {
       await telecomApi.post(`/tecnicos/produccion/apelacion/${selectedAppeal._id}/resolver`, {
         status,
-        respuesta: feedback
+        respuesta: feedback,
+        evidenciaUrl,
+        overrideLpu: overrideData?.lpu,
+        overrideEquipos: {
+          decos: overrideData?.decos || 0,
+          repetidores: overrideData?.repetidores || 0,
+          telefonos: overrideData?.telefonos || 0
+        }
       });
 
       showNotification('success', `Apelación ${status === 'aprobada' ? 'APROBADA' : 'RECHAZADA'} con éxito. Los puntos y KPIs se han recalculado.`);
       setSelectedAppeal(null);
       setFeedback('');
+      setEvidenciaUrl('');
       fetchAppeals(); // Reload list
     } catch (err) {
       console.error('Error resolving appeal:', err);
@@ -409,6 +461,13 @@ export default function ApelacionesPanel() {
                         onClick={() => {
                           setSelectedAppeal(item);
                           setFeedback(item.apelacion?.respuesta || '');
+                          setEvidenciaUrl(item.apelacion?.evidenciaUrl || '');
+                          setOverrideData({
+                            lpu: item.apelacion?.codigoLpu || '',
+                            decos: item.apelacion?.equipos?.decos || item.Decos_Adicionales || 0,
+                            repetidores: item.apelacion?.equipos?.repetidores || item.Repetidores_WiFi || 0,
+                            telefonos: item.apelacion?.equipos?.telefonos || item.Telefonos || 0
+                          });
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-55/70 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-200"
                       >
@@ -468,7 +527,35 @@ export default function ApelacionesPanel() {
                   </div>
                 </div>
               </div>
-                           {/* Motivo de Reclamo Card */}
+
+              {/* Información de Terreno */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block border-b border-slate-150 pb-1.5">Información de Terreno</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-white border border-slate-150 rounded-xl p-3 shadow-sm">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Fecha OT</p>
+                    <p className="text-xs font-bold text-slate-800">{selectedAppeal.fecha ? new Date(selectedAppeal.fecha).toLocaleDateString('es-CL') : (selectedAppeal.Fecha_de_Cita || selectedAppeal['Fecha de Cita'] || 'N/A')}</p>
+                  </div>
+                  <div className="bg-white border border-slate-150 rounded-xl p-3 shadow-sm">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente</p>
+                    <p className="text-xs font-bold text-slate-800 truncate" title={selectedAppeal.Nombre || selectedAppeal.NOMBRE}>{selectedAppeal.Nombre || selectedAppeal.NOMBRE || 'N/A'}</p>
+                  </div>
+                  <div className="bg-white border border-slate-150 rounded-xl p-3 shadow-sm sm:col-span-2">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Dirección</p>
+                    <p className="text-xs font-bold text-slate-800">
+                      {[selectedAppeal.Direccion || selectedAppeal.DIRECCION, selectedAppeal.Comuna || selectedAppeal.COMUNA].filter(Boolean).join(', ') || 'N/A'}
+                    </p>
+                  </div>
+                  {(selectedAppeal.Observaciones || selectedAppeal.OBSERVACIONES) && (
+                    <div className="bg-white border border-slate-150 rounded-xl p-3 shadow-sm sm:col-span-2">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Observaciones de Trabajo (TOA)</p>
+                      <p className="text-xs font-medium text-slate-700 italic">"{selectedAppeal.Observaciones || selectedAppeal.OBSERVACIONES}"</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Motivo de Reclamo Card */}
               {selectedAppeal.apelacion?.motivo && (
                 <div className="bg-amber-50/50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3">
                   <div className="p-2 bg-white rounded-xl shadow-sm border border-amber-100 text-amber-600">
@@ -501,21 +588,61 @@ export default function ApelacionesPanel() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150 font-medium text-slate-700">
+                      {/* Row Observaciones TOA */}
+                      <tr>
+                        <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Observaciones (TOA)</td>
+                        <td className="px-4 py-3 text-slate-700 col-span-2" colSpan={2}>
+                          {selectedAppeal.Observaciones || selectedAppeal.OBSERVACIONES || selectedAppeal.observaciones ? (
+                            <div className="text-[10px] italic text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
+                              "{selectedAppeal.Observaciones || selectedAppeal.OBSERVACIONES || selectedAppeal.observaciones}"
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Sin observaciones en TOA</span>
+                          )}
+                        </td>
+                      </tr>
+
                       {/* Row LPU Code & Actividad */}
                       <tr>
                         <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Actividad LPU</td>
                         <td className="px-4 py-3 text-slate-700">
-                          {selectedAppeal.actividadVisible || selectedAppeal.actividad || 'Op. Técnica'}
-                          <div className="text-[9px] font-mono text-slate-400 mt-0.5">Cód: {selectedAppeal.CODIGO_LPU_BASE || selectedAppeal.COD_LPU || selectedAppeal['Cód LPU'] || 'SIN LPU'}</div>
+                          <div className="font-bold text-slate-800">
+                            {selectedAppeal.actividadVisible || selectedAppeal.Desc_LPU_Base || selectedAppeal.actividad || selectedAppeal['Tipo Trabajo'] || selectedAppeal.Tipo_Trabajo || selectedAppeal['Tipo de Trabajo'] || selectedAppeal.TIPO_TRABAJO || selectedAppeal.ACTIVIDAD || 'Op. Técnica'}
+                          </div>
+                          {(selectedAppeal['Subtipo de Actividad'] || selectedAppeal.Subtipo_de_Actividad || selectedAppeal.SUBTIPO_DE_ACTIVIDAD || selectedAppeal.subtipo) && (
+                            <div className="text-[10px] text-slate-500 mt-0.5 italic flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                              {selectedAppeal['Subtipo de Actividad'] || selectedAppeal.Subtipo_de_Actividad || selectedAppeal.SUBTIPO_DE_ACTIVIDAD || selectedAppeal.subtipo}
+                            </div>
+                          )}
+                          <div className="text-[9px] font-mono text-slate-400 mt-1.5 flex items-center gap-1 border-t border-slate-100 pt-1">
+                            <span>Cód Asignado:</span>
+                            <span className="font-bold text-slate-600 bg-slate-100 px-1 py-0.5 rounded">{selectedAppeal.CODIGO_LPU_BASE || selectedAppeal.Codigo_LPU_Base || selectedAppeal.COD_LPU || selectedAppeal['Cód LPU'] || 'SIN LPU'}</span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 bg-amber-50/20 font-bold text-amber-800">
-                          {selectedAppeal.apelacion?.codigoLpu ? (
-                            <>
-                              Apela a: [{selectedAppeal.apelacion.codigoLpu}]
-                              <div className="text-[9px] font-bold text-amber-600 mt-0.5 uppercase">Mapeo LPU manual</div>
-                            </>
+                          {selectedAppeal.apelacion?.status === 'por_validar' ? (
+                            <select
+                              value={overrideData.lpu}
+                              onChange={(e) => setOverrideData({...overrideData, lpu: e.target.value.toUpperCase()})}
+                              className="w-full px-2 py-1 text-xs border border-amber-200 rounded outline-none focus:border-amber-400 bg-white font-mono uppercase"
+                            >
+                              <option value="">-- Código LPU --</option>
+                              {tarifasLPU.map(t => (
+                                <option key={t.codigo} value={t.codigo}>[{t.codigo}] {t.descripcion} ({t.puntos} pts)</option>
+                              ))}
+                            </select>
                           ) : (
-                            <span className="text-slate-400 italic">Sin cambios propuestos</span>
+                            selectedAppeal.apelacion?.codigoLpu ? (
+                              <>
+                                <div className="text-amber-700 leading-tight">
+                                  Apela a: <span className="font-black bg-amber-100/50 px-1 py-0.5 rounded">[{selectedAppeal.apelacion.codigoLpu}]</span>
+                                </div>
+                                <div className="text-[9px] font-bold text-amber-600/70 mt-1 uppercase tracking-wider">Mapeo LPU manual</div>
+                              </>
+                            ) : (
+                              <span className="text-slate-400 italic">Sin cambios propuestos</span>
+                            )
                           )}
                         </td>
                       </tr>
@@ -541,51 +668,120 @@ export default function ApelacionesPanel() {
                         </td>
                       </tr>
 
+                      {/* Row Reutilización de Drop */}
+                      <tr>
+                        <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Reutilización de Drop</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {(() => {
+                            const reutDrop = selectedAppeal['Reutilización de Drop'] || selectedAppeal['Reutilizacion de Drop'] || selectedAppeal['Reutilización de Drop String'] || selectedAppeal.Reutilización_de_Drop || selectedAppeal.Reutilizacion_de_Drop || '';
+                            if (!reutDrop) return <span className="text-slate-400 italic">No especificado</span>;
+                            if (reutDrop.toUpperCase() === 'SI' || reutDrop.toUpperCase() === 'SÍ') {
+                              return <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded text-[10px] font-black uppercase inline-flex items-center gap-1.5">{reutDrop}</span>;
+                            }
+                            return <span className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[10px] font-black uppercase inline-flex items-center gap-1.5">{reutDrop}</span>;
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 text-slate-400 italic text-[10px]">
+                          Dato directo desde TOA. Si aplica, el sistema resta puntos a la actividad base.
+                        </td>
+                      </tr>
+
                       {/* Row Decos */}
                       <tr>
                         <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Decos Adicionales</td>
-                        <td className="px-4 py-3 font-mono text-slate-800">{selectedAppeal.Decos_Adicionales || 0}</td>
+                        <td className="px-4 py-3 font-mono text-slate-800">
+                          {parseInt(selectedAppeal.Decos_Adicionales || 0) > 0 ? (
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-black uppercase inline-flex items-center gap-1.5">
+                              {selectedAppeal.Decos_Adicionales} UNI 
+                              <span className="opacity-60 font-bold border-l border-indigo-200 pl-1.5">(+{selectedAppeal.Pts_Deco_Wifi || selectedAppeal.Pts_Deco_Adicional || 0} pts)</span>
+                            </span>
+                          ) : '0'}
+                        </td>
                         <td className={`px-4 py-3 font-mono font-black ${parseInt(selectedAppeal.apelacion?.equipos?.decos || 0) !== parseInt(selectedAppeal.Decos_Adicionales || 0) ? 'bg-emerald-50/20 text-emerald-700' : 'text-slate-650'}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span>{selectedAppeal.apelacion?.equipos?.decos || 0}</span>
-                            {parseInt(selectedAppeal.apelacion?.equipos?.decos || 0) !== parseInt(selectedAppeal.Decos_Adicionales || 0) && (
-                              <span className="px-1.5 py-0.2 text-[8px] bg-emerald-100 rounded-md text-emerald-700">
-                                +{parseInt(selectedAppeal.apelacion.equipos.decos || 0) - parseInt(selectedAppeal.Decos_Adicionales || 0)}
-                              </span>
-                            )}
-                          </div>
+                          {selectedAppeal.apelacion?.status === 'por_validar' ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={overrideData.decos}
+                              onChange={(e) => setOverrideData({...overrideData, decos: e.target.value})}
+                              className="w-16 px-2 py-1 text-xs border border-emerald-200 rounded outline-none focus:border-emerald-400 bg-white"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span>{selectedAppeal.apelacion?.equipos?.decos || 0}</span>
+                              {parseInt(selectedAppeal.apelacion?.equipos?.decos || 0) !== parseInt(selectedAppeal.Decos_Adicionales || 0) && (
+                                <span className="px-1.5 py-0.2 text-[8px] bg-emerald-100 rounded-md text-emerald-700">
+                                  +{parseInt(selectedAppeal.apelacion.equipos.decos || 0) - parseInt(selectedAppeal.Decos_Adicionales || 0)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
 
                       {/* Row Repeaters */}
                       <tr>
                         <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Repetidores WiFi</td>
-                        <td className="px-4 py-3 font-mono text-slate-800">{selectedAppeal.Repetidores_WiFi || 0}</td>
+                        <td className="px-4 py-3 font-mono text-slate-800">
+                          {parseInt(selectedAppeal.Repetidores_WiFi || 0) > 0 ? (
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-black uppercase inline-flex items-center gap-1.5">
+                              {selectedAppeal.Repetidores_WiFi} UNI 
+                              <span className="opacity-60 font-bold border-l border-indigo-200 pl-1.5">(+{selectedAppeal.Pts_Repetidor_Wifi || selectedAppeal.Pts_Repetidor_WiFi || 0} pts)</span>
+                            </span>
+                          ) : '0'}
+                        </td>
                         <td className={`px-4 py-3 font-mono font-black ${parseInt(selectedAppeal.apelacion?.equipos?.repetidores || 0) !== parseInt(selectedAppeal.Repetidores_WiFi || 0) ? 'bg-emerald-50/20 text-emerald-700' : 'text-slate-650'}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span>{selectedAppeal.apelacion?.equipos?.repetidores || 0}</span>
-                            {parseInt(selectedAppeal.apelacion?.equipos?.repetidores || 0) !== parseInt(selectedAppeal.Repetidores_WiFi || 0) && (
-                              <span className="px-1.5 py-0.2 text-[8px] bg-emerald-100 rounded-md text-emerald-700">
-                                +{parseInt(selectedAppeal.apelacion.equipos.repetidores || 0) - parseInt(selectedAppeal.Repetidores_WiFi || 0)}
-                              </span>
-                            )}
-                          </div>
+                          {selectedAppeal.apelacion?.status === 'por_validar' ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={overrideData.repetidores}
+                              onChange={(e) => setOverrideData({...overrideData, repetidores: e.target.value})}
+                              className="w-16 px-2 py-1 text-xs border border-emerald-200 rounded outline-none focus:border-emerald-400 bg-white"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span>{selectedAppeal.apelacion?.equipos?.repetidores || 0}</span>
+                              {parseInt(selectedAppeal.apelacion?.equipos?.repetidores || 0) !== parseInt(selectedAppeal.Repetidores_WiFi || 0) && (
+                                <span className="px-1.5 py-0.2 text-[8px] bg-emerald-100 rounded-md text-emerald-700">
+                                  +{parseInt(selectedAppeal.apelacion.equipos.repetidores || 0) - parseInt(selectedAppeal.Repetidores_WiFi || 0)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
 
                       {/* Row Telefonos */}
                       <tr>
                         <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Teléfonos (Voz)</td>
-                        <td className="px-4 py-3 font-mono text-slate-800">{selectedAppeal.Telefonos || 0}</td>
+                        <td className="px-4 py-3 font-mono text-slate-800">
+                          {parseInt(selectedAppeal.Telefonos || 0) > 0 ? (
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-black uppercase inline-flex items-center gap-1.5">
+                              {selectedAppeal.Telefonos} UNI 
+                              <span className="opacity-60 font-bold border-l border-indigo-200 pl-1.5">(+{selectedAppeal.Pts_Telefono || 0} pts)</span>
+                            </span>
+                          ) : '0'}
+                        </td>
                         <td className={`px-4 py-3 font-mono font-black ${parseInt(selectedAppeal.apelacion?.equipos?.telefonos || 0) !== parseInt(selectedAppeal.Telefonos || 0) ? 'bg-emerald-50/20 text-emerald-700' : 'text-slate-650'}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span>{selectedAppeal.apelacion?.equipos?.telefonos || 0}</span>
-                            {parseInt(selectedAppeal.apelacion?.equipos?.telefonos || 0) !== parseInt(selectedAppeal.Telefonos || 0) && (
-                              <span className="px-1.5 py-0.2 text-[8px] bg-emerald-100 rounded-md text-emerald-700">
-                                +{parseInt(selectedAppeal.apelacion.equipos.telefonos || 0) - parseInt(selectedAppeal.Telefonos || 0)}
-                              </span>
-                            )}
-                          </div>
+                          {selectedAppeal.apelacion?.status === 'por_validar' ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={overrideData.telefonos}
+                              onChange={(e) => setOverrideData({...overrideData, telefonos: e.target.value})}
+                              className="w-16 px-2 py-1 text-xs border border-emerald-200 rounded outline-none focus:border-emerald-400 bg-white"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span>{selectedAppeal.apelacion?.equipos?.telefonos || 0}</span>
+                              {parseInt(selectedAppeal.apelacion?.equipos?.telefonos || 0) !== parseInt(selectedAppeal.Telefonos || 0) && (
+                                <span className="px-1.5 py-0.2 text-[8px] bg-emerald-100 rounded-md text-emerald-700">
+                                  +{parseInt(selectedAppeal.apelacion.equipos.telefonos || 0) - parseInt(selectedAppeal.Telefonos || 0)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     </tbody>
@@ -603,17 +799,72 @@ export default function ApelacionesPanel() {
 
               {/* Comment Input */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                  <MessageSquare className="w-3.5 h-3.5 text-sky-600" /> Retroalimentación del Supervisor
-                </label>
-                <textarea 
-                  rows="3"
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  placeholder={selectedAppeal.apelacion?.status === 'por_validar' ? "Escriba un comentario o respuesta explicando el porqué de la decisión..." : "Comentario final guardado"}
-                  disabled={selectedAppeal.apelacion?.status !== 'por_validar'}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-350 focus:border-sky-500 focus:bg-white rounded-2xl text-xs text-slate-800 placeholder-slate-400 outline-none transition-all resize-none disabled:opacity-60 font-medium"
-                />
+                    {/* RETROALIMENTACIÓN Y RESPALDO (Only for pending) */}
+                  {selectedAppeal.apelacion?.status === 'por_validar' && (
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                          <MessageSquare size={14} /> Retroalimentación del Supervisor
+                        </h4>
+                        <textarea
+                          placeholder="Escriba un comentario o respuesta explicando el porqué de la decisión..."
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-medium text-slate-700 h-24 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 transition-all outline-none resize-none"
+                        />
+                      </div>
+                      
+                      {/* Subir Respaldo (Imagen) */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                          <ImageIcon size={14} /> Respaldo / Evidencia (Opcional)
+                        </h4>
+                        <div className="flex items-center gap-4">
+                          <label className={`flex items-center gap-2 px-4 py-2 ${uploadingImage ? 'bg-slate-200 text-slate-500' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600'} rounded-lg font-bold text-xs cursor-pointer transition-colors border border-indigo-100 shadow-sm`}>
+                            {uploadingImage ? <RefreshCw className="animate-spin" size={16} /> : <Upload size={16} />}
+                            {uploadingImage ? 'Subiendo...' : 'Subir Imagen de Respaldo'}
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={handleImageUpload} 
+                              disabled={uploadingImage}
+                            />
+                          </label>
+                          {evidenciaUrl && (
+                            <a href={evidenciaUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+                              <CheckCircle2 size={14} /> Imagen subida correctamente (Ver)
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* READ-ONLY FEEDBACK FOR RESOLVED */}
+                  {selectedAppeal.apelacion?.status !== 'por_validar' && selectedAppeal.apelacion?.respuesta && (
+                    <div>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                        <MessageSquare size={14} /> Retroalimentación del Supervisor
+                      </h4>
+                      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-medium text-slate-700">
+                        {selectedAppeal.apelacion.respuesta}
+                        {/* VISOR DE EVIDENCIA SI YA EXISTE (para resueltas) */}
+                        {selectedAppeal.apelacion?.status !== 'por_validar' && selectedAppeal.apelacion?.evidenciaSupervisorUrl && (
+                          <div className="pt-2">
+                            <a 
+                              href={selectedAppeal.apelacion.evidenciaSupervisorUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-colors border border-indigo-100"
+                            >
+                              <ImageIcon size={14} /> Evidencia Adjuntada por Ti
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
               </div>
             </div>
 

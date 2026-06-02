@@ -743,6 +743,9 @@ app.use('/api/reuniones', require('./platforms/comunicaciones/routes/reunionesRo
 app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes'));
 app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 app.use('/api/notifications', require('./platforms/rrhh/routes/notificationRoutes'));
+app.use('/api/rrhh/descuentos', require('./platforms/rrhh/routes/descuentosRoutes'));
+app.use('/api/rrhh/beneficios', require('./platforms/rrhh/routes/beneficiosRoutes'));
+app.use('/api/rrhh/aprobaciones', require('./platforms/rrhh/routes/aprobacionesRoutes'));
 
 // --- B2.5. PLATFORM AUTH ROUTES ---
 app.use('/api/auth', authLimiter, require('./platforms/auth/authRoutes'));
@@ -781,6 +784,9 @@ app.use('/api/prevencion/matriz-riesgos', require('./platforms/prevencion/routes
 // --- B4. OPERACIONES PLATFORM ROUTES ---
 app.use('/api/operaciones/combustible', require('./platforms/operaciones/routes/combustibleRoutes'));
 app.use('/api/operaciones/gastos', require('./platforms/operaciones/routes/gastoRoutes'));
+app.use('/api/flota/eficiencia', require('./platforms/agentetelecom/routes/flotaEficiencia'));
+app.use('/api/flota/proveedores', require('./platforms/agentetelecom/routes/proveedoresLeasing'));
+
 
 
 
@@ -1605,6 +1611,272 @@ const invalidarCacheValorizacion = _calculoEngine.invalidarCacheValorizacion;
 const invalidarCacheTarifas = _calculoEngine.invalidarCacheTarifas;
 
 
+
+// 2.1a GARANTÍAS STATS — Analiza reingresos (reparaciones dentro de 30 días de la instalación original)
+// Devuelve métricas de calidad por técnico para el módulo de Cierre de Bonos y Dashboard de Garantías
+app.get('/api/bot/garantias-stats', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
+  try {
+    const isSystemAdmin = req.user.role === 'system_admin';
+    let { desde, hasta, zonas, proyectos: proyectosFilter, tecnicos: tecnicosFilter, tecnicoId, empresaFilter } = req.query;
+
+    // Resolver empresa
+    let empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+    if (!empresaId && req.user?.empresa?.nombre) {
+      const empFallback = await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean();
+      if (empFallback) empresaId = empFallback._id;
+    }
+
+    // Construir rango de fechas (ventana de análisis = mes indicado)
+    const fechaDesde = desde ? new Date(desde + 'T00:00:00Z') : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const fechaHasta = hasta ? new Date(hasta + 'T23:59:59Z') : new Date();
+
+    // Ventana ampliada para buscar instalaciones originales (30 días antes del rango)
+    const VENTANA_GARANTIA_DIAS = 30;
+    const fechaBusquedaDesde = new Date(fechaDesde);
+    fechaBusquedaDesde.setDate(fechaBusquedaDesde.getDate() - VENTANA_GARANTIA_DIAS);
+
+    // Filtro base por empresa
+    const baseFilter = {};
+    if (!isSystemAdmin) {
+      baseFilter.empresaRef = empresaId;
+    } else if (empresaFilter) {
+      baseFilter.empresaRef = empresaFilter;
+    }
+
+    // Filtros opcionales
+    if (zonas) {
+      const zonasList = String(zonas).split(',').map(s => s.trim()).filter(Boolean);
+      if (zonasList.length > 0) baseFilter['ZONA'] = { $in: zonasList };
+    }
+    if (proyectosFilter) {
+      const projList = String(proyectosFilter).split(',').map(s => s.trim()).filter(Boolean);
+      if (projList.length > 0) baseFilter['PROYECTO'] = { $in: projList };
+    }
+    if (tecnicoId) {
+      const cleanId = String(tecnicoId).replace(/^0+/, '').trim();
+      baseFilter['$or'] = [
+        { idRecursoToa: tecnicoId }, { idRecursoToa: cleanId },
+        { RECURSO: tecnicoId }, { RECURSO: cleanId },
+        { ID_RECURSO: tecnicoId }, { ID_RECURSO: cleanId }
+      ];
+    }
+
+    // Cargar TODAS las actividades completadas en la ventana ampliada (instalación original + reparación)
+    const todasActividades = await Actividad.find({
+      ...baseFilter,
+      $or: [
+        { fecha: { $gte: fechaBusquedaDesde, $lte: fechaHasta } },
+        { FECHA: { $gte: fechaBusquedaDesde, $lte: fechaHasta } },
+        { 'Fecha Completada': { $gte: fechaBusquedaDesde, $lte: fechaHasta } }
+      ],
+      $and: [{
+        $or: [
+          { ESTADO: { $regex: /complet/i } },
+          { estado: { $regex: /complet/i } },
+          { ESTADO: 'Done' }, { estado: 'Done' }
+        ]
+      }]
+    }).lean();
+
+    // Helper para extraer campos flexibles
+    const getField = (doc, ...keys) => {
+      for (const k of keys) if (doc[k] !== undefined && doc[k] !== null && doc[k] !== '') return doc[k];
+      return null;
+    };
+
+    // Normalizar actividades
+    const actividades = todasActividades.map(doc => ({
+      _id: String(doc._id),
+      orden: getField(doc, 'ordenId', 'ORDEN', 'Orden', 'N_Actividad', 'ID_ACTIVIDAD') || '',
+      fecha: doc.fecha || doc.FECHA || doc['Fecha Completada'] || doc.createdAt,
+      tecnicoId: String(getField(doc, 'idRecursoToa', 'RECURSO', 'ID_RECURSO', 'ID Recurso', 'Recurso') || '').replace(/^0+/, '').trim(),
+      tecnicoNombre: getField(doc, 'NOMBRE', 'Nombre', 'TECNICO', 'tecnico', 'nombre') || 'Sin nombre',
+      cliente: getField(doc, 'NOMBRE_CLIENTE', 'Nombre_Cliente', 'CLIENTE', 'cliente', 'NOMBRE CLIENTE') || '',
+      direccion: getField(doc, 'DIRECCION', 'Direccion', 'Dirección', 'DIRECCION_TRABAJO', 'CALLE') || '',
+      comuna: getField(doc, 'COMUNA', 'comuna', 'LOCALIDAD') || '',
+      proyecto: getField(doc, 'PROYECTO', 'Proyecto', 'projectId') || '',
+      tipo: getField(doc, 'ACTIVIDAD', 'actividad', 'TIPO', 'SUBTIPO_DE_ACTIVIDAD', 'subtipo') || '',
+      motivoReparacion: getField(doc, 'MOTIVO_REPARACION', 'CIERRE_SECUNDARIO_STD', 'Cierre Secundario STD') || '',
+      cierresStd: getField(doc, 'CIERRE_SECUNDARIO_STD', 'Cierre Secundario STD') || '',
+      cierresTv: getField(doc, 'CIERRE_SECUNDARIO_TV', 'Cierre Secundario TV') || '',
+      observaciones: getField(doc, 'OBSERVACIONES', 'Observaciones', 'NOTAS') || '',
+    }));
+
+    // Clasificar en Altas/Rutinas vs Reparaciones
+    const esReparacion = (tipo) => /repar|rep\b|falla|correctiv|averia|avería|daño|correctivo/i.test(tipo || '');
+    const esAlta = (tipo) => !esReparacion(tipo);
+
+    // Separar por período
+    const activsEnPeriodo = actividades.filter(a => {
+      const f = a.fecha ? new Date(a.fecha) : null;
+      return f && f >= fechaDesde && f <= fechaHasta;
+    });
+    const activsAnteriores = actividades.filter(a => {
+      const f = a.fecha ? new Date(a.fecha) : null;
+      return f && f >= fechaBusquedaDesde && f < fechaDesde;
+    });
+
+    // Detectar garantías: reparaciones dentro del período cuya dirección+cliente coincide
+    // con una actividad de alta/rutina de los 30 días anteriores
+    const garantias = [];
+
+    const reparacionesPeriodo = activsEnPeriodo.filter(a => esReparacion(a.tipo));
+    const altasTodas = [...activsAnteriores, ...activsEnPeriodo.filter(a => esAlta(a.tipo))];
+
+    // Índice por dirección normalizada para búsqueda rápida
+    const normalize = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+    for (const rep of reparacionesPeriodo) {
+      if (!rep.direccion && !rep.cliente) continue;
+      const repFecha = rep.fecha ? new Date(rep.fecha) : null;
+      if (!repFecha) continue;
+
+      // Buscar instalación original dentro de los 30 días anteriores
+      const original = altasTodas.find(a => {
+        if (a._id === rep._id) return false;
+        const aFecha = a.fecha ? new Date(a.fecha) : null;
+        if (!aFecha || aFecha >= repFecha) return false;
+        const diasDiff = (repFecha - aFecha) / (1000 * 60 * 60 * 24);
+        if (diasDiff > VENTANA_GARANTIA_DIAS || diasDiff < 0) return false;
+
+        // Coincidencia por dirección o cliente
+        const matchDireccion = rep.direccion && a.direccion &&
+          normalize(rep.direccion) === normalize(a.direccion);
+        const matchCliente = rep.cliente && a.cliente &&
+          normalize(rep.cliente) === normalize(a.cliente);
+
+        return matchDireccion || matchCliente;
+      });
+
+      if (original) {
+        garantias.push({
+          actividadInicial: {
+            orden: original.orden,
+            fecha: original.fecha,
+            tecnicoId: original.tecnicoId,
+            tecnicoNombre: original.tecnicoNombre,
+            cliente: original.cliente,
+            direccion: original.direccion,
+            comuna: original.comuna,
+            proyecto: original.proyecto,
+            tipo: original.tipo,
+            cierresStd: original.cierresStd,
+            cierresTv: original.cierresTv,
+            observaciones: original.observaciones
+          },
+          falla: {
+            orden: rep.orden,
+            fecha: rep.fecha,
+            tecnicoId: rep.tecnicoId,
+            tecnicoNombre: rep.tecnicoNombre,
+            cliente: rep.cliente,
+            direccion: rep.direccion,
+            proyecto: rep.proyecto,
+            motivoReparacion: rep.motivoReparacion,
+            cierresStd: rep.cierresStd,
+            cierresTv: rep.cierresTv,
+            observaciones: rep.observaciones,
+            diasTranscurridos: Math.round((new Date(rep.fecha) - new Date(original.fecha)) / (1000 * 60 * 60 * 24))
+          }
+        });
+      }
+    }
+
+    // ── RESUMEN GENERAL ──
+    const totalEvaluadas = activsEnPeriodo.length;
+    const totalFallas = garantias.length;
+    const porcentajeFalla = totalEvaluadas > 0 ? Math.round((totalFallas / totalEvaluadas) * 1000) / 10 : 0;
+
+    // ── STATS POR TIPO ──
+    const garantiasAltas = garantias.filter(g => esAlta(g.actividadInicial.tipo));
+    const garantiasRep = garantias.filter(g => esReparacion(g.actividadInicial.tipo));
+    const altasEval = activsEnPeriodo.filter(a => esAlta(a.tipo)).length;
+    const repEval = activsEnPeriodo.filter(a => esReparacion(a.tipo)).length;
+
+    const statsTipo = {
+      altas: {
+        eval: altasEval,
+        fallas: garantiasAltas.length,
+        pct: altasEval > 0 ? Math.round((garantiasAltas.length / altasEval) * 1000) / 10 : 0
+      },
+      reparaciones: {
+        eval: repEval,
+        fallas: garantiasRep.length,
+        pct: repEval > 0 ? Math.round((garantiasRep.length / repEval) * 1000) / 10 : 0
+      }
+    };
+
+    // ── STATS POR PROYECTO ──
+    const proyectosMap = {};
+    activsEnPeriodo.forEach(a => {
+      const proj = a.proyecto || 'Sin Proyecto';
+      if (!proyectosMap[proj]) proyectosMap[proj] = { evaluadas: 0, fallas: 0 };
+      proyectosMap[proj].evaluadas++;
+    });
+    garantias.forEach(g => {
+      const proj = g.actividadInicial.proyecto || 'Sin Proyecto';
+      if (!proyectosMap[proj]) proyectosMap[proj] = { evaluadas: 0, fallas: 0 };
+      proyectosMap[proj].fallas++;
+    });
+    const statsProyectos = Object.entries(proyectosMap)
+      .map(([proyecto, d]) => ({
+        proyecto,
+        evaluadas: d.evaluadas,
+        fallas: d.fallas,
+        porcentaje: d.evaluadas > 0 ? Math.round((d.fallas / d.evaluadas) * 1000) / 10 : 0
+      }))
+      .sort((a, b) => b.porcentaje - a.porcentaje);
+
+    // ── STATS POR TÉCNICO ──
+    const tecnicosMap = {};
+    activsEnPeriodo.forEach(a => {
+      const id = a.tecnicoId || 'SIN_ID';
+      if (!tecnicosMap[id]) tecnicosMap[id] = {
+        id, nombre: a.tecnicoNombre, proyecto: a.proyecto,
+        evaluadas: 0, fallasAltas: 0, fallasReparaciones: 0,
+        evaluadasAltas: 0, evaluadasReparaciones: 0
+      };
+      tecnicosMap[id].evaluadas++;
+      if (esAlta(a.tipo)) tecnicosMap[id].evaluadasAltas++;
+      else tecnicosMap[id].evaluadasReparaciones++;
+    });
+    garantias.forEach(g => {
+      const id = g.actividadInicial.tecnicoId || 'SIN_ID';
+      if (!tecnicosMap[id]) tecnicosMap[id] = {
+        id, nombre: g.actividadInicial.tecnicoNombre, proyecto: g.actividadInicial.proyecto,
+        evaluadas: 0, fallasAltas: 0, fallasReparaciones: 0,
+        evaluadasAltas: 0, evaluadasReparaciones: 0
+      };
+      if (esAlta(g.actividadInicial.tipo)) tecnicosMap[id].fallasAltas++;
+      else tecnicosMap[id].fallasReparaciones++;
+    });
+
+    const statsTecnicos = Object.values(tecnicosMap).map(t => {
+      const totalFallasT = t.fallasAltas + t.fallasReparaciones;
+      const porcentaje = t.evaluadas > 0 ? Math.round((totalFallasT / t.evaluadas) * 1000) / 10 : 0;
+      // rrValue = % de fallas en reparaciones (para CierreBonos)
+      const rrValue = t.evaluadasReparaciones > 0 ? Math.round((t.fallasReparaciones / t.evaluadasReparaciones) * 1000) / 10 : 0;
+      // aiValue = % de fallas en altas (para CierreBonos)
+      const aiValue = t.evaluadasAltas > 0 ? Math.round((t.fallasAltas / t.evaluadasAltas) * 1000) / 10 : 0;
+      return { ...t, porcentaje, rrValue, aiValue };
+    }).sort((a, b) => b.porcentaje - a.porcentaje);
+
+    res.json({
+      success: true,
+      data: garantias,
+      resumen: { totalEvaluadas, totalFallas, porcentajeFalla },
+      statsTipo,
+      statsProyectos,
+      statsTecnicos,
+      meta: { desde: fechaDesde, hasta: fechaHasta, ventanaGarantiaDias: VENTANA_GARANTIA_DIAS }
+    });
+
+  } catch (error) {
+    console.error('❌ /api/bot/garantias-stats error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
 // Usa cursor con cálculo de baremos on-the-fly y agrega en memoria (no envía docs crudos)
 app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
@@ -1865,14 +2137,14 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find(projectFilterRRHH).select('idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName').lean()
-        : Tecnico.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName').lean(),
+        ? Tecnico.find(projectFilterRRHH).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName').lean()
+        : Tecnico.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
       isSystemAdmin && !empresaFilter
-        ? Candidato.find(projectFilterRRHH).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
-        : Candidato.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
+        ? Candidato.find(projectFilterRRHH).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
+        : Candidato.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -1931,30 +2203,53 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
     // Función auxiliar para agregar al techMap
     const addToTechMap = (t, source) => {
-      const idRaw = String(t.idRecursoToa || t.idRecurso || '').trim();
-      const idLow = idRaw.toLowerCase();
-      const idClean = idLow.replace(/^0+/, '');
-      const idNum = parseInt(idRaw);
+      const idRawToa = String(t.idRecursoToa || '').trim();
+      const idRawRec = String(t.idRecurso || '').trim();
       const rutRaw = String(t.rut || '').trim().toLowerCase();
       const rutClean = rutRaw.replace(/[^0-9kK]/g, '');
 
-      if (!rutClean && !idLow) return;
+      if (!rutClean && !idRawToa && !idRawRec) return;
+
+      const getKeys = (id) => {
+        if (!id) return [];
+        const low = id.toLowerCase();
+        const clean = low.replace(/^0+/, '');
+        return [low, clean, id];
+      };
+
+      const keysToa = getKeys(idRawToa);
+      const keysRec = getKeys(idRawRec);
 
       // Buscar si ya existe por RUT o por ID
-      let key = (rutClean ? rutToKey[rutClean] : null) || (idLow ? idToKey[idLow] : null) || (idClean ? idToKey[idClean] : null);
+      let key = null;
+      if (rutClean && rutToKey[rutClean]) key = rutToKey[rutClean];
+      
+      if (!key) {
+        for (const k of [...keysToa, ...keysRec]) {
+          if (idToKey[k]) {
+            key = idToKey[k];
+            break;
+          }
+        }
+      }
       
       const name = (t.name || t.fullName || (t.nombres ? `${t.nombres} ${t.apellidos || ''}` : '') || 'Sin Nombre').trim().toUpperCase();
-      const cpConfig = mapaValorizacionProd[idLow] || (idClean ? mapaValorizacionProd[idClean] : null) || (rutClean ? mapaValorizacionProd[rutClean] : null);
+      
+      // Fallback a configProd si existe
+      const cpKey = keysToa.find(k => mapaValorizacionProd[k]) || keysRec.find(k => mapaValorizacionProd[k]) || rutClean;
+      const cpConfig = cpKey ? mapaValorizacionProd[cpKey] : null;
 
       if (!key) {
-        // Crear nuevo - PRIORIZAR ID LIMPIO (sin ceros) para vinculación infalible
-        key = idClean || idLow || (rutClean ? `rut_${rutClean}` : `id_${Math.random()}`);
+        // Crear nuevo
+        const cleanIdToUse = keysToa[1] || keysRec[1];
+        const lowIdToUse = keysToa[0] || keysRec[0];
+        key = cleanIdToUse || lowIdToUse || (rutClean ? `rut_${rutClean}` : `id_${Math.random()}`);
         const inicio = t.contractStartDate || t.hiring?.contractStartDate || t.fechaIngreso || null;
         
         techMap[key] = {
           name,
-          idRecursoToa: idRaw,
-          idRecurso: idRaw, 
+          idRecursoToa: idRawToa || idRawRec, // Mantenemos compatibilidad 
+          idRecurso: idRawRec || idRawToa,
           rut: t.rut || '',
           valorPunto: cpConfig?.valorPunto || 0,
           retencionPct: cpConfig?.retencion || 0,
@@ -1968,18 +2263,21 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           dailyMap: {},
           activities: {},
           cityMap: {},
-          cliente: cpConfig?.cliente || t.clienteNombre || t.projectName || '',
           proyecto: cpConfig?.proyecto || t.projectName || '',
           inicioContrato: inicio,
           cargo: t.position || t.cargo || 'TÉCNICO',
-          status: t.status || 'Operativo'
+          status: t.status || 'Operativo',
+          sueldoBase: t.sueldoBase || 0
         };
 
         if (rutClean) rutToKey[rutClean] = key;
-        if (idLow) idToKey[idLow] = key;
-        if (idClean) idToKey[idClean] = key;
-        if (!isNaN(idNum)) idToKey[idNum] = key;
-        if (idRaw) idToKey[idRaw] = key;
+        [...keysToa, ...keysRec].forEach(k => {
+            if (k) {
+                idToKey[k] = key;
+                const num = parseInt(k);
+                if (!isNaN(num)) idToKey[num] = key;
+            }
+        });
       } else {
         // Enriquecer existente (Fusión por Identidad)
         const ex = techMap[key];
@@ -1987,23 +2285,30 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           ex.rut = t.rut;
           rutToKey[rutClean] = key;
         }
-        if (idRaw && !ex.idRecursoToa) {
-          ex.idRecursoToa = idRaw;
-          ex.idRecurso = idRaw;
-          idToKey[idLow] = key;
-          if (idClean) idToKey[idClean] = key;
-          const idNum = parseInt(idRaw);
-          if (!isNaN(idNum)) idToKey[idNum] = key;
-        }
+        if (idRawToa && !ex.idRecursoToa) ex.idRecursoToa = idRawToa;
+        if (idRawRec && !ex.idRecurso) ex.idRecurso = idRawRec;
+        if (t.sueldoBase && !ex.sueldoBase) ex.sueldoBase = t.sueldoBase;
+        
+        [...keysToa, ...keysRec].forEach(k => {
+            if (k) {
+                idToKey[k] = key;
+                const num = parseInt(k);
+                if (!isNaN(num)) idToKey[num] = key;
+            }
+        });
+
         const inicio = t.contractStartDate || t.hiring?.contractStartDate || t.fechaIngreso || null;
         if (inicio && !ex.inicioContrato) ex.inicioContrato = inicio;
         if (t.cargo && (ex.cargo === 'TÉCNICO' || !ex.cargo)) ex.cargo = t.cargo;
       }
 
       // Registrar IDs válidos para el filtro de actividades
-      if (idLow) validTecnicoIds.add(idLow);
-      if (idClean) validTecnicoIds.add(idClean);
-      if (idRaw) validTecnicoIds.add(idRaw);
+      if (keysToa[0]) validTecnicoIds.add(keysToa[0]);
+      if (keysRec[0]) validTecnicoIds.add(keysRec[0]);
+      if (keysToa[1]) validTecnicoIds.add(keysToa[1]);
+      if (keysRec[1]) validTecnicoIds.add(keysRec[1]);
+      if (keysToa[2]) validTecnicoIds.add(keysToa[2]);
+      if (keysRec[2]) validTecnicoIds.add(keysRec[2]);
     };
 
     // 1. Cargar Candidatos
@@ -2126,7 +2431,10 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         '';
 
       const idRecurso = String(idRecursoRaw || '').trim().replace(/^0+/, '');
-      let techKey = techMap[idRecurso] ? idRecurso : ''; 
+      const idLow = idRecurso.toLowerCase();
+      const idClean = idLow.replace(/^0+/, '');
+      
+      let techKey = techMap[idRecurso] ? idRecurso : (idToKey[idLow] || idToKey[idClean] || idToKey[idRecurso] || '');
       
       if (!techKey && diagCount < 5) {
         console.log(`[DIAGNOSTICO] Doc falló. ID extraído: "${idRecurso}". Keys:`, Object.keys(clean).slice(0, 10));
@@ -2669,6 +2977,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           rut: ex.rut || t.rut,
           inicioContrato: ex.inicioContrato || t.inicioContrato,
           isVinculado: ex.isVinculado || t.isVinculado,
+          sueldoBase: ex.sueldoBase || t.sueldoBase || 0,
         };
       } else {
         _nameIdx[norm] = tecnicosDedupMap.length;
@@ -2789,7 +3098,9 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       sede: t.sede,
       avgPerDay: t.avgPerDay,
       rrRealPercent: t.rrRealPercent,
-      dailyMap: t.dailyMap
+      dailyMap: t.dailyMap,
+      sueldoBase: t.sueldoBase || 0,
+      inicioContrato: t.inicioContrato
     }));
 
     console.log(`✅ [produccion-stats] RESUMEN FINAL:

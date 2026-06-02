@@ -1175,5 +1175,33 @@ router.delete('/:id', protect, authorize('admin', 'rrhh_captura:eliminar'), asyn
         res.json({ message: 'Archivado' });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
+// GET candidates for Bonos Fijos Telecom (Contratado, Inactivo, Activo en Terreno, Finiquitado del mes)
+router.get('/remuneraciones/fijos', protect, async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    const empresaId = req.user.empresaRef;
+
+    if (!year || !month) return res.status(400).json({ error: 'Year and month required' });
+
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    const matchQuery = {
+      empresaRef: empresaId,
+      $or: [
+        { status: { $in: ['Contratado', 'Inactivo', 'Activo en Terreno'] } },
+        {
+          status: 'Finiquitado',
+          'hiring.endDate': { $gte: startDate, $lte: endDate }
+        }
+      ]
+    };
+
+    const candidatos = await Candidato.find(matchQuery).select('rut fullName idRecursoToa status hiring.startDate hiring.endDate');
+    res.json(candidatos);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 module.exports = router;

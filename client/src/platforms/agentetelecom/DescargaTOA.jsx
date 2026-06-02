@@ -104,12 +104,14 @@ const DescargaTOA = () => {
 
     // --- Mapeo de etiquetas SOLO para columnas de cálculos internos ---
     const columnLabels = {
-        'FECHA_BOT': 'Día Descargado',
+        'FECHA_BOT': 'Fecha del dia descargado',
+        'TOTAL_EQUIPOS': 'Total equipos',
+        'DECO_PRINCIPAL': 'Decodificador principal',
         'PTS_TOTAL': 'Total Baremos',
         'PTS_BASE': 'Baremos Base',
         'PTS_DECO': 'Pts Decos',
         'PTS_REPETIDOR': 'Pts Repetidor',
-        'DECOS_ADICIONALES': 'Decos Adicionales',
+        'DECOS_ADICIONALES': 'Decodificador adicional',
         'REPETIDORES_WIFI': 'Repetidores',
         'VALOR_CLP': 'Valor CLP',
         'LPU_COD': 'Cód LPU',
@@ -146,11 +148,13 @@ const DescargaTOA = () => {
     // --- Columnas de cálculos (siempre al final) ---
     const calculationKeys = [
         'FECHA_BOT',
+        'TOTAL_EQUIPOS',
+        'DECO_PRINCIPAL',
         'PTS_TOTAL',
         'PTS_BASE',
         'PTS_DECO',
         'PTS_REPETIDOR',
-        'DECOS_ADICIONALES',
+        'DECOS_EFECTIVOS',
         'REPETIDORES_WIFI',
         'VALOR_CLP',
         'LPU_COD',
@@ -414,8 +418,10 @@ const DescargaTOA = () => {
     const dynamicKeys = useMemo(() => {
         if (!dataRaw || dataRaw.length === 0) return [];
 
-        // Coleccionamos TODAS las llaves únicas encontradas en los registros sin excepción
-        const allKeys = new Set();
+        // Forzar visualización de todas las 178 columnas históricas como pidió el CEO
+        const ceoKeys = ["48575","52530","90301","180074","180075","180076","180077","180078","180079","180080","530337","530338","530339","530341","800378","800939","885322","_id","ordenId","fecha","ptsTotalBaremo","Técnico","Ventana de servicio","ID Recurso","Ventana de Llegada","Número de Petición","Numero orden","Send day before confirmation alert","Direccion Polar X","Direccion Polar Y","Puntos Valor Actividad","Número","Agencia","Comuna","Direccion","Intervalo de tiempo","Ciudad","Nombre","RUT del cliente","Telefono","Telefono Contacto 1","Telefono Contacto 2","Telefono Contacto 3","Telefono Contacto 4","Correo electronico","Subtipo de Actividad","Tipo Trabajo","Tiempo de Viaje","Duración de la actividad","Estado","Habilidad del trabajo","Zona de Trabajo","Planta de asignacion","Armario","OLT","Fecha de Emisión/Reclamo","Fecha de Cita","SLA Inicio","SLA Fin","Codigo TICA","Segmento del cliente","Categoría de Capacidad","Tecnologia Voz","Tecnologia Banda Ancha","Tecnologia TV","Tipo de Acceso","Pre-trabajo","Usuario","CCN","Número de Postulación","Código de Punto de Venta","Validacion Tecnica","Validacion Comercial","Recordatorio","Recordatorio Realizado","Nivel de Urgencia (Prioridad)","Rural","Zona Roja","Prioridad","Primera operacion manual","Auto-asignado a recurso (id)","Tipo de Agendamiento","Causa de Reparacion","Tipo de Producto de Código de cierre principal","Cierres Secundarios STB","Cierres Secundarios BA","Cierres Secundarios TV","Razon de Completado Instalacion","Acometida","Acometida >300","Autorizacion Completado","Autorizacion Quiebre","Autorizacion Suspension","A_UPD_ADDR_CSTATE","Domicilio Actualizado","Bucket Phone","Cablea Piso","Canal de Origen","Cantidad de Equipos Nuevos","Cantidad de Equipos Reutilizados","Cliente Notificado","Código Cierre Cancelada + Motivo Cierre Cancelada","Computador Adicional LAN","Confirmacion Mismo Dia por SMS","Confirmacion por SMS","Cuadrante","Departamento/Block/Casa","Descripción Punto de Venta","Descripcion TICA","A_UPD_ADDR_NUMBER","Entre Calles","Familia BA","Familia STB","Familia TV","Fecha de cita original","Fecha/Hora de autorizacion de la suspension","Fecha/Hora de autorizacion del cierre","Fecha/Hora de autorizacion del quiebre","Giro","Grupo Razón de Suspension Instalación","ID Dependencia","ID Direccion","Instalaciones interiores instaladas","Metros de Acometida","Microfiltros configurados","Motivo de Reparación","Motivo Tiempo Adicional","Nombre Contacto","Nombre Persona que Recibe","Observaciones","Piso","Pregunta Secreta","Razon de Quiebre Instalación","Razon de Quiebre Reparacion","Razon de Suspension Instalacion","Razon de Suspension Reparacion","Repetido","Respuesta Pregunta Secreta","RUT Persona que Recibe","Saltarse Autorización","Sector Original","Inicio – Fin","Submotivo de Reparacion","Tarjeta Ethernet","Telefono Comercial","Timeslot original","TOA","Updated Address City","Updated Address Coord X","Updated Address Coord Y","Updated Address Floor","Updated Address Internal Number","Updated Compliment","Usuario que autorizo el cierre","Usuario que autorizo el quiebre","Usuario que autorizo la suspension","Validate Address","Variacion Comercial","Variacion tecnica","Hora fin","Hora de reserva de actividad","Iptv Proteus","Tecnico Preferido","Adaptador Iptv Particular","Coordenadas Capturadas","Productos y Servicios Actuales","Productos y Servicios Contratados","Tipo Fibra","LIBRE ELECCION","Reutilización de Drop","Alta IPTV sin Decodificador","J259","FECHA_DESCARGA_BOT","ultimaActualizacion","createdAt","updatedAt","__v","PTS_TOTAL_BAREMO"];
+        const allKeys = new Set(ceoKeys);
+        
         dataRaw.forEach(row => {
             Object.keys(row).forEach(key => allKeys.add(key));
         });
@@ -666,7 +672,7 @@ const DescargaTOA = () => {
 
         // Todas las columnas de cantidad de equipos
         if ([
-            'DECOS_ADICIONALES', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS'
+            'DECOS_EFECTIVOS', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS'
         ].includes(k)) {
             const n = Number(raw);
             return Number.isFinite(n) ? Math.floor(n) : raw;
@@ -702,11 +708,7 @@ const DescargaTOA = () => {
         if (!dynamicKeys || dynamicKeys.length === 0) return [];
 
         // 1. Filtrar duplicados: Si existe una llave normalizada (MAYUS), ignoramos la versión vieja
-        const filteredKeys = dynamicKeys.filter(key => {
-            const normalized = key.toUpperCase().replace(/[\s\.-]/g, '_');
-            if (normalized !== key && dynamicKeys.includes(normalized)) return false;
-            return true;
-        });
+        const filteredKeys = dynamicKeys;
 
         return [...filteredKeys].sort((a, b) => {
             const indexA = canonicalToaOrder.indexOf(a);

@@ -6,7 +6,7 @@ import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
-import FloatingGenAI from './components/FloatingGenAI';
+import GenAiAssistantBubble from './components/GenAiAssistantBubble';
 import ScrollToTopButton from './components/ScrollToTopButton';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { applyGlobalBranding } from './branding/brand';
@@ -27,7 +27,9 @@ import DashboardTributario from './platforms/finanzas/pages/DashboardTributario'
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
 import DashboardTelecom from './platforms/agentetelecom/DashboardEjecutivo';
+import EficienciaFlota from './platforms/logistica/pages/EficienciaFlota';
 import Flota from './platforms/agentetelecom/Flota';
+import ProveedoresLeasing from './platforms/agentetelecom/Flota/ProveedoresLeasing';
 import MonitorGps from './platforms/agentetelecom/MonitorGps';
 import ConectaGPS from './platforms/agentetelecom/ConectaGPS';
 import MisConductores from './platforms/agentetelecom/MisConductores';
@@ -39,6 +41,7 @@ import ProduccionVenta from './platforms/agentetelecom/ProduccionVenta';
 import Tarifario from './platforms/agentetelecom/Tarifario';
 import DescargaTOA from './platforms/agentetelecom/DescargaTOA';
 import BonificacionesTelco from './platforms/agentetelecom/BonificacionesTelco';
+import BonosFijosTelecom from './platforms/agentetelecom/BonosFijosTelecom';
 import Ajustes from './platforms/agentetelecom/Ajustes';
 import ApelacionesPanel from './platforms/agentetelecom/ApelacionesPanel';
 import RecursosHumanos from './platforms/agentetelecom/modules/RecursosHumanos';
@@ -61,9 +64,11 @@ import VacacionesLicencias from './platforms/rrhh/pages/VacacionesLicencias';
 import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
 import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 import ContratosYAnexos from './platforms/rrhh/pages/ContratosYAnexos';
+import BonosFijos from './platforms/rrhh/pages/BonosFijos';
 import RemuCentral from './platforms/rrhh/pages/RemuCentral';
 import Finiquitos from './platforms/rrhh/pages/Finiquitos';
 import Descuentos from './platforms/rrhh/pages/Descuentos';
+import BeneficiosSalariales from './platforms/rrhh/pages/BeneficiosSalariales';
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
 import PrevHseConsole from './platforms/prevencion/pages/PrevHseConsole';
 import PrevOperatividad from './platforms/prevencion/pages/PrevOperatividad';
@@ -74,6 +79,7 @@ import PrevMatrizRiesgos from './platforms/prevencion/pages/PrevMatrizRiesgos';
 import PrevDashboard from './platforms/prevencion/pages/PrevDashboard';
 import PrevHistorial from './platforms/prevencion/pages/PrevHistorial';
 import PrevInspecciones from './platforms/prevencion/pages/PrevInspecciones';
+import PrevInspeccionesAuditoria from './platforms/prevencion/pages/PrevInspeccionesAuditoria';
 import SupervisorHseProgress from './platforms/prevencion/pages/SupervisorHseProgress';
 import PortalSupervision from './platforms/operaciones/pages/PortalSupervision';
 import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
@@ -97,6 +103,7 @@ import CapacitacionLMS from './platforms/empresa360/pages/CapacitacionLMS';
 import Evaluaciones360 from './platforms/empresa360/pages/Evaluaciones360';
 import Biometria360 from './platforms/empresa360/pages/Biometria360';
 import Tesoreria360 from './platforms/empresa360/pages/Tesoreria360';
+import Webmail from './platforms/comunicaciones/pages/Webmail';
 
 axios.interceptors.response.use(
   (response) => response,
@@ -214,6 +221,8 @@ function AppRoutes() {
       <Route path="/mapa-calor" element={<ProtectedRoute allowPermissions={['op_mapa_calor']}><AppShell><MapaCalor /></AppShell></ProtectedRoute>} />
       <Route path="/dotacion" element={<ProtectedRoute allowPermissions={['op_dotacion']}><AppShell><Dotacion /></AppShell></ProtectedRoute>} />
       <Route path="/flota" element={<ProtectedRoute allowPermissions={['flota_vehiculos']}><AppShell><Flota /></AppShell></ProtectedRoute>} />
+      <Route path="/flota/eficiencia" element={<ProtectedRoute allowPermissions={['flota_eficiencia']}><AppShell><EficienciaFlota /></AppShell></ProtectedRoute>} />
+      <Route path="/flota/proveedores" element={<ProtectedRoute allowPermissions={['flota_proveedores']}><AppShell><ProveedoresLeasing /></AppShell></ProtectedRoute>} />
       <Route path="/monitor-gps" element={<ProtectedRoute allowPermissions={['flota_gps']}><AppShell><MonitorGps /></AppShell></ProtectedRoute>} />
       <Route path="/industria/distribucion/conecta-gps" element={<ProtectedRoute allowPermissions={['dist_conecta_gps']}><AppShell><ConectaGPS /></AppShell></ProtectedRoute>} />
       <Route path="/industria/distribucion/mis-conductores" element={<ProtectedRoute allowPermissions={['dist_mis_conductores']}><AppShell><MisConductores /></AppShell></ProtectedRoute>} />
@@ -222,6 +231,7 @@ function AppRoutes() {
       <Route path="/rendimiento" element={<ProtectedRoute allowPermissions={['rend_operativo']}><AppShell><Produccion /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento/apelaciones" element={<ProtectedRoute allowPermissions={['rend_operativo']}><AppShell><ApelacionesPanel /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento/cierre-bonos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos', 'rrhh_nomina']}><AppShell><BonificacionesTelco /></AppShell></ProtectedRoute>} />
+      <Route path="/rendimiento/bonos-fijos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos', 'rrhh_nomina']}><AppShell><BonosFijos /></AppShell></ProtectedRoute>} />
       <Route path="/produccion-financiera" element={<ProtectedRoute allowPermissions={['rend_financiero']}><AppShell><ProduccionVenta /></AppShell></ProtectedRoute>} />
       <Route path="/tarifario" element={<ProtectedRoute allowPermissions={['rend_tarifario']}><AppShell><Tarifario /></AppShell></ProtectedRoute>} />
       <Route path="/descarga-toa" element={<ProtectedRoute allowPermissions={['rend_descarga_toa']}><AppShell><DescargaTOA /></AppShell></ProtectedRoute>} />
@@ -242,6 +252,8 @@ function AppRoutes() {
       <Route path="/rrhh/vacaciones-licencias" element={<ProtectedRoute allowPermissions={['rrhh_vacaciones']}><AppShell><VacacionesLicencias /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/finiquitos" element={<ProtectedRoute allowPermissions={['rrhh_finiquitos']}><AppShell><Finiquitos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/descuentos" element={<ProtectedRoute allowPermissions={['rrhh_nomina']}><AppShell><Descuentos /></AppShell></ProtectedRoute>} />
+      <Route path="/rrhh/beneficios" element={<ProtectedRoute allowPermissions={['rrhh_nomina']}><AppShell><BeneficiosSalariales /></AppShell></ProtectedRoute>} />
+      <Route path="/rrhh/bonosfijos" element={<ProtectedRoute allowPermissions={['rrhh_nomina']}><AppShell><BonosFijos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/contratos-anexos" element={<ProtectedRoute allowPermissions={['rrhh_contratos_anexos', 'rrhh_documental']}><AppShell><ContratosYAnexos /></AppShell></ProtectedRoute>} />
       <Route path="/configuracion-empresa" element={<ProtectedRoute allowPermissions={['cfg_empresa']}><AppShell><ConfiguracionEmpresa /></AppShell></ProtectedRoute>} />
       <Route path="/gestion-personal" element={<ProtectedRoute allowPermissions={['cfg_personal']}><AppShell><GestorPersonal /></AppShell></ProtectedRoute>} />
@@ -279,6 +291,7 @@ function AppRoutes() {
       <Route path="/prevencion/dashboard" element={<ProtectedRoute allowPermissions={['prev_dashboard']}><AppShell><PrevDashboard /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/historial" element={<ProtectedRoute allowPermissions={['prev_historial']}><AppShell><PrevHistorial /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/inspecciones" element={<ProtectedRoute allowPermissions={['prev_inspecciones']}><AppShell><PrevInspecciones /></AppShell></ProtectedRoute>} />
+      <Route path="/prevencion/inspecciones-auditoria" element={<ProtectedRoute allowPermissions={['prev_inspecciones']}><AppShell><PrevInspeccionesAuditoria /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/avance-supervisores" element={<ProtectedRoute allowPermissions={['prev_dashboard']}><AppShell><SupervisorHseProgress /></AppShell></ProtectedRoute>} />
 
       {/* OPERACIONES */}
@@ -307,12 +320,32 @@ function AppRoutes() {
       {/* COMUNICACIONES */}
       <Route path="/video-call/:roomId" element={<ProtectedRoute allowPermissions={['comunic_video']}><VideoCallRoom /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute allowPermissions={['social_chat']}><Chat360 /></ProtectedRoute>} />
+      <Route path="/webmail" element={<ProtectedRoute><AppShell><Webmail /></AppShell></ProtectedRoute>} />
 
       {/* GENAI360 — ASISTENTE DE INTELIGENCIA ARTIFICIAL */}
       <Route path="/ai/asistente" element={<ProtectedRoute allowPermissions={['ai_asistente']}><AppShell><AIAssistant /></AppShell></ProtectedRoute>} />
 
       {/* Fallback */}
       <Route path="*" element={<NotFound />} />
+          {/* INJECTED MISSING ROUTES */}
+          <Route path="/admin-aprobaciones" element={<ProtectedRoute allowPermissions={['admin_aprobaciones']}><div>🚧 Módulo admin_aprobaciones en desarrollo</div></ProtectedRoute>} />
+          <Route path="/admin-aprobaciones-compras" element={<ProtectedRoute allowPermissions={['admin_aprobaciones_compras']}><div>🚧 Módulo admin_aprobaciones_compras en desarrollo</div></ProtectedRoute>} />
+          <Route path="/admin-historial" element={<ProtectedRoute allowPermissions={['admin_historial']}><div>🚧 Módulo admin_historial en desarrollo</div></ProtectedRoute>} />
+          <Route path="/cfg-clientes" element={<ProtectedRoute allowPermissions={['cfg_clientes']}><div>🚧 Módulo cfg_clientes en desarrollo</div></ProtectedRoute>} />
+          <Route path="/ind-agricola" element={<ProtectedRoute allowPermissions={['ind_agricola']}><div>🚧 Módulo ind_agricola en desarrollo</div></ProtectedRoute>} />
+          <Route path="/ind-construccion" element={<ProtectedRoute allowPermissions={['ind_construccion']}><div>🚧 Módulo ind_construccion en desarrollo</div></ProtectedRoute>} />
+          <Route path="/ind-energia" element={<ProtectedRoute allowPermissions={['ind_energia']}><div>🚧 Módulo ind_energia en desarrollo</div></ProtectedRoute>} />
+          <Route path="/ind-manufactura" element={<ProtectedRoute allowPermissions={['ind_manufactura']}><div>🚧 Módulo ind_manufactura en desarrollo</div></ProtectedRoute>} />
+          <Route path="/ind-mineria" element={<ProtectedRoute allowPermissions={['ind_mineria']}><div>🚧 Módulo ind_mineria en desarrollo</div></ProtectedRoute>} />
+          <Route path="/ind-pesquero" element={<ProtectedRoute allowPermissions={['ind_pesquero']}><div>🚧 Módulo ind_pesquero en desarrollo</div></ProtectedRoute>} />
+          <Route path="/ind-transporte" element={<ProtectedRoute allowPermissions={['ind_transporte']}><div>🚧 Módulo ind_transporte en desarrollo</div></ProtectedRoute>} />
+          <Route path="/logistica-almacenes" element={<ProtectedRoute allowPermissions={['logistica_almacenes']}><div>🚧 Módulo logistica_almacenes en desarrollo</div></ProtectedRoute>} />
+          <Route path="/logistica-configuracion" element={<ProtectedRoute allowPermissions={['logistica_configuracion']}><div>🚧 Módulo logistica_configuracion en desarrollo</div></ProtectedRoute>} />
+          <Route path="/op-portales" element={<ProtectedRoute allowPermissions={['op_portales']}><div>🚧 Módulo op_portales en desarrollo</div></ProtectedRoute>} />
+          <Route path="/prev-acreditacion" element={<ProtectedRoute allowPermissions={['prev_acreditacion']}><div>🚧 Módulo prev_acreditacion en desarrollo</div></ProtectedRoute>} />
+          <Route path="/rend-cierre-bonos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos']}><div>🚧 Módulo rend_cierre_bonos en desarrollo</div></ProtectedRoute>} />
+          <Route path="/rrhh-contratos-anexos" element={<ProtectedRoute allowPermissions={['rrhh_contratos_anexos']}><div>🚧 Módulo rrhh_contratos_anexos en desarrollo</div></ProtectedRoute>} />
+          <Route path="/rrhh-historial" element={<ProtectedRoute allowPermissions={['rrhh_historial']}><div>🚧 Módulo rrhh_historial en desarrollo</div></ProtectedRoute>} />
     </Routes>
   );
 }
@@ -330,7 +363,7 @@ function App() {
         <IndicadoresProvider>
           <AppRoutes />
           <PWAInstallPrompt />
-          {showFloatingGenAI ? <FloatingGenAI /> : null}
+          {showFloatingGenAI ? <GenAiAssistantBubble /> : null}
         </IndicadoresProvider>
       </AuthProvider>
     </Router>

@@ -1,40 +1,11 @@
-const { MongoClient } = require('mongodb');
+require('dotenv').config();
+const mongoose = require('mongoose');
+const User = require('./platforms/auth/models/User');
 
-const MONGO_URI = 'mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin';
-
-async function checkUser() {
-  const client = new MongoClient(MONGO_URI);
-  try {
-    await client.connect();
-    const db = client.db('genai');
-    
-    const user = await db.collection('usuarios').findOne({ email: 'mbarrientos@rambox.cl' });
-    
-    console.log('Usuario mbarrientos@rambox.cl:');
-    console.log(`  _id: ${user._id}`);
-    console.log(`  fullName: ${user.fullName}`);
-    console.log(`  email: ${user.email}`);
-    console.log(`  empresaRef: ${user.empresaRef}`);
-    console.log(`  empresaRef type: ${typeof user.empresaRef}`);
-    console.log(`  role: ${user.role}`);
-    
-    // Buscar empresas
-    const empresas = await db.collection('empresas').find({}).project({ nombre: 1 }).toArray();
-    console.log(`\nEmpresas en la base de datos:`);
-    empresas.forEach(e => {
-      console.log(`  - ${e.nombre} (_id: ${e._id})`);
-    });
-    
-    // Buscar candidatos sin empresaRef
-    const candidatosSinEmpresa = await db.collection('candidatos').find({
-      empresaRef: { $exists: false }
-    }).limit(3).toArray();
-    
-    console.log(`\nCandidatos sin empresaRef: ${candidatosSinEmpresa.length}`);
-    
-  } finally {
-    await client.close();
-  }
+async function run() {
+    await mongoose.connect(process.env.MONGO_URI);
+    const users = await User.find({}).lean();
+    users.forEach(u => console.log(u.email, u.role));
+    process.exit(0);
 }
-
-checkUser().catch(console.error);
+run().catch(console.error);

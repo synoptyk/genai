@@ -7,7 +7,7 @@ import {
     Building2, Save, Scale, Heart, Award,
     CalendarCheck, CheckCircle2, XCircle, Stethoscope, UserMinus, ClipboardList, ArrowRight
 } from 'lucide-react';
-import { candidatosApi, nominaApi, rrhhApi, bonosApi, bonosConfigApi, proyectosApi, asistenciaApi } from '../rrhhApi';
+import { candidatosApi, nominaApi, rrhhApi, bonosApi, bonosConfigApi, proyectosApi, asistenciaApi, descuentosApi } from '../rrhhApi';
 import {
     calcularLiquidacionReal,
     candidatoToWorkerData,
@@ -590,6 +590,7 @@ const NominaRRHH = () => {
     const [bonosConsolidados, setBonosConsolidados] = useState([]);
     const [bonosConfig, setBonosConfig] = useState([]);
     const [closuresData, setClosuresData] = useState([]);
+    const [descuentosData, setDescuentosData] = useState([]);
     const [manualValues, setManualValues] = useState({}); // { 'RUT_dias_trabajados': value }
 
     const [periodStats, setPeriodStats] = useState({
@@ -756,17 +757,19 @@ const NominaRRHH = () => {
             const prevMonth = monthNum === 1 ? 12 : monthNum - 1;
             const prevYear = monthNum === 1 ? yearNum - 1 : yearNum;
 
-            const [resStaff, resBonos, resConfig, resProyectos, resAsistencia] = await Promise.all([
+            const [resStaff, resBonos, resConfig, resProyectos, resAsistencia, resDescuentos] = await Promise.all([
                 candidatosApi.getAll(),
                 bonosApi.getClosure(yearNum, monthNum).catch(() => ({ data: [] })),
                 bonosConfigApi.getAll().catch(() => ({ data: [] })),
                 proyectosApi.getAll().catch(() => ({ data: [] })),
                 asistenciaApi.getResumenPeriodo(monthNum, yearNum).catch(() => ({ data: [] })),
+                descuentosApi.getTransacciones(period).catch(() => ({ data: [] })),
             ]);
             setNomina(resStaff.data || []);
             setClosuresData(resBonos.data || []);
             setBonosConfig(resConfig.data || []);
             setProyectos(resProyectos.data || []);
+            setDescuentosData(resDescuentos.data || []);
 
             // Calcular automáticamente estadísticas de calendario para el mes actual
             const autoStats = calculateMonthStats(`${yearNum}-${String(monthNum).padStart(2, '0')}`);
@@ -1000,11 +1003,17 @@ const NominaRRHH = () => {
             const cIdStr = c._id?.toString();
             const syncEntry = asistenciaSyncData[cIdStr] || (c.rut ? asistenciaSyncData[c.rut] : null);
 
+            // Sum up descuentos
+            const sumDescuentos = descuentosData
+                .filter(d => (d.candidatoRef?._id || d.candidatoRef) === cIdStr)
+                .reduce((acc, curr) => acc + (curr.monto || 0), 0);
+
             const manualDias = manualValues[`${c.rut}_dias_trabajados`];
             const ajustes = {
                 bonosPorCodigo: bonosAgrupados,
                 variableBaseSC,
                 horasExtra: syncEntry?.horasExtraAprobadas || 0,
+                otrosDescuentos: sumDescuentos,
                 diasTrabajadosReal: manualDias !== undefined ? Number(manualDias) : ((syncEntry !== undefined && syncEntry !== null) ? syncEntry.diasTrabajados : undefined),
                 diasLicencia: Math.max(licenciasMes, syncEntry?.diasLicencia || 0),
                 diasAusente: syncEntry?.diasAusente || 0,
@@ -1036,7 +1045,7 @@ const NominaRRHH = () => {
 
         setTimeout(() => runAudit(result), 100);
         return result;
-    }, [nomina, proyectos, closuresData, params, manualValues, periodStats, asistenciaSyncData, filterStatus, runAudit, groupBonusesByCode]);
+    }, [nomina, proyectos, closuresData, descuentosData, params, manualValues, periodStats, asistenciaSyncData, filterStatus, runAudit, groupBonusesByCode]);
 
     const handleExportTable = () => {
         if (!filtered.length) return;

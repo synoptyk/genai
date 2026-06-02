@@ -1,382 +1,34 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     ClipboardList, ShieldCheck, HardHat, CheckCircle2, X, AlertTriangle,
-    Save, Loader2, User, MapPin, ChevronRight, Eye,
-    PenTool, Trash2, Camera, XCircle
+    Eye, ChevronRight, Truck, Loader2, FileText
 } from 'lucide-react';
 import { inspeccionesApi } from '../prevencionApi';
-import api from '../../../api/api';
-import { formatRut } from '../../../utils/rutUtils';
-import FirmaAvanzada from '../../../components/FirmaAvanzada';
-
-const EPP_CATALOGO = [
-    'Casco Dieléctrico con Chinstrap',
-    'Lentes de Seguridad',
-    'Guantes de Cabritilla',
-    'Chaleco Reflectante',
-    'Zapatos Dieléctricos',
-    'Arnés de 4 Argollas',
-    'Cuerda de Vida / Estrobos',
-    'Línea de Vida Vertical',
-    'Guantes Dieléctricos (Clase 0/2)',
-    'Ropa Ignífuga (Arc Flash)',
-    'Protector Solar',
-    'Protector Auditivo'
-];
-
-
+import SlideOverInspCumplimiento from '../components/Inspecciones/SlideOverInspCumplimiento';
+import SlideOverInspEpp from '../components/Inspecciones/SlideOverInspEpp';
+import SlideOverInspVehicular from '../components/Inspecciones/SlideOverInspVehicular';
+import { AlertModal } from '../components/Inspecciones/SharedComponents';
 
 const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }) => {
     const normalizeRut = (value = '') => String(value).replace(/[^0-9kK]/g, '').toUpperCase();
     const rutsPermitidosSet = new Set((rutsPermitidos || []).map(r => normalizeRut(r)));
-    const [view, setView] = useState('menu');       // 'menu', 'form-cumplimiento', 'form-epp', 'list'
-    const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [inspecciones, setInspecciones] = useState([]);
-    const [filterTipo, setFilterTipo] = useState('');
-    const [filterEstado, setFilterEstado] = useState('');
-    const [searchHistorial, setSearchHistorial] = useState('');
+    
+    // SlideOvers State
+    const [isCumplimientoOpen, setIsCumplimientoOpen] = useState(false);
+    const [isEppOpen, setIsEppOpen] = useState(false);
+    const [isVehicularOpen, setIsVehicularOpen] = useState(false);
     const [alert, setAlert] = useState(null);
-    const [fotos, setFotos] = useState([null, null, null, null]);
-    const [firmaColaborador, setFirmaColaborador] = useState(null);
-
-    // --- BÚSQUEDA DE TÉCNICO (Autocompletado) ---
-    const [searchingTec, setSearchingTec] = useState(false);
-    const [tecEncontrado, setTecEncontrado] = useState(false);
-    const debounceRef = useRef(null);
-
-    const applyTrabajadorData = (persona, cleanRut, setForm) => {
-        const nombreCompleto = (persona?.nombres && persona?.apellidos)
-            ? `${persona.nombres} ${persona.apellidos}`
-            : (persona?.fullName || persona?.nombre || '');
-        const cargo = persona?.cargo || persona?.position || persona?.hiring?.position || '';
-        const empresa = persona?.empresa || persona?.empresaOrigen || persona?.empresaRef?.nombre || persona?.projectId?.nombreProyecto || persona?.projectName || '';
-        const email = persona?.email || '';
-
-        setForm(p => ({
-            ...p,
-            rutTrabajador: formatRut(cleanRut),
-            nombreTrabajador: nombreCompleto || p.nombreTrabajador,
-            cargoTrabajador: cargo || p.cargoTrabajador,
-            empresa: empresa || p.empresa,
-            emailTrabajador: email || p.emailTrabajador,
-        }));
-    };
-
-    const handleSearchRut = async (rut, setForm) => {
-        const cleanRut = normalizeRut(rut);
-        if (cleanRut.length < 7) return;
-
-        if (mostrarSoloPermitidos && rutsPermitidosSet.size > 0 && !rutsPermitidosSet.has(cleanRut)) {
-            showAlert('El trabajador no está vinculado a este supervisor', 'error');
-            return;
-        }
-
-        setTecEncontrado(false);
-        setSearchingTec(true);
-        try {
-            let persona = null;
-            try {
-                const tecRes = await api.get(`/api/tecnicos/rut/${cleanRut}`);
-                persona = tecRes?.data || null;
-            } catch (tecnicoError) {
-                if (tecnicoError?.response?.status !== 404) throw tecnicoError;
-            }
-
-            if (!persona) {
-                const candidatoRes = await api.get(`/api/rrhh/candidatos/rut/${cleanRut}`);
-                persona = candidatoRes?.data || null;
-            }
-
-            if (persona) {
-                applyTrabajadorData(persona, cleanRut, setForm);
-                setTecEncontrado(true);
-            }
-        } catch (error) {
-            // no encontrado — el usuario puede escribir manualmente
-        } finally {
-            setSearchingTec(false);
-        }
-    };
-
-    const handleRutChange = (val, setForm) => {
-        const formatted = formatRut(val);
-        setForm(p => ({ ...p, rutTrabajador: formatted }));
-        setTecEncontrado(false);
-        clearTimeout(debounceRef.current);
-        const cleanRut = normalizeRut(val);
-        if (cleanRut.length >= 7) {
-            debounceRef.current = setTimeout(() => handleSearchRut(val, setForm), 500);
-        }
-    };
-
-    // --- FORMULARIO CUMPLIMIENTO ---
-    const [formCumplimiento, setFormCumplimiento] = useState({
-        empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
-        lugarInspeccion: '', gps: '', emailTrabajador: '',
-        cumplimiento: {
-            tieneAst: false, astNumero: '',
-            tienePts: false, ptsNumero: '',
-            tieneEpp: false, eppCompleto: false,
-            inductionRealizada: false,
-            observacionesCumplimiento: ''
-        },
-        observaciones: '',
-        inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
-    });
-
-    // --- FORMULARIO EPP ---
-    const [formEpp, setFormEpp] = useState({
-        empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
-        lugarInspeccion: '', gps: '', emailTrabajador: '',
-        itemsEpp: EPP_CATALOGO.map(nombre => ({ nombre, tiene: false, condicion: 'N/A' })),
-        observaciones: '',
-        inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
-    });
 
     const showAlert = (message, type = 'info', onConfirm = null) => {
         setAlert({ message, type, onConfirm });
         if (type !== 'confirm') setTimeout(() => setAlert(null), 4000);
     };
-
-    useEffect(() => {
-        return () => clearTimeout(debounceRef.current);
-    }, []);
-
-    useEffect(() => {
-        if (view === 'list') fetchInspecciones();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [view, filterTipo, mostrarSoloPermitidos, rutsPermitidos.length]);
-
-    const filteredInspecciones = useMemo(() => {
-        const q = searchHistorial.trim().toLowerCase();
-        return (inspecciones || []).filter(insp => {
-            const estadoOk = filterEstado ? (insp.estado || 'En Revisión') === filterEstado : true;
-            if (!estadoOk) return false;
-            if (!q) return true;
-            const hay = [
-                insp.nombreTrabajador,
-                insp.rutTrabajador,
-                insp.empresa,
-                insp.ot,
-                insp.tipo,
-                insp.creadoPor,
-                insp.resultado,
-                insp.estado
-            ].some(v => String(v || '').toLowerCase().includes(q));
-            return hay;
-        });
-    }, [inspecciones, filterEstado, searchHistorial]);
-
-    const historialStats = useMemo(() => {
-        const total = filteredInspecciones.length;
-        const enRevision = filteredInspecciones.filter(i => (i.estado || 'En Revisión') === 'En Revisión').length;
-        const aprobadas = filteredInspecciones.filter(i => i.estado === 'Aprobado').length;
-        const conAlerta = filteredInspecciones.filter(i => i.alertaHse).length;
-        return { total, enRevision, aprobadas, conAlerta };
-    }, [filteredInspecciones]);
-
-    const fetchInspecciones = async () => {
-        setLoading(true);
-        try {
-            const params = filterTipo ? { tipo: filterTipo } : {};
-            const res = await inspeccionesApi.getAll(params);
-            let data = res.data || [];
-            if (mostrarSoloPermitidos && rutsPermitidosSet.size > 0) {
-                data = data.filter(insp => {
-                    const r = normalizeRut(insp.rutTrabajador || '');
-                    return r && rutsPermitidosSet.has(r);
-                });
-            }
-            setInspecciones(data);
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
+    
+    const handleSuccess = (msg) => {
+        showAlert(msg, 'success');
     };
 
-    /**
-     * Optimización de imágenes: reduce tamaño y calidad para evitar errores de Buffer/BSON
-     * @param {string} base64Str 
-     * @returns {Promise<string>}
-     */
-    const resizeImage = (base64Str, maxWidth = 1200, maxHeight = 1200) => {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.src = base64Str;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > maxWidth) {
-                        height *= maxWidth / width;
-                        width = maxWidth;
-                    }
-                } else {
-                    if (height > maxHeight) {
-                        width *= maxHeight / height;
-                        height = maxHeight;
-                    }
-                }
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                // Fondo blanco para JPEG
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, width, height);
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.7));
-            };
-        });
-    };
-
-    const handleGetGps = async (formType) => {
-        if (!navigator.geolocation) return showAlert('GPS NO DISPONIBLE', 'error');
-        navigator.geolocation.getCurrentPosition(pos => {
-            const val = `${pos.coords.latitude},${pos.coords.longitude}`;
-            if (formType === 'cumplimiento') setFormCumplimiento(p => ({ ...p, gps: val }));
-            else setFormEpp(p => ({ ...p, gps: val }));
-            showAlert('GPS CAPTURADO', 'success');
-        }, () => showAlert('ERROR GPS', 'error'));
-    };
-
-    const handlePhoto = (index, e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        // Validación básica de tamaño antes de procesar (ej. max 10MB para no colapsar el navegador)
-        if (file.size > 10 * 1024 * 1024) {
-            return showAlert('LA IMAGEN ES DEMASIADO GRANDE, POR FAVOR USE UNA FOTO MÁS PEQUEÑA O REBAJADA', 'error');
-        }
-
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            try {
-                // Optimizar inmediatamente al capturar
-                const optimized = await resizeImage(reader.result);
-                setFotos(prev => {
-                    const newFotos = [...prev];
-                    newFotos[index] = optimized;
-                    return newFotos;
-                });
-            } catch (err) {
-                console.error('Error optimizando foto:', err);
-                showAlert('ERROR AL PROCESAR LA IMAGEN', 'error');
-            }
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const buildFirmaPendienteObs = () => 'OBSERVACION AUTOMATICA: TECNICO SIN FIRMA. INSPECCION ENVIADA A REVISION PARA REGULARIZAR Y FIRMAR.';
-
-
-    const handleSubmitCumplimiento = async () => {
-        if (!formCumplimiento.nombreTrabajador || !formCumplimiento.rutTrabajador || !formCumplimiento.empresa)
-            return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
-        if (!formCumplimiento.inspector?.firma)
-            return showAlert('SE REQUIERE FIRMA DEL INSPECTOR HSE', 'error');
-        const faltaFirmaTecnico = !firmaColaborador?.imagenBase64;
-        const observacionFirmaPendiente = faltaFirmaTecnico ? buildFirmaPendienteObs() : '';
-        setSaving(true);
-        try {
-            await inspeccionesApi.create({
-                ...formCumplimiento,
-                tipo: 'cumplimiento-prevencion',
-                estado: 'En Revisión',
-                fotoEvidencia: fotos.filter(f => f !== null),
-                observaciones: [formCumplimiento.observaciones, observacionFirmaPendiente].filter(Boolean).join(' | '),
-                firmaColaborador: {
-                    nombre: formCumplimiento.nombreTrabajador,
-                    rut: formCumplimiento.rutTrabajador,
-                    email: formCumplimiento.emailTrabajador,
-                    firma: firmaColaborador?.imagenBase64 || null,
-                    firmaId: firmaColaborador?.firmaId || null,
-                    timestamp: firmaColaborador?.timestamp || null
-                }
-            });
-            // Resetear formulario tras guardar exitosamente
-            setFormCumplimiento({
-                empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
-                lugarInspeccion: '', gps: '', emailTrabajador: '',
-                cumplimiento: { tieneAst: false, astNumero: '', tienePts: false, ptsNumero: '', tieneEpp: false, eppCompleto: false, inductionRealizada: false, observacionesCumplimiento: '' },
-                observaciones: '',
-                inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
-            });
-            setFotos([null, null, null, null]);
-            setFirmaColaborador(null);
-            setTecEncontrado(false);
-            if (faltaFirmaTecnico) {
-                showAlert('INSPECCIÓN GUARDADA SIN FIRMA DEL TÉCNICO — ENVIADA A REVISIÓN PARA REGULARIZAR FIRMA', 'success');
-            } else {
-                showAlert('INSPECCIÓN REGISTRADA — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
-            }
-            setView('list');
-        } catch (e) {
-            console.error('Error guardando inspección cumplimiento:', e);
-            showAlert('ERROR AL GUARDAR: ' + (e.response?.data?.error || e.response?.data?.message || e.message || 'Error desconocido'), 'error');
-        } finally { setSaving(false); }
-    };
-
-    const handleSubmitEpp = async () => {
-        if (!formEpp.nombreTrabajador || !formEpp.rutTrabajador || !formEpp.empresa)
-            return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
-        if (!formEpp.inspector?.firma)
-            return showAlert('SE REQUIERE FIRMA DEL INSPECTOR HSE', 'error');
-        const faltaFirmaTecnico = !firmaColaborador?.imagenBase64;
-        const observacionFirmaPendiente = faltaFirmaTecnico ? buildFirmaPendienteObs() : '';
-        setSaving(true);
-        try {
-            await inspeccionesApi.create({
-                ...formEpp,
-                tipo: 'epp',
-                estado: 'En Revisión',
-                fotoEvidencia: fotos.filter(f => f !== null),
-                observaciones: [formEpp.observaciones, observacionFirmaPendiente].filter(Boolean).join(' | '),
-                firmaColaborador: {
-                    nombre: formEpp.nombreTrabajador,
-                    rut: formEpp.rutTrabajador,
-                    email: formEpp.emailTrabajador,
-                    firma: firmaColaborador?.imagenBase64 || null,
-                    firmaId: firmaColaborador?.firmaId || null,
-                    timestamp: firmaColaborador?.timestamp || null
-                }
-            });
-            // Resetear formulario EPP tras guardar exitosamente
-            setFormEpp({
-                empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
-                lugarInspeccion: '', gps: '', emailTrabajador: '',
-                itemsEpp: EPP_CATALOGO.map(nombre => ({ nombre, tiene: false, condicion: 'N/A' })),
-                observaciones: '',
-                inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
-            });
-            setFotos([null, null, null, null]);
-            setFirmaColaborador(null);
-            setTecEncontrado(false);
-            const itemsMalos = formEpp.itemsEpp.filter(i => !i.tiene || i.condicion === 'Malo');
-            if (faltaFirmaTecnico) {
-                showAlert('INSPECCIÓN GUARDADA SIN FIRMA DEL TÉCNICO — ENVIADA A REVISIÓN PARA REGULARIZAR FIRMA', 'success');
-            } else if (itemsMalos.length > 0) {
-                showAlert(`ALERTA HSE GENERADA — ${itemsMalos.length} ÍTEMS DEFICIENTES. CORREO ENVIADO.`, 'success');
-            } else {
-                showAlert('INSPECCIÓN EPP CONFORME — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
-            }
-            setView('list');
-        } catch (e) {
-            console.error('Error guardando inspección EPP:', e);
-            showAlert('ERROR AL GUARDAR: ' + (e.response?.data?.error || e.response?.data?.message || e.message || 'Error desconocido'), 'error');
-        } finally { setSaving(false); }
-    };
-
-    const updateItemEpp = (index, field, value) => {
-        setFormEpp(prev => {
-            const items = [...prev.itemsEpp];
-            items[index] = { ...items[index], [field]: value };
-            return { ...prev, itemsEpp: items };
-        });
-    };
-
-    if (view === 'menu') {
-        return (
+    return (
             <div className="min-h-screen bg-slate-50/50 p-6 md:p-10">
                 <div className="flex items-center justify-between mb-12">
                     <div className="flex items-center gap-6">
@@ -390,644 +42,93 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                             <p className="text-slate-500 text-[11px] font-black mt-2 uppercase tracking-[0.4em]">Control en Terreno · GENAI360 v8.0</p>
                         </div>
                     </div>
-                    <button onClick={() => setView('list')} className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-white border border-slate-100 text-slate-400 hover:text-rose-600 font-black text-[10px] uppercase shadow-sm transition-all">
-                        <Eye size={18} /> Ver Historial
-                    </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
                     {/* OPCIÓN 1: CUMPLIMIENTO */}
-                    <button onClick={() => setView('form-cumplimiento')} className="group bg-white rounded-[3rem] p-12 border border-slate-100 shadow-lg hover:shadow-2xl hover:shadow-rose-100 hover:-translate-y-2 transition-all text-left relative overflow-hidden">
+                    <button onClick={() => setIsCumplimientoOpen(true)} className="group bg-white rounded-[3rem] p-10 border border-slate-100 shadow-lg hover:shadow-2xl hover:shadow-rose-100 hover:-translate-y-2 transition-all text-left relative overflow-hidden">
                         <div className="absolute -top-8 -right-8 w-40 h-40 bg-rose-50 rounded-full transition-all group-hover:scale-150 group-hover:bg-rose-100" />
                         <div className="relative z-10">
-                            <div className="bg-rose-600 text-white p-5 rounded-[2rem] w-fit shadow-xl shadow-rose-200 mb-8 group-hover:scale-110 transition-transform">
-                                <ShieldCheck size={40} />
+                            <div className="bg-rose-600 text-white p-4 rounded-[2rem] w-fit shadow-xl shadow-rose-200 mb-8 group-hover:scale-110 transition-transform">
+                                <ShieldCheck size={36} />
                             </div>
-                            <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-tight">
+                            <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter leading-tight">
                                 Inspección Cumplimiento<br />
                                 <span className="text-rose-600">de Prevención</span>
                             </h2>
-                            <p className="text-[11px] font-bold text-slate-400 uppercase mt-4 leading-relaxed">
-                                Verifica en terreno que el trabajador cumple con todas las normas preventivas: AST vigente, PTS asignado, EPP completo e inducción realizada.
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-4 leading-relaxed">
+                                Verifica en terreno AST vigente, PTS asignado, EPP completo e inducción realizada.
                             </p>
-                            <div className="flex items-center gap-3 mt-8 text-rose-600 font-black text-[11px] uppercase tracking-widest">
-                                Nueva Inspección <ChevronRight size={18} className="group-hover:translate-x-2 transition-transform" />
+                            <div className="flex items-center gap-3 mt-8 text-rose-600 font-black text-[10px] uppercase tracking-widest">
+                                Nueva Inspección <ChevronRight size={16} className="group-hover:translate-x-2 transition-transform" />
                             </div>
                         </div>
                     </button>
 
                     {/* OPCIÓN 2: EPP */}
-                    <button onClick={() => setView('form-epp')} className="group bg-white rounded-[3rem] p-12 border border-slate-100 shadow-lg hover:shadow-2xl hover:shadow-orange-100 hover:-translate-y-2 transition-all text-left relative overflow-hidden">
+                    <button onClick={() => setIsEppOpen(true)} className="group bg-white rounded-[3rem] p-10 border border-slate-100 shadow-lg hover:shadow-2xl hover:shadow-orange-100 hover:-translate-y-2 transition-all text-left relative overflow-hidden">
                         <div className="absolute -top-8 -right-8 w-40 h-40 bg-orange-50 rounded-full transition-all group-hover:scale-150 group-hover:bg-orange-100" />
                         <div className="relative z-10">
-                            <div className="bg-orange-500 text-white p-5 rounded-[2rem] w-fit shadow-xl shadow-orange-200 mb-8 group-hover:scale-110 transition-transform">
-                                <HardHat size={40} />
+                            <div className="bg-orange-500 text-white p-4 rounded-[2rem] w-fit shadow-xl shadow-orange-200 mb-8 group-hover:scale-110 transition-transform">
+                                <HardHat size={36} />
                             </div>
-                            <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-tight">
+                            <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter leading-tight">
                                 Inspección de EPP<br />
                                 <span className="text-orange-500">Protección Personal</span>
                             </h2>
-                            <p className="text-[11px] font-bold text-slate-400 uppercase mt-4 leading-relaxed">
-                                Revisa ítem por ítem si el trabajador posee el equipo y en qué condiciones se encuentra. Genera alerta automática en consola HSE ante deficiencias.
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-4 leading-relaxed">
+                                Revisa ítem por ítem el equipo. Genera alerta en consola HSE ante deficiencias.
                             </p>
-                            <div className="flex items-center gap-3 mt-8 text-orange-500 font-black text-[11px] uppercase tracking-widest">
-                                Nueva Inspección <ChevronRight size={18} className="group-hover:translate-x-2 transition-transform" />
+                            <div className="flex items-center gap-3 mt-8 text-orange-500 font-black text-[10px] uppercase tracking-widest">
+                                Nueva Inspección <ChevronRight size={16} className="group-hover:translate-x-2 transition-transform" />
+                            </div>
+                        </div>
+                    </button>
+
+                    {/* OPCIÓN 3: VEHICULAR */}
+                    <button onClick={() => setIsVehicularOpen(true)} className="group bg-white rounded-[3rem] p-10 border border-slate-100 shadow-lg hover:shadow-2xl hover:shadow-blue-100 hover:-translate-y-2 transition-all text-left relative overflow-hidden">
+                        <div className="absolute -top-8 -right-8 w-40 h-40 bg-blue-50 rounded-full transition-all group-hover:scale-150 group-hover:bg-blue-100" />
+                        <div className="relative z-10">
+                            <div className="bg-blue-600 text-white p-4 rounded-[2rem] w-fit shadow-xl shadow-blue-200 mb-8 group-hover:scale-110 transition-transform">
+                                <Truck size={36} />
+                            </div>
+                            <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter leading-tight">
+                                Inspección<br />
+                                <span className="text-blue-600">Vehicular</span>
+                            </h2>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-4 leading-relaxed">
+                                Control de flota: documentación, mecánica, carrocería e inventario vehicular.
+                            </p>
+                            <div className="flex items-center gap-3 mt-8 text-blue-600 font-black text-[10px] uppercase tracking-widest">
+                                Nueva Inspección <ChevronRight size={16} className="group-hover:translate-x-2 transition-transform" />
                             </div>
                         </div>
                     </button>
                 </div>
-            </div>
-        );
-    }
 
-    // ─── FORMULARIO CUMPLIMIENTO ──────────────────────────────────────────────
-    if (view === 'form-cumplimiento') {
-        const c = formCumplimiento.cumplimiento;
-        const conformes = [c.tieneAst, c.tienePts, c.tieneEpp, c.inductionRealizada].filter(Boolean).length;
-        return (
-            <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20">
-                <div className="flex items-center gap-4 mb-10">
-                    <button onClick={() => { setView('menu'); setFirmaColaborador(null); }} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:text-rose-600 transition-all"><X size={20} /></button>
-                    <div>
-                        <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Insp. Cumplimiento <span className="text-rose-600">de Prevención</span></h1>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">{conformes}/4 Ítems Conformes</p>
-                    </div>
-                </div>
-                <div className="max-w-5xl mx-auto space-y-8">
-                    {/* Progreso visual */}
-                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-                        <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-rose-600 rounded-full transition-all duration-500" style={{ width: `${(conformes / 4) * 100}%` }} />
-                        </div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase mt-3 tracking-widest">Cumplimiento: {Math.round((conformes / 4) * 100)}%</p>
-                    </div>
-
-                    {/* IDENTIFICACIÓN */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-8">
-                        <SectionTitle icon={User} title="Identificación del Trabajador" />
-                        <IdentificacionSection
-                            form={formCumplimiento}
-                            setForm={setFormCumplimiento}
-                            formType="cumplimiento"
-                            tecEncontrado={tecEncontrado}
-                            searchingTec={searchingTec}
-                            handleRutChange={handleRutChange}
-                            handleSearchRut={handleSearchRut}
-                            handleGetGps={handleGetGps}
-                        />
-                    </div>
-
-                    {/* CHECKLIST CUMPLIMIENTO */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-6">
-                        <SectionTitle icon={ShieldCheck} title="Checklist de Cumplimiento Normativo" />
-                        <div className="space-y-4">
-                            {/* AST */}
-                            <CheckItem
-                                label="Posee AST Vigente (Análisis Seguro de Trabajo)"
-                                checked={c.tieneAst}
-                                onToggle={v => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, tieneAst: v } }))}
-                            >
-                                {c.tieneAst && (
-                                    <input type="text" placeholder="Nº OT / Folio AST" className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[10px] font-bold uppercase outline-none mt-2"
-                                        value={c.astNumero} onChange={e => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, astNumero: e.target.value } }))} />
-                                )}
-                            </CheckItem>
-                            {/* PTS */}
-                            <CheckItem
-                                label="Posee PTS Asignado (Procedimiento de Trabajo Seguro)"
-                                checked={c.tienePts}
-                                onToggle={v => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, tienePts: v } }))}
-                            >
-                                {c.tienePts && (
-                                    <input type="text" placeholder="Código / Nombre del PTS" className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[10px] font-bold uppercase outline-none mt-2"
-                                        value={c.ptsNumero} onChange={e => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, ptsNumero: e.target.value } }))} />
-                                )}
-                            </CheckItem>
-                            {/* EPP */}
-                            <CheckItem
-                                label="Porta EPP Requerido por la Empresa"
-                                checked={c.tieneEpp}
-                                onToggle={v => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, tieneEpp: v } }))}
-                            >
-                                {c.tieneEpp && (
-                                    <CheckItem
-                                        small
-                                        label="EPP en buen estado y completo"
-                                        checked={c.eppCompleto}
-                                        onToggle={v => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, eppCompleto: v } }))}
-                                    />
-                                )}
-                            </CheckItem>
-                            {/* INDUCCIÓN */}
-                            <CheckItem
-                                label="Inducción / Charla de Seguridad Realizada"
-                                checked={c.inductionRealizada}
-                                onToggle={v => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, inductionRealizada: v } }))}
-                            />
-                        </div>
-                        <div className="space-y-1.5 text-left pt-4">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Observaciones del Cumplimiento</label>
-                            <textarea
-                                className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold uppercase min-h-[80px] outline-none focus:ring-4 focus:ring-rose-500/10 resize-none"
-                                placeholder="ANOTE CUALQUIER OBSERVACIÓN RELEVANTE..."
-                                value={c.observacionesCumplimiento}
-                                onChange={e => setFormCumplimiento(p => ({ ...p, cumplimiento: { ...p.cumplimiento, observacionesCumplimiento: e.target.value } }))}
-                            />
-                        </div>
-                    </div>
-
-                    {/* FOTO EVIDENCIA (4 FOTOS) */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-4">
-                        <SectionTitle icon={Camera} title="Evidencia Fotográfica (4 Fotos)" />
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {[0, 1, 2, 3].map(idx => (
-                                <label key={idx} className="flex flex-col items-center gap-3 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-rose-50 hover:border-rose-200 transition-all group">
-                                    <input type="file" accept="image/*" className="hidden" onChange={e => handlePhoto(idx, e)} />
-                                    {fotos[idx] ? (
-                                        <div className="relative w-full aspect-square">
-                                            <img src={fotos[idx]} className="w-full h-full object-cover rounded-xl border-2 border-rose-200" alt={`evidencia-${idx}`} />
-                                            <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    setFotos(prev => {
-                                                        const nf = [...prev];
-                                                        nf[idx] = null;
-                                                        return nf;
-                                                    });
-                                                }}
-                                                className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-1 shadow-lg"
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="w-full aspect-square bg-white rounded-xl flex items-center justify-center border border-slate-200 group-hover:border-rose-300 transition-all">
-                                            <Camera size={24} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
-                                        </div>
-                                    )}
-                                    <p className="text-[8px] font-black uppercase text-slate-400">{fotos[idx] ? 'Capturada' : `Foto ${idx + 1}`}</p>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* FIRMAS */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-6">
-                        <SectionTitle icon={PenTool} title="Firmas — Inspector y Trabajador" />
-                        <FirmaSection
-                            form={formCumplimiento}
-                            setForm={setFormCumplimiento}
-                            tecEncontrado={tecEncontrado}
-                            firmaColaborador={firmaColaborador}
-                            setFirmaColaborador={setFirmaColaborador}
-                        />
-                    </div>
-
-                    <button onClick={handleSubmitCumplimiento} disabled={saving} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-sm hover:bg-rose-600 transition-all shadow-2xl flex items-center justify-center gap-4 disabled:opacity-50">
-                        {saving ? <Loader2 className="animate-spin" size={24} /> : <><Save size={24} /> Registrar Inspección</>}
-                    </button>
-                </div>
-                <AlertModal alert={alert} setAlert={setAlert} />
-            </div>
-        );
-    }
-
-    // ─── FORMULARIO EPP ───────────────────────────────────────────────────────
-    if (view === 'form-epp') {
-        const deficientes = formEpp.itemsEpp.filter(i => !i.tiene || i.condicion === 'Malo').length;
-        return (
-            <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20">
-                <div className="flex items-center gap-4 mb-10">
-                    <button onClick={() => { setView('menu'); setFirmaColaborador(null); }} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:text-orange-500 transition-all"><X size={20} /></button>
-                    <div>
-                        <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Inspección EPP <span className="text-orange-500">Protección Personal</span></h1>
-                        <p className={`text-[9px] font-black uppercase tracking-[0.3em] mt-1 ${deficientes > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                            {deficientes > 0 ? `⚠ ${deficientes} ÍTEMS DEFICIENTES — SE GENERARÁ ALERTA HSE` : '✓ Todos los ítems OK'}
-                        </p>
-                    </div>
-                </div>
-                <div className="max-w-5xl mx-auto space-y-8">
-                    {/* IDENTIFICACIÓN */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-8">
-                        <SectionTitle icon={User} title="Identificación del Trabajador" />
-                        <IdentificacionSection
-                            form={formEpp}
-                            setForm={setFormEpp}
-                            formType="epp"
-                            tecEncontrado={tecEncontrado}
-                            searchingTec={searchingTec}
-                            handleRutChange={handleRutChange}
-                            handleSearchRut={handleSearchRut}
-                            handleGetGps={handleGetGps}
-                        />
-                    </div>
-
-                    {/* CHECKLIST EPP */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-4">
-                        <SectionTitle icon={HardHat} title="Revisión ítem por ítem de EPP" accent="orange" />
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Marque si el trabajador TIENE el ítem y seleccione su condición.</p>
-                        <div className="space-y-3 mt-2">
-                            {formEpp.itemsEpp.map((item, i) => (
-                                <div key={i} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${!item.tiene ? 'bg-rose-50 border-rose-100' : item.condicion === 'Malo' ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                                    <button
-                                        type="button"
-                                        onClick={() => updateItemEpp(i, 'tiene', !item.tiene)}
-                                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border-2 flex-shrink-0 ${item.tiene ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-300'}`}
-                                    >
-                                        {item.tiene ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                                    </button>
-                                    <span className={`flex-1 text-[11px] font-black uppercase tracking-tight ${!item.tiene ? 'text-rose-700' : item.condicion === 'Malo' ? 'text-amber-700' : 'text-emerald-700'}`}>{item.nombre}</span>
-                                    {item.tiene && (
-                                        <div className="flex gap-2">
-                                            {['Bueno', 'Malo'].map(cond => (
-                                                <button
-                                                    key={cond}
-                                                    type="button"
-                                                    onClick={() => updateItemEpp(i, 'condicion', cond)}
-                                                    className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase transition-all ${item.condicion === cond
-                                                        ? cond === 'Bueno' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-                                                        : 'bg-white border border-slate-200 text-slate-400'}`}
-                                                >
-                                                    {cond}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {!item.tiene && <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">AUSENTE</span>}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* OBSERVACIONES + FOTO */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-6">
-                        <SectionTitle icon={Camera} title="Observaciones y Evidencia" />
-                        <textarea
-                            className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold uppercase min-h-[80px] outline-none focus:ring-4 focus:ring-orange-500/10 resize-none"
-                            placeholder="OBSERVACIONES ADICIONALES..."
-                            value={formEpp.observaciones}
-                            onChange={e => setFormEpp(p => ({ ...p, observaciones: e.target.value }))}
-                        />
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                            {[0, 1, 2, 3].map(idx => (
-                                <label key={idx} className="flex flex-col items-center gap-3 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition-all group">
-                                    <input type="file" accept="image/*" className="hidden" onChange={e => handlePhoto(idx, e)} />
-                                    {fotos[idx] ? (
-                                        <div className="relative w-full aspect-square">
-                                            <img src={fotos[idx]} className="w-full h-full object-cover rounded-xl border-2 border-orange-200" alt={`evidencia-${idx}`} />
-                                            <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    setFotos(prev => {
-                                                        const nf = [...prev];
-                                                        nf[idx] = null;
-                                                        return nf;
-                                                    });
-                                                }}
-                                                className="absolute -top-2 -right-2 bg-orange-600 text-white rounded-full p-1 shadow-lg"
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="w-full aspect-square bg-white rounded-xl flex items-center justify-center border border-slate-200 group-hover:border-orange-300 transition-all">
-                                            <Camera size={24} className="text-slate-300 group-hover:text-orange-400 transition-colors" />
-                                        </div>
-                                    )}
-                                    <p className="text-[8px] font-black uppercase text-slate-400">{fotos[idx] ? 'Capturada' : `Foto ${idx + 1}`}</p>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* FIRMAS */}
-                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-6">
-                        <SectionTitle icon={PenTool} title="Firmas — Inspector y Trabajador" />
-                        <FirmaSection form={formEpp} setForm={setFormEpp} />
-                    </div>
-
-                    {deficientes > 0 && (
-                        <div className="bg-rose-50 border-2 border-rose-100 rounded-3xl p-8 flex items-center gap-6">
-                            <div className="bg-rose-600 text-white p-4 rounded-2xl flex-shrink-0"><AlertTriangle size={24} /></div>
-                            <div>
-                                <p className="text-[11px] font-black text-rose-700 uppercase tracking-wide">Alerta HSE Automática</p>
-                                <p className="text-[9px] font-bold text-rose-500 uppercase mt-1">{deficientes} ítems deficientes detectados. Al guardar, se generará una notificación automática en la Consola HSE Audit para revisión inmediata del prevencionista.</p>
-                            </div>
-                        </div>
-                    )}
-
-                    <button onClick={handleSubmitEpp} disabled={saving} className={`w-full py-6 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-sm transition-all shadow-2xl flex items-center justify-center gap-4 disabled:opacity-50 ${deficientes > 0 ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-900 hover:bg-orange-500'}`}>
-                        {saving ? <Loader2 className="animate-spin" size={24} /> : <><Save size={24} /> {deficientes > 0 ? 'Registrar y Generar Alerta HSE' : 'Registrar Inspección EPP'}</>}
-                    </button>
-                </div>
-                <AlertModal alert={alert} setAlert={setAlert} />
-            </div>
-        );
-    }
-
-    // ─── LISTA DE INSPECCIONES ────────────────────────────────────────────────
-    return (
-        <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20">
-            <div className="flex items-center justify-between mb-10">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => setView('menu')} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:text-rose-600 transition-all"><X size={20} /></button>
-                    <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Historial de <span className="text-rose-600">Inspecciones</span></h1>
-                </div>
-                <div className="flex gap-3">
-                    {['', 'cumplimiento-prevencion', 'epp'].map((t, i) => (
-                        <button key={i} onClick={() => setFilterTipo(t)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${filterTipo === t ? 'bg-slate-900 text-white' : 'bg-white border border-slate-100 text-slate-400 hover:text-slate-700'}`}>
-                            {t === '' ? 'Todas' : t === 'cumplimiento-prevencion' ? 'Cumplimiento' : 'EPP'}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                {[['Total', historialStats.total], ['En revisión', historialStats.enRevision], ['Aprobadas', historialStats.aprobadas], ['Alertas HSE', historialStats.conAlerta]].map(([label, value]) => (
-                    <div key={label} className="bg-white border border-slate-100 rounded-2xl p-4">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-                        <p className="text-xl font-black text-slate-800 mt-1">{value}</p>
-                    </div>
-                ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                <input
-                    type="text"
-                    value={searchHistorial}
-                    onChange={(e) => setSearchHistorial(e.target.value)}
-                    placeholder="Buscar por trabajador, RUT, OT, empresa..."
-                    className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10"
+                {/* MODALES SLIDEOVER */}
+                <SlideOverInspCumplimiento 
+                    isOpen={isCumplimientoOpen} 
+                    onClose={() => setIsCumplimientoOpen(false)} 
+                    rutsPermitidos={rutsPermitidos} 
+                    mostrarSoloPermitidos={mostrarSoloPermitidos}
+                    onSuccess={handleSuccess}
                 />
-                <div className="flex gap-3">
-                    {['', 'En Revisión', 'Aprobado', 'Rechazado'].map((estado) => (
-                        <button
-                            key={estado || 'todos'}
-                            onClick={() => setFilterEstado(estado)}
-                            className={`px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${filterEstado === estado ? 'bg-rose-600 text-white' : 'bg-white border border-slate-100 text-slate-500 hover:text-slate-700'}`}
-                        >
-                            {estado || 'Todos'}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl overflow-hidden">
-                <div className="divide-y divide-slate-50">
-                    {loading ? (
-                        <div className="p-32 flex flex-col items-center gap-6">
-                            <div className="w-14 h-14 border-4 border-rose-100 border-t-rose-600 rounded-full animate-spin" />
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargando inspecciones...</p>
-                        </div>
-                    ) : filteredInspecciones.length > 0 ? filteredInspecciones.map(insp => (
-                        <div key={insp._id} className="p-8 flex items-center justify-between hover:bg-slate-50/80 transition-all group border-l-4 border-l-transparent hover:border-l-rose-600">
-                            <div className="flex items-center gap-6">
-                                <div className={`p-4 rounded-2xl text-white shadow-lg ${insp.tipo === 'epp' ? 'bg-orange-500' : 'bg-rose-600'}`}>
-                                    {insp.tipo === 'epp' ? <HardHat size={20} /> : <ShieldCheck size={20} />}
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-slate-800 uppercase tracking-tight">{insp.nombreTrabajador}</h4>
-                                    <div className="flex items-center gap-4 mt-1">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase">{insp.empresa}</span>
-                                        {insp.ot && <span className="text-[10px] font-black text-rose-500 uppercase">OT: {insp.ot}</span>}
-                                        <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full ${insp.tipo === 'epp' ? 'bg-orange-100 text-orange-700' : 'bg-rose-100 text-rose-700'}`}>
-                                            {insp.tipo === 'epp' ? 'EPP' : 'Cumplimiento'}
-                                        </span>
-                                        {insp.creadoPor && (
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                                <User size={10} /> {insp.creadoPor}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-6">
-                                <span className={`text-[10px] font-black uppercase px-4 py-2 rounded-full ${insp.resultado === 'Conforme' ? 'bg-emerald-100 text-emerald-700' : insp.resultado === 'No Conforme' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                    {insp.resultado}
-                                </span>
-                                <span className={`text-[9px] font-black uppercase px-3 py-2 rounded-full border ${insp.estado === 'Aprobado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : insp.estado === 'Rechazado' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-                                    {insp.estado || 'En Revisión'}
-                                </span>
-                                {insp.alertaHse && (
-                                    <span className="flex items-center gap-1.5 text-[9px] font-black text-rose-500 uppercase bg-rose-50 px-3 py-2 rounded-full border border-rose-100">
-                                        <AlertTriangle size={12} /> Alerta HSE
-                                    </span>
-                                )}
-                                {insp.estado === 'En Revisión' && (
-                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                        <button
-                                            onClick={async () => {
-                                                try {
-                                                    await inspeccionesApi.update(insp._id, { estado: 'Aprobado' });
-                                                    fetchInspecciones();
-                                                } catch (e) { console.error('Error aprobando:', e); }
-                                            }}
-                                            className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-emerald-700 transition-all"
-                                        >
-                                            Aprobar
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                try {
-                                                    await inspeccionesApi.update(insp._id, { estado: 'Rechazado' });
-                                                    fetchInspecciones();
-                                                } catch (e) { console.error('Error rechazando:', e); }
-                                            }}
-                                            className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-rose-700 transition-all"
-                                        >
-                                            Rechazar
-                                        </button>
-                                    </div>
-                                )}
-                                <span className="text-[10px] font-bold text-slate-400">{new Date(insp.createdAt).toLocaleDateString()}</span>
-                            </div>
-                        </div>
-                    )) : (
-                        <div className="p-44 text-center text-slate-300 font-black uppercase text-xs tracking-widest">Sin inspecciones registradas</div>
-                    )}
-                </div>
-            </div>
-            <AlertModal alert={alert} setAlert={setAlert} />
-        </div>
-    );
-};
+                <SlideOverInspEpp 
+                    isOpen={isEppOpen} 
+                    onClose={() => setIsEppOpen(false)} 
+                    rutsPermitidos={rutsPermitidos} 
+                    mostrarSoloPermitidos={mostrarSoloPermitidos}
+                    onSuccess={handleSuccess}
+                />
+                <SlideOverInspVehicular 
+                    isOpen={isVehicularOpen} 
+                    onClose={() => setIsVehicularOpen(false)} 
+                    onSuccess={handleSuccess}
+                />
 
-// ─── SUB-COMPONENTES ──────────────────────────────────────────────────────────
-
-const IdentificacionSection = ({
-    form,
-    setForm,
-    formType,
-    tecEncontrado,
-    searchingTec,
-    handleRutChange,
-    handleSearchRut,
-    handleGetGps,
-}) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {[
-            ['rutTrabajador', 'RUT Trabajador *'],
-            ['nombreTrabajador', 'Nombre del Trabajador *'],
-            ['cargoTrabajador', 'Cargo'],
-            ['empresa', 'Empresa *'],
-            ['ot', 'OT / Proyecto'],
-            ['lugarInspeccion', 'Lugar de Inspección'],
-        ].map(([key, label]) => (
-            <div key={key} className="space-y-1.5 text-left relative">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
-                    {label}
-                    {key === 'rutTrabajador' && tecEncontrado && <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Encontrado</span>}
-                </label>
-                <div className="relative">
-                    <input
-                        type="text"
-                        className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] uppercase outline-none transition-all ${key !== 'rutTrabajador' && tecEncontrado && form[key] ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-4 focus:ring-emerald-500/10' : 'bg-white border border-slate-200 focus:ring-4 focus:ring-rose-500/10'}`}
-                        value={form[key] || ''}
-                        onChange={e => {
-                            if (key === 'rutTrabajador') {
-                                handleRutChange(e.target.value, setForm);
-                            } else {
-                                setForm(p => ({ ...p, [key]: e.target.value }));
-                            }
-                        }}
-                        onBlur={() => {
-                            if (key === 'rutTrabajador' && form.rutTrabajador && !tecEncontrado) {
-                                handleSearchRut(form.rutTrabajador, setForm);
-                            }
-                        }}
-                    />
-                    {key === 'rutTrabajador' && searchingTec && <Loader2 className="absolute right-4 top-3.5 animate-spin text-rose-500" size={16} />}
-                    {key === 'rutTrabajador' && tecEncontrado && !searchingTec && <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />}
-                </div>
+                <AlertModal alert={alert} setAlert={setAlert} />
             </div>
-        ))}
-        <div className="space-y-1.5 text-left">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">GPS (Coordenadas)</label>
-            <button
-                type="button"
-                onClick={() => handleGetGps(formType)}
-                className={`w-full px-5 py-3.5 rounded-2xl border font-bold text-[11px] uppercase transition-all flex items-center gap-3 ${form.gps ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300 hover:text-rose-600'}`}
-            >
-                <MapPin size={16} />
-                {form.gps || 'Capturar Posición GPS'}
-            </button>
-        </div>
-    </div>
-);
-
-const FirmaSection = ({ form, setForm, tecEncontrado, firmaColaborador, setFirmaColaborador }) => (
-    <div className="space-y-8">
-        <div className="space-y-4">
-            <p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.3em]">1. Inspector / Supervisor HSE</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {[['nombre', 'Nombre Inspector *'], ['cargo', 'Cargo Inspector'], ['rut', 'RUT Inspector'], ['email', 'Email Inspector']].map(([key, label]) => (
-                    <div key={key} className="space-y-1.5 text-left">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
-                        <input
-                            type={key === 'email' ? 'email' : 'text'}
-                            className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10"
-                            value={form.inspector?.[key] || ''}
-                            onChange={e => setForm(p => ({ ...p, inspector: { ...p.inspector, [key]: e.target.value } }))}
-                        />
-                    </div>
-                ))}
-            </div>
-            <FirmaAvanzada
-                label="Firma del Inspector HSE"
-                rutFirmante={form.inspector?.rut || ''}
-                nombreFirmante={form.inspector?.nombre || ''}
-                emailFirmante={form.inspector?.email || ''}
-                onSave={(payload) => setForm(p => ({ ...p, inspector: { ...p.inspector, firma: payload?.imagenBase64 || null, firmaId: payload?.firmaId || null, timestamp: payload?.timestamp || null } }))}
-                colorAccent="rose"
-            />
-            {form.inspector?.firma && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
-                    <CheckCircle2 size={14} className="text-emerald-600" />
-                    <span className="text-[10px] font-black text-emerald-700 uppercase">Inspector firmó</span>
-                </div>
-            )}
-        </div>
-        <div className="space-y-4 pt-6 border-t border-slate-100">
-            <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.3em]">2. Trabajador Inspeccionado</p>
-            <div className="space-y-1.5 text-left relative">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
-                    Email del Trabajador (para envío de informe)
-                    {tecEncontrado && form.emailTrabajador && <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Auto-completado</span>}
-                </label>
-                <div className="relative">
-                    <input
-                        type="email"
-                        className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] outline-none transition-all focus:ring-4 ${tecEncontrado && form.emailTrabajador ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-emerald-500/10' : 'bg-white border border-slate-200 focus:ring-indigo-500/10'}`}
-                        value={form.emailTrabajador || ''}
-                        placeholder="correo@ejemplo.com"
-                        onChange={e => setForm(p => ({ ...p, emailTrabajador: e.target.value }))}
-                    />
-                    {tecEncontrado && form.emailTrabajador && <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />}
-                </div>
-            </div>
-            <FirmaAvanzada
-                label="Firma del Trabajador"
-                rutFirmante={form.rutTrabajador || ''}
-                nombreFirmante={form.nombreTrabajador || ''}
-                emailFirmante={form.emailTrabajador || ''}
-                onSave={(payload) => setFirmaColaborador(payload)}
-                colorAccent="blue"
-            />
-            {firmaColaborador?.imagenBase64 && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
-                    <CheckCircle2 size={14} className="text-emerald-600" />
-                    <span className="text-[10px] font-black text-emerald-700 uppercase">Trabajador firmó</span>
-                </div>
-            )}
-        </div>
-    </div>
-);
-
-const SectionTitle = ({ icon: Icon, title, accent = 'rose' }) => (
-    <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-2xl ${accent === 'orange' ? 'bg-orange-100 text-orange-600' : 'bg-rose-100 text-rose-600'}`}>
-            <Icon size={20} />
-        </div>
-        <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">{title}</h4>
-    </div>
-);
-
-const CheckItem = ({ label, checked, onToggle, children, small = false }) => (
-    <div className="space-y-2">
-        <div
-            onClick={() => onToggle(!checked)}
-            className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-all ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-100 hover:border-rose-300'} ${small ? 'ml-4' : ''}`}
-        >
-            <div className={`w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-slate-200 text-slate-300'}`}>
-                {checked ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-            </div>
-            <span className={`font-black uppercase text-[10px] tracking-tight flex-1 ${checked ? 'text-emerald-700' : 'text-rose-700'}`}>{label}</span>
-            <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full ${checked ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500'}`}>
-                {checked ? 'Cumple' : 'No Cumple'}
-            </span>
-        </div>
-        {children && <div>{children}</div>}
-    </div>
-);
-
-const AlertModal = ({ alert, setAlert }) => {
-    if (!alert) return null;
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
-            <div className="bg-white rounded-[3.5rem] p-12 max-w-md w-full shadow-2xl text-center flex flex-col items-center gap-8 animate-in zoom-in-95">
-                <div className={`p-6 rounded-[2rem] ${alert.type === 'error' ? 'bg-rose-100 text-rose-600' : alert.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                    {alert.type === 'error' ? <AlertTriangle size={48} /> : <CheckCircle2 size={48} />}
-                </div>
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest leading-relaxed">{alert.message}</h4>
-                <div className="flex gap-4 w-full">
-                    {alert.type === 'confirm' ? (
-                        <>
-                            <button onClick={() => setAlert(null)} className="flex-1 py-5 rounded-full border-2 border-slate-100 text-slate-400 font-black text-[10px] uppercase">No</button>
-                            <button onClick={() => { alert.onConfirm?.(); setAlert(null); }} className="flex-1 py-5 rounded-full bg-slate-900 text-white font-black text-[10px] uppercase hover:bg-rose-600 transition-all">Sí</button>
-                        </>
-                    ) : (
-                        <button onClick={() => setAlert(null)} className="w-full py-5 rounded-full bg-slate-900 text-white font-black text-[10px] uppercase">Cerrar</button>
-                    )}
-                </div>
-            </div>
-        </div>
     );
 };
 

@@ -6,6 +6,25 @@ const Proyecto = require('../models/Proyecto');
 const { protect } = require('../../auth/authMiddleware');
 
 /**
+ * Helper to map full statuses to abbreviated badges used in Captura de Talento
+ */
+const getAbbreviatedStatus = (status) => {
+    if (['En Postulación', 'Postulando'].includes(status)) return 'POST';
+    if (['En Entrevista'].includes(status)) return 'ENTR';
+    if (['Bloqueado', 'BLOQUEADO', 'bloqueado', 'bloqueados', 'Bloqueados'].includes(status)) return 'BLOQ';
+    if (['Examen Preocupacional', 'Preocupacional', 'En Examen Preocupacional', 'PREOCUP'].includes(status)) return 'PREOCUP';
+    if (['Aprobado', 'En Evaluación', 'Aprobado/No Operativo'].includes(status)) return 'APROB';
+    if (['Curso Online', 'C. ONLINE', 'C.Online'].includes(status)) return 'C. ONLINE';
+    if (['OTEC', 'Otec'].includes(status)) return 'OTEC';
+    if (['En Acreditación', 'Acreditación', 'En Documentación'].includes(status)) return 'ACRED';
+    if (['Contratado'].includes(status)) return 'CONT';
+    if (['En Terreno', 'Listo Terreno', 'EN TERR'].includes(status)) return 'ACTIVO';
+    if (['Suspendido', 'Ausente', 'Licencia Médica', 'Inactivo', 'Suspendidos', 'Ausentes', 'Licencia medica'].includes(status)) return 'INACTIVO';
+    if (['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja'].includes(status)) return 'DE BAJA';
+    return status;
+};
+
+/**
  * GET /api/rrhh/proyectos/:id/analytics
  * Devuelve análisis de reclutamiento para un proyecto específico.
  * Cruza candidatos con la dotación requerida por cargo.
@@ -51,16 +70,16 @@ router.get('/:id/analytics', protect, async (req, res) => {
                 c.position?.toLowerCase().trim() === d.cargo?.toLowerCase().trim()
             );
 
-            const postulando = porCargo.filter(c => c.status === 'En Postulación' || c.status === 'Postulando').length;
-            const contratados = porCargo.filter(c => c.status === 'Contratado');
-            const enPermiso = contratados.filter(c => tienePermisoActivo(c)).length;
-            const activos = contratados.length - enPermiso;  // contratados sin permiso activo
-            const finiquitados = porCargo.filter(c => c.status === 'Finiquitado' || c.status === 'Retirado').length;
-            const rechazados = porCargo.filter(c => c.status === 'Rechazado').length;
+            const postulando = porCargo.filter(c => ['POST', 'ENTR', 'PREOCUP', 'APROB', 'C. ONLINE', 'OTEC', 'ACRED'].includes(getAbbreviatedStatus(c.status))).length;
+            const contratados = porCargo.filter(c => ['CONT', 'ACTIVO', 'INACTIVO'].includes(getAbbreviatedStatus(c.status)));
+            const enPermiso = contratados.filter(c => tienePermisoActivo(c) || getAbbreviatedStatus(c.status) === 'INACTIVO').length;
+            const activos = contratados.length - enPermiso;  // contratados efectivos en terreno sin permisos/licencias
+            const finiquitados = porCargo.filter(c => getAbbreviatedStatus(c.status) === 'DE BAJA').length;
+            const rechazados = porCargo.filter(c => getAbbreviatedStatus(c.status) === 'BLOQ' || c.status === 'Rechazado').length;
 
             const requeridos = d.cantidad || 0;
             const cubiertos = activos;                           // activos reales (sin permiso)
-            const pendientes = Math.max(0, requeridos - (activos + enPermiso));
+            const pendientes = Math.max(0, requeridos - activos); // ya no restamos doble el enPermiso porque activos ya los descuenta
             const cobertura = requeridos > 0 ? Math.round((cubiertos / requeridos) * 100) : 0;
 
             return {
@@ -152,11 +171,11 @@ router.get('/analytics/global', protect, async (req, res) => {
             );
 
             const requerido = (proyecto.dotacion || []).reduce((a, d) => a + (d.cantidad || 0), 0);
-            const contratados = candidatos.filter(c => c.status === 'Contratado');
-            const enPermiso = contratados.filter(c => tienePermisoActivo(c)).length;
+            const contratados = candidatos.filter(c => ['CONT', 'ACTIVO', 'INACTIVO'].includes(getAbbreviatedStatus(c.status)));
+            const enPermiso = contratados.filter(c => tienePermisoActivo(c) || getAbbreviatedStatus(c.status) === 'INACTIVO').length;
             const activos = contratados.length - enPermiso;
-            const postulando = candidatos.filter(c => ['En Postulación', 'Postulando'].includes(c.status)).length;
-            const finiquitados = candidatos.filter(c => ['Finiquitado', 'Retirado'].includes(c.status)).length;
+            const postulando = candidatos.filter(c => ['POST', 'ENTR', 'PREOCUP', 'APROB', 'C. ONLINE', 'OTEC', 'ACRED'].includes(getAbbreviatedStatus(c.status))).length;
+            const finiquitados = candidatos.filter(c => getAbbreviatedStatus(c.status) === 'DE BAJA').length;
             const pendientes = Math.max(0, requerido - activos);
             const cobertura = requerido > 0 ? Math.round((activos / requerido) * 100) : 0;
 

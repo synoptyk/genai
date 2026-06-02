@@ -5,6 +5,7 @@ import {
     ChevronRight, Calendar, MapPin
 } from 'lucide-react';
 import { astApi, charlasApi, incidentesApi } from '../prevencionApi';
+import SlideOverFichaEvento from '../components/SlideOverFichaEvento';
 
 const EVENT_CONFIG = {
     'AST': { icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100' },
@@ -16,6 +17,8 @@ const PrevHistorial = () => {
     const [eventos, setEventos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [fichaOpen, setFichaOpen] = useState(false);
+    const [selectedEvento, setSelectedEvento] = useState(null);
 
     const fetchData = async () => {
         try {
@@ -39,7 +42,8 @@ const PrevHistorial = () => {
                     responsable: a.supervisorHse || a.usuario?.name || 'Sistema',
                     proyecto: a.proyecto?.nombre || a.proyectoNombre || 'General',
                     estado: a.estado || 'Finalizado',
-                    meta: a.empresa || 'GENAI360'
+                    meta: a.empresa || 'GENAI360',
+                    rawData: a
                 })),
                 ...dataChar.map(c => ({
                     id: c._id,
@@ -49,7 +53,8 @@ const PrevHistorial = () => {
                     responsable: c.relator || 'No asignado',
                     proyecto: c.proyecto || 'Varios',
                     estado: 'Realizado',
-                    meta: `${c.asistentes?.length || 0} Asistentes`
+                    meta: `${c.asistentes?.length || 0} Asistentes`,
+                    rawData: c
                 })),
                 ...dataInc.map(i => ({
                     id: i._id,
@@ -59,7 +64,8 @@ const PrevHistorial = () => {
                     responsable: i.responsable || 'En revisión',
                     proyecto: i.proyectoId || 'Análisis pendiente',
                     estado: i.estado || 'Abierto',
-                    meta: i.prioridad || 'Media'
+                    meta: i.prioridad || 'Media',
+                    rawData: i
                 }))
             ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
@@ -206,7 +212,10 @@ const PrevHistorial = () => {
                                                 </span>
                                             </td>
                                             <td className="px-8 py-6 text-center">
-                                                <button className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all shadow-sm group-hover:shadow-md">
+                                                <button 
+                                                    onClick={() => { setSelectedEvento(ev); setFichaOpen(true); }}
+                                                    className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all shadow-sm group-hover:shadow-md"
+                                                >
                                                     <ChevronRight size={14} />
                                                 </button>
                                             </td>
@@ -218,6 +227,7 @@ const PrevHistorial = () => {
                     </div>
                 )}
             </div>
+            <SlideOverFichaEvento isOpen={fichaOpen} onClose={() => setFichaOpen(false)} evento={selectedEvento} />
         </div>
     );
 };

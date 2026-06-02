@@ -79,6 +79,7 @@ export default function ProduccionVenta() {
   const [serverData,   setServerData]   = useState(null);
   const [loading,      setLoading]      = useState(false);
   const [availableProyectos, setAvailableProyectos] = useState([]);
+  const [vehiculos, setVehiculos] = useState([]);
 
   // UI
   const [activeTab, setActiveTab] = useState('resumen');
@@ -119,12 +120,21 @@ export default function ProduccionVenta() {
       const d = res.data;
       setServerData(d);
 
+      try {
+        const vehRes = await api.get('/vehiculos');
+        setVehiculos(vehRes.data || []);
+      } catch (e) {
+        console.warn('No se pudieron cargar los vehículos:', e);
+      }
+
       const techList = d.tecnicos || [];
       const transformedDashboardData = {
         techRanking: techList.map(t => {
           const baremo = getBaremo(t.proyecto || t.cliente);
           return {
             name: t.name || t.fullName,
+            rut: t.rut,
+            idRecursoToa: t.idRecursoToa || t.idRecurso,
             clp: t.facturacion || (t.ptsTotal * baremo),
             activeDays: t.activeDays || 0,
             status: t.status
@@ -265,7 +275,7 @@ export default function ProduccionVenta() {
 
       {/* ── CONTENT ── */}
       <div className="p-4">
-        {activeTab === 'resumen' && <FinancialDashboard dashboardData={dashboardData} metaConfig={metaConfig} stats={stats} />}
+        {activeTab === 'resumen' && <FinancialDashboard dashboardData={dashboardData} metaConfig={metaConfig} stats={stats} vehiculos={vehiculos} searchTech={searchTech} tecnicos={tecnicos} selectedMonths={selectedMonths} setSelectedMonths={setSelectedMonths} />}
         {activeTab === 'produccion' && (
           <FinancialDiaTable 
             tecnicos={tecnicos} 

@@ -10,7 +10,7 @@ import {
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
   Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
-  PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain, Route, TrendingDown
+  PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain, Route, TrendingDown, Gift, Mail
 } from 'lucide-react';
 
 
@@ -325,7 +325,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     flota: false, seguimiento: false, config: false,
     tarifario: false, asistencia: false, hseOp: false,
     hseSafety: false, hseControl: false, inspecciones: false,
-    logistica: false, bonosTelco: false, genai: false, conectaPortal: false,
+    logistica: false, bonosTelco: false, genai: false, conectaPortal: false, remuTelecom: false,
     industriaTelecom: false, industriaMineria: false, industriaEnergia: false,
     industriaDistribucion: false, industriaConstruccion: false, industriaTransporte: false,
     industriaManufactura: false, industriaAgricola: false, industriaPesquero: false
@@ -366,7 +366,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     relacionesLaborales: ['rrhh_laborales', 'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones'],
     remuneraciones: ['rrhh_nomina', 'rend_cierre_bonos', 'admin_modelos_bonificacion', 'admin_tipos_bono'],
     prevencion: ['prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial'],
-    flota: ['flota_vehiculos', 'flota_gps'],
+    flota: ['flota_vehiculos', 'flota_gps', 'flota_eficiencia', 'flota_proveedores'],
     operaciones: ['op_supervision', 'op_colaborador', 'op_dotacion', 'op_designaciones', 'op_gastos', 'op_portales'],
     seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_tarifario', 'rend_config_lpu', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'dist_historial_rutas', 'dist_rutas_guiadas', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
     logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias', 'logistica_almacenes'],
@@ -736,6 +736,34 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </div>
           )}
 
+          {/* ─── WEBMAIL 360 ─── */}
+          <div className={`relative group/parent ${isCollapsed ? 'w-full flex justify-center' : ''} mb-1`}>
+            <Link
+              to="/webmail"
+              title={isCollapsed ? 'Genai Mail' : ''}
+              className={`flex items-center gap-3 py-3 rounded-2xl transition-all duration-200 group
+              ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
+              ${isActive('/webmail')
+                  ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-200'
+                  : 'bg-indigo-50 border border-indigo-100 hover:border-indigo-300 hover:shadow-md'}`}
+            >
+              <div className={`p-2 rounded-xl flex-shrink-0 ${isActive('/webmail') ? 'bg-white/20' : 'bg-indigo-500'} transition-all`}>
+                <Mail size={16} className="text-white" />
+              </div>
+              {!isCollapsed && (
+                <div>
+                  <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/webmail') ? 'text-white' : 'text-indigo-800'}`}>
+                    Genai Mail
+                  </span>
+                  <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/webmail') ? 'text-indigo-100' : 'text-indigo-500'}`}>
+                    Correo Corporativo Integrado
+                  </span>
+                </div>
+              )}
+              {!isCollapsed && isActive('/webmail') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
+            </Link>
+          </div>
+
           {/* ─── MÓDULO 1: ADMINISTRACIÓN ─── */}
           {hasAccess('admin') && (
             <section>
@@ -869,13 +897,23 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.remuneraciones && (
                 <ExpandedSection color="emerald">
-                  {/* ── Resto Remuneraciones ── */}
-                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/remu-central" icon={Calculator} label="Remu Central" accent="emerald" isActive={isActive('/rrhh/remu-central')} />}
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={Calculator} label="Nómina (Payroll)" accent="emerald" isActive={isActive('/rrhh/nomina')} />}
-                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/descuentos" icon={TrendingDown} label="Descuentos & Otros" accent="emerald" isActive={isActive('/rrhh/descuentos')} />}
-                  {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Cierre de Bonos" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/remu-central" icon={Calculator} label="Remu Central" accent="emerald" isActive={isActive('/rrhh/remu-central')} />}
                   {hasSubAccess('admin_modelos_bonificacion') && <MenuLink path="/administracion/modelos-bonificacion" icon={SlidersHorizontal} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />}
-                  {hasSubAccess('admin_tipos_bono') && <MenuLink path="/administracion/tipos-bono" icon={Tags} label="Tipos de Bono" accent="emerald" isActive={isActive('/administracion/tipos-bono')} />}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/descuentos" icon={TrendingDown} label="Descuentos & Otros" accent="emerald" isActive={isActive('/rrhh/descuentos')} />}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/beneficios" icon={Gift} label="Beneficios Salariales" accent="sky" isActive={isActive('/rrhh/beneficios')} />}
+
+                  {/* ── Submodule: Remu Telecom ── */}
+                  {hasSubAccess('rend_cierre_bonos') && (
+                    <>
+                      <div className="pt-2 mt-2 border-t border-emerald-100/50"></div>
+                      <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest px-2 pb-1">Telecomunicaciones</p>
+                      <SubModule label="Remu Telecom" icon={Activity} isOpen={openSections.remuTelecom} onToggle={() => toggle('remuTelecom')} accent="emerald">
+                        {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Bonos Variables" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
+                        {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/bonos-fijos" icon={DollarSign} label="Bonos Fijos" accent="emerald" isActive={isActive('/rendimiento/bonos-fijos')} />}
+                      </SubModule>
+                    </>
+                  )}
                 </ExpandedSection>
               )}
             </section>
@@ -896,6 +934,9 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.prevencion && (
                 <ExpandedSection color="rose">
+                  {hasSubAccess('prev_inspecciones') && (
+                    <MenuLink path="/prevencion/inspecciones-auditoria" icon={ClipboardCheck} label="Auditoría Inspecciones" accent="rose" isActive={isActive('/prevencion/inspecciones-auditoria')} />
+                  )}
                   {(hasSubAccess('prev_ast') || hasSubAccess('prev_procedimientos') || hasSubAccess('prev_charlas') || hasSubAccess('prev_inspecciones')) && (
                     <SubModule label="Gestión Operativa" icon={HardHat} isOpen={openSections.hseOp} onToggle={() => toggle('hseOp')} accent="rose">
                       {hasSubAccess('prev_ast') && <MenuLink path="/prevencion/ast" icon={PenTool} label="Generación AST" accent="rose" isActive={isActive('/prevencion/ast')} />}
@@ -947,6 +988,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 <ExpandedSection color="sky">
                   {hasSubAccess('flota_vehiculos') && <MenuLink path="/flota" icon={Truck} label="Flota de Vehículos" accent="sky" isActive={isActive('/flota')} />}
                   {hasSubAccess('flota_gps') && <MenuLink path="/monitor-gps" icon={MapPin} label="GPS SIMPLE" accent="sky" isActive={isActive('/monitor-gps')} />}
+                  {hasSubAccess('flota_eficiencia') && <MenuLink path="/flota/eficiencia" icon={Activity} label="Eficiencia" accent="sky" isActive={isActive('/flota/eficiencia')} />}
+                  {hasSubAccess('flota_proveedores') && <MenuLink path="/flota/proveedores" icon={UserPlus} label="Proveedores Leasing" accent="sky" isActive={isActive('/flota/proveedores')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -1014,7 +1057,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {hasSubAccess('op_mapa_calor') && <MenuLink path="/mapa-calor" icon={MapPin} label="Mapa de Calor" accent="sky" isActive={isActive('/mapa-calor')} />}
                     {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="sky" isActive={isActive('/produccion-financiera')} />}
                     {hasSubAccess('rend_tarifario') && <MenuLink path="/tarifario" icon={ClipboardList} label="Tarifario & Baremos" accent="sky" isActive={isActive('/tarifario')} />}
-                    {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={SlidersHorizontal} label="Configuración LPU" accent="sky" isActive={isActive('/config-lpu')} />}
                     {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="sky" isActive={isActive('/descarga-toa')} />}
                   </SubModule>
 

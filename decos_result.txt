@@ -1,0 +1,43 @@
+◇ injected env (21) from server/.env // tip: ⌘ enable debugging { debug: true }
+[
+  {
+    "codigo": "540056",
+    "desc": "Decodificador Adicional en Alta TV",
+    "campo_cantidad": "Decos_Adicionales"
+  },
+  {
+    "codigo": "540057",
+    "desc": "Decodificador Adicional Wi-Fi TV",
+    "campo_cantidad": "Decos_Adicionales"
+  },
+  {
+    "codigo": "540025",
+    "desc": "Instalación Access Point coincidente en Alta",
+    "campo_cantidad": "Repetidores_WiFi"
+  },
+  {
+    "codigo": "540026",
+    "desc": "Instalación Access Point WI-Fi",
+    "campo_cantidad": "Repetidores_WiFi"
+  },
+  {
+    "codigo": "540056",
+    "desc": "Decodificador Adicional en Alta TV",
+    "campo_cantidad": "Decos_Adicionales"
+  },
+  {
+    "codigo": "540057",
+    "desc": "Decodificador Adicional Wi-Fi TV",
+    "campo_cantidad": "Decos_Adicionales"
+  },
+  {
+    "codigo": "540025",
+    "desc": "Instalación Access Point coincidente en Alta",
+    "campo_cantidad": "Repetidores_WiFi"
+  },
+  {
+    "codigo": "540026",
+    "desc": "Instalación Access Point WI-Fi",
+    "campo_cantidad": "Repetidores_WiFi"
+  }
+]

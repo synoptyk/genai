@@ -1,0 +1,63 @@
+◇ injected env (21) from server/.env // tip: ⌘ override existing { override: true }
+[
+  {
+    "codigo": "510012",
+    "desc": "Alta Voz con Reutilización de DROP",
+    "tipoPattern": "MISSING"
+  },
+  {
+    "codigo": "390023",
+    "desc": "Alta TV con Reutilización de DROP",
+    "tipoPattern": "MISSING"
+  },
+  {
+    "codigo": "390014",
+    "desc": "Instalación de Voz/Punto Ppal FTTH y Banda Ancha con Reutilización de DROP",
+    "tipoPattern": "AtAt------"
+  },
+  {
+    "codigo": "390050",
+    "desc": "Instalación de Banda Ancha y TV con Reutilización de DROP",
+    "tipoPattern": "At------At"
+  },
+  {
+    "codigo": "390051",
+    "desc": "Instalación de Voz/Punto Ppal FTTH, Banda Ancha y TV con Reutilización de DROP",
+    "tipoPattern": "AtAt----At"
+  },
+  {
+    "codigo": "390013",
+    "desc": "Alta Banda Ancha con Reutilización de DROP",
+    "tipoPattern": "MISSING"
+  },
+  {
+    "codigo": "510012",
+    "desc": "Alta Voz con Reutilización de DROP",
+    "tipoPattern": "MISSING"
+  },
+  {
+    "codigo": "390023",
+    "desc": "Alta TV con Reutilización de DROP",
+    "tipoPattern": "MISSING"
+  },
+  {
+    "codigo": "390014",
+    "desc": "Instalación de Voz/Punto Ppal FTTH y Banda Ancha con Reutilización de DROP",
+    "tipoPattern": "AtAt------"
+  },
+  {
+    "codigo": "390050",
+    "desc": "Instalación de Banda Ancha y TV con Reutilización de DROP",
+    "tipoPattern": "At------At"
+  },
+  {
+    "codigo": "390051",
+    "desc": "Instalación de Voz/Punto Ppal FTTH, Banda Ancha y TV con Reutilización de DROP",
+    "tipoPattern": "AtAt----At"
+  },
+  {
+    "codigo": "390013",
+    "desc": "Alta Banda Ancha con Reutilización de DROP",
+    "tipoPattern": "MISSING"
+  }
+]

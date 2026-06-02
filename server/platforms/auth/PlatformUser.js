@@ -57,7 +57,6 @@ const PlatformUserSchema = new mongoose.Schema({
             rrhh_vacaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_asistencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_turnos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-            rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_contratos_anexos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_finiquitos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -74,6 +73,7 @@ const PlatformUserSchema = new mongoose.Schema({
             prev_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Flota & GPS
             flota_vehiculos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            flota_eficiencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_conecta_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_mis_conductores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -152,11 +152,16 @@ const PlatformUserSchema = new mongoose.Schema({
     }]
 }, { timestamps: true, collection: 'usergenais' });
 
+const { formatRut } = require('../../utils/rutUtils');
+
 // Organic Migration: Convert legacy role to neutral role on save
 PlatformUserSchema.pre('save', function (next) {
     if (this.role === 'ceo_genai') {
         console.log(`🔄 Migrando rol legacy 'ceo_genai' a 'system_admin' para el usuario: ${this.email}`);
         this.role = 'system_admin';
+    }
+    if (this.isModified('rut') || this.isNew) {
+        this.rut = formatRut(this.rut);
     }
     next();
 });

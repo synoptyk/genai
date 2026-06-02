@@ -35,6 +35,12 @@ const BonoTransaccionSchema = new mongoose.Schema({
     metadata:    { type: mongoose.Schema.Types.Mixed } // Data extra segun la estrategia
   },
 
+  // ─── Inteligencia LRE / DT (Overrides Módulos Avanzados) ───────────────
+  legalOverride: {
+    codigoDT: { type: String }, // Ej: "2102", "2110"
+    concepto: { type: String }  // Ej: "Bono Producción", "Bono Calidad"
+  },
+
   // ─── Trazabilidad y Estado ──────────────────────────────────────────────
   status: {
     type: String,

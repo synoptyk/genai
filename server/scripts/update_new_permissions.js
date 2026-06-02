@@ -51,6 +51,7 @@ const ALL_PERMISSION_KEYS = [
 
     // Flota & GPS
     'flota_vehiculos',
+    'flota_eficiencia',
     'flota_gps',
     'dist_conecta_gps',
     'dist_mis_conductores',

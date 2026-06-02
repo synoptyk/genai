@@ -97,7 +97,6 @@ const CeoCommandCenter = () => {
         rrhh_vacaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rrhh_asistencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rrhh_turnos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rrhh_contratos_anexos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rrhh_finiquitos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rrhh_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -116,6 +115,8 @@ const CeoCommandCenter = () => {
 
         // 4. Flota & GPS
         flota_vehiculos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        flota_eficiencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        flota_proveedores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
         // 4b. Distribución
@@ -567,10 +568,10 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_config_notificaciones' },
+                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_tipos_bono' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_config_notificaciones' },
                                         { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
-                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'dist_conecta_gps' },
+                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'dist_conecta_gps' }, { id: 'flota_eficiencia' }, { id: 'flota_proveedores' },
                                         { id: 'dist_mis_conductores' }, { id: 'dist_historial_rutas' }, { id: 'dist_rutas_guiadas' },
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                         { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
@@ -605,6 +606,7 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'admin_resumen_ejecutivo', label: 'Dashboard 360' },
                                         { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
+                                        { id: 'admin_tipos_bono', label: 'Tipos de Bono' },
                                         { id: 'admin_proyectos', label: 'Proyectos' },
                                         { id: 'admin_conexiones', label: 'Mercado Financiero' },
                                         { id: 'admin_aprobaciones', label: 'Aprobaciones 360' },
@@ -662,7 +664,9 @@ const CeoCommandCenter = () => {
                                     category: 'Flota & GPS', icon: Globe, color: 'sky',
                                     modules: [
                                         { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                        { id: 'flota_gps', label: 'GPS SIMPLE' }
+                                        { id: 'flota_gps', label: 'GPS SIMPLE' },
+                                        { id: 'flota_eficiencia', label: 'Eficiencia Flota' },
+                                        { id: 'flota_proveedores', label: 'Proveedores Leasing' }
                                     ]
                                 },
                                 {
@@ -1149,19 +1153,19 @@ const CeoCommandCenter = () => {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const activeModIds = [
-                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_previred', 'admin_pagos_bancarios', 'admin_dashboard_tributario', 'admin_aprobaciones_compras', 'admin_gestion_portales', 'admin_mis_clientes', 'admin_gestion_gastos', 'admin_config_notificaciones',
-                                            'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos', 'rrhh_contratos_anexos', 'rrhh_finiquitos',
-                                            'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
-                                            'flota_vehiculos', 'flota_gps', 'dist_conecta_gps',
-                                            'dist_mis_conductores', 'dist_historial_rutas', 'dist_rutas_guiadas',
-                                            'op_supervision', 'op_colaborador', 'op_dotacion', 'op_mapa_calor', 'op_designaciones', 'op_gastos',
-                                            'rend_operativo', 'rend_cierre_bonos', 'rend_financiero', 'rend_tarifario', 'rend_config_lpu', 'rend_descarga_toa', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero',
-                                            'logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias',
-                                            'social_chat', 'comunic_video', 'ai_asistente',
-                                            'emp360_facturacion', 'emp360_tesoreria', 'emp360_biometria', 'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones',
-                                            'cfg_empresa', 'cfg_personal', 'admin_config_notificaciones'
-                                        ];
+                                    const activeModIds = [
+                                    { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_tipos_bono' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_config_notificaciones' },
+                                    { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' },
+                                    { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
+                                    { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'flota_eficiencia' }, { id: 'flota_proveedores' }, { id: 'dist_conecta_gps' },
+                                    { id: 'dist_mis_conductores' }, { id: 'dist_historial_rutas' }, { id: 'dist_rutas_guiadas' },
+                                    { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
+                                    { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
+                                    { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
+                                    { id: 'social_chat' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
+                                    { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
+                                    { id: 'cfg_empresa' }, { id: 'cfg_personal' }
+                                    ].map(m => m.id);
 
                                         let allSelected = true;
                                         for (const mId of activeModIds) {
@@ -1182,144 +1186,153 @@ const CeoCommandCenter = () => {
                             </div>
 
                             <div className="space-y-8">
-                                {[
-                                    {
-                                        category: 'Administración', icon: Settings, color: 'indigo',
-                                        modules: [
-                                            { id: 'admin_resumen_ejecutivo', label: 'Dashboard 360' },
-                                            { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
-                                            { id: 'admin_proyectos', label: 'Proyectos' },
-                                            { id: 'admin_conexiones', label: 'Mercado Financiero' },
-                                            { id: 'admin_aprobaciones', label: 'Aprobaciones 360' },
-                                            { id: 'admin_sii', label: 'Portal Tributario (SII)' },
-                                            { id: 'admin_previred', label: 'Enlace Previred 360' },
-                                            { id: 'admin_pagos_bancarios', label: 'Pagos Bancarios (Nómina)' },
-                                            { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
-                                            { id: 'admin_aprobaciones_compras', label: 'Aprobaciones 360' },
-                                            { id: 'admin_gestion_portales', label: 'Gestión de Portales' },
-                                            { id: 'admin_mis_clientes', label: 'Mis Clientes' },
-                                            { id: 'admin_gestion_gastos', label: 'Gestión Rinde Gastos' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Recursos Humanos', icon: Users, color: 'violet',
-                                        modules: [
-                                            { id: 'rrhh_captura', label: 'Captura de Talento' },
-                                            { id: 'rrhh_documental', label: 'Gestión Documental' },
-                                            { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
-                                            { id: 'rrhh_activos', label: 'Personal Activo' },
-                                            { id: 'rrhh_nomina', label: 'Nómina (Payroll)' },
-                                            { id: 'rrhh_laborales', label: 'Historia Laboral' },
-                                            { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
-                                            { id: 'rrhh_finiquitos', label: 'Finiquitos' },
-                                            { id: 'rrhh_asistencia', label: 'Control Asistencia' },
-                                            { id: 'rrhh_turnos', label: 'Prog. de Turnos' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Relaciones Laborales', icon: Shield, color: 'rose',
-                                        modules: [
-                                            { id: 'emp360_beneficios', label: 'Beneficios 360' },
-                                            { id: 'emp360_lms', label: 'Capacitación LMS' },
-                                            { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Prevención HSE', icon: ShieldCheck, color: 'rose',
-                                        modules: [
-                                            { id: 'prev_ast', label: 'Generación AST' },
-                                            { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
-                                            { id: 'prev_charlas', label: 'Difusión & Charlas' },
-                                            { id: 'prev_inspecciones', label: 'Cumplimiento Prev.' },
-                                            { id: 'prev_acreditacion', label: 'Acreditación & PPE' },
-                                            { id: 'prev_accidentes', label: 'Investigación Accidentes' },
-                                            { id: 'prev_iper', label: 'Matriz IPER' },
-                                            { id: 'prev_auditoria', label: 'Auditoría HSE' },
-                                            { id: 'prev_dashboard', label: 'Dashboard HSE' },
-                                            { id: 'prev_historial', label: 'Historial Prev.' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Flota & GPS', icon: Globe, color: 'sky',
-                                        modules: [
-                                            { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                            { id: 'flota_gps', label: 'GPS SIMPLE' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Logística 360', icon: Building2, color: 'slate',
-                                        modules: [
-                                            { id: 'logistica_dashboard', label: 'Dashboard Logístico' },
-                                            { id: 'logistica_configuracion', label: 'Configuración Maestra' },
-                                            { id: 'logistica_inventario', label: 'Inventario & Activos' },
-                                            { id: 'logistica_compras', label: 'Círculo de Compras' },
-                                            { id: 'logistica_proveedores', label: 'Gestión de Proveedores' },
-                                            { id: 'logistica_movimientos', label: 'Gestión Movimientos' },
-                                            { id: 'logistica_despachos', label: 'Seguimiento Despachos' },
-                                            { id: 'logistica_historial', label: 'Historial de Movimientos' },
-                                            { id: 'logistica_auditorias', label: 'Auditoría Inventario' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Operaciones', icon: Activity, color: 'blue',
-                                        modules: [
-                                            { id: 'op_supervision', label: 'Portal Supervisión' },
-                                            { id: 'op_colaborador', label: 'Portal Colaborador' },
-                                            { id: 'op_dotacion', label: 'Gestión Dotación' },
-                                            { id: 'op_designaciones', label: 'Designaciones' },
-                                            { id: 'op_gastos', label: 'Rinde Gastos 360' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'INDUSTRIA', icon: DollarSign, color: 'emerald',
-                                        modules: [
-                                            { id: 'rend_operativo', label: 'Panel Telecomunicaciones' },
-                                            { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                            { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
-                                            { id: 'rend_financiero', label: 'Producción Financiera' },
-                                            { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
-                                            { id: 'rend_config_lpu', label: 'Configuración LPU' },
-                                            { id: 'rend_descarga_toa', label: 'Descarga TOA' },
-                                            { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
-                                            { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' },
-                                            { id: 'dist_historial_rutas', label: 'Distribución · Historial de Rutas' },
-                                            { id: 'dist_rutas_guiadas', label: 'Distribución · Rutas Guiadas' },
-                                            { id: 'ind_mineria', label: 'Minería' },
-                                            { id: 'ind_energia', label: 'Energía & Electricidad' },
-                                            { id: 'ind_construccion', label: 'Construcción' },
-                                            { id: 'ind_transporte', label: 'Transporte' },
-                                            { id: 'ind_manufactura', label: 'Manufactura' },
-                                            { id: 'ind_agricola', label: 'Agrícola' },
-                                            { id: 'ind_pesquero', label: 'Pesquero' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Empresa 360', icon: BarChart3, color: 'indigo',
-                                        modules: [
-                                            { id: 'emp360_facturacion', label: 'Facturación 360' },
-                                            { id: 'emp360_tesoreria', label: 'Tesorería 360' },
-                                            { id: 'emp360_biometria', label: 'Biometría 360' },
-                                            { id: 'emp360_beneficios', label: 'Beneficios 360' },
-                                            { id: 'emp360_lms', label: 'Capacitación LMS' },
-                                            { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'Configuraciones & Social', icon: Sliders, color: 'orange',
-                                        modules: [
-                                            { id: 'cfg_empresa', label: 'Config. Empresa' },
-                                            { id: 'cfg_personal', label: 'Gestión de Personal' },
-                                            { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
-                                            { id: 'social_chat', label: 'Chat Social 360' },
-                                            { id: 'comunic_video', label: 'Videollamadas' }
-                                        ]
-                                    },
-                                    {
-                                        category: 'GENAI360', icon: Brain, color: 'violet',
-                                        modules: [
-                                            { id: 'ai_asistente', label: 'Asistente AI' }
-                                        ]
-                                    }
+                                    {[
+                                        {
+                                            category: 'Administración', icon: Settings, color: 'indigo',
+                                            modules: [
+                                                { id: 'admin_resumen_ejecutivo', label: 'Dashboard 360' },
+                                                { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
+                                                { id: 'admin_tipos_bono', label: 'Tipos de Bono' },
+                                                { id: 'admin_proyectos', label: 'Proyectos' },
+                                                { id: 'admin_conexiones', label: 'Mercado Financiero' },
+                                                { id: 'admin_aprobaciones', label: 'Aprobaciones 360' },
+                                                { id: 'admin_sii', label: 'Portal Tributario (SII)' },
+                                                { id: 'admin_previred', label: 'Enlace Previred 360' },
+                                                { id: 'admin_pagos_bancarios', label: 'Pagos Bancarios (Nómina)' },
+                                                { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
+                                                { id: 'admin_aprobaciones_compras', label: 'Aprobaciones 360' },
+                                                { id: 'admin_gestion_portales', label: 'Gestión de Portales' },
+                                                { id: 'admin_mis_clientes', label: 'Mis Clientes' },
+                                                { id: 'admin_gestion_gastos', label: 'Gestión Rinde Gastos' },
+                                                { id: 'admin_historial', label: 'Historial de Auditoría' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Recursos Humanos', icon: Users, color: 'violet',
+                                            modules: [
+                                                { id: 'rrhh_captura', label: 'Captura de Talento' },
+                                                { id: 'rrhh_documental', label: 'Gestión Documental' },
+                                                { id: 'rrhh_activos', label: 'Personal Activo' },
+                                                { id: 'rrhh_nomina', label: 'Nómina (Payroll)' },
+                                                { id: 'rrhh_laborales', label: 'Historia Laboral' },
+                                                { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
+                                                { id: 'rrhh_asistencia', label: 'Control Asistencia' },
+                                                { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
+                                                { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
+                                                { id: 'rrhh_finiquitos', label: 'Finiquitos' },
+                                                { id: 'rrhh_historial', label: 'Historial de RRHH' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Relaciones Laborales', icon: Shield, color: 'rose',
+                                            modules: [
+                                                { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                                { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                                { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Prevención HSE', icon: Shield, color: 'rose',
+                                            modules: [
+                                                { id: 'prev_ast', label: 'Generación AST' },
+                                                { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
+                                                { id: 'prev_charlas', label: 'Difusión & Charlas' },
+                                                { id: 'prev_inspecciones', label: 'Cumplimiento Prev.' },
+                                                { id: 'prev_acreditacion', label: 'Acreditación & PPE' },
+                                                { id: 'prev_accidentes', label: 'Investigación Accidentes' },
+                                                { id: 'prev_iper', label: 'Matriz IPER' },
+                                                { id: 'prev_auditoria', label: 'Auditoría HSE' },
+                                                { id: 'prev_dashboard', label: 'Dashboard HSE' },
+                                                { id: 'prev_historial', label: 'Historial Prev.' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Flota & GPS', icon: Globe, color: 'sky',
+                                            modules: [
+                                                { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
+                                                { id: 'flota_gps', label: 'GPS SIMPLE' },
+                                                { id: 'flota_eficiencia', label: 'Eficiencia Flota' },
+                                                { id: 'flota_proveedores', label: 'Proveedores Leasing' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Logística 360', icon: Building2, color: 'slate',
+                                            modules: [
+                                                { id: 'logistica_dashboard', label: 'Dashboard Logístico' },
+                                                { id: 'logistica_configuracion', label: 'Configuración Maestra' },
+                                                { id: 'logistica_inventario', label: 'Existencia General' },
+                                                { id: 'logistica_compras', label: 'Círculo de Compras' },
+                                                { id: 'logistica_proveedores', label: 'Gestión de Proveedores' },
+                                                { id: 'logistica_movimientos', label: 'Gestión Movimientos' },
+                                                { id: 'logistica_despachos', label: 'Seguimiento Despachos' },
+                                                { id: 'logistica_almacenes', label: 'Bodegas & Furgones' },
+                                                { id: 'logistica_historial', label: 'Historial de Movimientos' },
+                                                { id: 'logistica_auditorias', label: 'Auditorías Logísticas' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Operaciones', icon: Activity, color: 'blue',
+                                            modules: [
+                                                { id: 'op_supervision', label: 'Portal Supervisión' },
+                                                { id: 'op_colaborador', label: 'Portal Colaborador' },
+                                                { id: 'op_dotacion', label: 'Gestión Dotación' },
+                                                { id: 'op_designaciones', label: 'Designaciones' },
+                                                { id: 'op_gastos', label: 'Rinde Gastos 360' },
+                                                { id: 'op_portales', label: 'Gestión Portales Operativos' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'INDUSTRIA', icon: DollarSign, color: 'emerald',
+                                            modules: [
+                                                { id: 'rend_operativo', label: 'Panel Telecomunicaciones' },
+                                                { id: 'op_mapa_calor', label: 'Mapa de Calor' },
+                                                { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
+                                                { id: 'rend_financiero', label: 'Producción Financiera' },
+                                                { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
+                                                { id: 'rend_config_lpu', label: 'Configuración LPU' },
+                                                { id: 'rend_descarga_toa', label: 'Descarga TOA' },
+                                                { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
+                                                { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' },
+                                                { id: 'dist_historial_rutas', label: 'Distribución · Historial de Rutas' },
+                                                { id: 'dist_rutas_guiadas', label: 'Distribución · Rutas Guiadas' },
+                                                { id: 'ind_mineria', label: 'Minería' },
+                                                { id: 'ind_energia', label: 'Energía & Electricidad' },
+                                                { id: 'ind_construccion', label: 'Construcción' },
+                                                { id: 'ind_transporte', label: 'Transporte' },
+                                                { id: 'ind_manufactura', label: 'Manufactura' },
+                                                { id: 'ind_agricola', label: 'Agrícola' },
+                                                { id: 'ind_pesquero', label: 'Pesquero' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Empresa 360', icon: BarChart3, color: 'indigo',
+                                            modules: [
+                                                { id: 'emp360_facturacion', label: 'Facturación 360' },
+                                                { id: 'emp360_tesoreria', label: 'Tesorería 360' },
+                                                { id: 'emp360_biometria', label: 'Biometría 360' },
+                                                { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                                { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                                { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'Configuraciones & Social', icon: Settings, color: 'orange',
+                                            modules: [
+                                                { id: 'cfg_empresa', label: 'Config. Empresa' },
+                                                { id: 'cfg_personal', label: 'Gestión de Personal' },
+                                                { id: 'cfg_baremos', label: 'Configuración Baremos' },
+                                                { id: 'cfg_clientes', label: 'Configuración Clientes' },
+                                                { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
+                                                { id: 'social_chat', label: 'Chat Social 360' },
+                                                { id: 'comunic_video', label: 'Videollamadas' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'GENAI360', icon: Brain, color: 'violet',
+                                            modules: [
+                                                { id: 'ai_asistente', label: 'Asistente AI' }
+                                            ]
+                                        }
                                 ].map((cat, catIdx) => (
                                     <div key={catIdx} className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
                                         <div className="flex items-center gap-3 mb-6">

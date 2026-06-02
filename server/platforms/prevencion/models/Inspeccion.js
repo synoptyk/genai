@@ -10,7 +10,7 @@ const ItemEppSchema = new mongoose.Schema({
 const InspeccionSchema = new mongoose.Schema({
     tipo: {
         type: String,
-        enum: ['cumplimiento-prevencion', 'epp'],
+        enum: ['cumplimiento-prevencion', 'epp', 'vehicular'],
         required: true
     },
 
@@ -38,6 +38,18 @@ const InspeccionSchema = new mongoose.Schema({
 
     // --- TIPO 2: Inspección EPP ---
     itemsEpp: [ItemEppSchema],
+
+    // --- TIPO 3: Inspección Vehicular ---
+    vehicular: {
+        patente: { type: String },
+        kilometraje: { type: Number },
+        nivelCombustible: { type: String },
+        checklist: [{
+            item: { type: String },
+            estado: { type: String, enum: ['Bueno', 'Malo', 'Regular', 'N/A'] },
+            observacion: { type: String }
+        }]
+    },
 
     // Estado general calculado
     resultado: {

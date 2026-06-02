@@ -11,7 +11,7 @@ import {
     ArrowRight, ClipboardCheck, MessageSquare, Clock, User,
     Fuel, Check, XOctagon, Info, Package, Eye, Car, Phone, Mail, FileText,
     MapPinned, Briefcase, Award, CalendarDays, PlusCircle, TrendingUp, Target, Trophy, PieChart as PieIcon,
-    Shirt, BarChart3, Save
+    Shirt, BarChart3, Save, Search, AlertOctagon, Wrench, UserPlus
 } from 'lucide-react';
 import { 
     ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -19,13 +19,23 @@ import {
 } from 'recharts';
 import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import DynamicAuditModal from '../../logistica/components/DynamicAuditModal';
 import DashboardSupervisor from '../components/DashboardSupervisor';
+
+// Modales Flota (Alineación con Mi Flotilla)
+import SlideOverFicha from '../../agentetelecom/Flota/Panels/SlideOverFicha';
+import SlideOverChecklist from '../../agentetelecom/Flota/Panels/SlideOverChecklist';
+import SlideOverSiniestros from '../../agentetelecom/Flota/Panels/SlideOverSiniestros';
+import SlideOverHistorial from '../../agentetelecom/Flota/Panels/SlideOverHistorial';
+import SlideOverDocumentoPdf from '../../agentetelecom/Flota/Panels/SlideOverDocumentoPdf';
 
 const normalizeRut = (v) => String(v || '').replace(/[^0-9kK]/g, '').toUpperCase().trim();
 
 const PortalSupervision = () => {
     const { user } = useAuth();
+    const { hasPermission } = useCheckPermission();
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [currentView, setCurrentView] = useState('menu'); // menu, resumen, dotacion, flotilla, inspecciones, ast, solicitudes, produccion
 
@@ -59,18 +69,27 @@ const PortalSupervision = () => {
     const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(null);
     const [asignandoVehiculo, setAsignandoVehiculo] = useState(false);
 
+    // Nuevos estados para Flota (Alineación)
+    const [searchQueryFlota, setSearchQueryFlota] = useState('');
+    const [filterCardFlota, setFilterCardFlota] = useState(null);
+    const [activePanelFlota, setActivePanelFlota] = useState(null);
+    const [checklistTipo, setChecklistTipo] = useState('Asignación');
+    const [selectedDocumento, setSelectedDocumento] = useState(null);
+    const [tecnicosGlobal, setTecnicosGlobal] = useState([]); // Para pasar a los modales
+
     const fetchData = async () => {
         if (!user?._id && !user?.id) return;
         const userId = user._id || user.id;
         try {
             const today = new Date().toISOString().split('T')[0];
-            const [resEquipo, resFlota, resAst, resProd, resSolicitudes, resChecklists] = await Promise.all([
+            const [resEquipo, resFlota, resAst, resProd, resSolicitudes, resChecklists, resAllTecnicos] = await Promise.all([
                 api.get(`/api/tecnicos/supervisor/${userId}`),
                 api.get(`/api/vehiculos`),
                 api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
                 api.get(`/api/produccion?supervisorId=${userId}`).catch(() => ({ data: [] })),
                 api.get(`/api/rrhh/candidatos?status=Contratado`).catch(() => ({ data: [] })),
-                api.get(`/api/vehiculos/checklists/recientes`).catch(() => ({ data: [] }))
+                api.get(`/api/vehiculos/checklists/recientes`).catch(() => ({ data: [] })),
+                api.get(`/api/tecnicos/responsables-flota`).catch(() => ({ data: [] }))
             ]);
 
 
@@ -79,6 +98,7 @@ const PortalSupervision = () => {
             setAsts(resAst.data || []);
             setProduccion(resProd.data || []);
             setHistorialChecklists(resChecklists?.data || []);
+            setTecnicosGlobal(resAllTecnicos?.data || []);
 
             // Cargar solicitudes de combustible
             const resFuel = await api.get(`/api/operaciones/combustible/supervisor/${userId}`).catch(() => ({ data: [] }));
@@ -228,6 +248,71 @@ const PortalSupervision = () => {
         if (parts.length === 3) return `${parts[0]} ${parts[2]}`; // Nombre1 Nombre2 Apellido1 -> Nombre1 Apellido1
         if (parts.length === 2) return `${parts[0]} ${parts[1]}`; // Nombre1 Apellido1
         return targetStr;
+    };
+
+    // Helpers y Lógica de Flotilla
+    const closePanelFlota = () => {
+        setActivePanelFlota(null);
+        setSelectedVehiculo(null);
+        setSelectedDocumento(null);
+    };
+
+    const handleSuccessFlota = (documentoGenerado = null) => {
+        fetchData();
+        if (documentoGenerado) {
+            setSelectedDocumento(documentoGenerado);
+            setActivePanelFlota('documento');
+        } else {
+            closePanelFlota();
+        }
+    };
+
+    const rutEquipoFlota = new Set(miEquipo.map(t => normalizeRut(t.rut)).filter(Boolean));
+    const miFlotaAsignada = flota.filter(v => v.asignadoA && rutEquipoFlota.has(normalizeRut(v.asignadoA.rut)));
+    const vehiculosDisponiblesFlota = flota.filter(v => !v.asignadoA);
+    const flotaMostrar = [...miFlotaAsignada, ...vehiculosDisponiblesFlota];
+
+    const kpisFlota = {
+        total: flotaMostrar.length,
+        operativos: flotaMostrar.filter(v => v.estadoOperativo === 'Operativa').length,
+        siniestros: flotaMostrar.filter(v => v.estadoOperativo === 'Siniestro').length,
+        mantencion: flotaMostrar.filter(v => v.estadoOperativo === 'Mantencion').length,
+        enTerreno: flotaMostrar.filter(v => v.estadoLogistico === 'En Terreno').length,
+        enPatio: flotaMostrar.filter(v => v.estadoLogistico === 'En Patio').length
+    };
+
+    const filteredVehiculosFlota = flotaMostrar.filter(v => {
+        if (filterCardFlota) {
+            if (filterCardFlota === 'Operativos' && v.estadoOperativo !== 'Operativa') return false;
+            if (filterCardFlota === 'Siniestros' && v.estadoOperativo !== 'Siniestro') return false;
+            if (filterCardFlota === 'Mantencion' && v.estadoOperativo !== 'Mantencion') return false;
+            if (filterCardFlota === 'En Terreno' && v.estadoLogistico !== 'En Terreno') return false;
+            if (filterCardFlota === 'En Patio' && v.estadoLogistico !== 'En Patio') return false;
+        }
+        if (searchQueryFlota) {
+            const q = searchQueryFlota.toLowerCase();
+            const match = v.patente?.toLowerCase().includes(q) ||
+                v.marca?.toLowerCase().includes(q) ||
+                v.modelo?.toLowerCase().includes(q) ||
+                v.asignadoA?.nombre?.toLowerCase().includes(q) ||
+                v.asignadoA?.rut?.toLowerCase().includes(q);
+            if (!match) return false;
+        }
+        return true;
+    });
+
+    const getOpColor = (status) => {
+        if (status === 'Operativa') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+        if (status === 'Siniestro') return 'bg-red-100 text-red-700 border-red-200';
+        if (status === 'Mantencion') return 'bg-amber-100 text-amber-700 border-amber-200';
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    };
+
+    const getLogColor = (status) => {
+        if (status === 'En Terreno') return 'bg-blue-100 text-blue-700 border-blue-200';
+        if (status === 'En Patio') return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+        if (status === 'Taller') return 'bg-orange-100 text-orange-700 border-orange-200';
+        return 'bg-slate-100 text-slate-700 border-slate-200';
     };
 
     if (loading) {
@@ -669,208 +754,159 @@ const PortalSupervision = () => {
             {/* VISTA: MI FLOTILLA */}
             {currentView === 'flotilla' && (
                 <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* VEHÍCULOS DEL EQUIPO */}
-                        <div className="lg:col-span-2 space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <div>
-                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Flota de Mi Equipo</h3>
-                                    <p className="text-[9px] text-slate-300 font-bold uppercase mt-0.5">
-                                        {(() => {
-                                            const rutEquipo = new Set(miEquipo.map(t => normalizeRut(t.rut)).filter(Boolean));
-                                            const miFlota = flota.filter(v => v.asignadoA && rutEquipo.has(normalizeRut(v.asignadoA.rut)));
-                                            return `${miFlota.length} vehículos vinculados a tu equipo`;
-                                        })()}
-                                    </p>
-                                </div>
-                                {!selectedTecnico && (
-                                    <span className="px-3 py-1.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[9px] font-black uppercase">
-                                        ← Selecciona técnico primero
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Vehículos asignados al equipo del supervisor */}
-                            {(() => {
-                                const rutEquipo = new Set(miEquipo.map(t => normalizeRut(t.rut)).filter(Boolean));
-                                const miFlota = flota.filter(v => v.asignadoA && rutEquipo.has(normalizeRut(v.asignadoA.rut)));
-
-                                return miFlota.length === 0 ? (
-                                    <div className="p-16 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
-                                        <Truck size={48} className="text-slate-200 mx-auto mb-4" />
-                                        <p className="text-slate-300 font-black uppercase italic text-xs tracking-widest">Sin vehículos vinculados a tu equipo</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest px-2 mt-2">🔗 Asignados al equipo</p>
-                                        {miFlota.map(vehiculo => (
-                                            <div key={vehiculo._id} className="bg-white p-5 rounded-[2rem] border border-indigo-100 shadow-sm flex items-center justify-between hover:border-sky-300 transition-all group">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="bg-slate-900 text-white px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase shadow">
-                                                        {vehiculo.patente}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-black text-slate-700 uppercase">{vehiculo.marca} {vehiculo.modelo}</p>
-                                                        <p className="text-[10px] text-indigo-500 font-bold uppercase flex items-center gap-1">
-                                                            <User size={10} /> {vehiculo.asignadoA?.nombre || vehiculo.asignadoA?.rut}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col gap-2 items-end opacity-0 group-hover:opacity-100 transition-all">
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!selectedTecnico) return alert('Selecciona un técnico de tu equipo primero (panel derecho).');
-                                                            setSelectedVehiculo({ ...vehiculo, checklistTipo: 'Asignación' });
-                                                            setShowChecklist(true);
-                                                        }}
-                                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-indigo-200 hover:scale-105 transition-all"
-                                                    >
-                                                        📋 Asignación
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!selectedTecnico) return alert('Selecciona un técnico de tu equipo primero (panel derecho).');
-                                                            setSelectedVehiculo({ ...vehiculo, checklistTipo: 'Devolución' });
-                                                            setShowChecklist(true);
-                                                        }}
-                                                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-emerald-200 hover:scale-105 transition-all"
-                                                    >
-                                                        🏁 Devolución
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                );
-                            })()}
-                        </div>
-
-                        {/* PANEL EQUIPO */}
-                        <div className="bg-slate-900 rounded-[3rem] p-8 text-white space-y-6 flex flex-col justify-between">
-                            <div>
-                                <h3 className="text-xl font-black uppercase tracking-tight italic">Técnico para Checklist</h3>
-                                <p className="text-xs text-slate-400 font-bold uppercase mt-1">Selecciona quién firmará el acta</p>
-                            </div>
-
-                            <div className="space-y-3 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
-                                {miEquipo.map(tec => (
-                                    <div
-                                        key={tec._id}
-                                        className={`w-full p-4 rounded-[1.5rem] border transition-all flex flex-col gap-2 ${selectedTecnico?._id === tec._id
-                                            ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
-                                            : 'bg-slate-800 border-slate-700'
-                                            }`}
-                                    >
-                                        <button
-                                            onClick={() => setSelectedTecnico(tec)}
-                                            className="w-full text-left flex items-center justify-between"
-                                        >
-                                            <div>
-                                                <p className="text-xs font-black uppercase">{tec.nombre?.split(' ')[0]} {tec.nombre?.split(' ').pop()}</p>
-                                                <p className="text-[9px] font-mono text-slate-400">{tec.rut}</p>
-                                                {flota.find(v => v.asignadoA?.rut === tec.rut) && (
-                                                    <p className="text-[8px] font-black text-indigo-300 uppercase mt-0.5">
-                                                        🚗 {flota.find(v => v.asignadoA?.rut === tec.rut)?.patente}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            {selectedTecnico?._id === tec._id && <CheckCircle2 size={18} />}
-                                        </button>
-                                        {(() => {
-                                            const vehAsig = flota.find(v => v.asignadoA?.rut === tec.rut);
-                                            if (!vehAsig) return (
-                                                <button
-                                                    onClick={() => handleAbrirAsignarVehiculo(tec)}
-                                                    className="w-full py-1.5 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[9px] font-black uppercase tracking-widest hover:bg-sky-500/30 transition-all flex items-center justify-center gap-1"
-                                                >
-                                                    <PlusCircle size={12} /> Asignar Vehículo
-                                                </button>
-                                            );
-                                            return (
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedTecnico(tec);
-                                                        setSelectedVehiculo({ ...vehAsig, checklistTipo: 'Inspección Rutinaria' });
-                                                        setShowChecklist(true);
-                                                    }}
-                                                    className="w-full py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1"
-                                                >
-                                                    <ClipboardCheck size={12} /> Checklist Semanal
-                                                </button>
-                                            );
-                                        })()}
-                                    </div>
-                                ))}
-                                {miEquipo.length === 0 && (
-                                    <p className="text-center text-slate-500 text-xs font-bold uppercase italic py-6">Sin equipo asignado</p>
-                                )}
-                            </div>
-
-                            {selectedTecnico ? (
-                                <div className="p-4 bg-blue-600/20 rounded-[2rem] border border-blue-500/30 flex items-center gap-3">
-                                    <CheckCircle2 className="text-blue-400" size={20} />
-                                    <div>
-                                        <p className="text-[9px] font-black text-blue-300 uppercase">Técnico Seleccionado</p>
-                                        <p className="text-sm font-black text-white uppercase">{selectedTecnico.nombre?.split(' ')[0]}</p>
-                                    </div>
-                                    <button onClick={() => setSelectedTecnico(null)} className="ml-auto p-1 text-slate-400 hover:text-white transition-colors">
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="p-5 bg-slate-800 rounded-[2rem] border border-slate-700 flex flex-col items-center gap-2 text-center">
-                                    <AlertTriangle className="text-amber-500" size={24} />
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase italic leading-tight">
-                                        Selecciona un técnico antes de registrar el checklist.
-                                    </p>
-                                </div>
-                            )}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-800 uppercase italic">Mi Flotilla</h2>
+                            <p className="text-slate-500 font-medium mt-1">Gestión de vehículos asignados a tu equipo.</p>
                         </div>
                     </div>
 
-                    {/* HISTORIAL RECIENTE DE CHECKLISTS */}
-                    {historialChecklists.length > 0 && (
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="p-6 border-b border-slate-50 flex items-center gap-3">
-                                <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl"><ClipboardCheck size={18} /></div>
-                                <div>
-                                    <h4 className="font-black text-slate-800 uppercase text-sm">Historial Reciente de Checklists</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Últimos registros del equipo</p>
-                                </div>
+                    {/* KPIs */}
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                        <div onClick={() => setFilterCardFlota(null)} className={`bg-white p-5 rounded-2xl border ${filterCardFlota === null ? 'border-slate-400 ring-2 ring-slate-200' : 'border-slate-100'} shadow-sm flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all`}>
+                            <span className="text-3xl font-black text-slate-800">{kpisFlota.total}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total Flotilla</span>
+                        </div>
+                        <div onClick={() => setFilterCardFlota('Operativos')} className={`bg-emerald-50 p-5 rounded-2xl border ${filterCardFlota === 'Operativos' ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-emerald-100'} shadow-sm flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all`}>
+                            <span className="text-3xl font-black text-emerald-600">{kpisFlota.operativos}</span>
+                            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-1">Operativos</span>
+                        </div>
+                        <div onClick={() => setFilterCardFlota('En Terreno')} className={`bg-blue-50 p-5 rounded-2xl border ${filterCardFlota === 'En Terreno' ? 'border-blue-400 ring-2 ring-blue-200' : 'border-blue-100'} shadow-sm flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all`}>
+                            <span className="text-3xl font-black text-blue-600">{kpisFlota.enTerreno}</span>
+                            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mt-1">En Terreno</span>
+                        </div>
+                        <div onClick={() => setFilterCardFlota('En Patio')} className={`bg-indigo-50 p-5 rounded-2xl border ${filterCardFlota === 'En Patio' ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-indigo-100'} shadow-sm flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all`}>
+                            <span className="text-3xl font-black text-indigo-600">{kpisFlota.enPatio}</span>
+                            <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1">En Patio</span>
+                        </div>
+                        <div onClick={() => setFilterCardFlota('Mantencion')} className={`bg-amber-50 p-5 rounded-2xl border ${filterCardFlota === 'Mantencion' ? 'border-amber-400 ring-2 ring-amber-200' : 'border-amber-100'} shadow-sm flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all`}>
+                            <span className="text-3xl font-black text-amber-600">{kpisFlota.mantencion}</span>
+                            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-1">En Taller</span>
+                        </div>
+                        <div onClick={() => setFilterCardFlota('Siniestros')} className={`bg-red-50 p-5 rounded-2xl border ${filterCardFlota === 'Siniestros' ? 'border-red-400 ring-2 ring-red-200' : 'border-red-100'} shadow-sm flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all`}>
+                            <span className="text-3xl font-black text-red-600">{kpisFlota.siniestros}</span>
+                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-1">Siniestros</span>
+                        </div>
+                    </div>
+
+                    {/* MAIN CONTENT AREA */}
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col h-[500px]">
+                        {/* Toolbar */}
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="relative w-full max-w-md">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por patente, marca, conductor..."
+                                    value={searchQueryFlota}
+                                    onChange={(e) => setSearchQueryFlota(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl font-medium text-sm focus:border-blue-500 outline-none shadow-sm"
+                                />
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-xs">
-                                    <thead className="bg-slate-50">
+                        </div>
+
+                        {/* Data Table */}
+                        <div className="flex-1 overflow-auto">
+                            {filteredVehiculosFlota.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full p-10 text-center">
+                                    <Truck size={48} className="text-slate-200 mb-4" />
+                                    <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No se encontraron vehículos</p>
+                                </div>
+                            ) : (
+                                <table className="w-full min-w-[1000px] lg:min-w-full text-left border-collapse">
+                                    <thead className="bg-slate-50 sticky top-0 z-10">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Vehículo</th>
-                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
-                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Tipo</th>
-                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
-                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">QR / ID</th>
+                                            <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">Patente</th>
+                                            <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">Vehículo</th>
+                                            <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">Conductor & Zona</th>
+                                            <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 text-center">Estado Op. / Reemplazo</th>
+                                            <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 text-center">Logística</th>
+                                            <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 text-right">Acciones</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {historialChecklists.map(c => (
-                                            <tr key={c._id} className="hover:bg-slate-50 transition-all">
-                                                <td className="px-6 py-4 font-black text-slate-700 font-mono uppercase tracking-wide">{c.vehiculo?.patente || '---'}</td>
-                                                <td className="px-6 py-4 font-bold text-slate-600 uppercase text-[11px]">{c.tecnico?.nombre || c.tecnico?.rut || '---'}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${c.tipo === 'Asignación' ? 'bg-indigo-50 text-indigo-700' :
-                                                            c.tipo === 'Devolución' ? 'bg-emerald-50 text-emerald-700' :
-                                                                'bg-slate-100 text-slate-600'
-                                                        }`}>
-                                                        {c.tipo}
+                                    <tbody>
+                                        {filteredVehiculosFlota.map((v) => (
+                                            <tr key={v._id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors group">
+                                                <td className="py-4 px-6">
+                                                    <button onClick={() => { setSelectedVehiculo(v); setActivePanelFlota('ficha'); }} className="inline-flex items-center gap-2 bg-slate-900 text-white px-3 py-1.5 rounded-lg font-black tracking-widest hover:bg-blue-600 transition-colors">
+                                                        <Car size={14} /> {v.patente}
+                                                    </button>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <div className="font-bold text-slate-800 text-sm">{v.marca} {v.modelo}</div>
+                                                    <div className="text-xs text-slate-400 font-medium">Año: {v.anio || 'N/A'}</div>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    {v.asignadoA ? (
+                                                        <div>
+                                                            <div className="font-bold text-slate-800 text-sm truncate max-w-[150px]">{v.asignadoA.nombre || v.asignadoA.nombres}</div>
+                                                            <div className="text-[10px] text-slate-500 font-medium">RUT: {formatRut(v.asignadoA.rut || v.asignadoA.rutRaw || '') || 'N/A'}</div>
+                                                            <div className="text-[10px] text-slate-400 font-medium mt-0.5"><MapPin size={10} className="inline mr-1" />{v.zona || 'Metropolitana'}</div>
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md mb-1 inline-block">Sin Asignar (Disponible)</span>
+                                                            <div className="text-[10px] text-slate-400 font-medium"><MapPin size={10} className="inline mr-1" />{v.zona || 'Metropolitana'}</div>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="py-4 px-6 text-center">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest border ${getOpColor(v.estadoOperativo)}`}>
+                                                            {v.estadoOperativo === 'Operativa' && <CheckCircle2 size={12} />}
+                                                            {v.estadoOperativo === 'Siniestro' && <AlertOctagon size={12} />}
+                                                            {v.estadoOperativo === 'Mantencion' && <Wrench size={12} />}
+                                                            {v.estadoOperativo?.toUpperCase()}
+                                                        </span>
+                                                        {v.tieneReemplazo === 'SI' && v.patenteReemplazo && (
+                                                            <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider">
+                                                                Rmplz: {v.patenteReemplazo}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-6 text-center">
+                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest border ${getLogColor(v.estadoLogistico)}`}>
+                                                        {v.estadoLogistico?.toUpperCase()}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-slate-500 font-mono whitespace-nowrap">{new Date(c.createdAt).toLocaleString('es-CL')}</td>
-                                                <td className="px-6 py-4 font-mono text-slate-400 text-[10px]">{c.qrCodeId}</td>
+                                                <td className="py-4 px-6 text-right">
+                                                    <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                                        {(hasPermission('flota_vehiculos', 'crear') || hasPermission('flota_vehiculos', 'editar')) && v.estadoOperativo !== 'Siniestro' && (
+                                                            <>
+                                                                {v.asignadoA && (
+                                                                    <button onClick={() => { setSelectedVehiculo(v); setChecklistTipo('Recepción'); setActivePanelFlota('checklist'); }} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg tooltip-btn" title="Recepcionar Vehículo (Trabajador)">
+                                                                        <ClipboardCheck size={18} />
+                                                                    </button>
+                                                                )}
+                                                                {!v.asignadoA && (
+                                                                    <>
+                                                                        <button onClick={() => { setSelectedVehiculo(v); setChecklistTipo('Asignación'); setActivePanelFlota('checklist'); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg tooltip-btn" title="Asignar Vehículo (Checklist Entrega)">
+                                                                            <UserPlus size={18} />
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                        {(hasPermission('flota_vehiculos', 'crear') || hasPermission('flota_vehiculos', 'editar')) && (
+                                                            <button onClick={() => { setSelectedVehiculo(v); setActivePanelFlota('siniestro'); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg tooltip-btn" title="Reportar Siniestro">
+                                                                <AlertTriangle size={18} />
+                                                            </button>
+                                                        )}
+                                                        {hasPermission('flota_vehiculos', 'ver') && (
+                                                            <button onClick={() => { setSelectedVehiculo(v); setActivePanelFlota('historial'); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg tooltip-btn" title="Ver Historial (Timeline)">
+                                                                <Clock size={18} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                            </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
 
@@ -1764,6 +1800,22 @@ const PortalSupervision = () => {
                     </div>
                 </div>
             ) */}
+            {/* MODALES DESLIZANTES FLOTA (ALINEACIÓN) */}
+            {activePanelFlota === 'ficha' && (
+                <SlideOverFicha vehiculo={selectedVehiculo} tecnicos={tecnicosGlobal} onClose={closePanelFlota} onSuccess={handleSuccessFlota} />
+            )}
+            {activePanelFlota === 'checklist' && (
+                <SlideOverChecklist vehiculo={selectedVehiculo} tecnicos={tecnicosGlobal} tipo={checklistTipo} onClose={closePanelFlota} onSuccess={handleSuccessFlota} />
+            )}
+            {activePanelFlota === 'siniestro' && (
+                <SlideOverSiniestros vehiculo={selectedVehiculo} tecnicos={tecnicosGlobal} onClose={closePanelFlota} onSuccess={handleSuccessFlota} />
+            )}
+            {activePanelFlota === 'historial' && (
+                <SlideOverHistorial vehiculo={selectedVehiculo} onClose={closePanelFlota} />
+            )}
+            {activePanelFlota === 'documento' && (
+                <SlideOverDocumentoPdf documento={selectedDocumento} vehiculo={selectedVehiculo} onClose={closePanelFlota} />
+            )}
 
         </div>
     );

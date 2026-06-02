@@ -269,9 +269,14 @@ const CandidatoSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: Date.now }
 }, { strict: false });
 
-// Auto-update updatedAt
+const { formatRut } = require('../../../utils/rutUtils');
+
+// Auto-update updatedAt and format RUT
 CandidatoSchema.pre('save', function (next) {
     this.updatedAt = new Date();
+    if (this.isModified('rut') || this.isNew) {
+        this.rut = formatRut(this.rut);
+    }
     next();
 });
 

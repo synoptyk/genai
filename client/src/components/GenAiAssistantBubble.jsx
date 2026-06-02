@@ -11,7 +11,7 @@ const STANDARD_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 const createSessionId = () => `fg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-const FloatingGenAI = () => {
+const GenAiAssistantBubble = () => {
   const { user } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -280,4 +280,4 @@ const FloatingGenAI = () => {
   );
 };
 
-export default FloatingGenAI;
+export default GenAiAssistantBubble;

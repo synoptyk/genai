@@ -11,13 +11,24 @@ const VehiculoSchema = new mongoose.Schema({
   empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
   marca: { type: String, required: true, trim: true },
   modelo: { type: String, required: true, trim: true },
-  anio: { type: Number, default: new Date().getFullYear() }, // Faltaba este campo
+  anio: { type: Number, default: new Date().getFullYear() },
+  tipoVehiculo: { type: String, default: 'Camioneta' }, // Camioneta, Furgón, Auto, Maquinaria, etc.
 
   // --- FINANCIERO Y CONTRATO ---
   proveedor: { type: String, trim: true }, // Ej: Mitta, Gama
+  proveedorId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProveedorLeasing', default: null },
+  rutProveedor: { type: String, trim: true },
   tipoContrato: { type: String, default: 'Leasing' }, // Leasing, Propio, Arriendo
   valor: { type: Number, default: 0 }, // Costo mensual
   moneda: { type: String, default: 'CLP' },
+  cuponElectronico: { type: String, enum: ['Sin Cupón', 'Cupón Titular', 'Cupón Reemplazo'], default: 'Sin Cupón' },
+  numeroCupon: { type: String, trim: true },
+
+  // --- DOCUMENTACIÓN LEGAL ---
+  vencimientoRevisionTecnica: { type: Date },
+  docRevisionTecnica: { type: String }, // Base64 o URL
+  vencimientoPermisoCirculacion: { type: Date },
+  docPermisoCirculacion: { type: String }, // Base64 o URL
 
   // --- ESTADO Y LOGÍSTICA ---
   // Estado Operativo: ¿El auto sirve? (Operativa, Siniestro, Mantención)
@@ -37,6 +48,11 @@ const VehiculoSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tecnico',
     default: null
+  },
+  estadoAsignacion: {
+    type: String,
+    enum: ['Sin Asignar', 'Asignación Pendiente', 'Asignación Completa'],
+    default: 'Sin Asignar'
   },
 
   // --- GESTIÓN DE INCIDENCIAS ---

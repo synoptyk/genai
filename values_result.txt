@@ -1,0 +1,17 @@
+◇ injected env (21) from server/.env // tip: ⌁ auth for agents [www.vestauth.com]
+Valores STB: [
+  'F67_CAMBIO MODEM RESPONSABILIDAD TELEFONICA',
+  'F52_ACOMETIDA FTTX',
+  'F56_ACCESORIOS FTTX',
+  '913_RESPONSABILIDAD DEL CLIENTE',
+  '801_ENCONTRADO OK',
+  'F02_CONFIG REMT ROUTER CON LLAMADA PLATAFORMA',
+  'F67_CAMBIO MODEM RESPONSABILIDAD TELEFONICA',
+  'F52_ACOMETIDA FTTX',
+  'F56_ACCESORIOS FTTX',
+  'F52_ACOMETIDA FTTX'
+]
+Valores Equipos Nuevos: [
+  '', '', '', '', '',
+  '', '', '', '', ''
+]
