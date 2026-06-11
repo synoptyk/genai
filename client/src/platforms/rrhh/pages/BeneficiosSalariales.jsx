@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    TrendingUp, Users, Search, RefreshCw, Download, AlertCircle,
+    TrendingUp, Users, User, Search, RefreshCw, Download, AlertCircle,
     ChevronDown, ChevronUp, Save, Plus, Trash2, DollarSign,
     Calendar, ShieldAlert, Info, Link as LinkIcon, FileText, CheckCircle2,
     XCircle, Clock, UploadCloud
