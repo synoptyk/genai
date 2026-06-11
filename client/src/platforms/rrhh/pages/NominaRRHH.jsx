@@ -1328,9 +1328,11 @@ const NominaRRHH = () => {
     const filtered = useMemo(() =>
         processed.filter(e => {
             const t = searchTerm.toLowerCase();
+            const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
+            const cleanRut = e.rut ? e.rut.replace(/[^0-9kK]/gi, '') : '';
             const matchSearch = !searchTerm ||
                 e.fullName?.toLowerCase().includes(t) ||
-                e.rut?.includes(t) ||
+                (cleanSearch && cleanRut.includes(cleanSearch)) ||
                 e.position?.toLowerCase().includes(t) ||
                 e.cargo?.toLowerCase().includes(t) ||
                 e._clienteNombre?.toLowerCase().includes(t) ||
@@ -1905,12 +1907,14 @@ const NominaRRHH = () => {
                                                         <AlertCircle size={10} />
                                                     </div>
                                                 )}
-                                                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white font-black text-sm flex items-center justify-center shadow-lg shadow-indigo-100 overflow-hidden flex-shrink-0 group-hover:scale-105 transition-transform">
-                                                    {e.profilePic ? <img src={e.profilePic} alt="" className="w-full h-full object-cover" /> : e.fullName?.charAt(0)}
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase shadow-inner border border-slate-200 shrink-0">
+                                                    {e.profilePic ? <img src={e.profilePic} alt="" className="w-full h-full object-cover rounded-xl" /> : e.fullName?.substring(0, 2)}
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
-                                                    <p className="font-black text-xs text-slate-800 uppercase tracking-tight truncate">{e.fullName}</p>
-                                                    <p className="text-[9px] text-slate-400 font-mono tracking-tighter">{formatRut(e.rut)}</p>
+                                                    <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight">{e.fullName}</span>
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                                        RUT: {formatRut(e.rut)}
+                                                    </span>
                                                     <div className="flex gap-1 mt-1">
                                                         <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-lg border uppercase tracking-tighter transition-all ${
                                                             e.status === 'Finiquitado' 

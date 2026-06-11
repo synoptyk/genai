@@ -704,18 +704,30 @@ export default function FlotaDashboard() {
                     </td>
                     <td className="py-4 px-6">
                       {v.asignadoA ? (
-                        <div>
-                          <div className="font-bold text-slate-800 text-sm truncate max-w-[150px]">{v.asignadoA.nombre || v.asignadoA.nombres}</div>
-                          <div className="text-[10px] text-slate-500 font-medium">RUT: {formatRut(v.asignadoA.rut || v.asignadoA.rutRaw || '') || 'N/A'}</div>
-                          <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                            Proyecto: {tecnicoDict.get(cleanRut(v.asignadoA.rutRaw || v.asignadoA.rut || ''))?.proyecto || 'Sin Proyecto'}
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase shadow-inner border border-slate-200 shrink-0">
+                            {(() => {
+                              const liveName = tecnicoDict.get(cleanRut(v.asignadoA.rutRaw || v.asignadoA.rut || ''))?.fullName || tecnicoDict.get(cleanRut(v.asignadoA.rutRaw || v.asignadoA.rut || ''))?.nombre || v.asignadoA.nombre || v.asignadoA.nombres || 'User';
+                              return liveName.substring(0, 2).toUpperCase();
+                            })()}
                           </div>
-                          <div className="text-[10px] text-slate-400 font-medium mt-0.5"><MapPin size={10} className="inline mr-1"/>{v.zona || 'Metropolitana'}</div>
+                          <div>
+                            <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight">
+                              {tecnicoDict.get(cleanRut(v.asignadoA.rutRaw || v.asignadoA.rut || ''))?.fullName || tecnicoDict.get(cleanRut(v.asignadoA.rutRaw || v.asignadoA.rut || ''))?.nombre || v.asignadoA.nombre || v.asignadoA.nombres}
+                            </span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                              RUT: {formatRut(v.asignadoA.rut || v.asignadoA.rutRaw || '') || 'N/A'}
+                            </span>
+                            <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                              Proyecto: {tecnicoDict.get(cleanRut(v.asignadoA.rutRaw || v.asignadoA.rut || ''))?.proyecto || 'Sin Proyecto'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-medium mt-0.5"><MapPin size={10} className="inline mr-1"/>{v.zona || 'Metropolitana'}</div>
+                          </div>
                         </div>
                       ) : (
                         <div>
-                          <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md mb-1 inline-block">Sin Asignar</span>
-                          <div className="text-[10px] text-slate-400 font-medium"><MapPin size={10} className="inline mr-1"/>{v.zona || 'Metropolitana'}</div>
+                          <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md mb-1 inline-block uppercase tracking-widest border border-slate-200">Sin Asignar</span>
+                          <div className="text-[10px] text-slate-400 font-medium mt-1"><MapPin size={10} className="inline mr-1"/>{v.zona || 'Metropolitana'}</div>
                         </div>
                       )}
                     </td>

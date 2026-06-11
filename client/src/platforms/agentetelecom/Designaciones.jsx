@@ -9,6 +9,7 @@ import {
    Car, UserCheck, MapPin, BadgeCheck, Download,
    ExternalLink, Info
 } from 'lucide-react';
+import { formatRut } from '../../utils/rutUtils';
 
 const Designaciones = () => {
    const { user } = useAuth();
@@ -150,10 +151,16 @@ const Designaciones = () => {
       XLSX.writeFile(wb, `Reporte_Designaciones_${new Date().toISOString().split('T')[0]}.xlsx`);
    };
 
-   const listaVisible = pendientes.filter(p =>
-      p.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
-      p.rut.toLowerCase().includes(filtro.toLowerCase())
-   );
+   const searchTerm = filtro.toLowerCase();
+   const cleanSearchTerm = searchTerm.replace(/[^0-9kK]/g, '');
+
+   const listaVisible = pendientes.filter(p => {
+      const matchName = p.nombre.toLowerCase().includes(searchTerm);
+      const cleanRut = (p.rut || '').replace(/[^0-9kK]/g, '').toLowerCase();
+      const matchRut = cleanRut.includes(cleanSearchTerm) || (p.rut || '').toLowerCase().includes(searchTerm);
+
+      return matchName || matchRut;
+   });
 
    return (
       <div className="animate-in fade-in slide-in-from-right-8 duration-500 h-full flex flex-col bg-slate-50/30 p-4 md:p-6">
@@ -233,8 +240,8 @@ const Designaciones = () => {
 
                            <div className="flex justify-between items-start mb-3 relative z-10">
                               <div>
-                                 <h4 className={`font-black text-sm uppercase tracking-tight ${selectedUser?._id === p._id ? 'text-white' : 'text-slate-800'}`}>{p.nombre}</h4>
-                                 <p className={`text-[10px] font-mono mt-0.5 ${selectedUser?._id === p._id ? 'text-blue-100' : 'text-slate-400'}`}>{p.rut}</p>
+                                 <h4 className={`text-[11px] font-black uppercase tracking-tight leading-tight block ${selectedUser?._id === p._id ? 'text-white' : 'text-slate-800'}`}>{p.nombre}</h4>
+                                 <p className={`text-[9px] font-mono font-bold uppercase tracking-widest mt-0.5 block ${selectedUser?._id === p._id ? 'text-blue-100' : 'text-slate-400'}`}>RUT: {formatRut(p.rut)}</p>
                               </div>
                               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shadow-inner transition-colors duration-500
                                  ${selectedUser?._id === p._id ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400'}`}>
@@ -269,7 +276,7 @@ const Designaciones = () => {
                            <div>
                               <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none mb-2">{selectedUser.nombre}</h2>
                               <div className="flex items-center gap-3">
-                                 <span className="text-[10px] font-mono bg-white px-3 py-1 rounded-full border border-slate-200 text-slate-500 font-bold shadow-sm">{selectedUser.rut}</span>
+                                 <span className="text-[9px] font-mono uppercase tracking-widest bg-white px-3 py-1 rounded-full border border-slate-200 text-slate-500 font-bold shadow-sm">RUT: {formatRut(selectedUser.rut)}</span>
                                  <div className="h-1 w-1 bg-slate-300 rounded-full" />
                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                     <BadgeCheck size={14} className="text-emerald-500" /> Ficha Verificada

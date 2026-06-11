@@ -1635,48 +1635,143 @@ app.get('/api/bot/garantias-stats', botLimiter, protect, authorize('rend_operati
     const fechaBusquedaDesde = new Date(fechaDesde);
     fechaBusquedaDesde.setDate(fechaBusquedaDesde.getDate() - VENTANA_GARANTIA_DIAS);
 
-    // Filtro base por empresa
-    const baseFilter = {};
+    // --- BUSCAR IDS EN AMBAS COLECCIONES PARA SEGURIDAD / FILTRO TENANT ---
+    const restrictedIDs = new Set();
+    const activeEmpresaId = !isSystemAdmin ? empresaId : (empresaFilter || empresaId);
+
+    if (activeEmpresaId) {
+      try {
+        const targetObjectId = mongoose.Types.ObjectId.isValid(activeEmpresaId)
+          ? new mongoose.Types.ObjectId(activeEmpresaId)
+          : activeEmpresaId;
+
+        const [tStats, cStats] = await Promise.all([
+          Tecnico.find({ empresaRef: targetObjectId }).select('idRecursoToa idRecurso').lean(),
+          Candidato ? Candidato.find({ empresaRef: targetObjectId }).select('idRecursoToa idRecurso').lean() : Promise.resolve([])
+        ]);
+
+        const processItem = (t) => {
+          const id1 = String(t.idRecursoToa || '').trim();
+          const id2 = String(t.idRecurso || t.rut || '').trim();
+          
+          [id1, id2].forEach(rawId => {
+            if (!rawId) return;
+            restrictedIDs.add(rawId);
+            restrictedIDs.add(rawId.replace(/^0+/, ''));
+            const n = parseInt(rawId);
+            if (!isNaN(n)) restrictedIDs.add(n);
+          });
+        };
+        tStats.forEach(processItem);
+        if (cStats) cStats.forEach(processItem);
+      } catch (err) {
+        console.error("❌ Error fetching restricted IDs in /api/bot/garantias-stats:", err.message);
+      }
+    }
+
+    const restrictedIDsArray = Array.from(restrictedIDs);
+
+    const queryConditions = [];
+
+    // Si no es admin, obligar a filtrar por técnicos de la empresa
     if (!isSystemAdmin) {
-      baseFilter.empresaRef = empresaId;
+      if (restrictedIDsArray.length > 0) {
+        queryConditions.push({
+          $or: [
+            { "RECURSO": { $in: restrictedIDsArray } },
+            { "ID Recurso": { $in: restrictedIDsArray } },
+            { "ID_Recurso": { $in: restrictedIDsArray } },
+            { "ID_RECURSO": { $in: restrictedIDsArray } },
+            { idRecurso: { $in: restrictedIDsArray } },
+            { "Recurso": { $in: restrictedIDsArray } },
+            { idRecursoToa: { $in: restrictedIDsArray } },
+            { IDRECURSOTOA: { $in: restrictedIDsArray } }
+          ]
+        });
+      } else {
+        queryConditions.push({ "RECURSO": "__NONE__" });
+      }
     } else if (empresaFilter) {
-      baseFilter.empresaRef = empresaFilter;
+      if (restrictedIDsArray.length > 0) {
+        queryConditions.push({
+          $or: [
+            { "RECURSO": { $in: restrictedIDsArray } },
+            { "ID Recurso": { $in: restrictedIDsArray } },
+            { "ID_Recurso": { $in: restrictedIDsArray } },
+            { "ID_RECURSO": { $in: restrictedIDsArray } },
+            { idRecurso: { $in: restrictedIDsArray } },
+            { "Recurso": { $in: restrictedIDsArray } },
+            { idRecursoToa: { $in: restrictedIDsArray } },
+            { IDRECURSOTOA: { $in: restrictedIDsArray } }
+          ]
+        });
+      } else {
+        queryConditions.push({ "RECURSO": "__NONE__" });
+      }
     }
 
     // Filtros opcionales
     if (zonas) {
       const zonasList = String(zonas).split(',').map(s => s.trim()).filter(Boolean);
-      if (zonasList.length > 0) baseFilter['ZONA'] = { $in: zonasList };
+      if (zonasList.length > 0) {
+        queryConditions.push({
+          $or: [
+            { "ZONA": { $in: zonasList } },
+            { "Zona de Trabajo": { $in: zonasList } },
+            { "Sede": { $in: zonasList } },
+            { "Comuna": { $in: zonasList } },
+            { "COMUNA": { $in: zonasList } }
+          ]
+        });
+      }
     }
     if (proyectosFilter) {
       const projList = String(proyectosFilter).split(',').map(s => s.trim()).filter(Boolean);
-      if (projList.length > 0) baseFilter['PROYECTO'] = { $in: projList };
+      if (projList.length > 0) {
+        queryConditions.push({
+          $or: [
+            { "PROYECTO": { $in: projList } },
+            { "Proyecto": { $in: projList } },
+            { "Tipo Trabajo": { $in: projList } },
+            { "Subtipo de Actividad": { $in: projList } }
+          ]
+        });
+      }
     }
     if (tecnicoId) {
       const cleanId = String(tecnicoId).replace(/^0+/, '').trim();
-      baseFilter['$or'] = [
-        { idRecursoToa: tecnicoId }, { idRecursoToa: cleanId },
-        { RECURSO: tecnicoId }, { RECURSO: cleanId },
-        { ID_RECURSO: tecnicoId }, { ID_RECURSO: cleanId }
-      ];
+      queryConditions.push({
+        $or: [
+          { idRecursoToa: tecnicoId }, { idRecursoToa: cleanId },
+          { RECURSO: tecnicoId }, { RECURSO: cleanId },
+          { ID_RECURSO: tecnicoId }, { ID_RECURSO: cleanId },
+          { "ID Recurso": tecnicoId }, { "ID Recurso": cleanId }
+        ]
+      });
     }
 
-    // Cargar TODAS las actividades completadas en la ventana ampliada (instalación original + reparación)
-    const todasActividades = await Actividad.find({
-      ...baseFilter,
+    // Filtro temporal y de estado
+    queryConditions.push({
       $or: [
         { fecha: { $gte: fechaBusquedaDesde, $lte: fechaHasta } },
         { FECHA: { $gte: fechaBusquedaDesde, $lte: fechaHasta } },
         { 'Fecha Completada': { $gte: fechaBusquedaDesde, $lte: fechaHasta } }
-      ],
-      $and: [{
-        $or: [
-          { ESTADO: { $regex: /complet/i } },
-          { estado: { $regex: /complet/i } },
-          { ESTADO: 'Done' }, { estado: 'Done' }
-        ]
-      }]
-    }).lean();
+      ]
+    });
+
+    queryConditions.push({
+      $or: [
+        { ESTADO: { $regex: /complet/i } },
+        { estado: { $regex: /complet/i } },
+        { Estado: { $regex: /complet/i } },
+        { ESTADO: 'Done' }, { estado: 'Done' }, { Estado: 'Done' }
+      ]
+    });
+
+    const finalFilter = { $and: queryConditions };
+
+    // Cargar TODAS las actividades completadas en la ventana ampliada (instalación original + reparación)
+    const todasActividades = await Actividad.find(finalFilter).lean();
 
     // Helper para extraer campos flexibles
     const getField = (doc, ...keys) => {
@@ -1687,23 +1782,23 @@ app.get('/api/bot/garantias-stats', botLimiter, protect, authorize('rend_operati
     // Normalizar actividades
     const actividades = todasActividades.map(doc => ({
       _id: String(doc._id),
-      orden: getField(doc, 'ordenId', 'ORDEN', 'Orden', 'N_Actividad', 'ID_ACTIVIDAD') || '',
+      orden: getField(doc, 'Numero orden', 'Número de Petición', 'ordenId', 'ORDEN', 'Orden', 'N_Actividad', 'ID_ACTIVIDAD') || '',
       fecha: doc.fecha || doc.FECHA || doc['Fecha Completada'] || doc.createdAt,
-      tecnicoId: String(getField(doc, 'idRecursoToa', 'RECURSO', 'ID_RECURSO', 'ID Recurso', 'Recurso') || '').replace(/^0+/, '').trim(),
-      tecnicoNombre: getField(doc, 'NOMBRE', 'Nombre', 'TECNICO', 'tecnico', 'nombre') || 'Sin nombre',
-      cliente: getField(doc, 'NOMBRE_CLIENTE', 'Nombre_Cliente', 'CLIENTE', 'cliente', 'NOMBRE CLIENTE') || '',
-      direccion: getField(doc, 'DIRECCION', 'Direccion', 'Dirección', 'DIRECCION_TRABAJO', 'CALLE') || '',
-      comuna: getField(doc, 'COMUNA', 'comuna', 'LOCALIDAD') || '',
+      tecnicoId: String(getField(doc, 'ID Recurso', 'idRecursoToa', 'RECURSO', 'ID_RECURSO', 'Recurso') || '').replace(/^0+/, '').trim(),
+      tecnicoNombre: getField(doc, 'Técnico', 'TÉCNICO', 'NOMBRE', 'Nombre', 'TECNICO', 'tecnico', 'nombre') || 'Sin nombre',
+      cliente: getField(doc, 'Nombre', 'NOMBRE_CLIENTE', 'Nombre_Cliente', 'CLIENTE', 'cliente', 'NOMBRE CLIENTE') || '',
+      direccion: getField(doc, 'Direccion', 'DIRECCION', 'Dirección', 'DIRECCION_TRABAJO', 'CALLE') || '',
+      comuna: getField(doc, 'Comuna', 'COMUNA', 'comuna', 'LOCALIDAD') || '',
       proyecto: getField(doc, 'PROYECTO', 'Proyecto', 'projectId') || '',
-      tipo: getField(doc, 'ACTIVIDAD', 'actividad', 'TIPO', 'SUBTIPO_DE_ACTIVIDAD', 'subtipo') || '',
-      motivoReparacion: getField(doc, 'MOTIVO_REPARACION', 'CIERRE_SECUNDARIO_STD', 'Cierre Secundario STD') || '',
-      cierresStd: getField(doc, 'CIERRE_SECUNDARIO_STD', 'Cierre Secundario STD') || '',
-      cierresTv: getField(doc, 'CIERRE_SECUNDARIO_TV', 'Cierre Secundario TV') || '',
-      observaciones: getField(doc, 'OBSERVACIONES', 'Observaciones', 'NOTAS') || '',
+      tipo: getField(doc, 'Subtipo de Actividad', 'Tipo Trabajo', 'ACTIVIDAD', 'actividad', 'TIPO', 'SUBTIPO_DE_ACTIVIDAD', 'subtipo') || '',
+      motivoReparacion: getField(doc, 'Motivo de Reparación', 'MOTIVO_REPARACION', 'CIERRE_SECUNDARIO_STD', 'Cierre Secundario STD') || '',
+      cierresStd: getField(doc, 'Cierres Secundarios BA', 'CIERRE_SECUNDARIO_STD', 'Cierre Secundario STD') || '',
+      cierresTv: getField(doc, 'Cierres Secundarios TV', 'CIERRE_SECUNDARIO_TV') || '',
+      observaciones: getField(doc, 'Observaciones', 'OBSERVACIONES', 'NOTAS') || '',
     }));
 
     // Clasificar en Altas/Rutinas vs Reparaciones
-    const esReparacion = (tipo) => /repar|rep\b|falla|correctiv|averia|avería|daño|correctivo/i.test(tipo || '');
+    const esReparacion = (tipo) => /repar|rep\b|falla|correctiv|averia|avería|daño|correctivo|reclamo|recl\b/i.test(tipo || '');
     const esAlta = (tipo) => !esReparacion(tipo);
 
     // Separar por período
@@ -2119,6 +2214,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require(`${PLATFORM_PATH}/models/ConfigProduccion`);
+    const RegistroAsistencia = require('./platforms/rrhh/models/RegistroAsistencia');
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
     const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
     // --- FILTRO DE PROYECTOS PARA LA QUERY DE RRHH ---
@@ -2134,17 +2230,25 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       };
     }
 
-    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands] = await Promise.allSettled([
+    const queryAsistencia = (finalDesde && finalHasta)
+      ? RegistroAsistencia.find({
+          empresaRef: efectivoEmpresaId,
+          fecha: { $gte: finalDesde, $lte: finalHasta }
+        }).lean()
+      : Promise.resolve([]);
+
+    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands, r_asistencia] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find(projectFilterRRHH).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName').lean()
-        : Tecnico.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName').lean(),
+        ? Tecnico.find({}).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
       isSystemAdmin && !empresaFilter
-        ? Candidato.find(projectFilterRRHH).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
-        : Candidato.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
+        ? Candidato.find({}).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
+        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean(),
+      queryAsistencia
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -2152,6 +2256,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const mapaValorizacionProd = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
     const candsVal = r_cands && r_cands.status === 'fulfilled' ? r_cands.value : [];
+    const asistenciaRecords = r_asistencia && r_asistencia.status === 'fulfilled' ? r_asistencia.value : [];
+
 
     // Map RUTs from HR just in case Tecnico is missing it
     const mapRutCands = {};
@@ -2233,11 +2339,37 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         }
       }
       
-      const name = (t.name || t.fullName || (t.nombres ? `${t.nombres} ${t.apellidos || ''}` : '') || 'Sin Nombre').trim().toUpperCase();
+      const rawName = t.name || t.fullName || (t.nombres ? `${t.nombres} ${t.apellidos || ''}` : '') || 'Sin Nombre';
+      const name = rawName.trim();
+      const normalizeName = (s) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+      const normName = normalizeName(rawName);
+      
+      // Generar varias variantes del nombre para mejor match
+      const nameParts = normName.split(' ').filter(Boolean);
+      const nameVariations = [
+        normName,
+        nameParts.join(' '),
+        nameParts.length >= 3 ? `${nameParts[0]} ${nameParts[2]}` : null,
+        nameParts.length >= 3 ? `${nameParts[0]} ${nameParts[1]} ${nameParts[2]}` : null,
+      ].filter(Boolean);
+
+      // Si existe clave por nombre y no tenemos clave por ID/RUT, intentamos recuperarlo
+      if (!key) {
+        for (const nv of nameVariations) {
+          if (nameToMapKey[nv]) {
+            key = nameToMapKey[nv];
+            break;
+          }
+        }
+      }
       
       // Fallback a configProd si existe
       const cpKey = keysToa.find(k => mapaValorizacionProd[k]) || keysRec.find(k => mapaValorizacionProd[k]) || rutClean;
       const cpConfig = cpKey ? mapaValorizacionProd[cpKey] : null;
+
+      // Extraer datos maestros desde RRHH / Talento priorizándolos
+      const masterProyecto = t.projectName || (t.projectId && typeof t.projectId === 'object' ? (t.projectId.nombreProyecto || t.projectId.projectName) : null) || t.proyecto || '';
+      const masterCliente = t.clienteNombre || t.cliente || '';
 
       if (!key) {
         // Crear nuevo
@@ -2251,6 +2383,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           idRecursoToa: idRawToa || idRawRec, // Mantenemos compatibilidad 
           idRecurso: idRawRec || idRawToa,
           rut: t.rut || '',
+          candidatoId: source === 'candidato' ? String(t._id) : undefined,
+          tecnicoId: source === 'tecnico' ? String(t._id) : undefined,
           valorPunto: cpConfig?.valorPunto || 0,
           retencionPct: cpConfig?.retencion || 0,
           orders: 0,
@@ -2263,7 +2397,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           dailyMap: {},
           activities: {},
           cityMap: {},
-          proyecto: cpConfig?.proyecto || t.projectName || '',
+          proyecto: masterProyecto || cpConfig?.proyecto || '',
+          cliente: masterCliente || cpConfig?.cliente || '',
           inicioContrato: inicio,
           cargo: t.position || t.cargo || 'TÉCNICO',
           status: t.status || 'Operativo',
@@ -2278,9 +2413,16 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
                 if (!isNaN(num)) idToKey[num] = key;
             }
         });
+        nameVariations.forEach(nv => { if (nv) nameToMapKey[nv] = key; });
       } else {
         // Enriquecer existente (Fusión por Identidad)
         const ex = techMap[key];
+        if (source === 'candidato') ex.candidatoId = String(t._id);
+        if (source === 'tecnico') ex.tecnicoId = String(t._id);
+        // Si el existente se había creado con un nombre en mayúsculas o incompleto, y tenemos uno mejor de RRHH:
+        if (name && name !== 'Sin Nombre' && (!ex.name || ex.name === 'Sin Nombre' || ex.name === ex.name.toUpperCase())) {
+          ex.name = name; // Preferimos el nombre sin modificar de Captura de Talento
+        }
         if (t.rut && !ex.rut) {
           ex.rut = t.rut;
           rutToKey[rutClean] = key;
@@ -2288,6 +2430,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         if (idRawToa && !ex.idRecursoToa) ex.idRecursoToa = idRawToa;
         if (idRawRec && !ex.idRecurso) ex.idRecurso = idRawRec;
         if (t.sueldoBase && !ex.sueldoBase) ex.sueldoBase = t.sueldoBase;
+
         
         [...keysToa, ...keysRec].forEach(k => {
             if (k) {
@@ -2296,10 +2439,13 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
                 if (!isNaN(num)) idToKey[num] = key;
             }
         });
+        nameVariations.forEach(nv => { if (nv && !nameToMapKey[nv]) nameToMapKey[nv] = key; });
 
         const inicio = t.contractStartDate || t.hiring?.contractStartDate || t.fechaIngreso || null;
         if (inicio && !ex.inicioContrato) ex.inicioContrato = inicio;
         if (t.cargo && (ex.cargo === 'TÉCNICO' || !ex.cargo)) ex.cargo = t.cargo;
+        if (masterProyecto && !ex.proyecto) ex.proyecto = masterProyecto;
+        if (masterCliente && !ex.cliente) ex.cliente = masterCliente;
       }
 
       // Registrar IDs válidos para el filtro de actividades
@@ -2390,6 +2536,22 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const totalDocsInDB = docs.length;
     console.log(`📊 [produccion-stats] Órdenes encontradas en DB: ${totalDocsInDB}`);
 
+    // Ordenar docs para priorizar "Completado" sobre suspendidas/iniciadas y luego más recientes
+    const statePriority = (state) => {
+      const s = String(state || '').toLowerCase();
+      if (s.includes('complet') || s.includes('finaliz')) return 1;
+      if (s.includes('inici') || s.includes('pendient')) return 2;
+      return 3;
+    };
+    docs.sort((a, b) => {
+      const pA = statePriority(a.Estado || a.estado || a.ESTADO);
+      const pB = statePriority(b.Estado || b.estado || b.ESTADO);
+      if (pA !== pB) return pA - pB;
+      const dA = a.fecha ? new Date(a.fecha).getTime() : 0;
+      const dB = b.fecha ? new Date(b.fecha).getTime() : 0;
+      return dB - dA;
+    });
+
     console.log(`[DIAGNOSTICO] Iniciando procesamiento de ${totalDocsInDB} órdenes...`);
     
     let matchedCount = 0;
@@ -2407,13 +2569,20 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         const val = doc[k];
         const kUpper = k.toUpperCase().replace(/ /g, '_');
         clean[kUpper] = val;
+        
+        // Quitar acentos para versión sin acentos
+        const kNoAccents = kUpper.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (kNoAccents !== kUpper) {
+          clean[kNoAccents] = val;
+        }
+
         // También guardamos una versión con camel/snake case común para el motor de baremos
         const kNormal = k.replace(/[\.\s]/g, '_');
         if (!clean[kNormal]) clean[kNormal] = val;
       }
 
       // 🔥 PREVENIR DUPLICADOS
-      const pet = String(clean.NUMERO_DE_PETICION || clean.NUMERO_PETICION || clean.APPT_NUMBER || '').trim();
+      const pet = String(clean.NUMERO_DE_PETICION || clean.NUMERO_PETICION || clean.APPT_NUMBER || clean.PETICION || clean.PETICION_ID || clean.ORDEN_ID || '').trim();
       const fallbackId = String(clean.ORDENID || doc._id || '').trim();
       const uniqueKey = pet && pet.length > 2 ? pet : fallbackId;
       
@@ -2436,6 +2605,21 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       
       let techKey = techMap[idRecurso] ? idRecurso : (idToKey[idLow] || idToKey[idClean] || idToKey[idRecurso] || '');
       
+      // Fallback por nombre si el ID no cruza
+      if (!techKey) {
+        let nombreRaw = clean.NOMBRE || clean.NOMBRE_TECNICO || clean.TECNICO_NOMBRE || '';
+        if (nombreRaw) {
+          const nClean = String(nombreRaw).trim().toUpperCase();
+          if (nameToMapKey[nClean]) techKey = nameToMapKey[nClean];
+          else {
+            const parts = nClean.split(' ').filter(Boolean);
+            if (parts.length >= 3 && nameToMapKey[`${parts[0]} ${parts[2]}`]) {
+              techKey = nameToMapKey[`${parts[0]} ${parts[2]}`];
+            }
+          }
+        }
+      }
+
       if (!techKey && diagCount < 5) {
         console.log(`[DIAGNOSTICO] Doc falló. ID extraído: "${idRecurso}". Keys:`, Object.keys(clean).slice(0, 10));
         diagCount++;
@@ -2444,6 +2628,14 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       if (!techKey) continue;
       let t = techMap[techKey];
       matchedCount++;
+
+      // Auto-enriquecer el techMap con el idRecurso extraído de TOA si estaba vacío en HR
+      if (techKey && t && (!t.idRecursoToa || t.idRecursoToa === '')) {
+        t.idRecursoToa = idRecurso;
+        idToKey[idLow] = techKey;
+        idToKey[idClean] = techKey;
+        idToKey[idRecurso] = techKey;
+      }
 
       // 3. INTELIGENCIA LPU CENTRALIZADA (Motor Unificado)
       const baremos = calcularBaremos(clean, tarifasLPU) || {};
@@ -2668,10 +2860,13 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         if (clienteName && !t.cliente) { t.cliente = clienteName; t.proyecto = proyectoName; }
         if (dateKey) {
           t.days.add(dateKey);
-          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, byActivity: {}, completadas: 0, noRealizadas: 0, minTotal: 0, minAlta: 0, minReparacion: 0, minRutina: 0, ordersAlta: 0, ordersReparacion: 0, ordersRutina: 0 };
+          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, byActivity: {}, byStateExact: {}, completadas: 0, noRealizadas: 0, minTotal: 0, minAlta: 0, minReparacion: 0, minRutina: 0, ordersAlta: 0, ordersReparacion: 0, ordersRutina: 0 };
           t.dailyMap[dateKey].orders++;
           t.dailyMap[dateKey].pts += pTotal;
           
+          const estLabel = String(cleanEstado || 'Desconocido').trim();
+          t.dailyMap[dateKey].byStateExact[estLabel] = (t.dailyMap[dateKey].byStateExact[estLabel] || 0) + 1;
+
           const estLower = (cleanEstado || '').toLowerCase();
           const isCompleted = estLower.includes('completad') || estLower.includes('finalizad') || estLower.includes('ok') || estLower.includes('ejecutad');
           if (isCompleted) {
@@ -2822,15 +3017,17 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // ── MERGE: Fusionar entradas huérfanas (por nombre, sin ID) en la entrada vinculada ──
     // Causa: actividades sin RECURSO quedan keyed por nombre; si se procesaron antes que
     // la primera actividad con ID, quedan como entrada separada con isVinculado=false.
+    const normalizeName = (s) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
     for (const [orphanKey, orphanEntry] of Object.entries(techMap)) {
       if (orphanEntry.isVinculado) continue;           // ya vinculado, no huérfano
-      const canonKey = nameToMapKey[(orphanEntry.name || '').toLowerCase().trim()];
+      const normOrphan = normalizeName(orphanEntry.name);
+      const canonKey = nameToMapKey[normOrphan];
       if (!canonKey || canonKey === orphanKey) continue; // no tiene entrada canónica
       const canon = techMap[canonKey];
       if (!canon || !canon.isVinculado) continue;
       // Fusionar dailyMap
       Object.entries(orphanEntry.dailyMap || {}).forEach(([dk, dd]) => {
-        if (!canon.dailyMap[dk]) canon.dailyMap[dk] = { orders: 0, pts: 0, byActivity: {}, completadas: 0, noRealizadas: 0, minTotal: 0, minAlta: 0, minReparacion: 0, minRutina: 0, ordersAlta: 0, ordersReparacion: 0, ordersRutina: 0 };
+        if (!canon.dailyMap[dk]) canon.dailyMap[dk] = { orders: 0, pts: 0, byActivity: {}, byStateExact: {}, completadas: 0, noRealizadas: 0, minTotal: 0, minAlta: 0, minReparacion: 0, minRutina: 0, ordersAlta: 0, ordersReparacion: 0, ordersRutina: 0 };
         canon.dailyMap[dk].orders += dd.orders;
         canon.dailyMap[dk].pts += dd.pts;
         canon.dailyMap[dk].ptsCompletados = (canon.dailyMap[dk].ptsCompletados || 0) + (dd.ptsCompletados || 0);
@@ -2849,6 +3046,11 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           canon.dailyMap[dk].byActivity[act].count += stat.count;
           canon.dailyMap[dk].byActivity[act].pts += stat.pts;
         });
+
+        if (!canon.dailyMap[dk].byStateExact) canon.dailyMap[dk].byStateExact = {};
+        Object.entries(dd.byStateExact || {}).forEach(([st, count]) => {
+          canon.dailyMap[dk].byStateExact[st] = (canon.dailyMap[dk].byStateExact[st] || 0) + count;
+        });
         canon.days.add(dk);
       });
       // Fusionar métricas
@@ -2865,8 +3067,86 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       canon.qtyTelefono += orphanEntry.qtyTelefono;
       canon.provisionCount += orphanEntry.provisionCount;
       canon.repairCount += orphanEntry.repairCount;
-      // Marcar el huérfano para exclusión
-      orphanEntry._merged = true;
+    }
+
+    // --- INTEGRACIÓN DE ASISTENCIA Y DETECCIÓN DE ANOMALÍAS ---
+    const candIdToKey = {};
+    const rutToKeyNormalized = {};
+    Object.entries(techMap).forEach(([key, tech]) => {
+      if (tech.candidatoId) {
+        candIdToKey[String(tech.candidatoId)] = key;
+      }
+      if (tech.rut) {
+        const cleanRut = String(tech.rut).replace(/[^0-9kK]/g, '').toLowerCase();
+        if (cleanRut) rutToKeyNormalized[cleanRut] = key;
+      }
+    });
+
+    asistenciaRecords.forEach(record => {
+      let key = candIdToKey[String(record.candidatoId)];
+      if (!key && record.rut) {
+        const cleanRut = String(record.rut).replace(/[^0-9kK]/g, '').toLowerCase();
+        key = rutToKeyNormalized[cleanRut];
+      }
+      if (!key) return;
+
+      const tech = techMap[key];
+      const dateStr = record.fecha instanceof Date
+        ? record.fecha.toISOString().split('T')[0]
+        : String(record.fecha).split('T')[0];
+
+      if (!tech.dailyMap[dateStr]) {
+        tech.dailyMap[dateStr] = {
+          orders: 0,
+          pts: 0,
+          byActivity: {},
+          completadas: 0,
+          noRealizadas: 0,
+          minTotal: 0,
+          minAlta: 0,
+          minReparacion: 0,
+          minRutina: 0,
+          ordersAlta: 0,
+          ordersReparacion: 0,
+          ordersRutina: 0
+        };
+      }
+
+      tech.dailyMap[dateStr].asistencia = record.estado; // 'Presente', 'Ausente', 'Tardanza', etc.
+      tech.dailyMap[dateStr].observacionAsistencia = record.observacion || '';
+      tech.dailyMap[dateStr].horasExtra = record.horasExtra || 0;
+      tech.dailyMap[dateStr].horasExtraAprobadas = record.horasExtraAprobadas || 0;
+      tech.dailyMap[dateStr].estadoHorasExtra = record.estadoHorasExtra || 'Sin HE';
+    });
+
+    // Detectar anomalías
+    if (finalDesde && finalHasta) {
+      const daysCount = Math.round((finalHasta - finalDesde) / (1000 * 60 * 60 * 24)) + 1;
+      const allDates = [];
+      for (let i = 0; i < daysCount; i++) {
+        const d = new Date(finalDesde.getTime() + i * 24 * 60 * 60 * 1000);
+        allDates.push(d.toISOString().split('T')[0]);
+      }
+
+      Object.values(techMap).forEach(tech => {
+        allDates.forEach(dateStr => {
+          const dayData = tech.dailyMap[dateStr];
+          if (dayData) {
+            const hasProd = (dayData.pts || 0) > 0 || (dayData.orders || 0) > 0;
+            const statusAst = dayData.asistencia;
+
+            if (hasProd && (!statusAst || statusAst === 'Ausente')) {
+              dayData.anomaly = 'Producción sin Asistencia';
+            } else if (!hasProd && (statusAst === 'Presente' || statusAst === 'Tardanza')) {
+              const dateObj = new Date(dateStr + 'T12:00:00Z');
+              const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+              if (!isWeekend) {
+                dayData.anomaly = 'Asistencia sin Producción';
+              }
+            }
+          }
+        });
+      });
     }
 
     // Construir respuesta (excluir entradas fusionadas al canónico vinculado)
@@ -2942,8 +3222,9 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // ── DEDUPLICAR: fusionar entradas con el mismo nombre (mismo técnico, claves distintas) ──
     const _nameIdx = {};
     const tecnicosDedupMap = [];
+    const normalizeNameDedup = (s) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, ' ').trim();
     tecnicos.forEach(t => {
-      const norm = (t.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const norm = normalizeNameDedup(t.name);
       if (_nameIdx[norm] !== undefined) {
         const ex = tecnicosDedupMap[_nameIdx[norm]];
         // Fusionar: sumar producción + conservar idRecurso si el duplicado lo tiene
@@ -3100,7 +3381,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       rrRealPercent: t.rrRealPercent,
       dailyMap: t.dailyMap,
       sueldoBase: t.sueldoBase || 0,
-      inicioContrato: t.inicioContrato
+      inicioContrato: t.inicioContrato,
+      rut: t.rut
     }));
 
     console.log(`✅ [produccion-stats] RESUMEN FINAL:
@@ -3139,6 +3421,31 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
   }
 });
 
+app.post('/api/bot/detectar-anomalias', protect, authorize('rend_operativo:ver'), async (req, res) => {
+  try {
+    const { runDate, empresaId: targetEmpresaId } = req.body;
+    const userEmpresaId = req.user.empresaRef?._id || req.user.empresaRef;
+    const isSystemAdmin = req.user.role === 'system_admin';
+    const empresaId = isSystemAdmin && targetEmpresaId ? targetEmpresaId : userEmpresaId;
+
+    if (!empresaId) {
+      return res.status(400).json({ error: 'No se identificó la empresa para ejecutar la auditoría.' });
+    }
+
+    const { runDailyAnomalyCheck } = require('./utils/anomaliesService');
+    const result = await runDailyAnomalyCheck(empresaId, runDate);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('❌ Error en POST /api/bot/detectar-anomalias:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════
 // 2.1c PRODUCCIÓN DÍA — ENDPOINT LIMPIO SOLO TELECOMUNICACIONES
 // ═══════════════════════════════════════════════════════════════════════
@@ -3148,15 +3455,46 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
     const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
     const Candidato = require('./platforms/rrhh/models/Candidato');
     const Actividad = require('./platforms/agentetelecom/models/Actividad');
+    const RegistroAsistencia = require('./platforms/rrhh/models/RegistroAsistencia');
     const mongoose = require('mongoose');
 
     console.log('\n📋 [produccion-dia-telecom] Iniciando...');
     console.log('   Filtros:', { startDate, endDate, meses, proyectos, clientes });
+
+    // Determinar rango de fechas para asistencia
+    let finalDesde = null;
+    let finalHasta = null;
+    const hasMeses = meses && meses !== 'TODOS' && meses.length > 0;
+    const hasSemanas = semanas && semanas !== 'TODOS' && semanas.length > 0;
+
+    if (!hasMeses && !hasSemanas && startDate && endDate) {
+        finalDesde = new Date(startDate + 'T00:00:00Z');
+        finalHasta = new Date(endDate + 'T23:59:59Z');
+    } else if (hasMeses) {
+        const monthList = meses.split(',').filter(m => m.length > 0);
+        if (monthList.length > 0) {
+            let minM = null, maxM = null;
+            monthList.forEach(m => {
+                const [y, mm] = m.split('-').map(Number);
+                const startOfMonth = new Date(Date.UTC(y, mm - 1, 1));
+                const endOfMonth = new Date(Date.UTC(y, mm, 0, 23, 59, 59));
+                if (!minM || startOfMonth < minM) minM = startOfMonth;
+                if (!maxM || endOfMonth > maxM) maxM = endOfMonth;
+            });
+            finalDesde = minM;
+            finalHasta = maxM;
+        }
+    }
+
+    const queryAsistencia = (finalDesde && finalHasta)
+      ? RegistroAsistencia.find({ empresaRef: empresaId, fecha: { $gte: finalDesde, $lte: finalHasta } }).lean()
+      : Promise.resolve([]);
     
     // ── 1. CARGAR TÉCNICOS Y VINCULAR PROYECTOS DESDE RRHH (CAPTURA TALENTO) ──
-    const [cands, techsMaster] = await Promise.all([
-      Candidato.find({ empresaRef: empresaId }).select('idRecursoToa projectName projectId clienteNombre fullName').lean(),
-      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa nombre nombres apellidos').lean()
+    const [cands, techsMaster, asistenciaRecords] = await Promise.all([
+      Candidato.find({ empresaRef: empresaId }).select('idRecursoToa projectName projectId clienteNombre fullName rut status position').lean(),
+      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa nombre nombres apellidos rut cargo status').lean(),
+      queryAsistencia
     ]);
 
     console.log(`   👥 [produccion-dia-telecom] Técnicos en RRHH: ${cands.length}, Técnicos en Maestro: ${techsMaster.length}`);
@@ -3224,8 +3562,6 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
     }
 
     // ── 4. FILTROS OPERATIVOS (FECHAS, ESTADO, TIPO) ──
-    const hasMeses = meses && meses !== 'TODOS' && meses.length > 0;
-    const hasSemanas = semanas && semanas !== 'TODOS' && semanas.length > 0;
 
     if (!hasMeses && !hasSemanas && startDate && endDate) {
         const startD = new Date(startDate + 'T00:00:00Z');
@@ -3277,6 +3613,22 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
     // ── 3. QUERY DINÁMICA POR FECHA (Corte 1 Mayo 2026) ──
     const actividades = await Actividad.find({ $and: andConditions }).lean();
 
+    // Ordenar actividades para priorizar Completado y más reciente al deduplicar
+    const statePriority = (state) => {
+      const s = String(state || '').toLowerCase();
+      if (s.includes('complet') || s.includes('finaliz')) return 1;
+      if (s.includes('inici') || s.includes('pendient')) return 2;
+      return 3;
+    };
+    actividades.sort((a, b) => {
+      const pA = statePriority(a.Estado || a.estado || a.ESTADO);
+      const pB = statePriority(b.Estado || b.estado || b.ESTADO);
+      if (pA !== pB) return pA - pB;
+      const dA = a.fecha ? new Date(a.fecha).getTime() : 0;
+      const dB = b.fecha ? new Date(b.fecha).getTime() : 0;
+      return dB - dA;
+    });
+
     console.log(`   📊 [produccion-dia-telecom] Total Único: ${actividades.length}`);
     if (actividades.length > 0) {
         console.log(`   🔎 [produccion-dia-telecom] Ejemplo Orden: ${actividades[0].ordenId}, Puntos: ${actividades[0].ptsTotalBaremo || actividades[0].PTS_TOTAL_BAREMO}`);
@@ -3295,6 +3647,7 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
           position: c.position || 'TÉCNICO',
           status: c.status || 'Activo',
           idRecursoToa: idStr,
+          candidatoId: String(c._id),
           dailyMap: {},
           monthTotal: 0,
           ordersCount: 0,
@@ -3315,6 +3668,7 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
                 position: t.cargo || 'TÉCNICO',
                 status: t.status || 'Operativo',
                 idRecursoToa: idStr,
+                tecnicoId: String(t._id),
                 dailyMap: {},
                 monthTotal: 0,
                 ordersCount: 0,
@@ -3335,7 +3689,7 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
 
     actividades.forEach(act => {
         // 🔥 PREVENIR DUPLICADOS (Doble Ingesta)
-        const peticion = String(act['Número de Petición'] || act['Numero de Petición'] || act['NÚMERO DE PETICIÓN'] || act.appt_number || '').trim();
+        const peticion = String(act['Número de Petición'] || act['Numero de Petición'] || act['Número_de_Petición'] || act['NÚMERO DE PETICIÓN'] || act['NUMERO_DE_PETICION'] || act.appt_number || act.peticion || act.peticionId || act.ordenId || '').trim();
         const fallbackId = String(act.ordenId || act._id || '').trim();
         const uniqueKey = peticion && peticion.length > 2 ? peticion : fallbackId;
         
@@ -3432,12 +3786,76 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
         totalOrders_count += 1;
     });
 
+    // --- INTEGRACIÓN DE ASISTENCIA Y DETECCIÓN DE ANOMALÍAS ---
+    const candIdToKey = {};
+    const rutToKeyNormalized = {};
+    tecnicosMap.forEach((tech, key) => {
+      if (tech.candidatoId) {
+        candIdToKey[String(tech.candidatoId)] = key;
+      }
+      if (tech.rut) {
+        const cleanRut = String(tech.rut).replace(/[^0-9kK]/g, '').toLowerCase();
+        if (cleanRut) rutToKeyNormalized[cleanRut] = key;
+      }
+    });
+
+    asistenciaRecords.forEach(record => {
+      let key = candIdToKey[String(record.candidatoId)];
+      if (!key && record.rut) {
+        const cleanRut = String(record.rut).replace(/[^0-9kK]/g, '').toLowerCase();
+        key = rutToKeyNormalized[cleanRut];
+      }
+      if (!key) return;
+
+      const tech = tecnicosMap.get(key);
+      const dateStr = record.fecha instanceof Date
+        ? record.fecha.toISOString().split('T')[0]
+        : String(record.fecha).split('T')[0];
+
+      if (!tech.dailyMap[dateStr]) {
+        tech.dailyMap[dateStr] = { pts: 0, orders: 0 };
+      }
+
+      tech.dailyMap[dateStr].asistencia = record.estado;
+      tech.dailyMap[dateStr].observacionAsistencia = record.observacion || '';
+    });
+
+    // Detectar anomalías
+    if (finalDesde && finalHasta) {
+      const daysCount = Math.round((finalHasta - finalDesde) / (1000 * 60 * 60 * 24)) + 1;
+      const allDates = [];
+      for (let i = 0; i < daysCount; i++) {
+        const d = new Date(finalDesde.getTime() + i * 24 * 60 * 60 * 1000);
+        allDates.push(d.toISOString().split('T')[0]);
+      }
+
+      tecnicosMap.forEach(tech => {
+        allDates.forEach(dateStr => {
+          const dayData = tech.dailyMap[dateStr];
+          if (dayData) {
+            const hasProd = (dayData.pts || 0) > 0 || (dayData.orders || 0) > 0;
+            const statusAst = dayData.asistencia;
+
+            if (hasProd && (!statusAst || statusAst === 'Ausente')) {
+              dayData.anomaly = 'Producción sin Asistencia';
+            } else if (!hasProd && (statusAst === 'Presente' || statusAst === 'Tardanza')) {
+              const dateObj = new Date(dateStr + 'T12:00:00Z');
+              const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+              if (!isWeekend) {
+                dayData.anomaly = 'Asistencia sin Producción';
+              }
+            }
+          }
+        });
+      });
+    }
+
     // ── 4. RESPONDER ──
     const configProd = await Empresa.findById(empresaId).select('configuraciones.produccion');
     const metaConfig = configProd?.configuraciones?.produccion || { metaProduccionDia: 7.5 };
 
     const tecnicos = Array.from(tecnicosMap.values())
-      .filter(t => t.ordersCount > 0)
+      .filter(t => t.ordersCount > 0 || Object.values(t.dailyMap || {}).some(d => d.asistencia))
       .sort((a, b) => b.monthTotal - a.monthTotal);
 
     res.json({
@@ -3903,8 +4321,8 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes, r_proyectos, r_vehiculos] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo empresaRef').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo').lean(),
+        ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo empresaRef cargo previsionSalud isapreNombre valorPlan monedaPlan afp pensionado tieneCargas listaCargas fechaIngreso tipoContrato').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo cargo previsionSalud isapreNombre valorPlan monedaPlan afp pensionado tieneCargas listaCargas fechaIngreso tipoContrato').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
@@ -4279,25 +4697,42 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
 // PRODUCCIÓN RAW — Descarga de base de datos filtrada por empresa/vinculados
 // =============================================================================
 app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
+  console.log("🚀 [DEBUG] Entrando en /api/bot/produccion-raw");
   try {
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role?.toLowerCase();
     const isSystemAdmin = req.user.role === 'system_admin';
-    const { desde, hasta, estado, tipo, months, weeks, proyectos, actividad } = req.query;
+    let { desde, hasta, estado, tipo, months, weeks, proyectos, actividad, clientes } = req.query;
 
     // Validar fechas
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // IDs de vinculados para filtro restrictivo
-    const tVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
-    const vinculadosList = tVinculados.map(t => String(t.idRecursoToa).trim());
+    // IDs de vinculados para filtro restrictivo (Security Layer similar a produccion-stats)
+    const Candidato = require('./platforms/rrhh/models/Candidato');
+    const [tStats, cStats] = await Promise.all([
+      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso').lean(),
+      Candidato ? Candidato.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso').lean() : Promise.resolve([])
+    ]);
 
-    let idParaFiltro = empresaId;
-    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+    const vinculadosSet = new Set();
+    const processItem = (t) => {
+      const id1 = String(t.idRecursoToa || '').trim();
+      const id2 = String(t.idRecurso || t.rut || '').trim();
+      if (id1) {
+        vinculadosSet.add(id1);
+        vinculadosSet.add(id1.replace(/^0+/, ''));
+      }
+      if (id2) {
+        vinculadosSet.add(id2);
+        vinculadosSet.add(id2.replace(/^0+/, ''));
+      }
+    };
+    tStats.forEach(processItem);
+    cStats.forEach(processItem);
+    const vinculadosList = Array.from(vinculadosSet);
 
     const filtro = isSystemAdmin ? {} : {
-      empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] },
       $or: [
         { "RECURSO": { $in: vinculadosList } },
         { "ID Recurso": { $in: vinculadosList } },
@@ -4317,16 +4752,56 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
       if (cliArr.length > 0) filtro.clienteAsociado = { $in: cliArr };
     }
 
+    console.log("🔍 [produccion-raw] filtro:", JSON.stringify(filtro));
     // ── QUERY CONSOLIDADA EN ACTIVIDADES ──
     const docs = await Actividad.find(filtro).lean();
+    console.log(`📊 [produccion-raw] Encontrados docs en DB antes de deduplicar: ${docs.length}`);
+
+    // Ordenar para priorizar "Completado" sobre suspendidas/iniciadas al deduplicar, y luego la más reciente
+    const statePriority = (state) => {
+      const s = String(state || '').toLowerCase();
+      if (s.includes('complet') || s.includes('finaliz')) return 1;
+      if (s.includes('inici') || s.includes('pendient')) return 2;
+      return 3; // suspendida, cancelada, etc.
+    };
+    docs.sort((a, b) => {
+      const pA = statePriority(a.Estado || a.estado || a.ESTADO);
+      const pB = statePriority(b.Estado || b.estado || b.ESTADO);
+      if (pA !== pB) return pA - pB;
+      const dA = a.fecha ? new Date(a.fecha).getTime() : 0;
+      const dB = b.fecha ? new Date(b.fecha).getTime() : 0;
+      return dB - dA;
+    });
+
+    const seenActivities = new Set();
+    const deduplicatedDocs = [];
+
+    for (const d of docs) {
+      const pet = String(d['Número_de_Petición'] || d['Número de Petición'] || d['Número_de_petición'] || d['NUMERO_DE_PETICION'] || d['NUMERO_PETICION'] || d['APPT_NUMBER'] || d['appt_number'] || d.peticion || d.peticionId || d.ordenId || '').trim();
+      const fallbackId = String(d['ordenId'] || d['ORDENID'] || d._id || '').trim();
+      
+      // Deduplicar por petición y día para evitar contar el mismo número en el mismo día.
+      const dateStr = d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '';
+      const uniqueKey = pet && pet.length > 2 ? `${pet}_${dateStr}` : fallbackId;
+
+      if (seenActivities.has(uniqueKey)) continue;
+      seenActivities.add(uniqueKey);
+      deduplicatedDocs.push(d);
+    }
+
+    console.log(`📊 [produccion-raw] Encontrados docs en DB después de deduplicar por día: ${deduplicatedDocs.length}`);
 
     // Obtener tarifas para re-cálculo on-the-fly si faltan puntos
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
 
-    const vinculadosSet = new Set(vinculadosList);
-    const filtered = isSystemAdmin ? docs : docs.filter(d => {
-      const idRec = d['RECURSO'] || d['RECURSO'] || '';
-      return idRec && vinculadosSet.has(idRec);
+    const getFieldVal = (doc, ...keys) => {
+      for (const k of keys) if (doc[k] !== undefined && doc[k] !== null && doc[k] !== '') return doc[k];
+      return '';
+    };
+
+    const filtered = isSystemAdmin ? deduplicatedDocs : deduplicatedDocs.filter(d => {
+      const idRec = String(getFieldVal(d, 'RECURSO', 'ID Recurso', 'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'Recurso', 'idRecursoToa', 'IDRECURSOTOA') || '').trim();
+      return idRec && (vinculadosSet.has(idRec) || vinculadosSet.has(idRec.replace(/^0+/, '')));
     });
 
     const toExcVal = (v) => {
@@ -4335,6 +4810,215 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
       if (sVal !== '' && !isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) return Number(sVal);
       return v;
     };
+
+    // Obtener la lista de peticiones únicas de los documentos filtrados
+    // Normalizadores para el algoritmo de matching
+    const normalizeVal = (val) => {
+      if (!val) return '';
+      return String(val)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "")
+        .trim();
+    };
+
+    const namesShareWords = (nameA, nameB) => {
+      if (!nameA || !nameB) return false;
+      const cleanA = String(nameA).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const cleanB = String(nameB).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      if (cleanA === cleanB) return true;
+      
+      const wordsA = cleanA.split(/[^a-z0-9]+/).filter(w => w.length > 3);
+      const wordsB = cleanB.split(/[^a-z0-9]+/).filter(w => w.length > 3);
+      
+      if (wordsA.length === 0 || wordsB.length === 0) return false;
+      
+      let common = 0;
+      for (const w of wordsA) {
+        if (wordsB.includes(w)) common++;
+      }
+      return common >= 2;
+    };
+
+    // Extraer valores únicos de las columnas clave para consultar en lote
+    const petList = Array.from(new Set(filtered.map(d => {
+      return String(getFieldVal(d, 'Número_de_Petición', 'Número de Petición', 'Número_de_petición', 'peticion') || '').trim();
+    }).filter(p => p.length > 2)));
+
+    const ordenList = Array.from(new Set(filtered.map(d => {
+      const ord = String(getFieldVal(d, 'ordenId', 'ORDENID', 'Numero orden', 'Número orden') || '').trim();
+      return ord.split('_')[0].trim();
+    }).filter(o => o.length > 2)));
+
+    const rutList = Array.from(new Set(filtered.map(d => {
+      return String(getFieldVal(d, 'RUT del cliente', 'RUT_del_cliente', 'RUT', 'rut', 'Rut') || '').trim();
+    }).filter(r => r.length > 2)));
+
+    // Mapa de historial de visitas
+    const visitsHistoryMap = {};
+
+    if (petList.length > 0 || ordenList.length > 0 || rutList.length > 0) {
+      // Buscar candidatos utilizando los campos indexados para mantener latencia baja (<200ms)
+      const queryOr = [];
+      if (petList.length > 0) {
+        queryOr.push({ "Número de Petición": { $in: petList } });
+        queryOr.push({ "Número_de_Petición": { $in: petList } });
+        queryOr.push({ "peticion": { $in: petList } });
+      }
+      if (ordenList.length > 0) {
+        queryOr.push({ "Numero orden": { $in: ordenList } });
+        queryOr.push({ "Número orden": { $in: ordenList } });
+        queryOr.push({ "ordenId": { $in: ordenList } });
+      }
+      if (rutList.length > 0) {
+        queryOr.push({ "RUT del cliente": { $in: rutList } });
+        queryOr.push({ "RUT_del_cliente": { $in: rutList } });
+      }
+
+      const visitsDocs = await Actividad.find({ $or: queryOr }).select({
+        fecha: 1,
+        Estado: 1,
+        estado: 1,
+        ESTADO: 1,
+        "Número_de_Petición": 1,
+        "Número de Petición": 1,
+        peticion: 1,
+        "Numero orden": 1,
+        "Número orden": 1,
+        ordenId: 1,
+        "RUT del cliente": 1,
+        "RUT_del_cliente": 1,
+        "Nombre Contacto": 1,
+        "Nombre_Contacto": 1,
+        Nombre: 1,
+        nombre: 1,
+        NOMBRE: 1,
+        Direccion: 1,
+        Dirección: 1,
+        direccion: 1,
+        DIRECCION: 1,
+        comuna: 1,
+        Ciudad: 1,
+        Técnico: 1,
+        tecnico: 1
+      }).lean();
+
+      // Normalizar cada candidato de la base de datos
+      const normalizedCandidates = visitsDocs.map(d => {
+        const pet = String(getFieldVal(d, 'Número_de_Petición', 'Número de Petición', 'Número_de_petición', 'peticion') || '').trim();
+        const ordId = String(getFieldVal(d, 'ordenId', 'ORDENID', 'Numero orden', 'Número orden') || '').trim();
+        const cleanOrd = ordId.split('_')[0].trim();
+
+        const street = String(getFieldVal(d, 'Direccion', 'Dirección', 'direccion', 'DIRECCION') || '').trim();
+        const comuna = String(getFieldVal(d, 'comuna', 'Comuna', 'COMUNA', 'Ciudad', 'ciudad', 'CIUDAD') || '').trim();
+
+        const rawRut = String(getFieldVal(d, 'RUT del cliente', 'RUT_del_cliente', 'RUT', 'rut', 'Rut') || '').trim();
+        const rawName = String(getFieldVal(d, 'Nombre Contacto', 'Nombre_Contacto', 'Nombre', 'nombre', 'NOMBRE') || '').trim();
+
+        return {
+          pet: pet.toLowerCase().replace(/^inc/, '').replace(/^0+/, ''),
+          orden: cleanOrd.toLowerCase().replace(/^inc/, '').replace(/^0+/, ''),
+          rut: normalizeVal(rawRut),
+          direccion: normalizeVal(street + ' ' + comuna),
+          nombre: rawName,
+          
+          // Datos para retornar
+          rawDate: d.fecha ? new Date(d.fecha) : null,
+          fecha: d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '',
+          estado: d.Estado || d.estado || d.ESTADO || 'Sin Estado',
+          tecnicoRaw: d.Técnico || d.tecnico || d.ID_Recurso || '',
+          rutRaw: rawRut,
+          direccionRaw: street + (comuna ? ', ' + comuna : ''),
+          nombreRaw: rawName,
+          ordenRaw: cleanOrd,
+          id: d._id
+        };
+      });
+
+      // Emparejar cada orden con sus visitas
+      filtered.forEach(d => {
+        const pet = String(getFieldVal(d, 'Número_de_Petición', 'Número de Petición', 'Número_de_petición', 'peticion') || '').trim();
+        const ordId = String(getFieldVal(d, 'ordenId', 'ORDENID', 'Numero orden', 'Número orden') || '').trim();
+        const cleanOrd = ordId.split('_')[0].trim();
+
+        const targetPet = pet.toLowerCase().replace(/^inc/, '').replace(/^0+/, '');
+        const targetOrden = cleanOrd.toLowerCase().replace(/^inc/, '').replace(/^0+/, '');
+        const targetRut = normalizeVal(getFieldVal(d, 'RUT del cliente', 'RUT_del_cliente', 'RUT', 'rut', 'Rut'));
+        
+        const targetStreet = String(getFieldVal(d, 'Direccion', 'Dirección', 'direccion', 'DIRECCION') || '').trim();
+        const targetComuna = String(getFieldVal(d, 'comuna', 'Comuna', 'COMUNA', 'Ciudad', 'ciudad', 'CIUDAD') || '').trim();
+        const targetDireccion = normalizeVal(targetStreet + ' ' + targetComuna);
+        
+        const targetNombre = getFieldVal(d, 'Nombre Contacto', 'Nombre_Contacto', 'Nombre', 'nombre', 'NOMBRE');
+
+        // Filtrar candidatos que coinciden por cualquiera de los criterios
+        const matches = normalizedCandidates.filter(c => {
+          // 1. Coincidencia exacta de número de identificación (cruzando Petición y Orden)
+          const p1 = c.pet;
+          const p2 = c.orden;
+          const t1 = targetPet;
+          const t2 = targetOrden;
+
+          if (p1 && t1 && p1 === t1) return true;
+          if (p2 && t2 && p2 === t2) return true;
+          if (p1 && t2 && p1 === t2) return true;
+          if (p2 && t1 && p2 === t1) return true;
+
+          // 2. Coincidencia por RUT del cliente + otros datos (Dirección o Nombre)
+          if (c.rut && targetRut && c.rut === targetRut) {
+            // Dirección similar o Nombre similar
+            if (c.direccion && targetDireccion && c.direccion.length > 4 && targetDireccion.length > 4) {
+              if (c.direccion.includes(targetDireccion) || targetDireccion.includes(c.direccion)) return true;
+            }
+            if (namesShareWords(c.nombre, targetNombre)) return true;
+          }
+
+          // 3. Fallback: Dirección similar + Nombre similar (incluso si RUT no coincide o es vacío)
+          if (c.direccion && targetDireccion && c.direccion.length > 4 && targetDireccion.length > 4) {
+            if (c.direccion.includes(targetDireccion) || targetDireccion.includes(c.direccion)) {
+              if (namesShareWords(c.nombre, targetNombre)) return true;
+            }
+          }
+
+          return false;
+        });
+
+        // Ordenar las visitas cronológicamente y por flujo de estados
+        matches.sort((a, b) => {
+          const timeA = a.rawDate ? a.rawDate.getTime() : 0;
+          const timeB = b.rawDate ? b.rawDate.getTime() : 0;
+          if (timeA !== timeB) return timeA - timeB;
+          
+          const statePriority = (state) => {
+            const s = String(state || '').toLowerCase();
+            if (s.includes('inici') || s.includes('pendient')) return 1;
+            if (s.includes('suspend') || s.includes('cancel')) return 2;
+            if (s.includes('complet') || s.includes('finaliz')) return 3;
+            return 4;
+          };
+          const prioA = statePriority(a.estado);
+          const prioB = statePriority(b.estado);
+          if (prioA !== prioB) return prioA - prioB;
+
+          return String(a.id).localeCompare(String(b.id));
+        });
+
+        // Deduplicar las visitas para no mostrar duplicados exactos en el timeline (mismo día y mismo estado)
+        const seenMatches = new Set();
+        const uniqueMatches = [];
+        for (const m of matches) {
+          const key = `${m.fecha}_${normalizeVal(m.estado)}`;
+          if (seenMatches.has(key)) continue;
+          seenMatches.add(key);
+          uniqueMatches.push(m);
+        }
+
+        // Guardar en el mapa usando como clave la petición (o en su defecto el ordenId limpio)
+        const mapKey = pet || cleanOrd;
+        visitsHistoryMap[mapKey] = uniqueMatches;
+      });
+    }
 
     const rows = filtered.map(d => {
       // ENRIQUECIMIENTO: Si el doc no tiene puntos, calculamos on-the-fly
@@ -4345,26 +5029,44 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
         if (baremos) Object.assign(d, baremos);
       }
 
+      const pet = String(d['Número_de_Petición'] || d['Número de Petición'] || d.peticion || '').trim();
+      const ordId = String(d['ordenId'] || d['Numero orden'] || '').trim();
+      const cleanOrd = ordId.split('_')[0].trim();
+      const mapKey = pet || cleanOrd;
+
+      const historyClean = (visitsHistoryMap[mapKey] || []).map(v => ({
+        fecha: v.fecha,
+        estado: v.estado,
+        tecnico: v.tecnicoRaw,
+        rut: v.rutRaw,
+        direccion: v.direccionRaw,
+        nombre: v.nombreRaw,
+        orden: v.ordenRaw
+      }));
+
       return {
         'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '',
-        'Estado': d.Estado || '',
-        'Técnico': d['Técnico'] || d.Técnico || '',
-        'RECURSO': d['RECURSO'] || d['RECURSO'] || '',
-        'N° Petición': d['Número_de_Petición'] || d['Número de Petición'] || '',
-        'Ciudad': d.Ciudad || '',
-        'Subtipo Actividad': d['Subtipo_de_Actividad'] || '',
-        'Tipo Trabajo': d['Tipo_de_Trabajo'] || '',
-        'LPU Base': d['Desc_LPU_Base'] || '',
+        'Estado': getFieldVal(d, 'Estado', 'estado', 'ESTADO') || '',
+        'Técnico': getFieldVal(d, 'Técnico', 'Técnico', 'tecnico', 'TECNICO', 'Tecnico') || '',
+        'RECURSO': String(getFieldVal(d, 'RECURSO', 'ID Recurso', 'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'Recurso', 'idRecursoToa', 'IDRECURSOTOA') || '').trim(),
+        'N° Petición': getFieldVal(d, 'Número_de_Petición', 'Número de Petición', 'Número_de_petición', 'ordenId') || '',
+        'Ciudad': getFieldVal(d, 'Ciudad', 'CIUDAD', 'comuna', 'COMUNA', 'Sede') || '',
+        'Subtipo Actividad': getFieldVal(d, 'Subtipo_de_Actividad', 'subtipo_de_actividad', 'Subtipo Actividad', 'subtipoActividad') || '',
+        'Tipo Trabajo': getFieldVal(d, 'Tipo_de_Trabajo', 'tipo_de_trabajo', 'Tipo Trabajo', 'tipoTrabajo') || '',
+        'LPU Base': getFieldVal(d, 'Desc_LPU_Base', 'desc_lpu_base', 'LPU Base', 'lpuBase') || '',
         'Pts Total': toExcVal(d.Pts_Total_Baremo || d.PTS_TOTAL_BAREMO || 0),
         'Pts Base': toExcVal(d.Pts_Actividad_Base || d.PTS_ACTIVIDAD_BASE || 0),
         'Decos': toExcVal(d.Decos_Adicionales || d.DECOS_ADICIONALES || 0),
         'Repetidores': toExcVal(d.Repetidores_WiFi || d.REPETIDORES_WIFI || 0),
+        'HistorialVisitas': historyClean,
+        'Visitas': historyClean.length || 1
       };
     });
 
     res.json({ rows, total: rows.length, desde, hasta });
   } catch (error) {
-    console.error('❌ /api/bot/produccion-raw error:', error.message);
+    console.error('❌ /api/bot/produccion-raw error:', error.stack || error.message);
+    require('fs').writeFileSync('/tmp/produccion-raw-error.log', error.stack || error.message);
     res.status(500).json({ error: error.message });
   }
 });

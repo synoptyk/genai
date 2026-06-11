@@ -139,7 +139,7 @@ export const asistenciaApi = {
     getResumenPeriodo: (month, year) => rrhhApi.get('/asistencia/resumen-periodo', { params: { month, year } }),
     create:            (data)      => rrhhApi.post('/asistencia', data),
     bulkCreate:        (registros) => rrhhApi.post('/asistencia/bulk', { registros }),
-    bulkUpsert:        (registros) => rrhhApi.post('/asistencia/bulk-upsert', { registros }),
+    bulkUpsert:        (registros, onlyInsertNew = false) => rrhhApi.post('/asistencia/bulk-upsert', { registros, onlyInsertNew }),
     update:            (id, data)  => rrhhApi.put(`/asistencia/${id}`, data),
     remove:            (id)        => rrhhApi.delete(`/asistencia/${id}`),
     syncToa:           (month, year) => rrhhApi.post('/asistencia/sync-toa', { month, year }),
@@ -223,6 +223,10 @@ export const adminApi = {
 
 export const toaApi = {
     getIdsRecurso: (busqueda) => genApi.get('/bot/ids-recurso-toa', { params: { busqueda } }),
+};
+
+export const telecomAsistenciaApi = {
+    getProduccionStats: (params) => genApi.get('/bot/produccion-stats', { params }),
 };
 
 export const bonosApi = {

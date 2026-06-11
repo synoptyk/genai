@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { plantillasApi, candidatosApi, configApi, contratosApi } from '../rrhhApi';
+import { formatRut } from '../../../utils/rutUtils';
 
 const ContratosYAnexos = () => {
     const [view, setView] = useState('selection'); // selection, designer, upload
@@ -324,7 +325,7 @@ const ContratosYAnexos = () => {
         let processed = content;
         const map = {
             'NOMBRE_COMPLETO': cand.fullName || `${cand.nombres || ''} ${cand.apellidos || ''}`.trim(),
-            'RUT': cand.rut || '',
+            'RUT': formatRut(cand.rut || ''),
             'EMAIL': cand.email || '',
             'CARGO': cand.cargo || '',
             'SUELDO_BASE': cand.sueldoBase || '0',
@@ -534,8 +535,10 @@ const ContratosYAnexos = () => {
                                                 <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[7px] font-black uppercase">{doc.tipo}</span>
                                             </td>
                                             <td className="py-6 px-4">
-                                                <p className="font-bold text-slate-600 text-xs">{doc.candidatoRef?.fullName || 'N/A'}</p>
-                                                <p className="text-[10px] text-slate-400">{doc.candidatoRef?.rut}</p>
+                                                <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight truncate">{doc.candidatoRef?.fullName || 'N/A'}</span>
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                                    RUT: {formatRut(doc.candidatoRef?.rut)}
+                                                </span>
                                             </td>
                                             <td className="py-6 px-4">
                                                 <div className="flex items-center gap-2">
@@ -796,7 +799,7 @@ const ContratosYAnexos = () => {
                                     >
                                         <option value="">Seleccione...</option>
                                         {candidates.map(c => (
-                                            <option key={c._id} value={c._id}>{c.fullName} ({c.rut})</option>
+                                            <option key={c._id} value={c._id}>{c.fullName} ({formatRut(c.rut)})</option>
                                         ))}
                                     </select>
                                 </div>
@@ -1131,7 +1134,7 @@ const ContratosYAnexos = () => {
                                     <div className="w-48 h-px bg-slate-300 mx-auto mb-6" />
                                 )}
                                 <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">{selectedCandidate?.fullName}</p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">C.I / RUT: {selectedCandidate?.rut}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">C.I / RUT: {formatRut(selectedCandidate?.rut)}</p>
                             </div>
                             <div className="text-center">
                                 <div className="w-48 h-px bg-slate-300 mx-auto mb-6" />
@@ -1204,7 +1207,7 @@ const ContratosYAnexos = () => {
                                     <option value="">Seleccione a quién pertenece el documento...</option>
                                     {candidates.map(c => (
                                         <option key={c._id} value={c._id}>
-                                            {c.fullName || (c.nombres && c.apellidos ? `${c.nombres} ${c.apellidos}` : c.nombre || 'Sin Nombre')} ({c.rut})
+                                            {c.fullName || (c.nombres && c.apellidos ? `${c.nombres} ${c.apellidos}` : c.nombre || 'Sin Nombre')} ({formatRut(c.rut)})
                                         </option>
                                     ))}
                                 </select>

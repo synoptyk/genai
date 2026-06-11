@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Home, LogOut, Menu, Shield, Bell } from 'lucide-react';
+import { ChevronLeft, Home, LogOut, Menu, Shield, Bell, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 import SecurityModal from '../platforms/auth/SecurityModal';
 import NotificationsBell from './NotificationsBell';
@@ -53,6 +53,26 @@ const AppHeader = ({ onMenuClick }) => {
     const location = useLocation();
     const { user, logout, auditCompany } = useAuth();
     const [showSecurity, setShowSecurity] = useState(false);
+    const [darkMode, setDarkMode] = useState(() => {
+        if (typeof document !== 'undefined') {
+            return document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
+        }
+        return false;
+    });
+
+    useEffect(() => {
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        }
+    }, [darkMode]);
+
+    const toggleDarkMode = () => {
+        setDarkMode(!darkMode);
+    };
 
     const pageLabel = ROUTES_LABELS[location.pathname] || 'Plataforma Corporativa';
     const isHome = location.pathname === '/dashboard' || location.pathname === '/';

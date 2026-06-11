@@ -71,9 +71,12 @@ const PersonalActivo = () => {
         if (!e.idRecursoToa || e.idRecursoToa.trim() === '') return false;
 
         const term = searchTerm.toLowerCase();
+        const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
+        const cleanRut = e.rut ? e.rut.replace(/[^0-9kK]/gi, '') : '';
+
         const search = !searchTerm ||
             e.fullName?.toLowerCase().includes(term) ||
-            e.rut?.includes(term) ||
+            (cleanSearch && cleanRut.includes(cleanSearch)) ||
             e.position?.toLowerCase().includes(term);
         const matchCeco = !filterCeco || e.ceco === filterCeco;
         const matchProj = !filterProj || e.projectName === filterProj || (e.projectId?.toString() === filterProj);
@@ -174,8 +177,10 @@ const PersonalActivo = () => {
                                         }
                                     </div>
                                     <div className="min-w-0">
-                                        <h4 className="font-black text-slate-900 uppercase tracking-tight text-sm truncate">{emp.fullName}</h4>
-                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{emp.position}</p>
+                                        <h4 className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight truncate">{emp.fullName}</h4>
+                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                            RUT: {emp.rut ? formatRut(emp.rut) : 'N/D'}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -230,8 +235,8 @@ const PersonalActivo = () => {
                                         <span className="text-slate-700 font-bold">{emp.contractType || '—'}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
-                                        <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">RUT</span>
-                                        <span className="text-slate-500 font-mono text-[9px]">{formatRut(emp.rut)}</span>
+                                        <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Cargo</span>
+                                        <span className="text-slate-500 font-bold text-[9px] uppercase tracking-wider">{emp.position || '—'}</span>
                                     </div>
                                 </div>
 

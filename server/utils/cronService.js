@@ -278,6 +278,24 @@ const processExecutiveSummaries = async () => {
     }
 };
 
+/**
+ * 4. Auditoría Diaria de Anomalías para todas las empresas (Z-Score y Asistencia)
+ */
+const runSystemAnomalyAudit = async () => {
+    console.log('⏰ CRON: Iniciando auditoría diaria de anomalías (Z-Score y Asistencia)...');
+    try {
+        const { runDailyAnomalyCheck } = require('./anomaliesService');
+        const empresas = await Empresa.find({}).select('_id nombre').lean();
+        for (const emp of empresas) {
+            console.log(`📊 CRON: Ejecutando auditoría para ${emp.nombre} (${emp._id})`);
+            await runDailyAnomalyCheck(emp._id);
+        }
+        console.log('✅ CRON: Auditoría de anomalías completada con éxito.');
+    } catch (err) {
+        console.error('❌ Error en cron runSystemAnomalyAudit:', err.message);
+    }
+};
+
 // Registro de Tareas
 const initCron = () => {
     // ⏸️ SUSPENDIDO TEMPORALMENTE — reactivar cuando se indique
@@ -300,7 +318,19 @@ const initCron = () => {
     //     timezone: "America/Santiago"
     // });
 
+    // 4. Auditoría Diaria de Anomalías (Diario 23:45)
+    // cron.schedule('45 23 * * *', runSystemAnomalyAudit, {
+    //     scheduled: true,
+    //     timezone: "America/Santiago"
+    // });
+
     console.log('⏸️ Servicios CRON suspendidos temporalmente.');
 };
 
-module.exports = { initCron, checkExpiringDocuments, sendMonthlyExecutiveReport, processExecutiveSummaries };
+module.exports = { 
+    initCron, 
+    checkExpiringDocuments, 
+    sendMonthlyExecutiveReport, 
+    processExecutiveSummaries,
+    runSystemAnomalyAudit
+};

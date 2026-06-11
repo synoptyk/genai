@@ -147,10 +147,7 @@ const ProduccionDashboard = ({ dashboardData, metaConfig = {}, stats = {}, tecni
 
   const shortenName = (name) => {
     if (!name) return '';
-    const parts = name.split(' ').filter(Boolean);
-    if (parts.length <= 1) return name;
-    if (parts.length >= 4) return `${parts[0]} ${parts[2]}`;
-    return `${parts[0]} ${parts[1]}`;
+    return name;
   };
 
   const top10Techs = techRanking.slice(0, 10).map(t => ({ ...t, name: shortenName(t.name) }));

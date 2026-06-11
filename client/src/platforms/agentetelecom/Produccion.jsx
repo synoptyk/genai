@@ -6,7 +6,7 @@ import { proyectosApi } from '../rrhh/rrhhApi';
 import {
   RefreshCw, Filter, Download, Presentation, Layers,
   BarChart3, Trophy, Activity, Calendar, Users, Target,
-  ChevronDown, Search, FileSpreadsheet, ListFilter, ShieldAlert
+  ChevronDown, Search, FileSpreadsheet, ListFilter, ShieldAlert, Network
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -21,6 +21,7 @@ import DashboardSeguimientoDia from './components/DashboardSeguimientoDia';
 import ProduccionRanking from './components/ProduccionRanking';
 import ProduccionAgenda from './components/ProduccionAgenda';
 import GarantiasTab from './components/GarantiasTab';
+import AnalisisAsignacionTab from './components/AnalisisAsignacionTab';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const toInputDate = (d) => {
@@ -50,6 +51,7 @@ const TABS = [
   { id: 'proyectos',    label: 'Proyectos',       icon: Target },
   { id: 'zonas',        label: 'Zonas',           icon: Users },
   { id: 'garantias',    label: 'Garantías',       icon: ShieldAlert },
+  { id: 'asignacion',   label: 'Análisis Asignación', icon: Network },
 ];
 
 // ─── Meses disponibles ────────────────────────────────────────────────────────
@@ -633,6 +635,11 @@ export default function Produccion() {
             selectedTecnicos={selectedTecnicos}
             actividadFilter={actividadFilter}
           />
+        )}
+
+        {/* Análisis de Asignación */}
+        {activeTab === 'asignacion' && (
+          <AnalisisAsignacionTab tecnicos={serverData?.tecnicos || []} />
         )}
       </div>
 

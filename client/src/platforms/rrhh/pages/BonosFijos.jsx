@@ -267,8 +267,8 @@ const BonosFijos = () => {
                                                 {item.emp.fullName?.charAt(0).toUpperCase()}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[11px] font-black text-slate-900 uppercase truncate">{item.emp.fullName}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{item.emp.rut} · {item.emp.position} · {item.proj?.centroCosto}</p>
+                                                <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight block leading-tight">{item.emp.fullName}</span>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">{item.emp.rut} · {item.emp.position} · {item.proj?.centroCosto}</p>
                                             </div>
                                             
                                             <div className="flex items-center gap-6">

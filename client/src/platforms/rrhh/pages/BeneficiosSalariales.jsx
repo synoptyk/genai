@@ -9,6 +9,7 @@ import { candidatosApi, proyectosApi, beneficiosApi } from '../rrhhApi';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../auth/AuthContext';
 import BulkUploadModal from '../../../components/BulkUploadModal';
+import { formatRut } from '../../../utils/rutUtils';
 
 const fmt = (n) => `$${Math.round(n || 0).toLocaleString('es-CL')}`;
 
@@ -117,7 +118,9 @@ const Beneficios = () => {
                 return false;
             }
             const term = searchTerm.toLowerCase();
-            const matchSearch = !searchTerm || e.fullName?.toLowerCase().includes(term) || e.rut?.includes(term);
+            const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
+            const cleanRut = e.rut ? e.rut.replace(/[^0-9kK]/gi, '') : '';
+            const matchSearch = !searchTerm || e.fullName?.toLowerCase().includes(term) || (cleanSearch && cleanRut.includes(cleanSearch));
             const mappedStatus = ['En Terreno', 'Listo Terreno', 'EN TERR', 'Contratado'].includes(e.status) ? 'Activo' : 
                                  ['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja'].includes(e.status) ? 'De Baja' : 'Todos';
             const matchStatus = filterStatus === 'Todos' || mappedStatus === filterStatus || e.status === filterStatus;
@@ -405,7 +408,7 @@ const Beneficios = () => {
                                         className="w-full flex items-center gap-4 px-8 py-5 hover:bg-slate-50/80 transition-colors text-left"
                                     >
                                         <div className="w-10 h-10 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 font-black text-sm flex-shrink-0">
-                                            {emp.fullName?.charAt(0).toUpperCase()}
+                                            {emp.profilePic ? <img src={emp.profilePic} alt="" className="w-full h-full object-cover rounded-2xl" /> : (emp.fullName?.charAt(0).toUpperCase() || <User size={14} />)}
                                         </div>
                                         <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                                             <div>
@@ -413,7 +416,7 @@ const Beneficios = () => {
                                                     <p className="text-[11px] font-black text-slate-900 uppercase truncate">{emp.fullName}</p>
                                                     <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest ${emp.status === 'Contratado' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{emp.status}</span>
                                                 </div>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{emp.rut} · {proj?.centroCosto || emp.ceco || 'Sin CECO'}</p>
+                                                <p className="text-[9px] font-mono text-slate-400 uppercase tracking-wider">{formatRut(emp.rut)} · {proj?.centroCosto || emp.ceco || 'Sin CECO'}</p>
                                             </div>
                                             
                                             <div className="hidden md:block">

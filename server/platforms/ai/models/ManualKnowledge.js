@@ -8,6 +8,7 @@ const ManualKnowledgeSchema = new mongoose.Schema({
   summary: { type: String, default: '' },
   content: { type: String, required: true },
   tokens: [{ type: String, index: true }],
+  embedding: { type: [Number], default: undefined },
   coverageTags: [{ type: String }],
   active: { type: Boolean, default: true, index: true },
   version: { type: Number, default: 1 },

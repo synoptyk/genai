@@ -227,11 +227,12 @@ router.post('/bulk', protect, async (req, res) => {
 // ─── POST /asistencia/bulk-upsert ─ Inserción/actualización masiva (sin duplicar) ─
 router.post('/bulk-upsert', protect, async (req, res) => {
     try {
-        const { registros } = req.body;
+        const { registros, onlyInsertNew } = req.body;
         const ops = registros.map(r => {
             // Normalizar fecha a medianoche UTC — consistente con el índice único
             const fechaDate = new Date(r.fecha);
             fechaDate.setUTCHours(0, 0, 0, 0);
+            const updateDoc = { ...r, fecha: fechaDate, empresaRef: req.user.empresaRef };
             return {
                 updateOne: {
                     filter: {
@@ -239,7 +240,7 @@ router.post('/bulk-upsert', protect, async (req, res) => {
                         candidatoId: r.candidatoId,
                         fecha:       fechaDate,          // exacto, no rango — el índice es por fecha UTC
                     },
-                    update: { $set: { ...r, fecha: fechaDate, empresaRef: req.user.empresaRef } },
+                    update: onlyInsertNew ? { $setOnInsert: updateDoc } : { $set: updateDoc },
                     upsert: true,
                 }
             };

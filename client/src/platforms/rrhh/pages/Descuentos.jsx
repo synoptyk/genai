@@ -9,6 +9,7 @@ import { candidatosApi, proyectosApi, descuentosApi } from '../rrhhApi';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../auth/AuthContext';
 import BulkUploadModal from '../../../components/BulkUploadModal';
+import { formatRut } from '../../../utils/rutUtils';
 
 const fmt = (n) => `$${Math.round(n || 0).toLocaleString('es-CL')}`;
 
@@ -124,7 +125,9 @@ const Descuentos = () => {
             }
 
             const term = searchTerm.toLowerCase();
-            const matchSearch = !searchTerm || e.fullName?.toLowerCase().includes(term) || e.rut?.includes(term);
+            const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
+            const cleanRut = e.rut ? e.rut.replace(/[^0-9kK]/gi, '') : '';
+            const matchSearch = !searchTerm || e.fullName?.toLowerCase().includes(term) || (cleanSearch && cleanRut.includes(cleanSearch));
             const mappedStatus = ['En Terreno', 'Listo Terreno', 'EN TERR', 'Contratado'].includes(e.status) ? 'Activo' : 
                                  ['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja'].includes(e.status) ? 'De Baja' : 'Todos';
             const matchStatus = filterStatus === 'Todos' || mappedStatus === filterStatus || e.status === filterStatus;
@@ -418,10 +421,12 @@ const Descuentos = () => {
                                         <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-[11px] font-black text-slate-900 uppercase truncate">{emp.fullName}</p>
-                                                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest ${emp.status === 'Contratado' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{emp.status}</span>
+                                                    <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight block leading-tight">{emp.fullName}</span>
+                                                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-widest shrink-0 ${emp.status === 'Contratado' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{emp.status}</span>
                                                 </div>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{emp.rut} · {proj?.centroCosto || emp.ceco || 'Sin CECO'}</p>
+                                                <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">
+                                                    RUT: {emp.rut ? formatRut(emp.rut) : 'N/A'} · {proj?.centroCosto || emp.ceco || 'Sin CECO'}
+                                                </p>
                                             </div>
                                             
                                             <div className="hidden md:block">

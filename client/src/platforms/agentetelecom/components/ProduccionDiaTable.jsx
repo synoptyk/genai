@@ -49,7 +49,7 @@ const ProduccionDiaTable = ({
           if (isHorasRep) return acc + (d.minReparacion || 0);
           return acc + (d.orders || d.count || 0);
         }, 0);
-        return techTotal > 0;
+        return techTotal > 0 || Object.values(t.dailyMap || {}).some(d => d && d.asistencia);
       })
       .sort((a, b) => {
         const totalA = Object.values(a.dailyMap || {}).reduce((acc, d) => {
@@ -76,10 +76,7 @@ const ProduccionDiaTable = ({
 
   const shortenName = (name) => {
     if (!name) return '';
-    const parts = name.split(' ').filter(Boolean);
-    if (parts.length <= 1) return name;
-    if (parts.length >= 4) return `${parts[0]} ${parts[2]}`;
-    return `${parts[0]} ${parts[1]}`;
+    return name;
   };
 
   const getDayName = (d) => {
@@ -321,52 +318,92 @@ const ProduccionDiaTable = ({
                  const proyeccion = avgProd * (metaConfig?.diasLaboralesMes || 22);
                  return (
                    <tr key={t.idUnique || t._id} className="h-6 border-b border-white/5 hover:bg-white/5 p-0 m-0">
-                     <td className="sticky left-0 z-20 bg-slate-900 border-r border-slate-800 text-[8px] font-black text-slate-200 uppercase px-1 truncate p-0 m-0">{shortenName(t.fullName || t.name)}</td>
+                     <td className="sticky left-0 z-20 bg-slate-900 border-r border-slate-800 uppercase px-1 p-0 m-0 overflow-hidden">
+                       <div className="flex flex-col leading-none justify-center h-full gap-0.5">
+                         <span className="text-[7px] font-black text-slate-200 truncate" title={t.fullName || t.name}>{shortenName(t.fullName || t.name)}</span>
+                         <span className="text-[7px] font-black text-slate-400 font-mono truncate uppercase tracking-tight" title={t.rut}>{t.rut || 'SIN RUT'}</span>
+                       </div>
+                     </td>
                      <td className="sticky left-[110px] z-20 bg-slate-900 border-r border-slate-800 text-indigo-400 font-mono text-[8px] font-black px-1 p-0 m-0">{t.idRecursoToa || '—'}</td>
                      <td className="sticky left-[150px] z-20 bg-slate-900 border-r border-slate-800 text-slate-500 uppercase text-[7px] font-black px-1 truncate p-0 m-0">{t.proyecto || '—'}</td>
                      <td className="sticky left-[220px] z-20 bg-slate-900 border-r-4 border-r-white text-center text-indigo-300 text-[8px] font-black p-0 m-0">{t.orders || 0}</td>
                      {days.map(d => {
-                       const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                       const dayData = t.dailyMap?.[dateKey];
-                       let val = 0, comp = 0, noReal = 0;
-                       if (isPts) {
-                         val = dayData?.pts || 0;
-                       } else if (isAsig) {
-                         comp = dayData?.completadas || 0;
-                         noReal = dayData?.noRealizadas || 0;
-                         val = comp + noReal;
-                       } else {
-                         val = dayData?.orders || dayData?.count || 0;
-                       }
-                       const isSunday = new Date(Date.UTC(year, month, d)).getUTCDay() === 0;
-                       const isHoliday = holidays.includes(dateKey);
-                       let content = null, style = "";
-                       if (val > 0) {
-                         if (isAsig) {
-                           content = (
-                             <div className="w-full h-full flex flex-col items-center justify-center relative group p-0 m-0 leading-none">
-                               <div className={`font-black text-[9px] ${comp > 0 ? 'text-fuchsia-400' : 'text-slate-300'}`}>{val}</div>
-                               <div className="flex gap-px text-[5px] mt-[1px] opacity-80">
-                                 {comp > 0 && <span className="text-emerald-400 bg-emerald-950/40 px-0.5 rounded-sm">C{comp}</span>}
-                                 {noReal > 0 && <span className="text-rose-400 bg-rose-950/40 px-0.5 rounded-sm">NR{noReal}</span>}
-                               </div>
-                             </div>
-                           );
-                         } else {
-                           content = <div className={`w-full h-full flex items-center justify-center font-black text-[8px] ${isPts ? colorScaleProduccion(val, meta) : colorScaleOrders(val)}`}>{isPts ? val.toFixed(1) : val}</div>;
-                         }
-                       } else if (isSunday) {
-                         content = <span className="text-[7px] font-black text-indigo-400/50">LIB</span>;
-                         style = "bg-indigo-950/20";
-                       } else if (isHoliday) {
-                         content = <span className="text-[7px] font-black text-amber-500/50">FER</span>;
-                         style = "bg-amber-950/20";
-                       } else {
-                         content = <span className="text-[6px] font-black text-rose-500/20">SP</span>;
-                       }
+                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        const dayData = t.dailyMap?.[dateKey];
+                        let val = 0, comp = 0, noReal = 0;
+                        if (isPts) {
+                          val = dayData?.pts || 0;
+                        } else if (isAsig) {
+                          comp = dayData?.completadas || 0;
+                          noReal = dayData?.noRealizadas || 0;
+                          val = comp + noReal;
+                        } else {
+                          val = dayData?.orders || dayData?.count || 0;
+                        }
+                        const isSunday = new Date(Date.UTC(year, month, d)).getUTCDay() === 0;
+                        const isHoliday = holidays.includes(dateKey);
+                        let content = null, style = "";
+                        
+                        const ast = dayData?.asistencia;
+                        const anomaly = dayData?.anomaly;
+
+                        if (val > 0) {
+                          if (isAsig) {
+                            content = (
+                              <div className="w-full h-full flex flex-col items-center justify-center relative p-0 m-0 leading-none">
+                                <div className={`font-black text-[9px] ${comp > 0 ? 'text-fuchsia-400' : 'text-slate-300'}`}>{val}</div>
+                                <div className="flex gap-px text-[5px] mt-[1px] opacity-80">
+                                  {comp > 0 && <span className="text-emerald-400 bg-emerald-950/40 px-0.5 rounded-sm">C{comp}</span>}
+                                  {noReal > 0 && <span className="text-rose-400 bg-rose-950/40 px-0.5 rounded-sm">NR{noReal}</span>}
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            content = <div className={`w-full h-full flex items-center justify-center font-black text-[8px] ${isPts ? colorScaleProduccion(val, meta) : colorScaleOrders(val)}`}>{isPts ? val.toFixed(1) : val}</div>;
+                          }
+                        } else if (ast === 'Ausente') {
+                          content = <span className="text-[7px] font-black text-rose-500">AUS</span>;
+                          style = "bg-rose-950/40";
+                        } else if (ast === 'Licencia') {
+                          content = <span className="text-[7px] font-black text-blue-400">LIC</span>;
+                          style = "bg-blue-950/40";
+                        } else if (ast === 'Vacaciones') {
+                          content = <span className="text-[7px] font-black text-emerald-400">VAC</span>;
+                          style = "bg-emerald-950/40";
+                        } else if (ast === 'Permiso') {
+                          content = <span className="text-[7px] font-black text-amber-400">PER</span>;
+                          style = "bg-amber-950/40";
+                        } else if (ast === 'Presente' || ast === 'Tardanza') {
+                          content = <span className="text-[7px] font-black text-amber-400/80">PRES</span>;
+                          style = "bg-amber-950/20";
+                        } else if (isSunday) {
+                          content = <span className="text-[7px] font-black text-indigo-400/50">LIB</span>;
+                          style = "bg-indigo-950/20";
+                        } else if (isHoliday) {
+                          content = <span className="text-[7px] font-black text-amber-500/50">FER</span>;
+                          style = "bg-amber-950/20";
+                        } else {
+                          content = <span className="text-[6px] font-black text-rose-500/20">SP</span>;
+                        }
+
+                        let cellContent = content;
+                        let anomalyClass = "";
+                        if (anomaly) {
+                          const borderCol = anomaly === 'Producción sin Asistencia' ? 'border-rose-500/80 bg-rose-500/10' : 'border-amber-500/80 bg-amber-500/10';
+                          anomalyClass = `border ${borderCol}`;
+                          cellContent = (
+                            <div className="relative group flex items-center justify-center w-full h-full">
+                              {content}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-950 text-white text-[8px] font-black uppercase tracking-tight rounded-lg px-2 py-1 z-[60] whitespace-nowrap shadow-2xl border border-slate-700">
+                                ⚠️ {anomaly}
+                              </div>
+                            </div>
+                          );
+                        }
+
                         const { isNewWeek } = getWeekInfo(d);
                         return (
-                          <td key={d} className={`p-0 m-0 text-center border-r border-white/5 ${style || getWeekStyle(d)} ${isNewWeek ? 'border-l-2 border-l-white/20' : ''} h-6`}>{content}</td>
+                          <td key={d} className={`p-0 m-0 text-center border-r border-white/5 ${style || getWeekStyle(d)} ${anomalyClass} ${isNewWeek ? 'border-l-2 border-l-white/20' : ''} h-6`}>{cellContent}</td>
                         );
                      })}
                                            {isAsig ? (

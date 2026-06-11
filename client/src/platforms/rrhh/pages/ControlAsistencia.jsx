@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Fingerprint, Users, CheckCircle2, XCircle, Clock, Loader2, Plus, Calendar,
     BarChart3, Download, RefreshCw, ChevronLeft, ChevronRight, Search,
     AlertCircle, Zap, Check, X, Edit3, Trash2, Filter, ClipboardList,
     TrendingUp, TrendingDown, Timer, Star, Award, AlertTriangle,
     Copy, CheckSquare, Square, ChevronDown, ChevronUp, ArrowRight,
-    FileText, Upload, Save, Shield, Moon, Sun, Briefcase
+    FileText, Upload, Save, Shield, Moon, Sun, Briefcase, User
 } from 'lucide-react';
-import { asistenciaApi, candidatosApi, turnosApi } from '../rrhhApi';
+import { asistenciaApi, candidatosApi, turnosApi, telecomAsistenciaApi } from '../rrhhApi';
 import * as XLSX from 'xlsx';
 import { MapPin } from 'lucide-react';
+import { formatRut } from '../../../utils/rutUtils';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const ESTADOS = ['Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso', 'Vacaciones', 'Feriado', 'Libre', 'Finiquitado'];
@@ -188,6 +189,9 @@ const ControlAsistencia = () => {
     // Sync producción
     const [syncModal, setSyncModal] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [autoSyncing, setAutoSyncing] = useState(false);
+    // Tracks which periods have already been auto-synced to avoid re-running on every render
+    const autoSyncedRef = useRef(new Set());
 
     // Feriados personalizados (localStorage)
     const [feriadosCustom, setFeriadosCustom] = useState(() => {
@@ -196,8 +200,9 @@ const ControlAsistencia = () => {
     const [showFeriadosPanel, setShowFeriadosPanel] = useState(false);
     const [newFeriado, setNewFeriado] = useState('');
 
-    // Menu marcado rápido por fila
+    // Menu marcado rápido por fila o columna
     const [activeRowMenu, setActiveRowMenu] = useState(null); // col._id
+    const [activeColMenu, setActiveColMenu] = useState(null); // day
 
     // FASE 4: Filtros Cliente/Proyecto
     const [filtroCliente, setFiltroCliente] = useState('TODOS');
@@ -252,6 +257,25 @@ const ControlAsistencia = () => {
 
     useEffect(() => { fetchMes(); }, [fetchMes]);
     useEffect(() => { fetchBase(); }, [fetchBase]);
+
+    // ── Auto-sync producción ───────────────────────────────────────────────────
+    // Reset auto-sync flag when period changes so the new period gets synced
+    useEffect(() => {
+        autoSyncedRef.current.delete(period);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [period]);
+
+    // Trigger auto-sync once base data has loaded (or after period changes)
+    useEffect(() => {
+        if (loading) return;                               // still fetching attendance
+        if (colaboradores.length === 0) return;            // no employees yet
+        if (syncing || autoSyncing) return;                // already syncing
+        if (autoSyncedRef.current.has(period)) return;     // already done for this period
+        autoSyncedRef.current.add(period);
+        // Defer one tick so colaboradoresFiltrados is computed
+        setTimeout(() => handleSyncProduccion(true), 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading, period, colaboradores.length]);
 
     // ── Maps & computed ───────────────────────────────────────────────────────
     // turnoMap: candidatoId → turno
@@ -331,19 +355,23 @@ const ControlAsistencia = () => {
 
         // 1. Filtrar por Estado (UI)
         if (filterStatus === 'Operativo') {
-            list = list.filter(c => c.status === 'Contratado');
+            list = list.filter(c => ['Contratado', 'Activo', 'En Terreno', 'ACTIVO'].includes(c.status));
         } else if (filterStatus === 'Finiquitado') {
-            list = list.filter(c => c.status === 'Finiquitado');
+            list = list.filter(c => ['Finiquitado', 'De Baja', 'Retirado'].includes(c.status));
         }
 
         // 2. Filtro por Búsqueda
         if (searchQ) {
             const q = searchQ.toLowerCase();
-            list = list.filter(c =>
-                c.fullName?.toLowerCase().includes(q) ||
-                c.rut?.includes(q) ||
-                c.position?.toLowerCase().includes(q)
-            );
+            const cleanSearch = searchQ.replace(/[^0-9kK]/gi, '');
+            list = list.filter(c => {
+                const cleanRut = (c.rut || '').replace(/[^0-9kK]/gi, '');
+                return (
+                    c.fullName?.toLowerCase().includes(q) ||
+                    (cleanSearch && cleanRut.includes(cleanSearch)) ||
+                    c.position?.toLowerCase().includes(q)
+                );
+            });
         }
 
         // 3. Filtro por Turno
@@ -547,8 +575,8 @@ const ControlAsistencia = () => {
         finally { setSaving(false); }
     };
 
-    // Bulk: marcar toda la semana desde turno para los colaboradores seleccionados
-    const handleBulkSemana = async () => {
+    // Bulk: marcar todo el mes desde turno para los colaboradores seleccionados
+    const handleBulkAutoTurnos = async () => {
         const [y, m] = period.split('-').map(Number);
         const registros = [];
         colaboradoresFiltrados
@@ -592,43 +620,201 @@ const ControlAsistencia = () => {
         finally { setSaving(false); }
     };
 
-    // Auto-sync desde Producción TOA (endpoint original)
-    const handleSyncTOA = async () => {
-        if (!window.confirm(`¿Sincronizar asistencia automática desde producción TOA para ${period}? Esto marcará Presente/Ausente según si el técnico generó producción.`)) return;
-        setSaving(true);
+    // ── Sincronización con Producción Telecom (auto + manual) ────────────────
+    // isAuto=true → silenciosa (no muestra alertas, no abre/cierra modal)
+    // isAuto=false → flujo manual (modal confirmación, alertas de resultado)
+    const handleSyncProduccion = async (isAuto = false) => {
+        if (!isAuto) setSyncModal(false);
+        if (isAuto) setAutoSyncing(true);
+        else setSyncing(true);
         try {
             const [y, m] = period.split('-').map(Number);
-            const res = await asistenciaApi.syncToa(m, y);
-            fetchMes();
-            showAlert(res.data.mensaje || 'Sincronización completa');
-        } catch (e) {
-            console.error(e);
-            showAlert('Error en sincronización automática TOA', 'error');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    // Auto-sync desde Producción (endpoint mejorado con NC, feriados, domingos)
-    const handleSyncProduccion = async () => {
-        setSyncModal(false);
-        setSyncing(true);
-        try {
-            const [y, m] = period.split('-').map(Number);
-            const res = await fetch('/api/rrhh/asistencia/sync-from-produccion', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ month: m, year: y })
+            // 1. Cargar producción de todo el mes
+            const res = await telecomAsistenciaApi.getProduccionStats({ months: period });
+            const prodData = res.data?.tecnicos || res.data?.data || [];
+            
+            console.log("DEBUG ADVANCED SYNC: prodData returned", prodData.length, "technicians.");
+            
+            // Mapear días con producción por RUT / TOA ID
+            const rutProdMap = {};
+            prodData.forEach(t => {
+                const cleanRut = (t.rut || '').replace(/[^0-9kK]/g, '');
+                if (cleanRut && t.dailyMap) {
+                    if (!rutProdMap[cleanRut]) rutProdMap[cleanRut] = new Set();
+                    Object.entries(t.dailyMap).forEach(([dateStr, daily]) => {
+                        if (daily.orders > 0 || daily.ptsTotal > 0 || daily.ptsCompletados > 0) {
+                            rutProdMap[cleanRut].add(dateStr);
+                        }
+                    });
+                } else if (!cleanRut && t.idRecursoToa && t.dailyMap) {
+                    const toaId = String(t.idRecursoToa).trim();
+                    if (!rutProdMap[`TOA_${toaId}`]) rutProdMap[`TOA_${toaId}`] = new Set();
+                    Object.entries(t.dailyMap).forEach(([dateStr, daily]) => {
+                        if (daily.orders > 0 || daily.ptsTotal > 0 || daily.ptsCompletados > 0) {
+                            rutProdMap[`TOA_${toaId}`].add(dateStr);
+                        }
+                    });
+                }
             });
-            if (!res.ok) throw new Error('Error en sincronización');
-            const data = await res.json();
+
+            const nuevosRegistros = [];
+            const mapDia = { Lunes: 1, Martes: 2, Miércoles: 3, Jueves: 4, Viernes: 5, Sábado: 6, Domingo: 0 };
+
+            colaboradoresFiltrados.forEach(col => {
+                const cRut = (col.rut || '').replace(/[^0-9kK]/g, '');
+                const cToa = String(col.idRecursoToa || col.idRecurso || '').trim();
+                
+                let prodDays = null;
+                if (cRut && rutProdMap[cRut]) {
+                    prodDays = rutProdMap[cRut];
+                } else if (cToa && rutProdMap[`TOA_${cToa}`]) {
+                    prodDays = rutProdMap[`TOA_${cToa}`];
+                }
+
+                const turno = turnoMap[col._id?.toString()];
+                const diasTurno = new Set(turno?.diasSemana || []);
+                
+                // Fechas límite de contrato
+                // IMPORTANTE: contractStartDate es la fecha de contratación (para saber si aún no estaba contratado)
+                const contraStart = col.contractStartDate || col.hiring?.contractStartDate || col.fechaIngreso || null;
+                // IMPORTANTE: contractEndDate puede ser el fin de un plazo fijo RENOVADO — NO lo usamos como finiquito
+                // Solo fechaFiniquito indica un finiquito real. Si el empleado está en status Finiquitado,
+                // entonces sí usamos contractEndDate como fecha de corte.
+                const isReallyFiniquitado = col.status === 'Finiquitado' || col.estado === 'Finiquitado';
+                const contraEnd = col.fechaFiniquito || (isReallyFiniquitado ? col.contractEndDate : null) || null;
+
+                diasArray.forEach(d => {
+                    const dateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const fechaD = new Date(`${dateStr}T12:00:00`);
+                    
+                    // Si la fecha es a futuro, no sincronizamos
+                    if (dateStr > todayStr) return;
+
+                    // Verificar si ya existe registro en la base de datos para este colaborador y día
+                    const existing = registrosMes.find(r => {
+                        const rCandId = r.candidatoId?._id?.toString() || r.candidatoId?.toString();
+                        return rCandId === col._id?.toString() && r.fecha.startsWith(dateStr);
+                    });
+
+                    // Si ya existe registro, lo respetamos — salvo en re-sync manual cuando el
+                    // registro fue creado automáticamente como 'Finiquitado' y el empleado NO está realmente finiquitado.
+                    if (existing) {
+                        const esFiniquitadoMalCreado = !isAuto
+                            && existing.estado === 'Finiquitado'
+                            && !existing.minutosTardanza
+                            && !existing.horasExtra
+                            && !isReallyFiniquitado;
+                        if (!esFiniquitadoMalCreado) return;
+                        // Continuar para recalcular y actualizar el registro incorrecto
+                    }
+
+                    // 1. Verificar si es antes del inicio de contrato
+                    if (contraStart) {
+                        const dtInicio = new Date(contraStart);
+                        dtInicio.setUTCHours(0,0,0,0);
+                        const dtActual = new Date(Date.UTC(periodYear, periodMonth - 1, d));
+                        if (dtActual < dtInicio) {
+                            // Se registra como Finiquitado/NC para que no sume asistencia
+                            nuevosRegistros.push({
+                                candidatoId: col._id,
+                                fecha: dateStr,
+                                estado: 'Finiquitado',
+                                descuentaDia: true,
+                                minutosTardanza: 0,
+                                horasExtra: 0,
+                            });
+                            return;
+                        }
+                    }
+
+                    // 2. Verificar si es después del finiquito / fin de contrato
+                    if (contraEnd) {
+                        const dtFin = new Date(contraEnd);
+                        dtFin.setUTCHours(23,59,59,999);
+                        const dtActual = new Date(Date.UTC(periodYear, periodMonth - 1, d));
+                        if (dtActual > dtFin) {
+                            nuevosRegistros.push({
+                                candidatoId: col._id,
+                                fecha: dateStr,
+                                estado: 'Finiquitado',
+                                descuentaDia: true,
+                                minutosTardanza: 0,
+                                horasExtra: 0,
+                            });
+                            return;
+                        }
+                    }
+
+                    // 3. Verificar si el técnico tuvo producción
+                    const tieneProd = prodDays && prodDays.has(dateStr);
+
+                    if (tieneProd) {
+                        nuevosRegistros.push({
+                            candidatoId: col._id,
+                            turnoId: turno?._id || undefined,
+                            fecha: dateStr,
+                            horaEntrada: turno?.horaEntrada || '',
+                            horaSalida: turno?.horaSalida || '',
+                            estado: 'Presente',
+                            minutosTardanza: 0,
+                            horasExtra: 0,
+                        });
+                        return;
+                    }
+
+                    // Si es hoy y no tiene producción, no marcamos ausencia aún
+                    const esHoy = dateStr === todayStr;
+                    if (esHoy) return;
+
+                    // 4. Si NO tuvo producción (y es un día pasado), validamos si debía trabajar
+                    // Exclusión de Feriados
+                    const esFeriado = feriadoSet.has(dateStr);
+                    if (esFeriado) return; // Se deja vacío para que renderice FER dinámicamente
+
+                    // Exclusión de Domingo (a menos que trabaje los domingos)
+                    const esDom = fechaD.getDay() === 0;
+                    if (esDom) {
+                        const esDomLaboral = turno && diasTurno.has('Domingo');
+                        if (!esDomLaboral) return; // Se deja vacío para que renderice DOM dinámicamente
+                    }
+
+                    // Validar si es día laboral de su turno
+                    const diaNombre = Object.keys(mapDia).find(k => mapDia[k] === fechaD.getDay());
+                    const esDiaLaboral = !turno ? (diaNombre !== 'Domingo') : (turno.diasSemana?.length === 0 || diasTurno.has(diaNombre));
+
+                    if (!esDiaLaboral) return; // Se deja vacío para que renderice LIB dinámicamente
+
+                    // Si era día laboral pasado pero NO registró producción -> Ausente
+                    nuevosRegistros.push({
+                        candidatoId: col._id,
+                        turnoId: turno?._id || undefined,
+                        fecha: dateStr,
+                        estado: 'Ausente',
+                        descuentaDia: true,
+                        minutosTardanza: 0,
+                        horasExtra: 0,
+                    });
+                });
+            });
+
+            if (nuevosRegistros.length === 0) {
+                if (!isAuto) showAlert('Sin nuevos registros para actualizar.', 'success');
+                return;
+            }
+
+            await asistenciaApi.bulkUpsert(nuevosRegistros, true);
             await fetchMes();
-            showAlert(`✓ ${data.total} registros sincronizados (${data.upserted} nuevos, ${data.modified} actualizados)`);
+            if (!isAuto) {
+                showAlert(`✓ Sincronización completa: ${nuevosRegistros.length} registros actualizados.`);
+            } else {
+                console.log(`[ControlAsistencia] Auto-sync ✓ — ${nuevosRegistros.length} registros (producción → asistencia).`);
+            }
         } catch (e) {
-            console.error(e);
-            showAlert('Error en sincronización desde producción', 'error');
+            console.error('[ControlAsistencia] Sync producción error:', e);
+            if (!isAuto) showAlert('Error al ejecutar la sincronización de producción.', 'error');
         } finally {
-            setSyncing(false);
+            if (isAuto) setAutoSyncing(false);
+            else setSyncing(false);
         }
     };
 
@@ -684,17 +870,32 @@ const ControlAsistencia = () => {
     // Marcar todos los días del mes (hasta hoy) de una fila como un estado
     const handleMarkRowAs = async (col, estado) => {
         const turno = turnoMap[col._id?.toString()];
+        const diasTurno = new Set(turno?.diasSemana || []);
+        const mapDia = { Lunes: 1, Martes: 2, Miércoles: 3, Jueves: 4, Viernes: 5, Sábado: 6, Domingo: 0 };
+        
         const registros = [];
         for (let d = 1; d <= diasEnMes; d++) {
             const fechaStr = dayToDateStr(d);
             if (fechaStr > todayStr) break;
+
+            const fechaObj = new Date(periodYear, periodMonth - 1, d);
+            const diaNombre = Object.keys(mapDia).find(k => mapDia[k] === fechaObj.getDay());
+            const esDiaLaboral = !turno ? (diaNombre !== 'Domingo') : (turno.diasSemana?.length === 0 || diasTurno.has(diaNombre));
+            const esFeriado = isDayFeriado(d);
+            
+            let estadoFinal = estado;
+            if (estado !== 'Feriado' && estado !== 'Libre') {
+                if (esFeriado) estadoFinal = 'Feriado';
+                else if (!esDiaLaboral) estadoFinal = 'Libre';
+            }
+
             registros.push({
                 candidatoId: col._id,
                 turnoId:     turno?._id || undefined,
                 fecha:       fechaStr,
                 horaEntrada: turno?.horaEntrada || '',
                 horaSalida:  turno?.horaSalida  || '',
-                estado,
+                estado:      estadoFinal,
                 minutosTardanza: 0,
                 horasExtra: 0,
             });
@@ -713,18 +914,33 @@ const ControlAsistencia = () => {
     // Marcar todos los colaboradores de una columna (día) como un estado
     const handleMarkColumnAs = async (day, estado) => {
         const fecha = dayToDateStr(day);
+        const fechaObj = new Date(periodYear, periodMonth - 1, day);
+        const mapDia = { Lunes: 1, Martes: 2, Miércoles: 3, Jueves: 4, Viernes: 5, Sábado: 6, Domingo: 0 };
+        const diaNombre = Object.keys(mapDia).find(k => mapDia[k] === fechaObj.getDay());
+        const esFeriado = isDayFeriado(day);
+
         const cols  = bulkSelect.size > 0
             ? colaboradoresFiltrados.filter(c => bulkSelect.has(c._id))
             : colaboradoresFiltrados;
+            
         const registros = cols.map(c => {
             const turno = turnoMap[c._id?.toString()];
+            const diasTurno = new Set(turno?.diasSemana || []);
+            const esDiaLaboral = !turno ? (diaNombre !== 'Domingo') : (turno.diasSemana?.length === 0 || diasTurno.has(diaNombre));
+            
+            let estadoFinal = estado;
+            if (estado !== 'Feriado' && estado !== 'Libre') {
+                if (esFeriado) estadoFinal = 'Feriado';
+                else if (!esDiaLaboral) estadoFinal = 'Libre';
+            }
+
             return {
                 candidatoId: c._id,
                 turnoId:     turno?._id || undefined,
                 fecha,
                 horaEntrada: turno?.horaEntrada || '',
                 horaSalida:  turno?.horaSalida  || '',
-                estado,
+                estado:      estadoFinal,
                 minutosTardanza: 0,
                 horasExtra: 0,
             };
@@ -804,8 +1020,24 @@ const ControlAsistencia = () => {
                     <button onClick={fetchMes} className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
                         <RefreshCw size={16} className={loading ? 'animate-spin text-indigo-500' : 'text-slate-400'} />
                     </button>
-                    <button onClick={() => setSyncModal(true)} disabled={syncing} className="flex items-center gap-2 px-5 py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 shadow-sm transition-all disabled:opacity-50">
-                        <Zap size={14} className="text-indigo-600" /> {syncing ? 'Sincronizando...' : 'Sincronizar'}
+                    {/* Auto-sync indicator */}
+                    {autoSyncing && (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-indigo-50 border border-indigo-200 text-indigo-600 rounded-2xl text-[9px] font-black uppercase tracking-widest animate-pulse">
+                            <Loader2 size={12} className="animate-spin" />
+                            Leyendo producción...
+                        </div>
+                    )}
+                    <button
+                        onClick={() => {
+                            autoSyncedRef.current.delete(period);
+                            setSyncModal(true);
+                        }}
+                        disabled={syncing || autoSyncing}
+                        title="Forzar re-sincronización con producción Telecom"
+                        className="flex items-center gap-2 px-5 py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 shadow-sm transition-all disabled:opacity-50"
+                    >
+                        <Zap size={14} className="text-indigo-600" />
+                        {syncing ? 'Sincronizando...' : 'Re-Sincronizar'}
                     </button>
                     <button onClick={handleExportExcel} className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all">
                         <Download size={14} className="text-emerald-500" /> Exportar
@@ -814,24 +1046,32 @@ const ControlAsistencia = () => {
             </div>
 
             {/* ── KPI CARDS ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                 {[
-                    { label: 'Asistencia',  value: `${statsGlobales.tasaAsistencia}%`,  sub: 'tasa período',  color: 'bg-indigo-600', icon: TrendingUp },
-                    { label: 'Presentes',   value: statsGlobales.presente,  sub: 'registros',     color: 'bg-emerald-600', icon: CheckCircle2 },
-                    { label: 'Ausencias',   value: statsGlobales.ausente,   sub: 'sin justificar', color: 'bg-rose-600',   icon: XCircle     },
-                    { label: 'Tardanzas',   value: statsGlobales.tardanza,  sub: `${Math.round(statsGlobales.minTardanza / 60 * 10) / 10}h total`, color: 'bg-amber-500', icon: Clock },
-                    { label: 'Horas Extra', value: `${statsGlobales.horasExtra}h`, sub: 'acumuladas', color: 'bg-violet-600', icon: Timer },
-                    { label: 'Colaboradores', value: colaboradoresFiltrados.length, sub: `en período · ${colaboradores.filter(c=>c.status==='Contratado').length} activos`, color: 'bg-slate-700', icon: Users },
-                ].map((s, i) => (
-                    <div key={i} className={`${s.color} text-white p-5 rounded-[1.5rem] shadow-xl relative overflow-hidden`}>
-                        <div className="absolute -right-3 -bottom-3 opacity-10"><s.icon size={64} /></div>
-                        <div className="relative z-10">
-                            <span className="text-[9px] font-black uppercase tracking-widest opacity-80 block mb-1">{s.label}</span>
-                            <p className="text-2xl font-black leading-none mb-0.5">{s.value}</p>
-                            <p className="text-[8px] font-bold opacity-60 uppercase">{s.sub}</p>
+                    { label: 'Asistencia',  value: `${statsGlobales.tasaAsistencia}%`,  sub: 'tasa período',  color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', icon: TrendingUp },
+                    { label: 'Presentes',   value: statsGlobales.presente,  sub: 'registros',     color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircle2 },
+                    { label: 'Ausencias',   value: statsGlobales.ausente,   sub: 'sin justificar', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200', icon: XCircle     },
+                    { label: 'Tardanzas',   value: statsGlobales.tardanza,  sub: `${Math.round(statsGlobales.minTardanza / 60 * 10) / 10}h total`, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', icon: Clock },
+                    { label: 'Horas Extra', value: `${statsGlobales.horasExtra}h`, sub: 'acumuladas', color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', icon: Timer },
+                    { label: 'Colaboradores', value: colaboradoresFiltrados.length, sub: `en período · ${colaboradoresFiltrados.length} activos`, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', icon: Users },
+                ].map((s, i) => {
+                    const Icon = s.icon;
+                    return (
+                        <div key={i} className={`rounded-[2rem] p-5 border bg-white ${s.border} shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group`}>
+                            <div className={`absolute top-0 right-0 w-24 h-24 ${s.bg} rounded-bl-[4rem] -z-10 transition-transform group-hover:scale-110`}></div>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className={`p-3 rounded-2xl ${s.bg} ${s.color}`}>
+                                    <Icon size={18} />
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{s.label}</h3>
+                                <p className={`text-2xl font-black ${s.color} tracking-tight`}>{s.value}</p>
+                                <p className="text-[8px] font-bold opacity-60 uppercase text-slate-400 mt-1">{s.sub}</p>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* ── TABS ── */}
@@ -848,9 +1088,9 @@ const ControlAsistencia = () => {
                 TAB: CALENDARIO MENSUAL
             ════════════════════════════════════════════════════════ */}
             {viewTab === 'calendario' && (
-                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden">
+                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden relative">
                     {/* TOOLBAR */}
-                    <div className="p-5 border-b border-slate-50 bg-slate-50/30 flex flex-col gap-4">
+                    <div className="p-6 bg-white/80 backdrop-blur-xl border-b border-slate-100 flex flex-col gap-4">
                         <div className="flex flex-wrap items-center gap-3">
                             {/* Search */}
                             <div className="relative flex-1 min-w-[200px]">
@@ -861,15 +1101,15 @@ const ControlAsistencia = () => {
                             </div>
 
                             {/* Filtro estado */}
-                            <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+                            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
                                 {[
                                     { id: 'Operativo', label: 'Operativos', icon: CheckCircle2, color: 'text-emerald-500' },
                                     { id: 'Finiquitado', label: 'Finiquitados', icon: XCircle, color: 'text-rose-500' },
                                     { id: 'Todos', label: 'Todos', icon: Users, color: 'text-indigo-500' }
                                 ].map(s => (
                                     <button key={s.id} onClick={() => setFilterStatus(s.id)}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${filterStatus === s.id ? 'bg-slate-50 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>
-                                        <s.icon size={11} className={filterStatus === s.id ? s.color : ''} />
+                                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filterStatus === s.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                                        <s.icon size={12} className={filterStatus === s.id ? s.color : ''} />
                                         {s.label}
                                     </button>
                                 ))}
@@ -924,13 +1164,9 @@ const ControlAsistencia = () => {
 
                             {/* Acciones bulk */}
                             <div className="flex items-center gap-2">
-                                <button onClick={handleSyncTOA} disabled={saving}
-                                    className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all disabled:opacity-50">
-                                    <Zap size={12} /> Sync TOA
-                                </button>
-                                <button onClick={handleBulkSemana} disabled={saving}
+                                <button onClick={handleBulkAutoTurnos} disabled={saving}
                                     className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50">
-                                    <Zap size={12} /> Auto-fill Turnos
+                                    <Zap size={12} /> Auto-fill Mes (Turnos)
                                 </button>
                                 <button onClick={() => setShowFeriadosPanel(p => !p)}
                                     className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${showFeriadosPanel ? 'bg-red-600 text-white border-red-600 shadow-lg shadow-red-100' : 'bg-white text-red-600 border-red-200 hover:bg-red-50'}`}>
@@ -1033,19 +1269,19 @@ const ControlAsistencia = () => {
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse" style={{ minWidth: `${diasEnMes * 44 + 540}px` }}>
                                 <thead>
-                                    <tr className="bg-slate-800 sticky top-0 z-20">
-                                        <th className="px-3 sticky left-0 z-30 bg-slate-800 border-r border-slate-700 min-w-[40px] text-white">
+                                    <tr className="bg-slate-50 sticky top-0 z-20 border-b border-slate-200">
+                                        <th className="px-3 sticky left-0 z-30 bg-slate-50 border-r border-slate-200 min-w-[40px] text-slate-700">
                                             <button onClick={() => {
                                                 if (bulkSelect.size === colaboradoresFiltrados.length) setBulkSelect(new Set());
                                                 else setBulkSelect(new Set(colaboradoresFiltrados.map(c => c._id)));
                                             }}>
-                                                {bulkSelect.size === colaboradoresFiltrados.length ? <CheckSquare size={14} className="text-indigo-400" /> : <Square size={14} className="text-slate-500" />}
+                                                {bulkSelect.size === colaboradoresFiltrados.length ? <CheckSquare size={14} className="text-indigo-600" /> : <Square size={14} className="text-slate-400" />}
                                             </button>
                                         </th>
-                                        <th className="px-4 py-3 sticky left-8 z-30 bg-slate-800 text-left text-[10px] font-black text-white uppercase tracking-widest border-r border-slate-700 min-w-[280px]">
+                                        <th className="px-4 py-3 sticky left-8 z-30 bg-slate-50 text-left text-[10px] font-black text-slate-700 uppercase tracking-widest border-r border-slate-200 min-w-[280px]">
                                             Colaborador / Técnico
                                         </th>
-                                        <th className="px-4 py-3 bg-slate-800 text-left text-[10px] font-black text-white uppercase tracking-widest border-r border-slate-700 min-w-[180px]">
+                                        <th className="px-4 py-3 bg-slate-50 text-left text-[10px] font-black text-slate-700 uppercase tracking-widest border-r border-slate-200 min-w-[180px]">
                                             Cliente
                                         </th>
                                         {diasArray.map(d => {
@@ -1055,26 +1291,51 @@ const ControlAsistencia = () => {
                                             const esSab    = fechaObj.getDay() === 6;
                                             const esHoy    = fechaStr === todayStr;
                                             const esFer    = isDayFeriado(d);
+                                            const isColMenuOpen = activeColMenu === d;
 
                                             return (
-                                                <th key={d} className={`px-0 py-2 border-r border-slate-700 min-w-[40px] text-center bg-slate-800`}>
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-[7px] font-bold text-slate-500 uppercase leading-none">{DIAS_SEMANA_ES[fechaObj.getDay()]}</span>
+                                                <th key={d} className={`px-0 py-2 border-r border-slate-200 min-w-[40px] text-center bg-slate-50 relative group`}>
+                                                    <div 
+                                                        className="flex flex-col items-center cursor-pointer p-1 mx-1 rounded-lg hover:bg-slate-200 transition-colors"
+                                                        onClick={() => setActiveColMenu(isColMenuOpen ? null : d)}
+                                                    >
+                                                        <span className="text-[7px] font-bold text-slate-400 uppercase leading-none">{DIAS_SEMANA_ES[fechaObj.getDay()]}</span>
                                                         <span className={`text-[11px] font-black mt-0.5 leading-none
-                                                            ${esHoy ? 'bg-indigo-500 text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto shadow-md' :
-                                                              esFer ? 'text-rose-400' :
-                                                              (esDom || esSab) ? 'text-slate-400' : 'text-white'}`}>
+                                                            ${esHoy ? 'bg-indigo-600 text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto shadow-md' :
+                                                              esFer ? 'text-rose-500' :
+                                                              (esDom || esSab) ? 'text-slate-400' : 'text-slate-700'}`}>
                                                             {d}
                                                         </span>
                                                     </div>
+                                                    
+                                                    {isColMenuOpen && (
+                                                        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 min-w-[180px] overflow-hidden">
+                                                            <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-left">Día completo como:</p>
+                                                                <button onClick={(e) => { e.stopPropagation(); setActiveColMenu(null); }} className="text-slate-400 hover:text-slate-600">
+                                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                                </button>
+                                                            </div>
+                                                            {ESTADOS.map(e => {
+                                                                const cfg = ESTADO_CONFIG[e];
+                                                                return (
+                                                                    <button key={e} onClick={() => { handleMarkColumnAs(d, e); setActiveColMenu(null); }}
+                                                                        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] font-black hover:bg-slate-50 transition-colors`}>
+                                                                        <span className={`w-5 h-5 rounded-lg ${cfg.color} text-white text-[8px] flex items-center justify-center flex-shrink-0`}>{cfg.icon}</span>
+                                                                        <span className={cfg.text}>{e}</span>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </th>
                                             );
                                         })}
                                         {/* Stats cols */}
-                                        <th className="px-3 text-center text-[9px] font-black text-emerald-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">Trab.</th>
-                                        <th className="px-3 text-center text-[9px] font-black text-rose-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">Aus.</th>
-                                        <th className="px-3 text-center text-[9px] font-black text-amber-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">Tard.</th>
-                                        <th className="px-3 text-center text-[9px] font-black text-violet-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">HE</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-emerald-600 bg-slate-50 uppercase tracking-widest border-l border-slate-200">Trab.</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-rose-600 bg-slate-50 uppercase tracking-widest border-l border-slate-200">Aus.</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-amber-600 bg-slate-50 uppercase tracking-widest border-l border-slate-200">Tard.</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-violet-600 bg-slate-50 uppercase tracking-widest border-l border-slate-200">HE</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
@@ -1094,11 +1355,14 @@ const ControlAsistencia = () => {
                                                     </button>
                                                 </td>
                                                 {/* Colaborador + quick-mark menu */}
-                                                <td className="px-3 py-2 sticky left-8 bg-white z-10 min-w-[280px]">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0 shadow-sm"
+                                                <td className={`px-3 py-2 sticky left-8 bg-white min-w-[280px] ${isMenuOpen ? 'z-50' : 'z-10'}`}>
+                                                    <div className="flex items-center gap-2 cursor-pointer p-1 -m-1 rounded-lg hover:bg-slate-50 transition-colors relative" onClick={() => setActiveRowMenu(isMenuOpen ? null : col._id)}>
+                                                        <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden shadow-sm"
                                                             style={{ backgroundColor: turno?.color || '#6366F1' }}>
-                                                            {col.fullName?.charAt(0)}
+                                                            {col.profilePic
+                                                                ? <img src={col.profilePic} alt={col.fullName} className="w-full h-full object-cover" />
+                                                                : <span className="w-full h-full flex items-center justify-center text-white text-sm font-black">{col.fullName?.charAt(0)?.toUpperCase() || <User size={14} />}</span>
+                                                            }
                                                         </div>
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1110,40 +1374,39 @@ const ControlAsistencia = () => {
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            <p className="text-[8px] font-mono font-bold text-indigo-400 leading-tight">{col.rut || '—'}</p>
+                                                            <p className="text-[9px] font-mono font-bold text-indigo-400 leading-tight">{formatRut(col.rut) || '—'}</p>
                                                             <p className="text-[8px] font-bold text-slate-500 leading-tight truncate max-w-[200px]">{col.position || col.cargo || '—'}</p>
+                                                            {(col.contractStartDate || col.hiring?.contractStartDate || col.fechaIngreso) && (
+                                                                <p className="text-[7px] font-bold text-slate-400 leading-tight mt-0.5">
+                                                                    Ingreso: {new Date(col.contractStartDate || col.hiring?.contractStartDate || col.fechaIngreso).toLocaleDateString()}
+                                                                </p>
+                                                            )}
                                                             {(col.projectName || col.sede) && (
-                                                                <p className="text-[7px] font-bold text-emerald-600 leading-tight truncate max-w-[200px]">
+                                                                <p className="text-[7px] font-bold text-emerald-600 leading-tight truncate max-w-[200px] mt-0.5">
                                                                     📋 {col.projectName || col.sede}
                                                                 </p>
                                                             )}
                                                         </div>
-                                                        {/* Quick mark row button */}
-                                                        <div className="relative">
-                                                            <button
-                                                                title="Marcar toda la fila"
-                                                                onClick={() => setActiveRowMenu(isMenuOpen ? null : col._id)}
-                                                                className={`p-1.5 rounded-lg transition-all ${isMenuOpen ? 'bg-indigo-100 text-indigo-600' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-600'}`}>
-                                                                <ChevronDown size={11} className={`transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
-                                                            </button>
-                                                            {isMenuOpen && (
-                                                                <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 min-w-[180px] overflow-hidden">
-                                                                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
-                                                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Marcar mes completo como:</p>
-                                                                    </div>
-                                                                    {ESTADOS.map(e => {
-                                                                        const cfg = ESTADO_CONFIG[e];
-                                                                        return (
-                                                                            <button key={e} onClick={() => handleMarkRowAs(col, e)}
-                                                                                className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] font-black hover:bg-slate-50 transition-colors`}>
-                                                                                <span className={`w-5 h-5 rounded-lg ${cfg.color} text-white text-[8px] flex items-center justify-center flex-shrink-0`}>{cfg.icon}</span>
-                                                                                <span className={cfg.text}>{e}</span>
-                                                                            </button>
-                                                                        );
-                                                                    })}
+                                                        {isMenuOpen && (
+                                                            <div className="absolute left-10 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 min-w-[180px] overflow-hidden" onClick={e => e.stopPropagation()}>
+                                                                <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                                                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-left">Marcar mes como:</p>
+                                                                    <button onClick={(e) => { e.stopPropagation(); setActiveRowMenu(null); }} className="text-slate-400 hover:text-slate-600">
+                                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                                    </button>
                                                                 </div>
-                                                            )}
-                                                        </div>
+                                                                {ESTADOS.map(e => {
+                                                                    const cfg = ESTADO_CONFIG[e];
+                                                                    return (
+                                                                        <button key={e} onClick={(ev) => { ev.stopPropagation(); handleMarkRowAs(col, e); setActiveRowMenu(null); }}
+                                                                            className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] font-black hover:bg-slate-50 transition-colors`}>
+                                                                            <span className={`w-5 h-5 rounded-lg ${cfg.color} text-white text-[8px] flex items-center justify-center flex-shrink-0`}>{cfg.icon}</span>
+                                                                            <span className={cfg.text}>{e}</span>
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 {/* Cliente column */}
@@ -1247,12 +1510,16 @@ const ControlAsistencia = () => {
                                 const turno = turnoMap[col._id?.toString()];
                                 return (
                                     <div key={col._id} className={`flex items-center gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors ${registro ? '' : 'opacity-60'}`}>
-                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                        <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden"
                                             style={{ backgroundColor: turno?.color || '#6366F1' }}>
-                                            {col.fullName?.charAt(0)}
+                                            {col.profilePic
+                                                ? <img src={col.profilePic} alt={col.fullName} className="w-full h-full object-cover" />
+                                                : <span className="w-full h-full flex items-center justify-center text-white text-sm font-black">{col.fullName?.charAt(0)?.toUpperCase() || <User size={14} />}</span>
+                                            }
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-black text-slate-800 uppercase">{col.fullName}</p>
+                                            <p className="text-[11px] font-black text-slate-800 uppercase">{col.fullName}</p>
+                                            <p className="text-[9px] font-mono font-bold text-indigo-400 leading-tight">{formatRut(col.rut) || '—'}</p>
                                             <p className="text-[9px] text-slate-400 font-bold">{turno?.nombre || 'Sin turno'} · {col.position || col.cargo || ''}</p>
                                         </div>
                                         {registro ? (
@@ -1313,10 +1580,15 @@ const ControlAsistencia = () => {
                                         <tr key={c._id} className="hover:bg-indigo-50/10 transition-colors">
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white text-xs font-black flex items-center justify-center">{c.fullName?.charAt(0)}</div>
+                                                    <div className="w-8 h-8 rounded-xl bg-indigo-600 flex-shrink-0 overflow-hidden">
+                                                        {c.profilePic
+                                                            ? <img src={c.profilePic} alt={c.fullName} className="w-full h-full object-cover" />
+                                                            : <span className="w-full h-full flex items-center justify-center text-white text-xs font-black">{c.fullName?.charAt(0)?.toUpperCase() || <User size={12} />}</span>
+                                                        }
+                                                    </div>
                                                     <div>
-                                                        <p className="text-xs font-black text-slate-800 uppercase">{c.fullName}</p>
-                                                        <p className="text-[9px] text-slate-400 font-mono">{c.rut}</p>
+                                                        <p className="text-[11px] font-black text-slate-800 uppercase">{c.fullName}</p>
+                                                        <p className="text-[9px] font-mono font-bold text-indigo-400">{formatRut(c.rut) || '—'}</p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1413,11 +1685,15 @@ const ControlAsistencia = () => {
                                     const turno = turnos.find(t => t._id === (r.turnoId?._id || r.turnoId));
                                     return (
                                         <div key={r._id} className="flex items-center gap-5 px-6 py-4 hover:bg-slate-50/50 transition-colors">
-                                            <div className="w-10 h-10 rounded-xl bg-violet-600 text-white text-sm font-black flex items-center justify-center flex-shrink-0">
-                                                {(r.colaboradorNombre || '?').charAt(0)}
+                                            <div className="w-10 h-10 rounded-xl bg-violet-600 flex-shrink-0 overflow-hidden">
+                                                {col?.profilePic
+                                                    ? <img src={col.profilePic} alt={r.colaboradorNombre} className="w-full h-full object-cover" />
+                                                    : <span className="w-full h-full flex items-center justify-center text-white text-sm font-black">{(r.colaboradorNombre || '?').charAt(0).toUpperCase()}</span>
+                                                }
                                             </div>
                                             <div className="flex-1">
-                                                <p className="text-xs font-black text-slate-800 uppercase">{r.colaboradorNombre}</p>
+                                                <p className="text-[11px] font-black text-slate-800 uppercase">{r.colaboradorNombre}</p>
+                                                <p className="text-[9px] font-mono font-bold text-indigo-400">{formatRut(col?.rut)}</p>
                                                 <p className="text-[9px] text-slate-400">
                                                     {new Date(r.fecha).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'short' })}
                                                     {r.horaEntrada && ` · ${r.horaEntrada}–${r.horaSalida}`}
@@ -1486,7 +1762,7 @@ const ControlAsistencia = () => {
                                         onChange={e => setFormReg(p => ({ ...p, candidatoId: e.target.value }))}
                                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20">
                                         <option value="">— Seleccionar colaborador —</option>
-                                        {colaboradores.map(c => <option key={c._id} value={c._id}>{c.fullName} ({c.rut})</option>)}
+                                        {colaboradores.map(c => <option key={c._id} value={c._id}>{c.fullName} ({formatRut(c.rut)})</option>)}
                                     </select>
                                 </div>
                             )}
@@ -1681,8 +1957,8 @@ const ControlAsistencia = () => {
                             </div>
 
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                                <p className="text-[11px] font-bold text-amber-900">
-                                    ⚠️ <strong>Importante:</strong> Los registros manuales se sobrescribirán. Asegúrate de que los datos de producción estén correctos.
+                                <p className="text-[11px] font-bold text-amber-950">
+                                    💡 <strong>Comportamiento Híbrido:</strong> Los registros manuales ya ingresados por RRHH (Licencias, Vacaciones, etc.) <strong>NO se sobrescribirán</strong>. La sincronización avanzada solo rellenará las celdas vacías basándose en los días con y sin producción.
                                 </p>
                             </div>
                         </div>

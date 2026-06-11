@@ -32,7 +32,7 @@ const CierreBonos = () => {
       const [closureRes, modelRes, tecnicosRes] = await Promise.all([
         api.get(`/admin/bonos/closure/${year}/${month}`).catch(() => ({ data: [] })),
         api.get('/admin/bonos/active').catch(() => ({ data: [] })),
-        api.get('/tecnicos').catch(() => ({ data: [] }))
+        api.get('/rrhh/candidatos').catch(() => ({ data: [] }))
       ]);
 
       const closures = closureRes.data;
@@ -48,8 +48,8 @@ const CierreBonos = () => {
       const tecnicosData = Array.isArray(tecnicosRes?.data) ? tecnicosRes.data : [];
       const rutMap = {};
       tecnicosData.forEach(t => {
-          if (t.idRecursoToa) rutMap[String(t.idRecursoToa).replace(/^0+/, '').trim()] = t.rutFormateado || t.rut;
-          if (t.nombre) rutMap[t.nombre.toLowerCase().trim()] = t.rutFormateado || t.rut;
+          if (t.idRecursoToa) rutMap[String(t.idRecursoToa).replace(/^0+/, '').trim()] = t.rut;
+          if (t.fullName) rutMap[t.fullName.toLowerCase().trim()] = t.rut;
       });
 
       // ── Cargar desde cierre existente ──
@@ -101,12 +101,7 @@ const CierreBonos = () => {
             });
         }
 
-        const tecnicosData = Array.isArray(tecnicosRes?.data) ? tecnicosRes.data : [];
-        const rutMap = {};
-        tecnicosData.forEach(t => {
-            if (t.idRecursoToa) rutMap[String(t.idRecursoToa).replace(/^0+/, '').trim()] = t.rutFormateado || t.rut;
-            if (t.nombre) rutMap[t.nombre.toLowerCase().trim()] = t.rutFormateado || t.rut;
-        });
+
 
         const tecnicos = Array.isArray(statsRes?.data?.tecnicos) ? statsRes.data.tecnicos : [];
 
@@ -455,7 +450,6 @@ const CierreBonos = () => {
                   <thead>
                       <tr className="bg-slate-50/50">
                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-24">ID Recurso</th>
-                          <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-32">RUT</th>
                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Operario</th>
                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Pts Mes</th>
                           <th className="px-8 py-5 border-b border-slate-100 text-right">
@@ -480,15 +474,17 @@ const CierreBonos = () => {
                               <td className="px-8 py-6 font-bold text-[11px] text-slate-400 uppercase tracking-widest">
                                   {t.idRecurso || t.idRecursoToa || 'N/A'}
                               </td>
-                              <td className="px-8 py-6 font-bold text-[11px] text-slate-500 uppercase tracking-widest">
-                                  {t.rut || 'N/A'}
-                              </td>
                               <td className="px-8 py-6">
                                   <div className="flex items-center gap-4">
-                                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase shadow-inner border border-slate-200">
+                                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase shadow-inner border border-slate-200 shrink-0">
                                           {t.name.trim().substring(0, 2)}
                                       </div>
-                                      <span className="text-sm font-black text-slate-800 tracking-tight">{t.name}</span>
+                                      <div>
+                                          <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight">{t.name}</span>
+                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                              RUT: {t.rut || 'N/A'}
+                                          </span>
+                                      </div>
                                   </div>
                               </td>
                               <td className="px-8 py-6 text-center">

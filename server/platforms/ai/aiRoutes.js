@@ -91,8 +91,35 @@ async function syncManualsFromFilesystemToMongo() {
     .sort();
 
   let synced = 0;
+
+  let ai = null;
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const { GoogleGenAI } = require('@google/genai');
+      ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    } catch (e) {
+      logger.error('Failed to initialize GoogleGenAI for syncing embeddings', { error: e.message });
+    }
+  }
+
   for (const file of files) {
     const doc = buildManualDocFromFile(file);
+
+    if (ai) {
+      try {
+        console.log(`Generating vector embedding for manual: ${doc.title}`);
+        const response = await ai.models.embedContent({
+          model: 'text-embedding-004',
+          contents: `${doc.title}\n\n${doc.summary}\n\n${doc.content}`,
+        });
+        if (response && response.embedding && response.embedding.values) {
+          doc.embedding = response.embedding.values;
+        }
+      } catch (err) {
+        logger.error(`Error generating embedding for file ${file}:`, { error: err.message });
+      }
+    }
+
     await ManualKnowledge.findOneAndUpdate(
       { sourceFile: doc.sourceFile },
       { $set: doc, $setOnInsert: { version: 1 } },
@@ -100,6 +127,8 @@ async function syncManualsFromFilesystemToMongo() {
     );
     synced += 1;
   }
+
+  MANUAL_CACHE = null;
 
   return { synced, total: files.length };
 }
@@ -142,7 +171,8 @@ async function getManualIndex({ forceRefresh = false } = {}) {
             content: doc.content,
             summary: doc.summary,
             tokens: Array.isArray(doc.tokens) && doc.tokens.length > 0 ? doc.tokens : tokenize(`${doc.title} ${doc.summary} ${doc.content}`),
-            moduleKey: doc.moduleKey
+            moduleKey: doc.moduleKey,
+            embedding: doc.embedding
           }));
           MANUAL_CACHE_AT = now;
           return MANUAL_CACHE;
@@ -157,7 +187,8 @@ async function getManualIndex({ forceRefresh = false } = {}) {
         content: doc.content,
         summary: doc.summary,
         tokens: Array.isArray(doc.tokens) && doc.tokens.length > 0 ? doc.tokens : tokenize(`${doc.title} ${doc.summary} ${doc.content}`),
-        moduleKey: doc.moduleKey
+        moduleKey: doc.moduleKey,
+        embedding: doc.embedding
       }));
       MANUAL_CACHE_AT = now;
       return MANUAL_CACHE;
@@ -172,25 +203,76 @@ async function getManualIndex({ forceRefresh = false } = {}) {
 }
 
 async function rankManualsByQuery(query, limit = 3) {
-  const qTokens = tokenize(query);
-  if (qTokens.length === 0) return [];
-
   const manuals = await getManualIndex();
-  const scored = manuals
-    .map((doc) => {
-      const tokenSet = new Set(doc.tokens);
-      let score = 0;
-      qTokens.forEach((t) => {
-        if (tokenSet.has(t)) score += 1;
+  if (manuals.length === 0) return [];
+
+  let queryVector = null;
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const { GoogleGenAI } = require('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.embedContent({
+        model: 'text-embedding-004',
+        contents: query
       });
-      return {
-        ...doc,
-        score
-      };
-    })
-    .filter((doc) => doc.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+      if (response && response.embedding && response.embedding.values) {
+        queryVector = response.embedding.values;
+      }
+    } catch (err) {
+      logger.error('Error generating query embedding:', { error: err.message });
+    }
+  }
+
+  const cosineSimilarity = (vecA, vecB) => {
+    if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+      dotProduct += vecA[i] * vecB[i];
+      normA += vecA[i] * vecA[i];
+      normB += vecB[i] * vecB[i];
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  };
+
+  const hasEmbeddings = manuals.some(m => m.embedding && m.embedding.length > 0);
+
+  let scored;
+  if (queryVector && hasEmbeddings) {
+    console.log('🔮 RAG: Rankeando manuales con Cosine Similarity (Vector Embeddings)');
+    scored = manuals
+      .map((doc) => {
+        const score = cosineSimilarity(queryVector, doc.embedding);
+        return {
+          ...doc,
+          score
+        };
+      })
+      .filter((doc) => doc.score > 0.1)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  } else {
+    console.log('⚠️ RAG FALLBACK: Rankeando manuales con Token Intersection');
+    const qTokens = tokenize(query);
+    if (qTokens.length === 0) return [];
+    scored = manuals
+      .map((doc) => {
+        const tokenSet = new Set(doc.tokens);
+        let score = 0;
+        qTokens.forEach((t) => {
+          if (tokenSet.has(t)) score += 1;
+        });
+        return {
+          ...doc,
+          score
+        };
+      })
+      .filter((doc) => doc.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
 
   return scored.map((doc) => ({
     documento: doc.file,
@@ -759,6 +841,8 @@ router.post('/chat', protect, async (req, res) => {
     const persona = getRolePersona(req.user, contexto);
 
     // ── Tools definition (Function Calling for Gemini) ─────────────────────
+    let useLocal = !process.env.GEMINI_API_KEY;
+    const dbContext = contexto?.dbContext || '';
     const tools = [{
       functionDeclarations: [
         {
@@ -777,130 +861,104 @@ router.post('/chat', protect, async (req, res) => {
         }
       ]
     }];
+    let payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
 
-    if (process.env.GEMINI_API_KEY) {
-      // ── Modo Google Gemini (Ultra Inteligente con Tools) ───────────────────
-      const { GoogleGenAI } = require('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const personaStyle = PERSONA_SYSTEM_STYLE[persona] || PERSONA_SYSTEM_STYLE.colaborador;
-      
-      const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform GENAI360. 
+    if (!useLocal) {
+      try {
+        const { GoogleGenAI } = require('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const personaStyle = PERSONA_SYSTEM_STYLE[persona] || PERSONA_SYSTEM_STYLE.colaborador;
+        
+        const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform GENAI360. 
 Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención, y actuar como mesa de ayuda del ecosistema. Eres Ultra Inteligente: usas tus herramientas (tools) para buscar en la base de datos cuando se te pida analizar una orden o RUT.
 Responde siempre en español. ${personaStyle}
-    Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
-  ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}
-  ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}`;
+      Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
+    ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}
+    ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}`;
 
-      let currentMessages = [
-        ...sessionTurns,
-        { role: 'user', parts: [{ text: mensajeLimpio }] }
-      ];
+        let currentMessages = [
+          ...sessionTurns,
+          { role: 'user', parts: [{ text: mensajeLimpio }] }
+        ];
 
-      // First AI Request
-      let response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: currentMessages,
-        config: {
-          systemInstruction: systemPrompt,
-          tools: tools,
-          temperature: 0.4
-        }
-      });
-
-      // Handle Tool Calls (Autonomous DB Search)
-      if (response.functionCalls && response.functionCalls.length > 0) {
-        // Add model's tool call to history
-        currentMessages.push({
-          role: 'model',
-          parts: response.functionCalls.map(fc => ({ functionCall: fc }))
-        });
-        
-        let toolResponsesParts = [];
-        
-        for (const toolCall of response.functionCalls) {
-          if (toolCall.name === 'buscar_orden_mongodb') {
-            const args = toolCall.args;
-            let toolResult = '';
-            try {
-              const mongoose = require('mongoose');
-              let ActividadModel;
-              try { ActividadModel = mongoose.model('Actividad'); } catch (e) { ActividadModel = require('../agentetelecom/models/Actividad'); }
-              const searchTerm = String(args.searchTerm || '').toUpperCase();
-              const cleanTerm = searchTerm.replace('-', '');
-              const query = {
-                $or: [
-                  { RUT_DEL_CLIENTE: new RegExp(searchTerm, 'i') },
-                  { RUT_DEL_CLIENTE: new RegExp(cleanTerm, 'i') },
-                  { NUMERO_DE_PETICION: new RegExp(searchTerm, 'i') },
-                  { ORDENID: new RegExp(searchTerm, 'i') },
-                  { ordenId: new RegExp(searchTerm, 'i') },
-                  { 'Número de Petición': new RegExp(searchTerm, 'i') },
-                  { 'Numero orden': new RegExp(searchTerm, 'i') },
-                  { 'RUT del cliente': new RegExp(searchTerm, 'i') },
-                  { 'RUT del cliente': new RegExp(cleanTerm, 'i') }
-                ]
-              };
-              const orderResults = await ActividadModel.find(query).sort({ fecha: -1 }).limit(5).lean();
-              if (orderResults.length > 0) {
-                toolResult = orderResults.map(o => ({
-                  fecha: o.fecha, peticion: o.NUMERO_DE_PETICION, rut: o.RUT_DEL_CLIENTE,
-                  tecnico: o.nombreTecnico || o.idRecursoToa, estado: o.ESTADO_DE_LA_ACTIVIDAD,
-                  tipo_trabajo: o.TIPO_DE_TRABAJO, observaciones: o.OBSERVACIONES_DE_LA_ORDEN
-                }));
-              } else {
-                toolResult = { message: `No se encontraron resultados para la búsqueda "${searchTerm}".` };
-              }
-            } catch (err) {
-              toolResult = { error: `Error al buscar en base de datos operativa: ${err.message}` };
-            }
-            
-            toolResponsesParts.push({
-              functionResponse: {
-                name: toolCall.name,
-                response: { result: toolResult }
-              }
-            });
-          }
-        }
-
-        // Push function responses to history
-        currentMessages.push({
-          role: 'function',
-          parts: toolResponsesParts
-        });
-
-        // Second Request after tool results
-        response = await ai.models.generateContent({
+        let response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: currentMessages,
-          config: {
-            systemInstruction: systemPrompt,
-            tools: tools,
-            temperature: 0.4
-          }
+          config: { systemInstruction: systemPrompt, tools: tools, temperature: 0.4 }
         });
+
+        if (response.functionCalls && response.functionCalls.length > 0) {
+          currentMessages.push({ role: 'model', parts: response.functionCalls.map(fc => ({ functionCall: fc })) });
+          let toolResponsesParts = [];
+          for (const toolCall of response.functionCalls) {
+            if (toolCall.name === 'buscar_orden_mongodb') {
+              const args = toolCall.args;
+              let toolResult = '';
+              try {
+                const mongoose = require('mongoose');
+                let ActividadModel;
+                try { ActividadModel = mongoose.model('Actividad'); } catch (e) { ActividadModel = require('../agentetelecom/models/Actividad'); }
+                const searchTerm = String(args.searchTerm || '').toUpperCase();
+                const cleanTerm = searchTerm.replace('-', '');
+                const query = {
+                  $or: [
+                    { RUT_DEL_CLIENTE: new RegExp(searchTerm, 'i') },
+                    { RUT_DEL_CLIENTE: new RegExp(cleanTerm, 'i') },
+                    { NUMERO_DE_PETICION: new RegExp(searchTerm, 'i') },
+                    { ORDENID: new RegExp(searchTerm, 'i') },
+                    { ordenId: new RegExp(searchTerm, 'i') },
+                    { 'Número de Petición': new RegExp(searchTerm, 'i') },
+                    { 'Numero orden': new RegExp(searchTerm, 'i') },
+                    { 'RUT del cliente': new RegExp(searchTerm, 'i') },
+                    { 'RUT del cliente': new RegExp(cleanTerm, 'i') }
+                  ]
+                };
+                const orderResults = await ActividadModel.find(query).sort({ fecha: -1 }).limit(5).lean();
+                if (orderResults.length > 0) {
+                  toolResult = orderResults.map(o => ({
+                    fecha: o.fecha, peticion: o.NUMERO_DE_PETICION, rut: o.RUT_DEL_CLIENTE,
+                    tecnico: o.nombreTecnico || o.idRecursoToa, estado: o.ESTADO_DE_LA_ACTIVIDAD,
+                    tipo_trabajo: o.TIPO_DE_TRABAJO, observaciones: o.OBSERVACIONES_DE_LA_ORDEN
+                  }));
+                } else {
+                  toolResult = { message: `No se encontraron resultados para la búsqueda "${searchTerm}".` };
+                }
+              } catch (err) {
+                toolResult = { error: `Error al buscar en base de datos operativa: ${err.message}` };
+              }
+              toolResponsesParts.push({ functionResponse: { name: toolCall.name, response: { result: toolResult } } });
+            }
+          }
+          currentMessages.push({ role: 'function', parts: toolResponsesParts });
+          response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash', contents: currentMessages,
+            config: { systemInstruction: systemPrompt, tools: tools, temperature: 0.4 }
+          });
+        }
+
+        const raw = response.text || 'Sin respuesta del modelo.';
+        const respuesta = humanizeResponse({ user: req.user, answer: raw, isFirstTurn, persona });
+        
+        const newTurns = [
+          { role: 'user', parts: [{ text: mensajeLimpio }] },
+          { role: 'model', parts: [{ text: respuesta }] }
+        ];
+        await appendSessionMemory(req, chatSessionId, newTurns);
+
+        return res.json({ ok: true, modo: 'gemini', respuesta, tokens: response.usageMetadata || {}, intentLabel, fuentes: payloadSources });
+      } catch (aiErr) {
+        logger.error('Gemini error fallback', { error: aiErr.message });
+        useLocal = true;
       }
+    }
 
-      const raw = response.text || 'Sin respuesta del modelo.';
-      const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
-      const respuesta = humanizeResponse({ user: req.user, answer: raw, isFirstTurn, persona });
-      
-      const newTurns = [
-        { role: 'user', parts: [{ text: mensajeLimpio }] },
-        { role: 'model', parts: [{ text: respuesta }] }
-      ];
-      await appendSessionMemory(req, chatSessionId, newTurns);
-
-      return res.json({ ok: true, modo: 'gemini', respuesta, tokens: response.usageMetadata || {}, intentLabel, fuentes: payloadSources });
-    } else {
-      // ── Modo análisis local (sin API key) ────────────────────────────────
+    if (useLocal) {
       const lower = mensajeLimpio.toLowerCase();
       let respuesta = '';
 
       const respuestaManual = buildManualGuidedLocalAnswer(mensajeLimpio, liveCtx, fuentes);
 
       if (dbContext && dbContext.includes('Base de datos operativa (Búsqueda')) {
-        // Formatear resultados DB para modo local
         respuesta = `**Resultados de Búsqueda de Órdenes:**\n${dbContext}\n\n*Nota: Para un análisis más natural de esta información, asegúrate de activar la llave de Inteligencia Artificial (OpenAI).*`;
       } else if (lower.includes('produccion') || lower.includes('producción') || lower.includes('actividad')) {
         respuesta = `Producción en vivo (30 días): ${liveCtx.totalActividades30d} actividades, ${liveCtx.totalPuntos30d} puntos, promedio ${liveCtx.promedioActividadesDia30d} actividades/día. Revisa Insights de Producción para tendencia y proyección.`;
@@ -924,19 +982,22 @@ Responde siempre en español. ${personaStyle}
         respuesta = buildSmartLocalFallbackAnswer(mensajeLimpio, liveCtx, intentLabel, fuentes);
       }
 
-      const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
-
       const finalRespuesta = humanizeResponse({ user: req.user, answer: respuesta, isFirstTurn, persona });
-      appendSessionMemory(req, chatSessionId, mensajeLimpio, finalRespuesta);
+      
+      const newTurns = [
+        { role: 'user', parts: [{ text: mensajeLimpio }] },
+        { role: 'model', parts: [{ text: finalRespuesta }] }
+      ];
+      await appendSessionMemory(req, chatSessionId, newTurns);
 
       return res.json({ ok: true, modo: 'local', respuesta: finalRespuesta, intentLabel, contextoVivo: liveCtx, fuentes: payloadSources, sessionMemory: { ttlMs: CHAT_TTL_MS } });
     }
   } catch (err) {
     logger.error('AI chat error', { error: err.message, stack: err.stack });
-    // Expose error details temporarily for debugging
     res.status(500).json({ ok: false, message: 'Error al procesar la consulta.', err_msg: err.message, stack: err.stack });
   }
 });
+
 
 // ─── GET /api/ai/health ──────────────────────────────────────────────────────
 router.get('/health', protect, async (req, res) => {

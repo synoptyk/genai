@@ -1503,15 +1503,14 @@ const CapturaTalento = () => {
                                     {visibleColumns.includes('perfil') && (
                                         <td className="pl-10 pr-8 py-6">
                                             <div className="flex items-center gap-4">
-                                                <div className={`rounded-2xl bg-white flex items-center justify-center text-slate-300 font-bold border-2 border-slate-100 shadow-sm overflow-hidden group-hover:border-indigo-100 transition-all ${viewMode === 'compact' ? 'w-12 h-12' : 'w-16 h-16'}`}>
-                                                    {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="" /> : <User size={viewMode === 'compact' ? 20 : 28} />}
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase shadow-inner border border-slate-200 shrink-0">
+                                                    {c.profilePic ? <img src={c.profilePic} alt="" className="w-full h-full object-cover rounded-xl" /> : c.fullName?.substring(0, 2)}
                                                 </div>
-                                                <div>
-                                                    <div className={`font-black text-slate-950 tracking-tight leading-none mb-1.5 ${viewMode === 'compact' ? 'text-[12px]' : 'text-[15px]'}`}>{c.fullName?.toUpperCase()}</div>
-                                                    <div className="flex items-center gap-2">
-                                                        <Mail size={11} className="text-slate-400" />
-                                                        <span className="text-[11px] font-bold text-slate-500 lowercase">{c.email || 'sin email'}</span>
-                                                    </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight">{c.fullName}</span>
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                                        RUT: {formatRut(c.rut)}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </td>
@@ -1636,6 +1635,10 @@ const CapturaTalento = () => {
                                                 <div className="flex items-center gap-2">
                                                     <Phone size={12} className="text-emerald-400" />
                                                     <span className="text-[11px] font-black text-slate-700">{c.phone || '—'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Mail size={12} className="text-slate-400" />
+                                                    <span className="text-[11px] font-bold text-slate-500 lowercase truncate max-w-[150px]">{c.email || '—'}</span>
                                                 </div>
                                                 <div className="text-[9px] font-bold text-slate-400 truncate max-w-[150px]">{c.address || '—'}</div>
                                             </div>

@@ -41,6 +41,7 @@ export default function ProduccionRanking({ tecnicos = [], metaConfig = {}, prod
 
       return {
         name: t.name || t.fullName || 'Sin Nombre',
+        rut: t.rut || 'SIN RUT',
         idRecursoToa: t.idRecursoToa || '—',
         proyecto: t.proyecto || '—',
         ptsTotal: t.ptsTotal || 0,
@@ -206,10 +207,7 @@ export default function ProduccionRanking({ tecnicos = [], metaConfig = {}, prod
 
   const shortenName = (name) => {
     if (!name) return '';
-    const parts = name.split(' ').filter(Boolean);
-    if (parts.length <= 1) return name;
-    if (parts.length >= 4) return `${parts[0]} ${parts[2]}`;
-    return `${parts[0]} ${parts[1]}`;
+    return name;
   };
 
   return (
@@ -381,9 +379,9 @@ export default function ProduccionRanking({ tecnicos = [], metaConfig = {}, prod
                       {i + 1}
                     </span>
                     <div>
-                      <span className="text-sm font-black text-white block leading-tight">{shortenName(t.name)}</span>
-                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5 block">
-                        ID TOA: {t.idRecursoToa}
+                      <span className="text-[11px] font-black text-slate-200 block leading-tight truncate">{shortenName(t.name)}</span>
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-0.5 block font-mono">
+                        ID: {t.idRecursoToa} | RUT: {t.rut}
                       </span>
                     </div>
                   </div>

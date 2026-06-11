@@ -392,11 +392,11 @@ const Dotacion = () => {
                                 {/* CARD INFO */}
                                 <div className="p-6">
                                     <div className="mb-4">
-                                        <h4 className="text-lg font-black text-slate-800 leading-tight uppercase group-hover:text-blue-600 transition-colors truncate">
+                                        <h4 className="text-[11px] font-black text-slate-800 leading-tight uppercase group-hover:text-blue-600 transition-colors truncate block">
                                             {p.nombre} {p.apellidos}
                                         </h4>
-                                        <p className="text-[10px] font-bold text-slate-400 tracking-widest mt-1">
-                                            {formatRut(p.rut)} • {p.cargo}
+                                        <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">
+                                            RUT: {formatRut(p.rut)} • {p.cargo}
                                         </p>
                                     </div>
 
@@ -484,10 +484,10 @@ const Dotacion = () => {
                                                     <img src={getAvatar(p)} alt="" className="w-full h-full object-cover" />
                                                 </div>
                                                 <div>
-                                                    <h5 className="font-black text-slate-800 uppercase tracking-tight group-hover:text-blue-600 transition-colors">
+                                                    <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight group-hover:text-blue-600 transition-colors block leading-tight truncate">
                                                         {p.nombre} {p.apellidos}
                                                     </h5>
-                                                    <p className="text-[10px] font-bold text-slate-400 tracking-widest">{formatRut(p.rut)}</p>
+                                                    <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">RUT: {formatRut(p.rut)}</p>
                                                 </div>
                                             </div>
                                         </td>

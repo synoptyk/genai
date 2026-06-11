@@ -37,10 +37,7 @@ const ProduccionAgenda = ({
 
   const shortenName = (name) => {
     if (!name) return '';
-    const parts = name.split(' ').filter(Boolean);
-    if (parts.length <= 1) return name;
-    if (parts.length >= 4) return `${parts[0]} ${parts[2]}`;
-    return `${parts[0]} ${parts[1]}`;
+    return name;
   };
 
   const getDayName = (d) => {
@@ -423,7 +420,12 @@ const ProduccionAgenda = ({
           <tbody className="p-0 m-0">
             {sortedTechs.map((t) => (
               <tr key={t.idUnique || t._id} className="h-10 border-b border-white/5 hover:bg-white/5 p-0 m-0 transition-colors">
-                <td className="sticky left-0 z-20 bg-slate-900 border-r border-slate-800 text-[8px] font-black text-slate-200 uppercase px-1 truncate p-0 m-0 group-hover:bg-slate-800">{shortenName(t.fullName || t.name)}</td>
+                <td className="sticky left-0 z-20 bg-slate-900 border-r border-slate-800 uppercase px-1 p-0 m-0 overflow-hidden group-hover:bg-slate-800">
+                  <div className="flex flex-col leading-none justify-center h-full gap-0.5">
+                    <span className="text-[7px] font-black text-slate-200 truncate group-hover:bg-slate-800" title={t.fullName || t.name}>{shortenName(t.fullName || t.name)}</span>
+                    <span className="text-[7px] font-black text-slate-400 font-mono truncate uppercase tracking-tight group-hover:bg-slate-800" title={t.rut}>{t.rut || 'SIN RUT'}</span>
+                  </div>
+                </td>
                 <td className="sticky left-[110px] z-20 bg-slate-900 border-r border-slate-800 text-amber-400 font-mono text-[8px] font-black px-1 p-0 m-0 text-center group-hover:bg-slate-800">{t.idRecursoToa || '—'}</td>
                 <td className="sticky left-[150px] z-20 bg-slate-900 border-r-4 border-r-white text-slate-500 uppercase text-[7px] font-black px-1 truncate p-0 m-0 text-center group-hover:bg-slate-800">{t.proyecto || '—'}</td>
                 {days.map(d => {

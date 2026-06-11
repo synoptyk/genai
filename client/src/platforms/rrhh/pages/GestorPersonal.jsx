@@ -319,10 +319,15 @@ const GestorPersonal = () => {
     };
 
     // 6. Vista Derivada
-    const filteredUsers = users.filter(u =>
-        u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredUsers = users.filter(u => {
+        const searchLower = searchTerm.toLowerCase();
+        const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
+        const cleanRut = u.rut ? u.rut.replace(/[^0-9kK]/gi, '') : '';
+        
+        return u.name?.toLowerCase().includes(searchLower) ||
+               u.email?.toLowerCase().includes(searchLower) ||
+               (cleanSearch && cleanRut.includes(cleanSearch));
+    });
 
     const isLimitReached = actualCompanyLimit && users.length >= actualCompanyLimit;
 
@@ -455,8 +460,10 @@ const GestorPersonal = () => {
                                                 {u.name?.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div>
-                                                <div className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{u.name}</div>
-                                                <div className="text-[10px] font-bold text-slate-400">{u.email}</div>
+                                                <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight truncate">{u.name}</span>
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                                    {u.rut ? `RUT: ${formatRut(u.rut)}` : u.email}
+                                                </span>
                                             </div>
                                         </div>
                                     </td>

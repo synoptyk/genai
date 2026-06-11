@@ -1,10 +1,13 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Car, User, Calendar, Wallet, TrendingUp, Users, Download, ChevronDown, Filter } from 'lucide-react';
+import { Car, User, Calendar, Wallet, TrendingUp, Users, Download, ChevronDown, Filter, Landmark, X, Info, Sparkles } from 'lucide-react';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, LabelList } from 'recharts';
 import * as XLSX from 'xlsx';
 import { telecomApi } from '../telecomApi';
 import { getBonusForMonth, getBonosFijosForMonth } from '../utils/bonosCalculator';
 import { getBaremo } from '../utils/financialUtils';
+import { getFeriadosChile } from '../utils/produccionUtils';
+import { useIndicadores } from '../../../contexts/IndicadoresContext';
+
 const parseStartDate = (dateStr) => {
   if (!dateStr) return null;
   if (typeof dateStr !== 'string') return new Date(dateStr);
@@ -45,7 +48,129 @@ const getWorkerActiveDays = (v, limitDays, filtroMes) => {
   return Math.max(0, limitDays - startDayNum + 1);
 };
 
+const getWorkerDeductions = (v, limitDays, filtroMes, tecnicos) => {
+  const rut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
+  const nombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
+  const t = tecnicos.find(x => 
+    (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === rut) ||
+    ((x.name || x.fullName || '').toLowerCase().trim() === nombre)
+  );
+
+  if (!t || !t.dailyMap) return 0;
+
+  const today = new Date();
+  let selectedYear = today.getFullYear();
+  let selectedMonth = today.getMonth();
+  
+  if (filtroMes) {
+    const parts = filtroMes.split('-');
+    selectedYear = parseInt(parts[0], 10);
+    selectedMonth = parseInt(parts[1], 10) - 1;
+  }
+
+  const holidays = getFeriadosChile(selectedYear);
+  const startStr = v.asignadoA?.contractStartDate || v.asignadoA?.fechaIngreso;
+  const start = parseStartDate(startStr);
+
+  let deductionsCount = 0;
+
+  for (let dayNum = 1; dayNum <= limitDays; dayNum++) {
+    const dateObj = new Date(selectedYear, selectedMonth, dayNum);
+    if (start && dateObj < start) {
+      continue;
+    }
+
+    const dayOfWeek = dateObj.getDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+      if (!holidays.includes(dateStr)) {
+        const dayData = t.dailyMap[dateStr];
+        const pts = typeof dayData === 'object' ? (dayData?.pts || 0) : (dayData || 0);
+        if (pts <= 0) {
+          deductionsCount++;
+        }
+      }
+    }
+  }
+
+  return deductionsCount;
+};
+
+const getProratedSueldo = (v, limitDays, numDiasMes, filtroMes, tecnicos) => {
+  const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
+  if (!sueldoBase) return 0;
+
+  const workerDays = getWorkerActiveDays(v, limitDays, filtroMes);
+  const baseProrated = Math.round((sueldoBase / numDiasMes) * workerDays);
+
+  const deductionsCount = getWorkerDeductions(v, limitDays, filtroMes, tecnicos);
+  const deduction = Math.round((sueldoBase / numDiasMes) * deductionsCount);
+
+  return Math.max(0, baseProrated - deduction);
+};
+
+// Helper de cálculo financiero 100% alineado a legislación chilena (Feb 2026) y Mercado Financiero
+const calculateFinancials = (sueldoBase, produccionClp, bonoFijo, bonoVar, leasing, combustible, workerDays, numDiasMes, infoPrev = {}, ufHoy = 38500, immValue = 539000, sisRate = 1.54) => {
+  const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / numDiasMes) * workerDays) : 0;
+  const prorrateadoBonoFijo = bonoFijo ? Math.round((bonoFijo / numDiasMes) * workerDays) : 0;
+  
+  // Imponibles base sin gratificación (No incluye la Producción, ya que representa el Ingreso/Facturación de la empresa, no un pago de remuneración al técnico)
+  const imponibleBaseSinGrat = prorrateadoSueldo + prorrateadoBonoFijo + bonoVar;
+  
+  // Gratificación legal (Art 50) topado a 4.75 IMM prorrateado
+  const topeGratifMensual = (immValue * 4.75) / 12; // $213.438 con IMM 539.000
+  const prorrateoTopeGratif = Math.round((topeGratifMensual / numDiasMes) * workerDays);
+  const gratificacion = Math.min(Math.round(imponibleBaseSinGrat * 0.25), prorrateoTopeGratif);
+  
+  const totalImponible = imponibleBaseSinGrat + gratificacion;
+  
+  // Topes previsionales prorrateados por los días trabajados en el periodo (según días transcurridos)
+  const topeAfpCLP = Math.round((89.9 * ufHoy / numDiasMes) * workerDays);
+  const topeAfcCLP = Math.round((135.1 * ufHoy / numDiasMes) * workerDays);
+  const imponibleTopadoAFP = Math.min(totalImponible, topeAfpCLP);
+  const imponibleTopadoAFC = Math.min(totalImponible, topeAfcCLP);
+  
+  // Aportes patronales (leyes sociales empleador)
+  const sisMonto = Math.round(imponibleTopadoAFP * (sisRate / 100));
+  const mutualMonto = Math.round(imponibleTopadoAFP * (0.90 / 100));
+  const expectativaMonto = Math.round(imponibleTopadoAFP * (0.50 / 100)); // Longevidad
+  
+  const contractType = (infoPrev?.tipoContrato || infoPrev?.contractType || 'INDEFINIDO').toUpperCase();
+  const esIndefinido = contractType.includes('INDEFINIDO');
+  const afcPatronalRate = esIndefinido ? 2.4 : 3.0;
+  const afcPatronalMonto = Math.round(imponibleTopadoAFC * (afcPatronalRate / 100));
+  
+  const totalLeyesSociales = sisMonto + mutualMonto + expectativaMonto + afcPatronalMonto;
+  const totalCostoEmpresa = totalImponible + totalLeyesSociales + leasing + combustible;
+  
+  return {
+    prorrateadoSueldo,
+    prorrateadoBonoFijo,
+    gratificacion,
+    totalImponible,
+    topes: {
+      topeAFP: topeAfpCLP,
+      topeAFC: topeAfcCLP,
+      imponibleTopadoAFP,
+      imponibleTopadoAFC
+    },
+    leyesSociales: {
+      sis: { tasa: sisRate, monto: sisMonto },
+      mutual: { tasa: 0.90, monto: mutualMonto },
+      expectativaVida: { tasa: 0.50, monto: expectativaMonto },
+      afc: { tasa: afcPatronalRate, monto: afcPatronalMonto, tipoContrato: contractType },
+      total: totalLeyesSociales
+    },
+    totalCostoEmpresa
+  };
+};
+
 const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = null, tecnicos = [], selectedMonths = [], setSelectedMonths }) => {
+  const { ufValue: ufCtx, immValue = 539000, params: indicParams } = useIndicadores();
+  const [selectedBreakdown, setSelectedBreakdown] = useState(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+
   const [ufValue, setUfValue] = useState(null);
   const [ufYearData, setUfYearData] = useState({});
   const [fuelData, setFuelData] = useState([]);
@@ -316,8 +441,15 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
         cargo: t.cargo || 'Técnico',
         proyecto: t.proyecto,
         projectId: null,
-        fechaIngreso: t.inicioContrato || null,
-        contractStartDate: t.inicioContrato || null
+        fechaIngreso: t.fechaIngreso || t.inicioContrato || null,
+        contractStartDate: t.fechaIngreso || t.inicioContrato || null,
+        previsionSalud: t.previsionSalud || 'FONASA',
+        isapreNombre: t.isapreNombre || '',
+        valorPlan: t.valorPlan || 0,
+        monedaPlan: t.monedaPlan || 'UF',
+        afp: t.afp || 'HABITAT',
+        pensionado: t.pensionado || 'NO',
+        tipoContrato: t.tipoContrato || t.contractType || 'INDEFINIDO'
       }
     }));
 
@@ -360,26 +492,37 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
 
     const numDiasMes = parseInt(diasMes) || 30;
     const numDiasTranscurridos = parseInt(diasTranscurridos) || 1;
+    const ufHoy = ufCtx || ufValue || 38500;
+    const sisRate = indicParams?.sisRate || 1.54;
 
     asignados.forEach(v => {
+      const techRut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
+      const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
+      const t = tecnicos.find(x => 
+        (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === techRut) ||
+        ((x.name || x.fullName || '').toLowerCase().trim() === techNombre)
+      );
+      const pts = t ? (t.ptsTotal || 0) : 0;
+      const proyecto = v.asignadoA.projectId?.nombreProyecto || v.asignadoA.proyecto || 'General';
+      const valorPunto = getTarifaParaProyecto(proyecto);
+      const prodClp = pts * valorPunto;
+      
+      produccionClp += prodClp;
+      produccionPts += pts;
+
       const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
-      const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / numDiasMes) * numDiasTranscurridos) : 0;
-      const sueldoHastaUltimo = sueldoBase ? Math.round((sueldoBase / numDiasMes) * ultimoDiaProducido) : 0;
       
       const isUF = v.moneda === 'UF' || (v.valor > 0 && v.valor < 100);
-      const valorCLP = isUF ? (ufValue ? Math.round(v.valor * ufValue) : 0) : (v.valor || 0);
+      const valorCLP = isUF ? (ufHoy ? Math.round(v.valor * ufHoy) : 0) : (v.valor || 0);
+      
       const prorrateadoLeasing = valorCLP ? Math.round((valorCLP / numDiasMes) * numDiasTranscurridos) : 0;
       const leasingHastaUltimo = valorCLP ? Math.round((valorCLP / numDiasMes) * ultimoDiaProducido) : 0;
       
       const totalC = fuelByPatente[v.patente] || 0;
       const fuelHastaUltimo = totalC ? Math.round((totalC / numDiasMes) * ultimoDiaProducido) : 0;
       
-      const techRut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
-      const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
       const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
       const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
-      const prorrateadoBonoFijo = bonoFijo > 0 ? Math.round((bonoFijo / numDiasMes) * numDiasTranscurridos) : 0;
-      const bonoFijoHastaUltimo = bonoFijo > 0 ? Math.round((bonoFijo / numDiasMes) * ultimoDiaProducido) : 0;
       
       const techId1 = v.asignadoA?._id?.toString() || '';
       let bonoVar = 0;
@@ -387,55 +530,51 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       else if (bonusData[techId1] !== undefined) bonoVar = bonusData[techId1];
       else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
       else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
-      
-      const sumRemu = prorrateadoSueldo + prorrateadoBonoFijo + bonoVar;
-      const sumFlota = prorrateadoLeasing + totalC;
-      const totalCaja = sumRemu + sumFlota;
 
-      const sumRemuHastaUltimo = sueldoHastaUltimo + bonoFijoHastaUltimo + bonoVar;
-      const sumFlotaHastaUltimo = leasingHastaUltimo + fuelHastaUltimo;
-      const totalCajaHastaUltimo = sumRemuHastaUltimo + sumFlotaHastaUltimo;
-
-      remuneracion += sumRemu;
-      remuneracionHastaUltimo += sumRemuHastaUltimo;
-      flota += sumFlota;
-      flotaHastaUltimo += sumFlotaHastaUltimo;
-      costoGeneral += totalCaja;
-      costoHastaUltimoDia += totalCajaHastaUltimo;
-
-      const rut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
-      const nombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
-      const t = tecnicos.find(x => 
-        (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === rut) ||
-        ((x.name || x.fullName || '').toLowerCase().trim() === nombre)
+      // Calcular para días transcurridos
+      const workerDays = getWorkerActiveDays(v, numDiasTranscurridos, filtroMes);
+      const finTrans = calculateFinancials(
+        sueldoBase, prodClp, bonoFijo, bonoVar, prorrateadoLeasing, totalC,
+        workerDays, numDiasMes, v.asignadoA, ufHoy, immValue, sisRate
       );
-      const pts = t ? (t.ptsTotal || 0) : 0;
-      const proyecto = v.asignadoA.projectId?.nombreProyecto || v.asignadoA.proyecto || 'General';
-      const valorPunto = getTarifaParaProyecto(proyecto);
-      produccionClp += pts * valorPunto;
-      produccionPts += pts;
+
+      // Calcular para días producidos (hasta último producido)
+      const workerDaysHastaUltimo = getWorkerActiveDays(v, ultimoDiaProducido, filtroMes);
+      const finHastaUltimo = calculateFinancials(
+        sueldoBase, prodClp, bonoFijo, bonoVar, leasingHastaUltimo, fuelHastaUltimo,
+        workerDaysHastaUltimo, numDiasMes, v.asignadoA, ufHoy, immValue, sisRate
+      );
+
+      remuneracion += finTrans.totalImponible + finTrans.leyesSociales.total;
+      remuneracionHastaUltimo += finHastaUltimo.totalImponible + finHastaUltimo.leyesSociales.total;
+      
+      flota += prorrateadoLeasing + totalC;
+      flotaHastaUltimo += leasingHastaUltimo + fuelHastaUltimo;
+      
+      costoGeneral += finTrans.totalCostoEmpresa;
+      costoHastaUltimoDia += finHastaUltimo.totalCostoEmpresa;
 
       if (!costoPorProyecto[proyecto]) costoPorProyecto[proyecto] = { total: 0, count: 0, produccion: 0 };
-      costoPorProyecto[proyecto].total += totalCaja;
+      costoPorProyecto[proyecto].total += finTrans.totalCostoEmpresa;
       costoPorProyecto[proyecto].count += 1;
-      costoPorProyecto[proyecto].produccion += (pts * valorPunto);
+      costoPorProyecto[proyecto].produccion += prodClp;
     });
 
     const chart = Object.entries(costoPorProyecto)
-      .map(([name, data]) => ({ name, TotalCostoCaja: data.total, Trabajadores: data.count, ProduccionCLP: data.produccion }))
-      .sort((a, b) => b.TotalCostoCaja - a.TotalCostoCaja);
+      .map(([name, data]) => ({ name, TotalCostoEmpresa: data.total, Trabajadores: data.count, ProduccionCLP: data.produccion }))
+      .sort((a, b) => b.TotalCostoEmpresa - a.TotalCostoEmpresa);
 
     return { totales: { costoGeneral, costoHastaUltimoDia, remuneracion, remuneracionHastaUltimo, flota, flotaHastaUltimo, produccionClp, produccionPts, ultimoDiaProducido, numDiasTranscurridos }, chartData: chart };
-  }, [asignados, diasMes, diasTranscurridos, ufValue, fuelByPatente, fixedBonusData, bonusData, tecnicos, ultimoDiaProducido]);
+  }, [asignados, diasMes, diasTranscurridos, ufValue, ufCtx, fuelByPatente, fixedBonusData, bonusData, tecnicos, ultimoDiaProducido, indicParams, immValue]);
 
   const techProfitabilityData = useMemo(() => {
     const list = asignados.map(v => {
       const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
       const workerDays = getWorkerActiveDays(v, diasTranscurridos, filtroMes);
-      const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / diasMes) * workerDays) : 0;
       
       const isUF = v.moneda === 'UF' || (v.valor > 0 && v.valor < 100);
-      const valorCLP = isUF ? (ufValue ? Math.round(v.valor * ufValue) : 0) : (v.valor || 0);
+      const ufHoy = ufCtx || ufValue || 38500;
+      const valorCLP = isUF ? (ufHoy ? Math.round(v.valor * ufHoy) : 0) : (v.valor || 0);
       const prorrateadoLeasing = valorCLP ? Math.round((valorCLP / diasMes) * workerDays) : 0;
       
       const totalC = fuelByPatente[v.patente] || 0;
@@ -444,7 +583,6 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
       const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
       const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
-      const prorrateadoBonoFijo = bonoFijo > 0 ? Math.round((bonoFijo / diasMes) * workerDays) : 0;
       
       const techId1 = v.asignadoA?._id?.toString() || '';
       let bonoVar = 0;
@@ -453,8 +591,6 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
       else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
       
-      const totalCostoCaja = prorrateadoSueldo + prorrateadoLeasing + totalC + prorrateadoBonoFijo + bonoVar;
-
       const t = tecnicos.find(x => 
         (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === techRut) ||
         ((x.name || x.fullName || '').toLowerCase().trim() === techNombre)
@@ -464,7 +600,14 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       const valorPunto = getTarifaParaProyecto(proyectoName);
       const valorTotal = pts * valorPunto;
       
-      const rentabilidad = valorTotal - totalCostoCaja;
+      const sisRate = indicParams?.sisRate || 1.54;
+      const fin = calculateFinancials(
+        sueldoBase, valorTotal, bonoFijo, bonoVar, prorrateadoLeasing, totalC,
+        workerDays, diasMes, v.asignadoA, ufHoy, immValue, sisRate
+      );
+
+      const totalCostoEmpresa = fin.totalCostoEmpresa;
+      const rentabilidad = valorTotal - totalCostoEmpresa;
       const pctValue = valorTotal > 0 ? (rentabilidad / valorTotal) * 100 : 0;
       const rentK = rentabilidad >= 0 
         ? `$${(rentabilidad / 1000).toFixed(0)}K` 
@@ -481,7 +624,7 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
         })(),
         rentabilidad,
         produccion: valorTotal,
-        costo: totalCostoCaja,
+        costo: totalCostoEmpresa,
         labelRentabilidad
       };
     });
@@ -490,7 +633,54 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
     const negativas = list.filter(x => x.rentabilidad < 0).sort((a, b) => a.rentabilidad - b.rentabilidad);
 
     return { positivas, negativas };
-  }, [asignados, diasMes, diasTranscurridos, ufValue, fuelByPatente, fixedBonusData, bonusData, tecnicos]);
+  }, [asignados, diasMes, diasTranscurridos, ufValue, ufCtx, fuelByPatente, fixedBonusData, bonusData, tecnicos, indicParams, immValue]);
+
+  const generateAiAnalysis = async () => {
+    setLoadingAi(true);
+    try {
+      const prompt = `[Módulo Producción Financiera - Gen AI] Analiza financieramente el resumen de costos y producción del mes actual con los siguientes datos consolidados del equipo:
+- Producción Total Facturada: ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totales.produccionClp)} (${totales.produccionPts} puntos)
+- Costo Empresa Total: ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totales.costoGeneral)}
+- Margen Neto (Rentabilidad Bruta): ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totales.produccionClp - totales.costoGeneral)} (${totales.produccionClp > 0 ? ((totales.produccionClp - totales.costoGeneral) / totales.produccionClp * 100).toFixed(1) : 0}%)
+- Días Transcurridos Evaluados: ${totales.numDiasTranscurridos} días
+- Número de Especialistas en Terreno: ${asignados.length}
+- Costo de Flota (Leasing y Combustible): ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totales.flota)}
+- Costo de Remuneraciones (Sueldo base prorrateado, leyes sociales y bonos): ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totales.remuneracion)}
+
+Danos un análisis ejecutivo senior estructurado en 3 secciones claras:
+1. 📊 SALUD FINANCIERA (Diagnóstico del margen neto y la rentabilidad del equipo).
+2. 💡 EFICIENCIA DE COSTOS (Análisis del balance entre el costo operativo de flota y remuneraciones vs. los ingresos generados).
+3. ⚡ RECOMENDACIONES CLAVE (Recomendaciones accionables para optimizar recursos o alertar desvíos en terreno).
+
+Responde de forma concisa, con viñetas y lenguaje directo de negocios.`;
+
+      const response = await telecomApi.post('/ai/chat', {
+        mensaje: prompt,
+        contexto: {
+          rolUsuario: 'executive',
+          modulo: 'produccion_financiera'
+        }
+      });
+
+      const data = response.data;
+      if (data.ok && data.respuesta) {
+        let cleanAnswer = data.respuesta;
+        cleanAnswer = cleanAnswer.replace(/^Hola [^.]+\.\s*/i, '');
+        cleanAnswer = cleanAnswer.replace(/\n\n¿Necesitas otro indicador o análisis ejecutivo\?$/i, '');
+        cleanAnswer = cleanAnswer.replace(/\n\n¿Te ayudo con algún indicador de tu equipo o proceso\?$/i, '');
+        cleanAnswer = cleanAnswer.replace(/\n\n¿Te ayudo en algo más\?$/i, '');
+        
+        setAiAnalysis(cleanAnswer.trim());
+      } else {
+        alert('No se pudo generar el análisis de IA. Intente nuevamente.');
+      }
+    } catch (err) {
+      console.error('[GenAI Analysis Error]:', err);
+      alert('Error en la conexión con el motor de Inteligencia Artificial.');
+    } finally {
+      setLoadingAi(false);
+    }
+  };
 
   const exportToExcel = () => {
     const dataToExport = asignados.map(v => {
@@ -499,10 +689,10 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       
       const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
       const workerDays = getWorkerActiveDays(v, numDiasTranscurridos, filtroMes);
-      const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / numDiasMes) * workerDays) : 0;
       
       const isUF = v.moneda === 'UF' || (v.valor > 0 && v.valor < 100);
-      const valorCLP = isUF ? (ufValue ? Math.round(v.valor * ufValue) : 0) : (v.valor || 0);
+      const ufHoy = ufCtx || ufValue || 38500;
+      const valorCLP = isUF ? (ufHoy ? Math.round(v.valor * ufHoy) : 0) : (v.valor || 0);
       const prorrateadoLeasing = valorCLP ? Math.round((valorCLP / numDiasMes) * workerDays) : 0;
       
       const totalC = fuelByPatente[v.patente] || 0;
@@ -511,7 +701,6 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
       const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
       const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
-      const prorrateadoBonoFijo = bonoFijo > 0 ? Math.round((bonoFijo / numDiasMes) * workerDays) : 0;
       
       const techId1 = v.asignadoA?._id?.toString() || '';
       let bonoVar = 0;
@@ -520,10 +709,6 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
       else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
       
-      const sumRemu = prorrateadoSueldo + prorrateadoBonoFijo + bonoVar;
-      const sumFlota = prorrateadoLeasing + totalC;
-      const totalCaja = sumRemu + sumFlota;
-
       const t = tecnicos.find(x => 
         (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === techRut) ||
         ((x.name || x.fullName || '').toLowerCase().trim() === techNombre)
@@ -532,6 +717,12 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
       const proyecto = v.asignadoA.projectId?.nombreProyecto || v.asignadoA.proyecto || 'General';
       const valorPunto = getTarifaParaProyecto(proyecto);
       const valorTotal = pts * valorPunto;
+
+      const sisRate = indicParams?.sisRate || 1.54;
+      const fin = calculateFinancials(
+        sueldoBase, valorTotal, bonoFijo, bonoVar, prorrateadoLeasing, totalC,
+        workerDays, numDiasMes, v.asignadoA, ufHoy, immValue, sisRate
+      );
 
       return {
         'Especialista': v.asignadoA.nombre || '',
@@ -543,15 +734,15 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
         'Puntos (Producción)': pts.toFixed(1),
         'Monto Producción (CLP)': valorTotal,
         'Sueldo Base (CLP)': sueldoBase,
-        'Sueldo Prorrateado (CLP)': prorrateadoSueldo,
+        'Sueldo Prorrateado (CLP)': fin.prorrateadoSueldo,
         'Valor Leasing (CLP)': prorrateadoLeasing,
         'Combustible (CLP)': totalC,
-        'Bono Fijo (CLP)': prorrateadoBonoFijo,
+        'Bono Fijo (CLP)': fin.prorrateadoBonoFijo,
         'Monto Bono Var (CLP)': bonoVar,
-        'Total Remuneración (CLP)': sumRemu,
-        'Total Flota (CLP)': sumFlota,
-        'Total Costo Caja (CLP)': totalCaja,
-        'Rentabilidad Bruta (CLP)': valorTotal - totalCaja
+        'Gratificación Legal (CLP)': fin.gratificacion,
+        'Leyes Sociales Empleador (CLP)': fin.leyesSociales.total,
+        'Total Costo Empresa (CLP)': fin.totalCostoEmpresa,
+        'Rentabilidad Bruta (CLP)': valorTotal - fin.totalCostoEmpresa
       };
     });
 
@@ -572,7 +763,27 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
           </div>
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Control Operativo</p>
-            <h4 className="text-lg font-black text-slate-700">Flujo de Costos Operacion Activa</h4>
+            <div className="flex items-center gap-3">
+              <h4 className="text-lg font-black text-slate-700">Flujo de Costos Operacion Activa</h4>
+              <button
+                onClick={generateAiAnalysis}
+                disabled={loadingAi}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 text-[10px] font-black uppercase tracking-wider disabled:opacity-50 cursor-pointer"
+                title="Generar análisis financiero inteligente con GenAI"
+              >
+                {loadingAi ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin animate-duration-1000" />
+                    <span>Analizando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={12} className="animate-pulse" />
+                    <span>GenAI Analizar</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
           <div className="ml-auto flex flex-col sm:flex-row items-end sm:items-center gap-3">
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm">
@@ -595,6 +806,94 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
             </div>
           </div>
         </div>
+
+        {/* GenAI Analysis Loading / Result Box */}
+        {(loadingAi || aiAnalysis) && (
+          <div className="mb-8 p-6 bg-gradient-to-br from-violet-50 to-indigo-50 border border-violet-100 rounded-3xl shadow-sm relative overflow-hidden animate-in fade-in slide-in-from-top-3 duration-500">
+            {/* Background glowing gradients */}
+            <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-gradient-to-tr from-violet-400/10 to-indigo-400/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -left-10 -top-10 w-40 h-40 bg-gradient-to-br from-indigo-400/10 to-purple-400/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-start justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl shadow-md">
+                  <Sparkles size={18} className="animate-pulse" />
+                </div>
+                <div>
+                  <h5 className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-700 to-indigo-700 uppercase tracking-wider">
+                    Análisis Inteligente GenAI
+                  </h5>
+                  <p className="text-[10px] text-slate-500 font-bold">
+                    {loadingAi ? 'Procesando datos y modelando proyecciones...' : 'Generado en tiempo real basado en el resumen financiero actual'}
+                  </p>
+                </div>
+              </div>
+              {!loadingAi && (
+                <button
+                  onClick={() => setAiAnalysis(null)}
+                  className="p-1.5 hover:bg-violet-100 text-slate-400 hover:text-violet-600 rounded-lg transition-all cursor-pointer"
+                  title="Cerrar Análisis"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {loadingAi ? (
+              <div className="mt-4 pt-4 border-t border-violet-100/50 space-y-4 animate-pulse">
+                <div className="space-y-2">
+                  <div className="h-4 bg-violet-200/60 rounded-md w-1/4" />
+                  <div className="h-3 bg-violet-200/40 rounded-md w-3/4" />
+                  <div className="h-3 bg-violet-200/40 rounded-md w-5/6" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-violet-200/60 rounded-md w-1/3" />
+                  <div className="h-3 bg-violet-200/40 rounded-md w-2/3" />
+                  <div className="h-3 bg-violet-200/40 rounded-md w-4/5" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-violet-200/60 rounded-md w-1/5" />
+                  <div className="h-3 bg-violet-200/40 rounded-md w-3/4" />
+                  <div className="h-3 bg-violet-200/40 rounded-md w-1/2" />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 pt-4 border-t border-violet-100/50 text-slate-700 text-xs font-semibold leading-relaxed relative z-10 whitespace-pre-line space-y-4">
+                {/* Formatter for sections */}
+                {aiAnalysis && aiAnalysis.split(/(?=\d\.\s+[\w\sÁÉÍÓÚáéíóúÑñ]+)/g).map((section, idx) => {
+                  const lines = section.trim().split('\n');
+                  const titleLine = lines[0];
+                  const restLines = lines.slice(1);
+
+                  return (
+                    <div key={idx} className="space-y-2">
+                      {titleLine && (
+                        <h6 className="font-extrabold text-sm text-indigo-950 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-violet-600" />
+                          {titleLine}
+                        </h6>
+                      )}
+                      <div className="pl-3 space-y-1.5 text-slate-600 font-medium">
+                        {restLines.map((line, lIdx) => {
+                          const trimmedLine = line.trim();
+                          if (trimmedLine.startsWith('-') || trimmedLine.startsWith('*')) {
+                            return (
+                              <div key={lIdx} className="flex items-start gap-2 pl-2">
+                                <span className="text-violet-500 mt-1">•</span>
+                                <span>{trimmedLine.substring(1).trim()}</span>
+                              </div>
+                            );
+                          }
+                          return <p key={lIdx} className="pl-2">{trimmedLine}</p>;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── FILTRO DE PROYECTOS MULTISELECCIÓN ── */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 relative z-30">
@@ -891,10 +1190,10 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
               <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
                 <TrendingUp size={18} className="text-slate-600" />
               </div>
-              <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Costo Caja por Proyecto</span>
+              <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Costo Empresa por Proyecto</span>
             </div>
             <div className="flex-1 min-h-[250px] relative z-10">
-              <ResponsiveContainer width="100%" minHeight={250}>
+              <ResponsiveContainer width="100%" height={250}>
                 <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                   <XAxis 
@@ -923,15 +1222,15 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
                     cursor={{ fill: '#F8FAFC' }}
                     contentStyle={{ borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 700 }}
                     formatter={(value, name) => {
-                      if (name === 'TotalCostoCaja') return [new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value), 'Costo Caja'];
+                      if (name === 'TotalCostoEmpresa') return [new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value), 'Costo Empresa'];
                       if (name === 'ProduccionCLP') return [new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value), 'Producción'];
                       if (name === 'Trabajadores') return [value, 'Trabajadores'];
                       return [value, name];
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold', paddingTop: '10px' }} />
-                  <Bar yAxisId="left" name="Costo Caja" dataKey="TotalCostoCaja" fill="#6366F1" radius={[6, 6, 0, 0]} maxBarSize={40}>
-                    <LabelList dataKey="TotalCostoCaja" position="top" formatter={(value) => `$${(value / 1000000).toFixed(1)}M`} fill="#6366F1" fontSize={10} fontWeight="bold" />
+                  <Bar yAxisId="left" name="Costo Empresa" dataKey="TotalCostoEmpresa" fill="#6366F1" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                    <LabelList dataKey="TotalCostoEmpresa" position="top" formatter={(value) => `$${(value / 1000000).toFixed(1)}M`} fill="#6366F1" fontSize={10} fontWeight="bold" />
                   </Bar>
                   <Bar yAxisId="left" name="Producción" dataKey="ProduccionCLP" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={40}>
                     <LabelList dataKey="ProduccionCLP" position="top" formatter={(value) => `$${(value / 1000000).toFixed(1)}M`} fill="#10B981" fontSize={10} fontWeight="bold" />
@@ -948,17 +1247,25 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
         {techProfitabilityData.positivas.length > 0 && (
           <div className="w-full p-6 rounded-3xl bg-white border border-slate-200 flex flex-col shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-all duration-500 relative overflow-hidden group mb-8 relative z-10">
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-emerald-50 to-emerald-100/30 rounded-full -mr-[250px] -mt-[250px] opacity-50 pointer-events-none group-hover:rotate-[15deg] transition-transform duration-[2000ms]"></div>
-            <div className="flex items-center gap-3 mb-6 relative z-10">
-              <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100">
-                <TrendingUp size={18} className="text-emerald-600" />
+            <div className="flex items-center mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <TrendingUp size={18} className="text-emerald-600" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-600 uppercase tracking-widest block">Especialistas con Rentabilidad Positiva</span>
+                  <span className="text-[10px] text-slate-400 font-bold">Producción supera al Costo Caja</span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs font-black text-slate-600 uppercase tracking-widest block">Especialistas con Rentabilidad Positiva</span>
-                <span className="text-[10px] text-slate-400 font-bold">Producción supera al Costo Caja</span>
+              <div className="ml-auto text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-0.5">Total Rentabilidad</span>
+                <span className="text-xl font-black text-emerald-600">
+                  ${(techProfitabilityData.positivas.reduce((acc, curr) => acc + curr.rentabilidad, 0)).toLocaleString('es-CL')}
+                </span>
               </div>
             </div>
             <div className="flex-1 min-h-[280px] relative z-10">
-              <ResponsiveContainer width="100%" minHeight={280}>
+              <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={techProfitabilityData.positivas} margin={{ top: 15, right: 10, left: 10, bottom: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                   <XAxis 
@@ -994,17 +1301,25 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
         {techProfitabilityData.negativas.length > 0 && (
           <div className="w-full p-6 rounded-3xl bg-white border border-slate-200 flex flex-col shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-all duration-500 relative overflow-hidden group mb-8 relative z-10">
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-rose-50 to-rose-100/30 rounded-full -mr-[250px] -mt-[250px] opacity-50 pointer-events-none group-hover:rotate-[15deg] transition-transform duration-[2000ms]"></div>
-            <div className="flex items-center gap-3 mb-6 relative z-10">
-              <div className="p-2 bg-rose-50 rounded-xl border border-rose-100">
-                <TrendingUp size={18} className="text-rose-600 rotate-180" />
+            <div className="flex items-center mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-rose-50 rounded-xl border border-rose-100">
+                  <TrendingUp size={18} className="text-rose-600 rotate-180" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-600 uppercase tracking-widest block">Especialistas con Rentabilidad Negativa</span>
+                  <span className="text-[10px] text-slate-400 font-bold">Costo Caja supera a la Producción</span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs font-black text-slate-600 uppercase tracking-widest block">Especialistas con Rentabilidad Negativa</span>
-                <span className="text-[10px] text-slate-400 font-bold">Costo Caja supera a la Producción</span>
+              <div className="ml-auto text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-0.5">Total Rentabilidad</span>
+                <span className="text-xl font-black text-rose-600">
+                  -${Math.abs(techProfitabilityData.negativas.reduce((acc, curr) => acc + curr.rentabilidad, 0)).toLocaleString('es-CL')}
+                </span>
               </div>
             </div>
             <div className="flex-1 min-h-[280px] relative z-10">
-              <ResponsiveContainer width="100%" minHeight={280}>
+              <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={techProfitabilityData.negativas} margin={{ top: 30, right: 10, left: 10, bottom: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                   <XAxis 
@@ -1065,7 +1380,9 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Combustible</th>
                 <th className="py-4 px-4 text-[10px] font-black text-violet-500 uppercase tracking-widest">Bono Fijo</th>
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Monto Bono</th>
-                <th className="py-4 px-4 text-[10px] font-black text-slate-800 uppercase tracking-widest text-right bg-slate-50 border-l border-slate-100">Total Costo Caja</th>
+                <th className="py-4 px-4 text-[10px] font-black text-fuchsia-600 uppercase tracking-widest text-right">Gratificación Legal</th>
+                <th className="py-4 px-4 text-[10px] font-black text-amber-600 uppercase tracking-widest text-right">Leyes Sociales</th>
+                <th className="py-4 px-4 text-[10px] font-black text-slate-800 uppercase tracking-widest text-right bg-slate-50 border-l border-slate-100">Total Costo Empresa</th>
                 <th className="py-4 px-4 text-[10px] font-black text-emerald-800 uppercase tracking-widest text-right bg-emerald-50 border-l border-emerald-100 rounded-tr-xl">Rentabilidad Bruta</th>
               </tr>
             </thead>
@@ -1256,29 +1573,21 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
 
                       return (
                         <div className="font-black text-purple-600 text-[11px]">
-                          {bono > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(bono) : '$0'}
+                          {bono > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(bono) : '$0'}
                         </div>
                       );
                     })()}
                   </td>
-                  {/* ── TOTAL COSTO CAJA ─────────────────────────────────── */}
-                  <td className="py-4 px-4 text-right bg-slate-50 border-l border-slate-100">
+                  {/* ── GRATIFICACIÓN LEGAL ─────────────────────────────────── */}
+                  <td className="py-4 px-4 text-right font-black text-fuchsia-600 text-[11px]">
                     {(() => {
                       const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
                       const workerDays = getWorkerActiveDays(v, diasTranscurridos, filtroMes);
-                      const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / diasMes) * workerDays) : 0;
-                      
-                      const isUF = v.moneda === 'UF' || (v.valor > 0 && v.valor < 100);
-                      const valorCLP = isUF ? (ufValue ? Math.round(v.valor * ufValue) : 0) : (v.valor || 0);
-                      const prorrateadoLeasing = valorCLP ? Math.round((valorCLP / diasMes) * workerDays) : 0;
-                      
-                      const totalC = fuelByPatente[v.patente] || 0;
                       
                       const techRut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
                       const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
                       const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
                       const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
-                      const prorrateadoBonoFijo = bonoFijo > 0 ? Math.round((bonoFijo / diasMes) * workerDays) : 0;
                       
                       const techId1 = v.asignadoA?._id?.toString() || '';
                       let bonoVar = 0;
@@ -1287,43 +1596,6 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
                       else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
                       else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
                       
-                      const totalCostoCaja = prorrateadoSueldo + prorrateadoLeasing + totalC + prorrateadoBonoFijo + bonoVar;
-                      
-                      return (
-                        <div className="font-black text-slate-800 text-[11px]">
-                          {totalCostoCaja > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(totalCostoCaja) : '$0'}
-                        </div>
-                      );
-                    })()}
-                  </td>
-                  {/* ── RENTABILIDAD BRUTA ─────────────────────────────────── */}
-                  <td className="py-4 px-4 text-right bg-emerald-50/50 border-l border-emerald-100">
-                    {(() => {
-                      const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
-                      const workerDays = getWorkerActiveDays(v, diasTranscurridos, filtroMes);
-                      const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / diasMes) * workerDays) : 0;
-                      
-                      const isUF = v.moneda === 'UF' || (v.valor > 0 && v.valor < 100);
-                      const valorCLP = isUF ? (ufValue ? Math.round(v.valor * ufValue) : 0) : (v.valor || 0);
-                      const prorrateadoLeasing = valorCLP ? Math.round((valorCLP / diasMes) * workerDays) : 0;
-                      
-                      const totalC = fuelByPatente[v.patente] || 0;
-                      
-                      const techRut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
-                      const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
-                      const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
-                      const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
-                      const prorrateadoBonoFijo = bonoFijo > 0 ? Math.round((bonoFijo / diasMes) * workerDays) : 0;
-                      
-                      const techId1 = v.asignadoA?._id?.toString() || '';
-                      let bonoVar = 0;
-                      if (bonusData[techRut] !== undefined) bonoVar = bonusData[techRut];
-                      else if (bonusData[techId1] !== undefined) bonoVar = bonusData[techId1];
-                      else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
-                      else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
-                      
-                      const totalCostoCaja = prorrateadoSueldo + prorrateadoLeasing + totalC + prorrateadoBonoFijo + bonoVar;
-
                       const t = tecnicos.find(x => 
                         (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === techRut) ||
                         ((x.name || x.fullName || '').toLowerCase().trim() === techNombre)
@@ -1333,14 +1605,164 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
                       const valorPunto = getTarifaParaProyecto(proyectoName);
                       const valorTotal = pts * valorPunto;
                       
-                      const rentabilidad = valorTotal - totalCostoCaja;
+                      const ufHoy = ufCtx || ufValue || 38500;
+                      const sisRate = indicParams?.sisRate || 1.54;
+                      const fin = calculateFinancials(
+                        sueldoBase, valorTotal, bonoFijo, bonoVar, 0, 0,
+                        workerDays, diasMes, v.asignadoA, ufHoy, immValue, sisRate
+                      );
+
+                      return fin.gratificacion > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(fin.gratificacion) : '$0';
+                    })()}
+                  </td>
+                  {/* ── LEYES SOCIALES ─────────────────────────────────────── */}
+                  <td className="py-4 px-4 text-right">
+                    {(() => {
+                      const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
+                      const workerDays = getWorkerActiveDays(v, diasTranscurridos, filtroMes);
+                      
+                      const techRut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
+                      const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
+                      const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
+                      const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
+                      
+                      const techId1 = v.asignadoA?._id?.toString() || '';
+                      let bonoVar = 0;
+                      if (bonusData[techRut] !== undefined) bonoVar = bonusData[techRut];
+                      else if (bonusData[techId1] !== undefined) bonoVar = bonusData[techId1];
+                      else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
+                      else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
+                      
+                      const t = tecnicos.find(x => 
+                        (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === techRut) ||
+                        ((x.name || x.fullName || '').toLowerCase().trim() === techNombre)
+                      );
+                      const pts = t ? (t.ptsTotal || 0) : 0;
+                      const proyectoName = v.asignadoA.projectId?.nombreProyecto || v.asignadoA.proyecto || '';
+                      const valorPunto = getTarifaParaProyecto(proyectoName);
+                      const valorTotal = pts * valorPunto;
+                      
+                      const ufHoy = ufCtx || ufValue || 38500;
+                      const sisRate = indicParams?.sisRate || 1.54;
+                      const fin = calculateFinancials(
+                        sueldoBase, valorTotal, bonoFijo, bonoVar, 0, 0,
+                        workerDays, diasMes, v.asignadoA, ufHoy, immValue, sisRate
+                      );
+
+                      return (
+                        <button 
+                          onClick={() => setSelectedBreakdown({
+                            name: v.asignadoA.nombre,
+                            rut: v.asignadoA.rut,
+                            workerDays,
+                            sueldoBase,
+                            produccion: valorTotal,
+                            bonoFijo,
+                            bonoVar,
+                            fin
+                          })}
+                          className="font-black text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg border border-amber-200/50 text-[11px] shadow-sm cursor-pointer transition-all hover:scale-[1.03]"
+                        >
+                          {fin.leyesSociales.total > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(fin.leyesSociales.total) : '$0'}
+                        </button>
+                      );
+                    })()}
+                  </td>
+                  {/* ── TOTAL COSTO EMPRESA ─────────────────────────────────── */}
+                  <td className="py-4 px-4 text-right bg-slate-50 border-l border-slate-100">
+                    {(() => {
+                      const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
+                      const workerDays = getWorkerActiveDays(v, diasTranscurridos, filtroMes);
+                      
+                      const isUF = v.moneda === 'UF' || (v.valor > 0 && v.valor < 100);
+                      const ufHoy = ufCtx || ufValue || 38500;
+                      const valorCLP = isUF ? (ufHoy ? Math.round(v.valor * ufHoy) : 0) : (v.valor || 0);
+                      const prorrateadoLeasing = valorCLP ? Math.round((valorCLP / diasMes) * workerDays) : 0;
+                      
+                      const totalC = fuelByPatente[v.patente] || 0;
+                      
+                      const techRut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
+                      const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
+                      const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
+                      const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
+                      
+                      const techId1 = v.asignadoA?._id?.toString() || '';
+                      let bonoVar = 0;
+                      if (bonusData[techRut] !== undefined) bonoVar = bonusData[techRut];
+                      else if (bonusData[techId1] !== undefined) bonoVar = bonusData[techId1];
+                      else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
+                      else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
+                      
+                      const t = tecnicos.find(x => 
+                        (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === techRut) ||
+                        ((x.name || x.fullName || '').toLowerCase().trim() === techNombre)
+                      );
+                      const pts = t ? (t.ptsTotal || 0) : 0;
+                      const proyectoName = v.asignadoA.projectId?.nombreProyecto || v.asignadoA.proyecto || '';
+                      const valorPunto = getTarifaParaProyecto(proyectoName);
+                      const valorTotal = pts * valorPunto;
+                      
+                      const sisRate = indicParams?.sisRate || 1.54;
+                      const fin = calculateFinancials(
+                        sueldoBase, valorTotal, bonoFijo, bonoVar, prorrateadoLeasing, totalC,
+                        workerDays, diasMes, v.asignadoA, ufHoy, immValue, sisRate
+                      );
+                      
+                      return (
+                        <div className="font-black text-slate-800 text-[11px]">
+                          {fin.totalCostoEmpresa > 0 ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(fin.totalCostoEmpresa) : '$0'}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  {/* ── RENTABILIDAD BRUTA ─────────────────────────────────── */}
+                  <td className="py-4 px-4 text-right bg-emerald-50/50 border-l border-emerald-100">
+                    {(() => {
+                      const sueldoBase = parseInt(v.asignadoA?.sueldoBase) || 0;
+                      const workerDays = getWorkerActiveDays(v, diasTranscurridos, filtroMes);
+                      
+                      const isUF = v.moneda === 'UF' || (v.valor > 0 && v.valor < 100);
+                      const ufHoy = ufCtx || ufValue || 38500;
+                      const valorCLP = isUF ? (ufHoy ? Math.round(v.valor * ufHoy) : 0) : (v.valor || 0);
+                      const prorrateadoLeasing = valorCLP ? Math.round((valorCLP / diasMes) * workerDays) : 0;
+                      
+                      const totalC = fuelByPatente[v.patente] || 0;
+                      
+                      const techRut = v.asignadoA?.rut ? v.asignadoA.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() : '';
+                      const techNombre = (v.asignadoA?.nombre || '').toLowerCase().trim();
+                      const techIdToa = String(v.asignadoA?.idRecursoToa || '').replace(/^0+/, '').trim();
+                      const bonoFijo = fixedBonusData[techRut] ?? fixedBonusData[techIdToa] ?? fixedBonusData[techNombre] ?? 0;
+                      
+                      const techId1 = v.asignadoA?._id?.toString() || '';
+                      let bonoVar = 0;
+                      if (bonusData[techRut] !== undefined) bonoVar = bonusData[techRut];
+                      else if (bonusData[techId1] !== undefined) bonoVar = bonusData[techId1];
+                      else if (bonusData[techIdToa] !== undefined) bonoVar = bonusData[techIdToa];
+                      else if (bonusData[techNombre] !== undefined) bonoVar = bonusData[techNombre];
+                      
+                      const t = tecnicos.find(x => 
+                        (x.rut && x.rut.replace(/[^0-9kK]/g, '').toUpperCase().trim() === techRut) ||
+                        ((x.name || x.fullName || '').toLowerCase().trim() === techNombre)
+                      );
+                      const pts = t ? (t.ptsTotal || 0) : 0;
+                      const proyectoName = v.asignadoA.projectId?.nombreProyecto || v.asignadoA.proyecto || '';
+                      const valorPunto = getTarifaParaProyecto(proyectoName);
+                      const valorTotal = pts * valorPunto;
+                      
+                      const sisRate = indicParams?.sisRate || 1.54;
+                      const fin = calculateFinancials(
+                        sueldoBase, valorTotal, bonoFijo, bonoVar, prorrateadoLeasing, totalC,
+                        workerDays, diasMes, v.asignadoA, ufHoy, immValue, sisRate
+                      );
+                      
+                      const rentabilidad = valorTotal - fin.totalCostoEmpresa;
                       const margen = valorTotal > 0 ? ((rentabilidad / valorTotal) * 100).toFixed(1) : 0;
                       const isPositive = rentabilidad >= 0;
 
                       return (
                         <div className="flex flex-col items-end">
                           <div className={`font-black text-[11px] ${isPositive ? 'text-emerald-700' : 'text-rose-600'}`}>
-                            {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(rentabilidad)}
+                            {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(rentabilidad)}
                           </div>
                           {valorTotal > 0 && (
                             <div className={`text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded-md ${isPositive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'} shadow-sm`}>
@@ -1366,6 +1788,178 @@ const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = n
           </table>
         </div>
       </div>
+
+      {/* ── MODAL: DESGLOSE DE LEYES SOCIALES ── */}
+      {selectedBreakdown && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[999] animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2rem] border border-slate-200 shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden transform transition-all duration-300 animate-in zoom-in-95 relative">
+            
+            {/* Cabecera (Fija) */}
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4 text-white shrink-0 relative">
+              <div className="absolute top-3 right-3">
+                <button 
+                  onClick={() => setSelectedBreakdown(null)}
+                  className="bg-white/20 hover:bg-white/35 text-white p-1.5 rounded-full transition-colors cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-white/20 rounded-lg">
+                  <Landmark size={16} className="text-white" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-white/90">Leyes Sociales Patronales</h4>
+                  <p className="text-[9px] font-bold text-amber-100 uppercase mt-0.5">Desglose de Costo Empleador</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Contenido (Desplazable Internamente) */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+              
+              {/* Info Técnico */}
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center text-[10px]">
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Especialista</p>
+                  <p className="font-black text-slate-700 uppercase mt-0.5">{selectedBreakdown.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">RUT</p>
+                  <p className="font-bold text-slate-600 mt-0.5">{selectedBreakdown.rut || '-'}</p>
+                </div>
+              </div>
+
+              {/* Base de Cálculo */}
+              <div className="space-y-1.5">
+                <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Bases de Cálculo</h5>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="bg-sky-50/50 border border-sky-100/50 rounded-xl p-2.5">
+                    <p className="text-[8px] font-bold text-sky-600/80 uppercase">Imponible Total</p>
+                    <p className="text-sm font-black text-sky-700 mt-0.5">
+                      {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(selectedBreakdown.fin.totalImponible)}
+                    </p>
+                  </div>
+                  <div className="bg-emerald-50/50 border border-emerald-100/50 rounded-xl p-2.5">
+                    <p className="text-[8px] font-bold text-emerald-600/80 uppercase">Días Prorrateados</p>
+                    <p className="text-sm font-black text-emerald-700 mt-0.5">
+                      {selectedBreakdown.workerDays} / {diasMes} días
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detalle Leyes */}
+              <div className="space-y-2">
+                <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Detalle Leyes Patronales</h5>
+                
+                <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden bg-white shadow-sm">
+                  
+                  {/* SIS */}
+                  <div className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div>
+                      <p className="text-xs font-black text-slate-700">Seguro Invalidez y Sobrevivencia (SIS)</p>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">Tasa: {selectedBreakdown.fin.leyesSociales.sis.tasa}% | Base imponible topada</p>
+                    </div>
+                    <span className="text-xs font-black text-slate-700">
+                      {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(selectedBreakdown.fin.leyesSociales.sis.monto)}
+                    </span>
+                  </div>
+
+                  {/* Mutual */}
+                  <div className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div>
+                      <p className="text-xs font-black text-slate-700">Seguro Mutual de Seguridad</p>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">Tasa: {selectedBreakdown.fin.leyesSociales.mutual.tasa}% | Base imponible topada</p>
+                    </div>
+                    <span className="text-xs font-black text-slate-700">
+                      {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(selectedBreakdown.fin.leyesSociales.mutual.monto)}
+                    </span>
+                  </div>
+
+                  {/* Cesantía (AFC) */}
+                  <div className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div>
+                      <p className="text-xs font-black text-slate-700">Seguro de Cesantía Empleador (AFC)</p>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+                        Tasa: {selectedBreakdown.fin.leyesSociales.afc.tasa}% (Contrato {selectedBreakdown.fin.leyesSociales.afc.tipoContrato})
+                      </p>
+                    </div>
+                    <span className="text-xs font-black text-slate-700">
+                      {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(selectedBreakdown.fin.leyesSociales.afc.monto)}
+                    </span>
+                  </div>
+
+                  {/* Longevidad (Expectativa Vida) */}
+                  <div className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div>
+                      <p className="text-xs font-black text-slate-700">Expectativa de Vida / Aporte Adicional</p>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">Tasa: {selectedBreakdown.fin.leyesSociales.expectativaVida.tasa}% | Base imponible topada</p>
+                    </div>
+                    <span className="text-xs font-black text-slate-700">
+                      {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(selectedBreakdown.fin.leyesSociales.expectativaVida.monto)}
+                    </span>
+                  </div>
+
+                  {/* Total Leyes Sociales */}
+                  <div className="p-3 bg-amber-50/50 flex items-center justify-between border-t border-amber-100">
+                    <p className="text-xs font-black text-amber-800 uppercase tracking-wider">Total Leyes Sociales</p>
+                    <span className="text-sm font-black text-amber-700">
+                      {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(selectedBreakdown.fin.leyesSociales.total)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Mensaje Informativo de Topes */}
+                <div className="flex gap-2 bg-slate-50 border border-slate-200/60 rounded-xl p-3 text-[9px] font-semibold text-slate-500 leading-normal">
+                  <Info size={12} className="text-slate-400 shrink-0 mt-0.5" />
+                  <div>
+                    Los cálculos consideran los topes previsionales prorrateados para el periodo ({selectedBreakdown.workerDays} días): 
+                    <strong className="text-slate-600 block mt-0.5">
+                      Tope imponible AFP/Salud ({selectedBreakdown.workerDays}d): ${Math.round((89.9 * (ufCtx || ufValue || 38500) / diasMes) * selectedBreakdown.workerDays).toLocaleString('es-CL')} CLP (Tope mes: ${(Math.round(89.9 * (ufCtx || ufValue || 38500))).toLocaleString('es-CL')} CLP)<br />
+                      Tope imponible AFC ({selectedBreakdown.workerDays}d): ${Math.round((135.1 * (ufCtx || ufValue || 38500) / diasMes) * selectedBreakdown.workerDays).toLocaleString('es-CL')} CLP (Tope mes: ${(Math.round(135.1 * (ufCtx || ufValue || 38500))).toLocaleString('es-CL')} CLP)
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Guía Explicativa de Conceptos de Remuneración */}
+                <div className="bg-sky-50/40 border border-sky-100/80 rounded-xl p-3.5 space-y-2 mt-2">
+                  <div className="flex items-center gap-1.5 text-sky-800">
+                    <Info size={12} className="shrink-0" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Guía de Análisis de Costo Empresa</span>
+                  </div>
+                  
+                  <div className="space-y-2 text-[9px] text-slate-500 leading-normal">
+                    <div>
+                      <strong className="text-sky-900 block uppercase tracking-wider text-[8px] mb-0.5">1. Cotizaciones del Trabajador (AFP y Salud)</strong>
+                      Las retenciones legales (AFP ~11%, Fonasa/Isapre 7% o plan pactado, y AFC 0.6%) se descuentan del sueldo imponible bruto del técnico. Como están cubiertas por su sueldo, **no añaden costo extra** al Total Imponible mostrado en la tabla.
+                    </div>
+                    <div>
+                      <strong className="text-sky-900 block uppercase tracking-wider text-[8px] mb-0.5">2. Cotizaciones Patronales (Costo Adicional)</strong>
+                      El SIS ({selectedBreakdown.fin.leyesSociales.sis.tasa}%), Mutual ({selectedBreakdown.fin.leyesSociales.mutual.tasa}%), Longevidad ({selectedBreakdown.fin.leyesSociales.expectativaVida.tasa}%) y la AFC Patronal ({selectedBreakdown.fin.leyesSociales.afc.tasa}%) son **financiados íntegramente por la empresa** por sobre el sueldo bruto y se detallan en este desglose.
+                    </div>
+                    <div>
+                      <strong className="text-sky-900 block uppercase tracking-wider text-[8px] mb-0.5">3. Costo en Avance (Prorrateo Temporal)</strong>
+                      Los valores fijos (Sueldo Base, Bono Fijo y Leasing) y los topes de UF se calculan proporcionalmente según los días transcurridos acumulados en el mes ({selectedBreakdown.workerDays} de {diasMes} días) para reflejar un flujo financiero real a la fecha del reporte.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pie de modal (Fijo) */}
+            <div className="bg-slate-50 border-t border-slate-100 px-6 py-3.5 flex justify-end shrink-0">
+              <button 
+                onClick={() => setSelectedBreakdown(null)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-slate-800/10 hover:shadow-slate-800/25"
+              >
+                Cerrar Desglose
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

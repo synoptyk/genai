@@ -6,6 +6,7 @@ import {
     User, Briefcase, MapPin
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
+import { formatRut } from '../../../utils/rutUtils';
 import GuiaRequisitosPrint from './GuiaRequisitosPrint';
 
 const MASTER_DOCUMENTS = [
@@ -172,10 +173,14 @@ const GestionDocumental = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const filtered = candidatos.filter(c =>
-        c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.rut.includes(searchTerm)
-    );
+    const filtered = candidatos.filter(c => {
+        const term = searchTerm.toLowerCase();
+        const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
+        const cleanRut = c.rut ? c.rut.replace(/[^0-9kK]/gi, '') : '';
+        return !searchTerm ||
+               c.fullName?.toLowerCase().includes(term) ||
+               (cleanSearch && cleanRut.includes(cleanSearch));
+    });
 
     return (
         <div className="min-h-full bg-slate-50/50 p-6 pb-20 animate-in fade-in duration-500 print:p-0">
@@ -238,11 +243,18 @@ const GestionDocumental = () => {
                                         onClick={() => setSelectedId(c._id)}
                                         className={`w-full p-6 text-left transition-all hover:bg-slate-50 border-l-4 ${selectedId === c._id ? 'bg-amber-50/50 border-amber-600 shadow-inner' : 'border-transparent'}`}
                                     >
-                                        <p className={`font-black uppercase text-xs truncate transition-colors ${selectedId === c._id ? 'text-amber-700' : 'text-slate-800'}`}>{c.fullName}</p>
-                                        <div className="flex items-center gap-2 mt-2">
-                                            <span className="text-[10px] text-slate-400 font-bold tracking-tight">{c.rut}</span>
-                                            <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
-                                            <span className="text-[9px] font-black text-slate-500 uppercase">{c.status}</span>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-black text-[10px] text-slate-500 uppercase shadow-inner border border-slate-200 shrink-0">
+                                                {c.profilePic ? <img src={c.profilePic} alt="" className="w-full h-full object-cover rounded-lg" /> : c.fullName?.substring(0, 2)}
+                                            </div>
+                                            <div className="flex flex-col overflow-hidden">
+                                                <p className={`text-[11px] font-black uppercase truncate transition-colors ${selectedId === c._id ? 'text-amber-700' : 'text-slate-800'}`}>{c.fullName}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[9px] font-mono font-black text-slate-400 tracking-widest">{formatRut(c.rut)}</span>
+                                                    <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
+                                                    <span className="text-[9px] font-black text-slate-500 uppercase">{c.status}</span>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="mt-4 bg-slate-100 rounded-full h-1 overflow-hidden">
                                             <div className="bg-emerald-500 h-full transition-all duration-700" style={{ width: `${Math.min((c.documents?.length || 0) * 8, 100)}%` }}></div>
@@ -271,7 +283,7 @@ const GestionDocumental = () => {
                                         <div>
                                             <h3 className="text-3xl font-black uppercase tracking-tight italic">{selected.fullName}</h3>
                                             <div className="flex flex-wrap items-center gap-4 mt-3">
-                                                <div className="bg-amber-500 text-slate-900 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-tight shadow-lg shadow-amber-500/20">{selected.rut}</div>
+                                                <div className="bg-amber-500 text-slate-900 px-3 py-1 rounded-xl text-[10px] font-mono font-black uppercase tracking-widest shadow-lg shadow-amber-500/20">{formatRut(selected.rut)}</div>
                                                 <span className="w-1.5 h-1.5 bg-white/20 rounded-full"></span>
                                                 <div className="flex items-center gap-2 text-slate-400">
                                                     <Briefcase size={14} className="text-amber-500" />

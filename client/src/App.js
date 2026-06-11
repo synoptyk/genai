@@ -104,6 +104,8 @@ import Evaluaciones360 from './platforms/empresa360/pages/Evaluaciones360';
 import Biometria360 from './platforms/empresa360/pages/Biometria360';
 import Tesoreria360 from './platforms/empresa360/pages/Tesoreria360';
 import Webmail from './platforms/comunicaciones/pages/Webmail';
+import ProximamenteModule from './components/ProximamenteModule';
+
 
 axios.interceptors.response.use(
   (response) => response,
@@ -328,24 +330,25 @@ function AppRoutes() {
       {/* Fallback */}
       <Route path="*" element={<NotFound />} />
           {/* INJECTED MISSING ROUTES */}
-          <Route path="/admin-aprobaciones" element={<ProtectedRoute allowPermissions={['admin_aprobaciones']}><div>🚧 Módulo admin_aprobaciones en desarrollo</div></ProtectedRoute>} />
-          <Route path="/admin-aprobaciones-compras" element={<ProtectedRoute allowPermissions={['admin_aprobaciones_compras']}><div>🚧 Módulo admin_aprobaciones_compras en desarrollo</div></ProtectedRoute>} />
-          <Route path="/admin-historial" element={<ProtectedRoute allowPermissions={['admin_historial']}><div>🚧 Módulo admin_historial en desarrollo</div></ProtectedRoute>} />
-          <Route path="/cfg-clientes" element={<ProtectedRoute allowPermissions={['cfg_clientes']}><div>🚧 Módulo cfg_clientes en desarrollo</div></ProtectedRoute>} />
-          <Route path="/ind-agricola" element={<ProtectedRoute allowPermissions={['ind_agricola']}><div>🚧 Módulo ind_agricola en desarrollo</div></ProtectedRoute>} />
-          <Route path="/ind-construccion" element={<ProtectedRoute allowPermissions={['ind_construccion']}><div>🚧 Módulo ind_construccion en desarrollo</div></ProtectedRoute>} />
-          <Route path="/ind-energia" element={<ProtectedRoute allowPermissions={['ind_energia']}><div>🚧 Módulo ind_energia en desarrollo</div></ProtectedRoute>} />
-          <Route path="/ind-manufactura" element={<ProtectedRoute allowPermissions={['ind_manufactura']}><div>🚧 Módulo ind_manufactura en desarrollo</div></ProtectedRoute>} />
-          <Route path="/ind-mineria" element={<ProtectedRoute allowPermissions={['ind_mineria']}><div>🚧 Módulo ind_mineria en desarrollo</div></ProtectedRoute>} />
-          <Route path="/ind-pesquero" element={<ProtectedRoute allowPermissions={['ind_pesquero']}><div>🚧 Módulo ind_pesquero en desarrollo</div></ProtectedRoute>} />
-          <Route path="/ind-transporte" element={<ProtectedRoute allowPermissions={['ind_transporte']}><div>🚧 Módulo ind_transporte en desarrollo</div></ProtectedRoute>} />
-          <Route path="/logistica-almacenes" element={<ProtectedRoute allowPermissions={['logistica_almacenes']}><div>🚧 Módulo logistica_almacenes en desarrollo</div></ProtectedRoute>} />
-          <Route path="/logistica-configuracion" element={<ProtectedRoute allowPermissions={['logistica_configuracion']}><div>🚧 Módulo logistica_configuracion en desarrollo</div></ProtectedRoute>} />
-          <Route path="/op-portales" element={<ProtectedRoute allowPermissions={['op_portales']}><div>🚧 Módulo op_portales en desarrollo</div></ProtectedRoute>} />
-          <Route path="/prev-acreditacion" element={<ProtectedRoute allowPermissions={['prev_acreditacion']}><div>🚧 Módulo prev_acreditacion en desarrollo</div></ProtectedRoute>} />
-          <Route path="/rend-cierre-bonos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos']}><div>🚧 Módulo rend_cierre_bonos en desarrollo</div></ProtectedRoute>} />
-          <Route path="/rrhh-contratos-anexos" element={<ProtectedRoute allowPermissions={['rrhh_contratos_anexos']}><div>🚧 Módulo rrhh_contratos_anexos en desarrollo</div></ProtectedRoute>} />
-          <Route path="/rrhh-historial" element={<ProtectedRoute allowPermissions={['rrhh_historial']}><div>🚧 Módulo rrhh_historial en desarrollo</div></ProtectedRoute>} />
+          <Route path="/admin-aprobaciones" element={<ProtectedRoute allowPermissions={['admin_aprobaciones']}><AppShell><ProximamenteModule moduleName="Aprobaciones Administrativas" permissionKey="admin_aprobaciones" /></AppShell></ProtectedRoute>} />
+          <Route path="/admin-aprobaciones-compras" element={<ProtectedRoute allowPermissions={['admin_aprobaciones_compras']}><AppShell><ProximamenteModule moduleName="Aprobaciones de Compras" permissionKey="admin_aprobaciones_compras" /></AppShell></ProtectedRoute>} />
+          <Route path="/admin-historial" element={<ProtectedRoute allowPermissions={['admin_historial']}><AppShell><ProximamenteModule moduleName="Historial de Auditoría" permissionKey="admin_historial" /></AppShell></ProtectedRoute>} />
+          <Route path="/cfg-clientes" element={<ProtectedRoute allowPermissions={['cfg_clientes']}><AppShell><ProximamenteModule moduleName="Configuración de Clientes" permissionKey="cfg_clientes" /></AppShell></ProtectedRoute>} />
+          <Route path="/ind-agricola" element={<ProtectedRoute allowPermissions={['ind_agricola']}><AppShell><ProximamenteModule moduleName="Módulo Agrícola" permissionKey="ind_agricola" /></AppShell></ProtectedRoute>} />
+          <Route path="/ind-construccion" element={<ProtectedRoute allowPermissions={['ind_construccion']}><AppShell><ProximamenteModule moduleName="Módulo Construcción" permissionKey="ind_construccion" /></AppShell></ProtectedRoute>} />
+          <Route path="/ind-energia" element={<ProtectedRoute allowPermissions={['ind_energia']}><AppShell><ProximamenteModule moduleName="Módulo Energía" permissionKey="ind_energia" /></AppShell></ProtectedRoute>} />
+          <Route path="/ind-manufactura" element={<ProtectedRoute allowPermissions={['ind_manufactura']}><AppShell><ProximamenteModule moduleName="Módulo Manufactura" permissionKey="ind_manufactura" /></AppShell></ProtectedRoute>} />
+          <Route path="/ind-mineria" element={<ProtectedRoute allowPermissions={['ind_mineria']}><AppShell><ProximamenteModule moduleName="Módulo Minería" permissionKey="ind_mineria" /></AppShell></ProtectedRoute>} />
+          <Route path="/ind-pesquero" element={<ProtectedRoute allowPermissions={['ind_pesquero']}><AppShell><ProximamenteModule moduleName="Módulo Pesquero" permissionKey="ind_pesquero" /></AppShell></ProtectedRoute>} />
+          <Route path="/ind-transporte" element={<ProtectedRoute allowPermissions={['ind_transporte']}><AppShell><ProximamenteModule moduleName="Módulo Transporte" permissionKey="ind_transporte" /></AppShell></ProtectedRoute>} />
+          <Route path="/logistica-almacenes" element={<ProtectedRoute allowPermissions={['logistica_almacenes']}><AppShell><ProximamenteModule moduleName="Gestión de Almacenes" permissionKey="logistica_almacenes" /></AppShell></ProtectedRoute>} />
+          <Route path="/logistica-configuracion" element={<ProtectedRoute allowPermissions={['logistica_configuracion']}><AppShell><ProximamenteModule moduleName="Configuración Logística" permissionKey="logistica_configuracion" /></AppShell></ProtectedRoute>} />
+          <Route path="/op-portales" element={<ProtectedRoute allowPermissions={['op_portales']}><AppShell><ProximamenteModule moduleName="Portales Operativos" permissionKey="op_portales" /></AppShell></ProtectedRoute>} />
+          <Route path="/prev-acreditacion" element={<ProtectedRoute allowPermissions={['prev_acreditacion']}><AppShell><ProximamenteModule moduleName="Acreditación Preventiva" permissionKey="prev_acreditacion" /></AppShell></ProtectedRoute>} />
+          <Route path="/rend-cierre-bonos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos']}><AppShell><ProximamenteModule moduleName="Cierre de Bonos" permissionKey="rend_cierre_bonos" /></AppShell></ProtectedRoute>} />
+          <Route path="/rrhh-contratos-anexos" element={<ProtectedRoute allowPermissions={['rrhh_contratos_anexos']}><AppShell><ProximamenteModule moduleName="Contratos y Anexos" permissionKey="rrhh_contratos_anexos" /></AppShell></ProtectedRoute>} />
+          <Route path="/rrhh-historial" element={<ProtectedRoute allowPermissions={['rrhh_historial']}><AppShell><ProximamenteModule moduleName="Historial de RRHH" permissionKey="rrhh-historial" /></AppShell></ProtectedRoute>} />
+
     </Routes>
   );
 }

@@ -4,6 +4,7 @@ import {
     Shirt, HardHat, AlertCircle, RefreshCcw
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
+import { formatRut } from '../../../utils/rutUtils';
 
 const ITEM_LIST = ['Casco', 'Lentes de Seguridad', 'Guantes de Cabritilla', 'Zapatos de Seguridad', 'Chaleco Reflectante', 'Protector Auditivo'];
 
@@ -66,10 +67,12 @@ const SeguridadPPE = () => {
         await handleUpdateAcred(selected._id, { ppe: newPPE });
     };
 
-    const filtered = candidatos.filter(c =>
-        c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.rut.includes(searchTerm)
-    );
+    const cleanSearchTerm = searchTerm.replace(/[^0-9kK]/gi, '').toUpperCase();
+    const filtered = candidatos.filter(c => {
+        const cleanRut = (c.rut || '').replace(/[^0-9kK]/gi, '').toUpperCase();
+        return c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.rut?.includes(searchTerm) || (cleanSearchTerm && cleanRut.includes(cleanSearchTerm));
+    });
 
     return (
         <div className="min-h-full bg-slate-50/50 p-6 pb-20">
@@ -125,12 +128,14 @@ const SeguridadPPE = () => {
                                 onClick={() => setSelected(c)}
                                 className={`w-full p-5 text-left transition-all hover:bg-slate-50 flex items-center gap-4 ${selected?._id === c._id ? 'bg-rose-50 border-r-4 border-rose-600' : ''}`}
                             >
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${selected?._id === c._id ? 'bg-rose-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}>
-                                    {c.fullName.charAt(0)}
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs uppercase shadow-inner border border-slate-200 shrink-0 ${selected?._id === c._id ? 'bg-rose-600 text-white border-transparent' : 'bg-slate-100 text-slate-500'}`}>
+                                    {c.profilePic ? <img src={c.profilePic} alt="" className="w-full h-full object-cover rounded-xl" /> : c.fullName?.substring(0, 2)}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-black text-slate-800 uppercase text-[11px] truncate">{c.fullName}</p>
-                                    <p className="text-[9px] text-slate-400 font-bold mt-0.5 tracking-tight">{c.rut} · {c.position}</p>
+                                    <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight truncate">{c.fullName}</span>
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                        RUT: {formatRut(c.rut)} · {c.position}
+                                    </span>
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter border ${c.status === 'Contratado' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
                                             }`}>
@@ -150,23 +155,26 @@ const SeguridadPPE = () => {
                             {/* Profile Bar */}
                             <div className="bg-white p-7 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 flex items-center justify-between">
                                 <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-600 font-black text-3xl shadow-inner group relative">
+                                    <div className="w-16 h-16 bg-slate-100 rounded-[1.25rem] flex items-center justify-center text-slate-500 font-black text-2xl uppercase shadow-inner border border-slate-200 shrink-0 relative">
                                         {selected.profilePic ? (
-                                            <img src={selected.profilePic} className="w-full h-full object-cover rounded-3xl" alt="profile" />
-                                        ) : selected.fullName.charAt(0)}
+                                            <img src={selected.profilePic} className="w-full h-full object-cover rounded-[1.25rem]" alt="profile" />
+                                        ) : selected.fullName?.substring(0, 2)}
                                         {updating && (
-                                            <div className="absolute inset-0 bg-white/60 rounded-3xl flex items-center justify-center">
+                                            <div className="absolute inset-0 bg-white/60 rounded-[1.25rem] flex items-center justify-center">
                                                 <Loader2 size={24} className="animate-spin text-rose-600" />
                                             </div>
                                         )}
                                     </div>
-                                    <div>
-                                        <div className="flex items-center gap-3">
-                                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{selected.fullName}</h3>
-                                            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">{selected.rut}</span>
+                                    <div className="flex flex-col min-w-0">
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight block leading-tight truncate">{selected.fullName}</h3>
+                                        <div className="flex items-center gap-3 mt-1">
+                                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest block font-mono">
+                                                RUT: {formatRut(selected.rut)}
+                                            </span>
+                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-black uppercase tracking-widest">ID TOA: {selected.idRecursoToa || 'N/A'}</span>
                                         </div>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-1 flex items-center gap-2">
-                                            <AlertCircle size={12} className="text-rose-400" /> {selected.position} · {selected.projectName || 'GENERAL'}
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5">
+                                            <AlertCircle size={10} className="text-rose-400" /> {selected.position} · {selected.projectName || 'GENERAL'}
                                         </p>
                                     </div>
                                 </div>

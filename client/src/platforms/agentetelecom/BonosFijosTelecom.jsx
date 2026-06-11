@@ -160,8 +160,7 @@ const BonosFijosTelecom = () => {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-100">
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">RUT</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Nombre Trabajador</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Trabajador</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">ID TOA</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Estado</th>
                                     {fijosModels.map(m => (
@@ -180,15 +179,19 @@ const BonosFijosTelecom = () => {
                                     return (
                                         <tr key={w._id} className={`hover:bg-slate-50/50 transition-colors ${isFiniquitado ? 'bg-orange-50/30' : ''}`}>
                                             <td className="px-6 py-3">
-                                                <span className="text-sm font-semibold text-slate-600">{w.rut}</span>
-                                            </td>
-                                            <td className="px-6 py-3">
-                                                <span className="text-sm font-bold text-slate-800">{w.fullName}</span>
-                                                {isFiniquitado && (
-                                                    <span className="ml-2 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 uppercase tracking-widest">
-                                                        Finiquito del Mes
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight">{w.fullName}</span>
+                                                        {isFiniquitado && (
+                                                            <span className="inline-block px-2 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-700 uppercase tracking-widest">
+                                                                Finiquito del Mes
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                                        RUT: {w.rut}
                                                     </span>
-                                                )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-3">
                                                 <span className="text-sm font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{w.idRecursoToa || 'N/A'}</span>

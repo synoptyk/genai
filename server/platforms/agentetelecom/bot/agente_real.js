@@ -2619,8 +2619,8 @@ async function procesarRowsCSV(rows, empresa, fecha, empresaRefDefault, techComp
         const ops = [];
 
         chunk.forEach(row => {
-            const ordenId = String(row['Número orden'] || row['ID orden'] || row['N° orden'] || row['Numero orden'] || '').trim();
-            if (!ordenId) return;
+            const rawOrdenId = String(row['Número orden'] || row['ID orden'] || row['N° orden'] || row['Numero orden'] || '').trim();
+            if (!rawOrdenId) return;
 
             // --- DETERMINAR FECHA ---
             let activityDateStr = row['Fecha Sistema'] || row['Fecha_Sistema'] || row['Fecha'] || row['Date'] || row['fecha'] || row['date'] || row['FECHA'] || row['Fecha de Cita'] || null;
@@ -2637,6 +2637,8 @@ async function procesarRowsCSV(rows, empresa, fecha, empresaRefDefault, techComp
                     }
                 }
             }
+
+            const ordenId = `${rawOrdenId}_${finalIsoDate}`;
 
             const doc = {
                 ...row,

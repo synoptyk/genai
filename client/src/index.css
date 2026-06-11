@@ -92,14 +92,108 @@ body {
 }
 
 :root {
+  --color-primary: 79 70 229; /* rgb for indigo-600 */
+  --color-primary-hover: 67 56 202; /* indigo-700 */
+  --color-primary-light: 238 242 255; /* indigo-50 */
+  --bg-main: 248 250 252; /* slate-50 */
+  --bg-card: 255 255 255; /* white */
+  --text-main: 15 23 42; /* slate-900 */
+  --text-muted: 100 116 139; /* slate-500 */
+  --border-color: 241 245 249; /* slate-100 */
   --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom: env(safe-area-inset-bottom);
+}
+
+.dark {
+  --bg-main: 15 23 42; /* slate-900 */
+  --bg-card: 30 41 59; /* slate-800 */
+  --text-main: 248 250 252; /* slate-50 */
+  --text-muted: 148 163 184; /* slate-400 */
+  --border-color: 51 65 85; /* slate-700 */
 }
 
 body {
   padding-top: var(--safe-area-top);
   padding-bottom: var(--safe-area-bottom);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* Global Dark Mode Style Overrides */
+.dark body {
+  background-color: rgb(var(--bg-main)) !important;
+  color: rgb(var(--text-main)) !important;
+}
+
+.dark .bg-white,
+.dark .bg-white\/70,
+.dark .glass-card {
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  border-color: rgba(71, 85, 105, 0.4) !important;
+  color: rgb(var(--text-main)) !important;
+}
+
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-slate-600 {
+  color: rgb(var(--text-main)) !important;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: rgb(var(--text-muted)) !important;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300\/50,
+.dark .border-slate-200\/50 {
+  border-color: rgb(var(--border-color)) !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .bg-slate-50\/50 {
+  background-color: rgb(var(--bg-main)) !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: rgb(var(--bg-main)) !important;
+  border-color: rgb(var(--border-color)) !important;
+  color: rgb(var(--text-main)) !important;
+}
+
+.dark .section-card-premium {
+  background-color: rgb(var(--bg-card)) !important;
+  border-color: rgb(var(--border-color)) !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .sidebar-tab-active {
+  background-color: rgba(79, 70, 229, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: #a5b4fc !important;
+}
+
+/* Dynamic Brand Utility classes */
+.text-primary-brand {
+  color: rgb(var(--color-primary)) !important;
+}
+.bg-primary-brand {
+  background-color: rgb(var(--color-primary)) !important;
+}
+.border-primary-brand {
+  border-color: rgb(var(--color-primary)) !important;
+}
+.bg-primary-brand-light {
+  background-color: rgb(var(--color-primary-light)) !important;
+}
+.bg-primary-brand-hover:hover {
+  background-color: rgb(var(--color-primary-hover)) !important;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
    SISTEMA RESPONSIVE MOBILE — Enterprise Platform Gen AI

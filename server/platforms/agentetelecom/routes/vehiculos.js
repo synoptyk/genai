@@ -153,7 +153,7 @@ router.get('/', protect, async (req, res) => {
     const vehiculos = await Vehiculo.find(filter)
       .populate({
         path: 'asignadoA',
-        select: 'nombre rut cargo email estadoActual proyecto fechaIngreso projectId sueldoBase idRecursoToa',
+        select: 'nombre rut cargo email estadoActual proyecto fechaIngreso projectId sueldoBase idRecursoToa previsionSalud isapreNombre valorPlan monedaPlan afp pensionado tieneCargas listaCargas tipoContrato',
         populate: { path: 'projectId', select: 'nombreProyecto' }
       })
       .sort({ createdAt: -1 });
@@ -194,7 +194,7 @@ router.get('/:id', protect, async (req, res) => {
     const vehiculo = await Vehiculo.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef })
       .populate({
         path: 'asignadoA',
-        select: 'nombre rut cargo email estadoActual proyecto fechaIngreso projectId sueldoBase idRecursoToa',
+        select: 'nombre rut cargo email estadoActual proyecto fechaIngreso projectId sueldoBase idRecursoToa previsionSalud isapreNombre valorPlan monedaPlan afp pensionado tieneCargas listaCargas tipoContrato',
         populate: { path: 'projectId', select: 'nombreProyecto' }
       });
     if (!vehiculo) return res.status(404).json({ error: 'Vehículo no encontrado o sin acceso' });
