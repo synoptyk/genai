@@ -60,6 +60,39 @@ const ContratosYAnexos = () => {
         }
     };
 
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const html = e.clipboardData.getData('text/html');
+        const text = e.clipboardData.getData('text/plain');
+
+        if (html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const imgs = doc.querySelectorAll('img');
+            let removedCount = 0;
+            
+            imgs.forEach(img => {
+                const src = img.getAttribute('src') || '';
+                if (src.startsWith('file://') || src.includes('msohtmlclip')) {
+                    img.remove();
+                    removedCount++;
+                }
+            });
+            
+            const sanitizedHtml = doc.body.innerHTML;
+            document.execCommand('insertHTML', false, sanitizedHtml);
+            
+            if (editorRef.current) {
+                setTemplate(prev => ({...prev, contenido: editorRef.current.innerHTML}));
+            }
+        } else if (text) {
+            document.execCommand('insertText', false, text);
+            if (editorRef.current) {
+                setTemplate(prev => ({...prev, contenido: editorRef.current.innerHTML}));
+            }
+        }
+    };
+
     const [template, setTemplate] = useState({
         nombre: '',
         tipo: 'Contrato',
@@ -1032,6 +1065,7 @@ const ContratosYAnexos = () => {
                                      contentEditable
                                      suppressContentEditableWarning
                                      onInput={(e) => setTemplate({...template, contenido: e.target.innerHTML})}
+                                     onPaste={handlePaste}
                                      onMouseUp={saveSelection}
                                      onKeyUp={saveSelection}
                                      onBlur={saveSelection}
