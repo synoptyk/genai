@@ -25,3 +25,6 @@ plan_migracion_gcp.md
 server-cloudbuild.yaml
 client-cloudbuild.yaml
 google-deploy.sh
+client/build/
+**/build/
+
