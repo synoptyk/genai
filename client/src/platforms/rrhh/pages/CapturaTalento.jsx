@@ -1922,7 +1922,7 @@ const CapturaTalento = () => {
                                         <CheckCircle size={14} className="text-emerald-500"/> Etapa de Gestión
                                     </label>
                                     <div className="relative group">
-                                        <select className="w-full bg-emerald-50/20 border-2 border-emerald-100 rounded-2xl px-7 py-5 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer" 
+                                        <select className="w-full bg-emerald-50/20 border-2 border-emerald-100 rounded-2xl px-7 py-5 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed" 
                                             value={(() => {
                                                 const s = form.status || '';
                                                 if (['En Postulación','Postulando'].includes(s)) return 'POST';
@@ -1940,11 +1940,17 @@ const CapturaTalento = () => {
                                                 return s;
                                             })()} 
                                             onChange={e => setForm({...form, status: getOriginalStatus(e.target.value)})}
+                                            disabled={form.status === 'Finiquitado' || form.status === 'DE BAJA'}
                                         >
-                                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            {STATUSES.filter(s => s !== 'DE BAJA' || form.status === 'Finiquitado' || form.status === 'DE BAJA').map(s => <option key={s} value={s}>{s}</option>)}
                                         </select>
                                         <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-emerald-300 pointer-events-none" size={18} />
                                     </div>
+                                    {(form.status === 'Finiquitado' || form.status === 'DE BAJA') && (
+                                        <p className="text-[10px] font-black text-amber-600 mt-1.5 uppercase tracking-wider">
+                                            ⚠️ Colaborador de baja/finiquitado. Para modificar su estado o recalcular, utiliza el módulo de Finiquitos.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="md:col-span-2 pt-10 border-t border-slate-100">
@@ -2629,7 +2635,7 @@ const CapturaTalento = () => {
                                 className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black text-white uppercase tracking-wider outline-none focus:bg-white/10 transition-all appearance-none cursor-pointer"
                             >
                                 <option value="" className="text-slate-950">CAMBIAR ESTADO A...</option>
-                                {STATUSES.map(s => <option key={s} value={s} className="text-slate-950">{s === 'ACTIVO' ? 'ACTIVO' : s.toUpperCase()}</option>)}
+                                {STATUSES.filter(s => s !== 'DE BAJA').map(s => <option key={s} value={s} className="text-slate-950">{s === 'ACTIVO' ? 'ACTIVO' : s.toUpperCase()}</option>)}
                             </select>
                             
                             <button 

@@ -3,7 +3,7 @@ import {
     FileText, Search, Upload, Eye, Check,
     Loader2, Share2,
     Smartphone, ShieldCheck, Info,
-    User, Briefcase, MapPin
+    User, Briefcase, MapPin, Printer
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
 import { formatRut } from '../../../utils/rutUtils';
@@ -50,6 +50,17 @@ const MASTER_DOCUMENTS = [
             { name: 'Licencia de Conducir', desc: 'Si el cargo requiere conducción (Fotocopia ambos lados).' },
             { name: 'Cert. Hoja de Vida Conductor', desc: 'Emitido por Registro Civil (Vigente).' }
         ]
+    },
+    {
+        category: "Historial Contractual y Pago",
+        icon: FileText,
+        color: "amber",
+        items: [
+            { name: 'Contrato de Trabajo', desc: 'Contrato firmado con la empresa.' },
+            { name: 'Anexo de Contrato', desc: 'Anexos o modificaciones al contrato original.' },
+            { name: 'Liquidación de Sueldo', desc: 'Liquidaciones mensuales de remuneraciones.' },
+            { name: 'Acta de Finiquito', desc: 'Acta de término de relación laboral y finiquito legalizado.' }
+        ]
     }
 ];
 
@@ -77,6 +88,225 @@ const GestionDocumental = () => {
     }, []);
 
     const selected = candidatos.find(c => c._id === selectedId);
+
+    const printFiniquitoPdf = () => {
+        if (!selected) return;
+        const candidato = selected;
+        const fd = candidato.finiquitoDetalle || {};
+        const fechaFiniquitoStr = candidato.fechaFiniquito
+            ? new Date(candidato.fechaFiniquito).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })
+            : new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' });
+        
+        const fechaIngresoStr = candidato.contractStartDate
+            ? new Date(candidato.contractStartDate).toLocaleDateString('es-CL')
+            : (fd.fechaIngresoReal ? new Date(fd.fechaIngresoReal).toLocaleDateString('es-CL') : 'No registrada');
+            
+        const fechaEgresoStr = candidato.fechaFiniquito
+            ? new Date(candidato.fechaFiniquito).toLocaleDateString('es-CL')
+            : (fd.fechaEgreso ? new Date(fd.fechaEgreso).toLocaleDateString('es-CL') : 'No registrada');
+
+        const projectName = candidato.projectName || 'No asignado';
+        const empresaNombre = candidato.empresaRef?.nombre || 'Empresa Empleadora';
+        const causalTermino = fd.causalTermino || candidato.finiquitoMotivo || 'Necesidades de la empresa (Art. 161)';
+
+        const aniosServicio = fd.aniosServicioCalculados || 0;
+        const montoIAS = fd.montoIndemnizacionAnos || 0;
+        const montoISAP = fd.montoIndemnizacionAviso || 0;
+        const montoFP = fd.montoFeriadoProporcional || 0;
+        const diasFP = fd.diasVacacionesCorridosCalculados || 0;
+        const diasHabilesFP = fd.diasVacacionesHabilesCalculados || 0;
+        const otrosHaberes = fd.otrosHaberes || 0;
+        
+        const descuentoAFC = fd.descuentoAFC || 0;
+        const otrosDescuentos = fd.otrosDescuentos || 0;
+        const netoFiniquito = fd.netoFiniquito !== undefined ? fd.netoFiniquito : 0;
+
+        const totalHaberes = montoIAS + montoISAP + montoFP + otrosHaberes;
+        const totalDescuentos = descuentoAFC + otrosDescuentos;
+
+        const html = `
+            <html>
+            <head>
+                <title>Acta de Finiquito - ${candidato.fullName}</title>
+                <style>
+                    body { font-family: 'Arial', sans-serif; color: #1e293b; margin: 40px; line-height: 1.5; font-size: 12px; }
+                    .header { text-align: center; margin-bottom: 30px; }
+                    .header h1 { font-size: 18px; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a; }
+                    .header p { font-size: 11px; margin: 5px 0 0 0; color: #64748b; font-weight: bold; }
+                    .body-text { margin-bottom: 20px; text-align: justify; }
+                    .table-title { font-weight: bold; margin-bottom: 8px; text-transform: uppercase; font-size: 11px; color: #334155; }
+                    table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+                    th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+                    th { background: #f1f5f9; font-weight: bold; font-size: 11px; }
+                    .text-right { text-align: right; }
+                    .font-bold { font-weight: bold; }
+                    .section { margin-top: 25px; }
+                    .reserva-box { border: 2px dashed #94a3b8; padding: 15px; margin-top: 25px; border-radius: 8px; background: #f8fafc; }
+                    .reserva-title { font-weight: 900; font-size: 11px; text-transform: uppercase; color: #475569; margin-bottom: 6px; }
+                    .firmas { display: flex; justify-content: space-between; margin-top: 60px; }
+                    .firma-box { width: 45%; text-align: center; }
+                    .linea { border-top: 1px solid #475569; margin-top: 50px; margin-bottom: 5px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>${fd.procesadoEn === 'Notaria' ? 'Acta de Finiquito de Contrato de Trabajo (Legalizado ante Notario)' : 'Acta de Finiquito de Contrato de Trabajo'}</h1>
+                    <p>${fd.procesadoEn === 'Notaria' ? `PROCESADO EN: ${fd.notariaNombre || 'NOTARÍA PÚBLICA'}` : 'DIRECCIÓN DEL TRABAJO COMPLIANT'}</p>
+                </div>
+                
+                <div class="body-text">
+                    En la ciudad de Rancagua, Chile, a ${fechaFiniquitoStr}, comparecen por una parte <strong>${empresaNombre}</strong>, en adelante "el Empleador", y por la otra don (ña) <strong>${candidato.fullName}</strong>, nacionalidad ${candidato.nationality || 'Chilena'}, cédula de identidad N° <strong>${candidato.rut}</strong>, de profesión u oficio <strong>${candidato.position || 'Colaborador'}</strong>, domiciliado(a) en ${candidato.address || 'No registrado'}, en adelante "el Trabajador", quienes dejan constancia de lo siguiente:
+                </div>
+
+                <div class="body-text">
+                    <strong>PRIMERO:</strong> Las partes declaran que la relación laboral que los unía, iniciada con fecha ${fechaIngresoStr}, ha terminado con fecha ${fechaEgresoStr}, por la causal contemplada en el Código del Trabajo: <strong>"${causalTermino}"</strong>.
+                </div>
+
+                <div class="body-text">
+                    <strong>SEGUNDO:</strong> El Empleador practica la liquidación de los haberes que le corresponden al Trabajador con motivo del término de su contrato de trabajo, la que arroja los siguientes conceptos e importes:
+                </div>
+
+                <div class="table-title">Desglose de Haberes e Indemnizaciones</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Concepto / Detalle</th>
+                            <th class="text-right" style="width: 150px;">Monto ($)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${montoIAS > 0 ? `
+                        <tr>
+                            <td>Indemnización por Años de Servicio (${aniosServicio} año(s) calculado(s))</td>
+                            <td class="text-right">$${montoIAS.toLocaleString('es-CL')}</td>
+                        </tr>` : ''}
+                        ${montoISAP > 0 ? `
+                        <tr>
+                            <td>Indemnización Sustitutiva de Aviso Previo</td>
+                            <td class="text-right">$${montoISAP.toLocaleString('es-CL')}</td>
+                        </tr>` : ''}
+                        <tr>
+                            <td>Feriado Proporcional (${diasFP} días corridos, equivalentes a ${diasHabilesFP} días hábiles)</td>
+                            <td class="text-right">$${montoFP.toLocaleString('es-CL')}</td>
+                        </tr>
+                        ${otrosHaberes > 0 ? `
+                        <tr>
+                            <td>Otros Haberes devengados a pagar</td>
+                            <td class="text-right">$${otrosHaberes.toLocaleString('es-CL')}</td>
+                        </tr>` : ''}
+                        <tr class="font-bold">
+                            <td>TOTAL HABERES</td>
+                            <td class="text-right">$${totalHaberes.toLocaleString('es-CL')}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="table-title">Desglose de Descuentos</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Concepto / Detalle</th>
+                            <th class="text-right" style="width: 150px;">Monto ($)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${descuentoAFC > 0 ? `
+                        <tr>
+                            <td>Descuento Aporte Empleador Seguro de Cesantía (Art. 13 Ley 19.728)</td>
+                            <td class="text-right text-red-600">-$${descuentoAFC.toLocaleString('es-CL')}</td>
+                        </tr>` : ''}
+                        ${otrosDescuentos > 0 ? `
+                        <tr>
+                            <td>Otros Descuentos autorizados / deudas / anticipos</td>
+                            <td class="text-right text-red-600">-$${otrosDescuentos.toLocaleString('es-CL')}</td>
+                        </tr>` : ''}
+                        <tr class="font-bold">
+                            <td>TOTAL DESCUENTOS</td>
+                            <td class="text-right">-$${totalDescuentos.toLocaleString('es-CL')}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <table>
+                    <tbody>
+                        <tr class="font-bold" style="font-size: 13px; background: #e2e8f0;">
+                            <td>SALDO NETO A PAGAR AL TRABAJADOR</td>
+                            <td class="text-right" style="color: #047857;">$${netoFiniquito.toLocaleString('es-CL')}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="body-text">
+                    <strong>TERCERO:</strong> El Trabajador declara recibir del Empleador, a su entera satisfacción, la suma neta de <strong>$${netoFiniquito.toLocaleString('es-CL')}</strong> mediante transferencia bancaria o vale vista, y otorga con esto el más amplio, completo y recíproco finiquito de todas las obligaciones laborales, declarando no tener deuda pendiente alguna por concepto de remuneraciones, horas extras, feriado legal o proporcional, cotizaciones previsionales u otros.
+                </div>
+
+                <div class="reserva-box">
+                    <div class="reserva-title">Reserva de Derechos del Trabajador (Espacio Legal de la DT)</div>
+                    <div style="font-size: 10px; color: #64748b; margin-bottom: 20px;">
+                        De conformidad con la doctrina de la Dirección del Trabajo, el trabajador conserva la facultad de consignar su reserva de derechos al estampar su firma para posteriores acciones ante tribunales.
+                    </div>
+                    <div style="border-bottom: 1px solid #cbd5e1; height: 16px; margin-bottom: 10px;"></div>
+                    <div style="border-bottom: 1px solid #cbd5e1; height: 16px; margin-bottom: 10px;"></div>
+                    <div style="border-bottom: 1px solid #cbd5e1; height: 16px;"></div>
+                </div>
+
+                ${fd.procesadoEn === 'Notaria' ? `
+                <div class="reserva-box" style="border: 1px solid #cbd5e1; padding: 15px; margin-top: 25px; border-radius: 8px; background: #f8fafc;">
+                    <div class="reserva-title" style="font-weight: 900; font-size: 11px; text-transform: uppercase; color: #475569; margin-bottom: 6px;">
+                        Certificación de Ministro de Fe (Notario Público)
+                    </div>
+                    <div style="font-size: 10px; color: #334155; line-height: 1.4; text-align: justify;">
+                        Autorizo las firmas de los comparecientes don/ña <strong>${candidato.fullName}</strong> y el representante legal de <strong>${empresaNombre}</strong>, quienes firman ante mí en señal de conformidad y ratificación de este documento, y después de haber pagado la suma de $${netoFiniquito.toLocaleString('es-CL')} pactada.
+                    </div>
+                    <div style="font-size: 9px; color: #64748b; margin-top: 8px; font-weight: bold;">
+                        Fecha de legalización: ${fd.notariaFechaFirma ? new Date(fd.notariaFechaFirma).toLocaleDateString('es-CL') : '______'} | Gastos notariales: $${(fd.notariaGastos || 0).toLocaleString('es-CL')} (Pagado por ${fd.notariaPagadoPor})
+                    </div>
+                </div>` : ''}
+
+                ${fd.procesadoEn === 'Notaria' ? `
+                <div class="firmas" style="display: flex; justify-content: space-between; margin-top: 60px;">
+                    <div class="firma-box" style="width: 30%; text-align: center;">
+                        <div class="linea"></div>
+                        <p class="font-bold">${candidato.fullName}</p>
+                        <p>TRABAJADOR</p>
+                        <p>RUT: ${candidato.rut}</p>
+                    </div>
+                    <div class="firma-box" style="width: 30%; text-align: center;">
+                        <div class="linea"></div>
+                        <p class="font-bold">${empresaNombre}</p>
+                        <p>EMPLEADOR</p>
+                    </div>
+                    <div class="firma-box" style="width: 30%; text-align: center;">
+                        <div class="linea"></div>
+                        <p class="font-bold">${fd.notariaNombre || 'NOTARIO PÚBLICO'}</p>
+                        <p>MINISTRO DE FE / NOTARIO</p>
+                    </div>
+                </div>
+                ` : `
+                <div class="firmas">
+                    <div class="firma-box" style="width: 45%;">
+                        <div class="linea"></div>
+                        <p class="font-bold">${candidato.fullName}</p>
+                        <p>TRABAJADOR</p>
+                        <p>RUT: ${candidato.rut}</p>
+                    </div>
+                    <div class="firma-box" style="width: 45%;">
+                        <div class="linea"></div>
+                        <p class="font-bold">${empresaNombre}</p>
+                        <p>EMPLEADOR</p>
+                    </div>
+                </div>
+                `}
+            </body>
+            </html>
+        `;
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        if (!printWindow) return alert('No se pudo abrir la ventana de impresión. Por favor, desactiva el bloqueador de popups.');
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); }, 500);
+    };
 
     useEffect(() => {
         fetchCandidatos();
@@ -294,7 +524,7 @@ const GestionDocumental = () => {
                                     </div>
                                     <div className="text-right shrink-0 relative z-10 px-6 py-4 bg-white/5 rounded-3xl border border-white/10">
                                         <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">Items Cargados</p>
-                                        <p className="text-5xl font-black text-white">{selected.documents?.length || 0} <span className="text-sm text-slate-500">/ 13</span></p>
+                                        <p className="text-5xl font-black text-white">{selected.documents?.length || 0} <span className="text-sm text-slate-500">/ 17</span></p>
                                     </div>
                                 </div>
 
@@ -329,11 +559,19 @@ const GestionDocumental = () => {
                                             'Cert. Salud + Valor Plan',
                                             'Certificado Cargas Familiares',
                                             'Licencia de Conducir',
-                                            'Cert. Hoja de Vida Conductor'
+                                            'Cert. Hoja de Vida Conductor',
+                                            'Contrato de Trabajo',
+                                            'Anexo de Contrato',
+                                            'Liquidación de Sueldo',
+                                            'Acta de Finiquito'
                                         ].map(type => {
                                             const doc = selected.documents?.find(d => d.docType === type);
+                                            const isActiveFiniquito = type === 'Acta de Finiquito' && selected.status !== 'Finiquitado';
                                             return (
-                                                <div key={type} className={`group p-6 rounded-3xl border-2 transition-all hover:scale-[1.02] ${doc ? 'border-emerald-50 bg-emerald-50/20' : 'border-slate-50 bg-slate-50/50'}`}>
+                                                <div key={type} className={`group p-6 rounded-3xl border-2 transition-all hover:scale-[1.02] ${
+                                                    isActiveFiniquito ? 'border-slate-100 bg-slate-50/20 opacity-70' :
+                                                    doc ? 'border-emerald-50 bg-emerald-50/20' : 'border-slate-50 bg-slate-50/50'
+                                                }`}>
                                                     <div className="flex flex-col h-full justify-between gap-6">
                                                         <div>
                                                             <div className="flex justify-between items-start mb-3">
@@ -341,7 +579,9 @@ const GestionDocumental = () => {
                                                                 {doc ? <Check className="text-emerald-500" size={18} /> : (
                                                                     (type === 'Licencia de Conducir' || type === 'Cert. Hoja de Vida Conductor') && selected.requiereLicencia === 'NO' ?
                                                                         <div className="w-1.5 h-1.5 bg-slate-100 rounded-full" /> :
-                                                                        <div className="w-1.5 h-1.5 bg-slate-200 rounded-full" />
+                                                                        isActiveFiniquito ?
+                                                                            <div className="w-1.5 h-1.5 bg-slate-100 rounded-full" /> :
+                                                                            <div className="w-1.5 h-1.5 bg-slate-200 rounded-full" />
                                                                 )}
                                                             </div>
 
@@ -375,9 +615,23 @@ const GestionDocumental = () => {
                                                                 {type === 'Licencia de Conducir' && selected.requiereLicencia === 'NO' && (
                                                                     <div className="text-[8px] font-black text-slate-400 uppercase italic opacity-60">No requerida para el cargo</div>
                                                                 )}
+                                                                {type === 'Contrato de Trabajo' && (selected.contractType || selected.contractStartDate) && (
+                                                                    <div className="flex flex-col gap-1 text-[9px] font-black text-amber-600 bg-amber-50/50 px-2 py-1 rounded-lg border border-amber-100 uppercase tracking-tighter">
+                                                                        {selected.contractType && <div>Tipo: {selected.contractType}</div>}
+                                                                        {selected.contractStartDate && <div>Inicio: {new Date(selected.contractStartDate).toLocaleDateString('es-CL')}</div>}
+                                                                    </div>
+                                                                )}
+                                                                {type === 'Acta de Finiquito' && selected.finiquitoDetalle && (
+                                                                    <div className="flex flex-col gap-1 text-[9px] font-black text-violet-600 bg-violet-50/50 px-2 py-1 rounded-lg border border-violet-100 uppercase tracking-tighter">
+                                                                        {selected.finiquitoDetalle.netoFiniquito !== undefined && <div>Monto Neto: ${(selected.finiquitoDetalle.netoFiniquito).toLocaleString('es-CL')}</div>}
+                                                                        {selected.finiquitoDetalle.fechaEgreso && <div>Fecha Egreso: {new Date(selected.finiquitoDetalle.fechaEgreso).toLocaleDateString('es-CL')}</div>}
+                                                                    </div>
+                                                                )}
                                                             </div>
 
-                                                            {doc ? (
+                                                            {isActiveFiniquito ? (
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase italic tracking-tighter opacity-80">No requerido aún (Colaborador Activo)</span>
+                                                            ) : doc ? (
                                                                 <div className="flex flex-col gap-2">
                                                                     <div className="flex items-center justify-between">
                                                                         <span className={`text-[9px] font-black px-2 py-0.5 rounded shadow-sm uppercase ${doc.status === 'Verificado' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
@@ -404,7 +658,63 @@ const GestionDocumental = () => {
                                                         </div>
 
                                                             <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-slate-100/50">
-                                                                {editingDoc === type ? (
+                                                                {isActiveFiniquito ? (
+                                                                    <div className="w-full">
+                                                                        <button
+                                                                            onClick={() => window.location.href = `/rrhh/finiquitos?candidatoId=${selected._id}`}
+                                                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                                                                        >
+                                                                            Desvincular
+                                                                        </button>
+                                                                    </div>
+                                                                ) : type === 'Acta de Finiquito' && selected.status === 'Finiquitado' && !editingDoc ? (
+                                                                    <div className="flex flex-col gap-2 w-full">
+                                                                        <button
+                                                                            onClick={printFiniquitoPdf}
+                                                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                                                                        >
+                                                                            <Printer size={14} /> Generar Acta (PDF)
+                                                                        </button>
+                                                                        <div className="flex items-center gap-2 w-full">
+                                                                            {doc?.url && (
+                                                                                <a
+                                                                                    href={doc.url}
+                                                                                    target="_blank"
+                                                                                    rel="noreferrer"
+                                                                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white text-slate-600 rounded-xl border border-slate-200 text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm"
+                                                                                >
+                                                                                    <Eye size={14} /> Ver
+                                                                                </a>
+                                                                            )}
+                                                                            {!doc ? (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingDoc(type);
+                                                                                        const ex = calculateExpiry(type, '');
+                                                                                        const em = '';
+                                                                                        setDocDates({ emissionDate: em, expiryDate: ex });
+                                                                                    }}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-700 transition-all shadow-xl shadow-amber-100"
+                                                                                >
+                                                                                    <Upload size={14} /> Subir
+                                                                                </button>
+                                                                            ) : (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingDoc(type);
+                                                                                        setDocDates({
+                                                                                            emissionDate: doc.emissionDate ? new Date(doc.emissionDate).toISOString().split('T')[0] : '',
+                                                                                            expiryDate: doc.expiryDate ? new Date(doc.expiryDate).toISOString().split('T')[0] : ''
+                                                                                        });
+                                                                                    }}
+                                                                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white text-slate-400 rounded-xl border border-slate-100 text-[10px] font-black uppercase hover:border-amber-500 hover:text-amber-600 transition-all"
+                                                                                >
+                                                                                    <FileText size={14} /> Fechas
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ) : editingDoc === type ? (
                                                                     <div className="space-y-3 p-4 bg-white/50 rounded-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
                                                                         <div className="grid grid-cols-2 gap-2">
                                                                             <div>

@@ -11,7 +11,8 @@ import {
     ArrowRight, ClipboardCheck, MessageSquare, Clock, User,
     Fuel, Check, XOctagon, Info, Package, Eye, Car, Phone, Mail, FileText,
     MapPinned, Briefcase, Award, CalendarDays, PlusCircle, TrendingUp, Target, Trophy, PieChart as PieIcon,
-    Shirt, BarChart3, Save, Search, AlertOctagon, Wrench, UserPlus
+    Shirt, BarChart3, Save, Search, AlertOctagon, Wrench, UserPlus,
+    CheckSquare, ClipboardList // Added icons for Asistencia Operativa
 } from 'lucide-react';
 import { 
     ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -22,6 +23,7 @@ import { formatRut, validateRut } from '../../../utils/rutUtils';
 import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import DynamicAuditModal from '../../logistica/components/DynamicAuditModal';
 import DashboardSupervisor from '../components/DashboardSupervisor';
+import { asistenciaApi } from '../../rrhh/rrhhApi'; // Added Asistencia API import
 
 // Modales Flota (Alineación con Mi Flotilla)
 import SlideOverFicha from '../../agentetelecom/Flota/Panels/SlideOverFicha';
@@ -77,6 +79,198 @@ const PortalSupervision = () => {
     const [selectedDocumento, setSelectedDocumento] = useState(null);
     const [tecnicosGlobal, setTecnicosGlobal] = useState([]); // Para pasar a los modales
 
+    // Estados para Asistencia Operativa
+    const [asistenciaFecha, setAsistenciaFecha] = useState(new Date().toISOString().split('T')[0]);
+    const [asistenciaLogs, setAsistenciaLogs] = useState({}); // candidatoId -> record
+    const [asistenciaLoading, setAsistenciaLoading] = useState(false);
+    const [asistenciaSaving, setAsistenciaSaving] = useState(false);
+    const [asistenciaSearch, setAsistenciaSearch] = useState('');
+
+    // Estados para Modales Custom y Notificaciones
+    const [notification, setNotification] = useState(null);
+    const [confirmModal, setConfirmModal] = useState(null);
+    const [promptModal, setPromptModal] = useState(null);
+
+    const showToast = (message, type = 'success', duration = 4000) => {
+        setNotification({ message, type });
+        setTimeout(() => {
+            setNotification(prev => prev && prev.message === message ? null : prev);
+        }, duration);
+    };
+
+    const getActiveLeave = (candidateId, dateStr) => {
+        const targetDate = new Date(dateStr);
+        targetDate.setHours(0,0,0,0);
+        return solicitudes.find(s => {
+            if (s.candId === candidateId && s.estado === 'Aprobado' && s.fechaInicio && s.fechaFin) {
+                const inicio = new Date(s.fechaInicio);
+                const fin = new Date(s.fechaFin);
+                inicio.setHours(0,0,0,0);
+                fin.setHours(0,0,0,0);
+                return targetDate >= inicio && targetDate <= fin;
+            }
+            return false;
+        });
+    };
+
+    const fetchAsistenciaLogs = async (fechaStr) => {
+        if (!fechaStr) return;
+        setAsistenciaLoading(true);
+        try {
+            const res = await asistenciaApi.getAll({ fecha: fechaStr });
+            const logsMap = {};
+            
+            miEquipo.forEach(tec => {
+                if (tec.rrhh?._id) {
+                    const activeLeave = getActiveLeave(tec.rrhh._id, fechaStr);
+                    if (activeLeave) {
+                        const leaveEstado = activeLeave.tipo === 'Vacaciones' ? 'Vacaciones' : 'Licencia';
+                        const leaveTipo = activeLeave.tipo === 'Licencia Médica' ? 'Licencia Médica' : 'Vacaciones';
+                        logsMap[tec.rrhh._id] = {
+                            candidatoId: tec.rrhh._id,
+                            estado: leaveEstado,
+                            tipoAusencia: leaveTipo,
+                            observacion: `Bloqueado por ${activeLeave.tipo} aprobado`,
+                            isLocked: true
+                        };
+                    } else {
+                        logsMap[tec.rrhh._id] = {
+                            candidatoId: tec.rrhh._id,
+                            estado: 'Presente',
+                            minutosTardanza: 0,
+                            horasExtraAprobadas: 0,
+                            tipoAusencia: null,
+                            observacion: '',
+                            isNew: true
+                        };
+                    }
+                }
+            });
+
+            (res.data || []).forEach(record => {
+                const candId = record.candidatoId?._id || record.candidatoId;
+                if (candId && logsMap[candId]) {
+                    const isLocked = logsMap[candId].isLocked;
+                    logsMap[candId] = {
+                        ...logsMap[candId],
+                        _id: record._id,
+                        estado: isLocked ? logsMap[candId].estado : (record.estado || 'Presente'),
+                        minutosTardanza: record.minutosTardanza || 0,
+                        horasExtraAprobadas: record.horasExtraAprobadas || 0,
+                        tipoAusencia: isLocked ? logsMap[candId].tipoAusencia : record.tipoAusencia,
+                        observacion: record.observacion || '',
+                        isNew: false
+                    };
+                }
+            });
+
+            setAsistenciaLogs(logsMap);
+        } catch (error) {
+            console.error("Error cargando asistencia:", error);
+        } finally {
+            setAsistenciaLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (currentView === 'asistencia_operativa' && miEquipo.length > 0) {
+            fetchAsistenciaLogs(asistenciaFecha);
+        }
+    }, [asistenciaFecha, currentView, miEquipo, solicitudes]);
+
+    const handleUpdateLog = (candId, field, val) => {
+        setAsistenciaLogs(prev => {
+            const current = prev[candId] || {};
+            let extra = {};
+            if (field === 'estado') {
+                if (val !== 'Presente') {
+                    extra = { minutosTardanza: 0, horasExtraAprobadas: 0 };
+                    if (val === 'Ausente') extra.tipoAusencia = 'Inasistencia Injustificada';
+                    else if (val === 'Permiso') extra.tipoAusencia = 'Permiso con Goce de Sueldo';
+                    else if (val === 'Licencia') extra.tipoAusencia = 'Licencia Médica';
+                    else if (val === 'Vacaciones') extra.tipoAusencia = 'Vacaciones';
+                    else extra.tipoAusencia = null;
+                } else {
+                    extra = { tipoAusencia: null };
+                }
+            }
+            return {
+                ...prev,
+                [candId]: {
+                    ...current,
+                    [field]: val,
+                    ...extra
+                }
+            };
+        });
+    };
+
+    const handleMarkAllPresent = () => {
+        setAsistenciaLogs(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(candId => {
+                if (!updated[candId].isLocked) {
+                    updated[candId] = {
+                        ...updated[candId],
+                        estado: 'Presente',
+                        tipoAusencia: null
+                    };
+                }
+            });
+            return updated;
+        });
+    };
+
+    const handleSaveAsistencia = async () => {
+        setAsistenciaSaving(true);
+        try {
+            const supervisorName = user?.name || user?.fullName || 'Supervisor';
+            const registrosToSave = Object.values(asistenciaLogs).map(log => {
+                const candidate = miEquipo.find(t => t.rrhh?._id === log.candidatoId);
+                const projectObj = candidate?.rrhh?.projectId;
+                const clientObj = projectObj?.cliente;
+
+                return {
+                    candidatoId: log.candidatoId,
+                    fecha: asistenciaFecha,
+                    estado: log.estado,
+                    minutosTardanza: log.estado === 'Presente' ? Number(log.minutosTardanza || 0) : 0,
+                    horasExtraAprobadas: log.estado === 'Presente' ? Number(log.horasExtraAprobadas || 0) : 0,
+                    estadoHorasExtra: log.estado === 'Presente' && Number(log.horasExtraAprobadas || 0) > 0 ? 'Aprobado' : 'Sin HE',
+                    tipoAusencia: log.estado !== 'Presente' ? log.tipoAusencia : null,
+                    descuentaDia: log.estado === 'Ausente' && log.tipoAusencia === 'Inasistencia Injustificada',
+                    observacion: log.observacion || '',
+                    validadoPor: supervisorName,
+                    registradoPor: supervisorName,
+                    proyectoId: projectObj?._id || null,
+                    proyectoNombre: projectObj?.nombreProyecto || candidate?.proyecto || '',
+                    clienteId: clientObj?._id || null,
+                    clienteNombre: clientObj?.nombre || candidate?.mandantePrincipal || ''
+                };
+            });
+
+            await asistenciaApi.bulkUpsert(registrosToSave);
+            showToast('Asistencia guardada correctamente', 'success');
+            fetchAsistenciaLogs(asistenciaFecha);
+        } catch (error) {
+            console.error("Error al guardar asistencia:", error);
+            showToast('Error al guardar asistencia: ' + (error.response?.data?.message || error.message), 'error');
+        } finally {
+            setAsistenciaSaving(false);
+        }
+    };
+
+    const getTimelineDays = () => {
+        const base = new Date(asistenciaFecha + 'T00:00:00');
+        const daysList = [];
+        for (let i = -3; i <= 3; i++) {
+            const d = new Date(base);
+            d.setDate(base.getDate() + i);
+            daysList.push(d);
+        }
+        return daysList;
+    };
+
     const fetchData = async () => {
         if (!user?._id && !user?.id) return;
         const userId = user._id || user.id;
@@ -123,7 +317,14 @@ const PortalSupervision = () => {
     }, [user]);
 
     const handleClaim = async () => {
-        if (!rutInput) return;
+        if (!rutInput) {
+            showToast('Debes ingresar un RUT', 'error');
+            return;
+        }
+        if (!validateRut(rutInput)) {
+            showToast('El RUT no es válido', 'error');
+            return;
+        }
         try {
             await api.post('/api/tecnicos/claim', {
                 rut: rutInput,
@@ -133,9 +334,9 @@ const PortalSupervision = () => {
             setRutInput('');
             setIdToaInput('');
             fetchData();
-            alert('Técnico asignado a tu equipo');
+            showToast('Técnico vinculado correctamente a tu equipo', 'success');
         } catch (error) {
-            alert(error.response?.data?.error || 'Error al asignar');
+            showToast(error.response?.data?.error || 'Error al vincular técnico', 'error');
         }
     };
 
@@ -143,19 +344,26 @@ const PortalSupervision = () => {
         try {
             await api.put(`/api/tecnicos/${tecnicoId}/id-toa`, { idRecursoToa: newId });
             fetchData();
+            showToast('ID TOA actualizado correctamente', 'success');
         } catch (error) {
-            alert('Error al actualizar ID TOA');
+            showToast('Error al actualizar ID TOA', 'error');
         }
     };
 
     const handleUnclaim = async (id) => {
-        if (!window.confirm('¿Desvincular a este técnico de tu equipo?')) return;
-        try {
-            await api.post('/api/tecnicos/unclaim', { id });
-            fetchData();
-        } catch (error) {
-            alert('Error al desvincular');
-        }
+        setConfirmModal({
+            title: 'Desvincular Técnico',
+            message: '¿Estás seguro de que deseas desvincular a este técnico de tu equipo?',
+            onConfirm: async () => {
+                try {
+                    await api.post('/api/tecnicos/unclaim', { id });
+                    fetchData();
+                    showToast('Técnico desvinculado de tu equipo', 'success');
+                } catch (error) {
+                    showToast('Error al desvincular técnico', 'error');
+                }
+            }
+        });
     };
 
     const handleCommentSolicitud = async (candId, vacId, comment) => {
@@ -163,10 +371,11 @@ const PortalSupervision = () => {
             await api.put(`/api/rrhh/candidatos/${candId}/vacaciones/${vacId}`, {
                 supervisorComment: comment
             });
-            alert('Comentario enviado a RRHH/Gerencia');
+            showToast('Comentario guardado correctamente', 'success');
+            fetchData();
         } catch (error) {
             console.error("Error al guardar comentario:", error);
-            alert('Error al guardar comentario');
+            showToast('Error al guardar comentario', 'error');
         }
     };
 
@@ -183,11 +392,31 @@ const PortalSupervision = () => {
                 approvalChain: nextChain,
                 validationRequested: !allApproved
             });
-            alert(allApproved ? 'Vacaciones aprobadas' : 'Aprobación registrada y escalada a la siguiente jefatura/gerencia');
+            showToast(allApproved ? 'Vacaciones aprobadas' : 'Aprobación registrada y escalada a la siguiente jefatura/gerencia', 'success');
             fetchData(); // Refresh data to reflect the change
         } catch (error) {
             console.error("Error al aprobar vacaciones:", error);
-            alert('Error al aprobar vacaciones');
+            showToast('Error al aprobar vacaciones', 'error');
+        }
+    };
+
+    const handleRejectVacation = async (candId, vacId, currentApprovalChain) => {
+        try {
+            const nextChain = (currentApprovalChain || []).map(step =>
+                step.role === user.role ? { ...step, status: 'Rechazado', approvedBy: user.name, date: new Date() } : step
+            );
+
+            await api.put(`/api/rrhh/candidatos/${candId}/vacaciones/${vacId}`, {
+                estado: 'Rechazado',
+                aprobadoPor: user.name,
+                approvalChain: nextChain,
+                validationRequested: false
+            });
+            showToast('Vacaciones rechazadas', 'success');
+            fetchData();
+        } catch (error) {
+            console.error("Error al rechazar vacaciones:", error);
+            showToast('Error al rechazar vacaciones', 'error');
         }
     };
 
@@ -199,7 +428,7 @@ const PortalSupervision = () => {
             const res = await api.get(`/api/tecnicos/${tecnicoId}/ficha`);
             setFichaData(res.data);
         } catch (err) {
-            alert('Error cargando ficha del trabajador');
+            showToast('Error cargando ficha del trabajador', 'error');
             setShowFicha(false);
         } finally {
             setFichaLoading(false);
@@ -227,9 +456,9 @@ const PortalSupervision = () => {
             });
             setShowAsignarVehiculo(false);
             fetchData();
-            alert(`Vehículo ${vehiculoSeleccionado.patente} asignado a ${tecnicoParaAsignar.nombre}`);
+            showToast(`Vehículo ${vehiculoSeleccionado.patente} asignado correctamente`, 'success');
         } catch (err) {
-            alert(err.response?.data?.error || 'Error al asignar vehículo');
+            showToast(err.response?.data?.error || 'Error al asignar vehículo', 'error');
         } finally {
             setAsignandoVehiculo(false);
         }
@@ -520,6 +749,13 @@ const PortalSupervision = () => {
                             onClick={() => setCurrentView('dotacion')}
                         />
                         <Card
+                            icon={CheckSquare}
+                            title="Asistencia Operativa"
+                            subtitle="Presencia y disponibilidad diaria"
+                            color="bg-teal-600"
+                            onClick={() => setCurrentView('asistencia_operativa')}
+                        />
+                        <Card
                             icon={Truck}
                             title="Mi Flotilla"
                             subtitle="Vínculo y Checklist Vehicular"
@@ -586,6 +822,366 @@ const PortalSupervision = () => {
                         />
                     </div>
                 </>
+            )}
+
+            {/* VISTA: ASISTENCIA OPERATIVA */}
+            {currentView === 'asistencia_operativa' && (
+                <div className="max-w-[1400px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                    
+                    {/* Tarjeta de Encabezado */}
+                    <div className="bg-gradient-to-r from-teal-600 to-emerald-600 rounded-[2.5rem] p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="absolute inset-0 bg-white/5 opacity-10 pointer-events-none"></div>
+                        <div className="space-y-2 relative z-10">
+                            <span className="bg-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">Operaciones Terreno</span>
+                            <h2 className="text-3xl font-black uppercase tracking-tight flex items-center gap-3">
+                                <CheckSquare size={32} />
+                                Asistencia Operativa
+                            </h2>
+                            <p className="text-teal-50 text-xs font-bold uppercase tracking-wider italic">
+                                Control de disponibilidad, horas extra y ausentismo de tu equipo
+                            </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-center gap-3 relative z-10 bg-white/10 p-3 rounded-3xl border border-white/10 backdrop-blur-md">
+                            <label className="text-[10px] font-black uppercase text-teal-100 tracking-wider">Fecha de Control:</label>
+                            <input
+                                type="date"
+                                value={asistenciaFecha}
+                                onChange={(e) => setAsistenciaFecha(e.target.value)}
+                                className="px-4 py-2 rounded-xl text-slate-800 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-teal-400"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Timeline de Fecha Rápido */}
+                    <div className="bg-white rounded-[2rem] border border-slate-100 p-4 shadow-sm flex flex-wrap justify-between items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider ml-4">Navegación Rápida:</span>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto py-1 custom-scrollbar">
+                            {getTimelineDays().map((d, index) => {
+                                const iso = d.toISOString().split('T')[0];
+                                const isSelected = iso === asistenciaFecha;
+                                const weekday = d.toLocaleDateString('es-CL', { weekday: 'short' });
+                                const dayNum = d.getDate();
+                                return (
+                                    <button
+                                        key={index}
+                                        onClick={() => setAsistenciaFecha(iso)}
+                                        className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl border transition-all ${
+                                            isSelected
+                                                ? 'bg-teal-600 border-teal-600 text-white shadow-md shadow-teal-100 scale-105'
+                                                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <span className="text-[9px] font-bold uppercase tracking-tight">{weekday}</span>
+                                        <span className="text-lg font-black tracking-tighter mt-0.5">{dayNum}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="pr-4">
+                            <button
+                                onClick={() => setAsistenciaFecha(new Date().toISOString().split('T')[0])}
+                                className="px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                            >
+                                Hoy
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Widgets de KPIs */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm flex items-center justify-between">
+                            <div className="space-y-1">
+                                <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Tasa Asistencia</span>
+                                <h3 className="text-3xl font-black text-slate-800">
+                                    {miEquipo.filter(t => t.rrhh?._id).length > 0
+                                        ? Math.round((Object.values(asistenciaLogs).filter(l => l.estado === 'Presente').length / miEquipo.filter(t => t.rrhh?._id).length) * 100)
+                                        : 0}%
+                                </h3>
+                            </div>
+                            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl">
+                                <TrendingUp size={24} />
+                            </div>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm flex items-center justify-between">
+                            <div className="space-y-1">
+                                <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Presentes</span>
+                                <h3 className="text-3xl font-black text-slate-800">
+                                    {Object.values(asistenciaLogs).filter(l => l.estado === 'Presente').length} / {miEquipo.filter(t => t.rrhh?._id).length}
+                                </h3>
+                            </div>
+                            <div className="p-4 bg-teal-50 text-teal-600 rounded-2xl">
+                                <CheckSquare size={24} />
+                            </div>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm flex items-center justify-between">
+                            <div className="space-y-1">
+                                <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Ausentes</span>
+                                <h3 className="text-3xl font-black text-slate-800">
+                                    {Object.values(asistenciaLogs).filter(l => l.estado === 'Ausente').length}
+                                </h3>
+                            </div>
+                            <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl">
+                                <XOctagon size={24} />
+                            </div>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm flex items-center justify-between">
+                            <div className="space-y-1">
+                                <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Permisos / Licencias</span>
+                                <h3 className="text-3xl font-black text-slate-800">
+                                    {Object.values(asistenciaLogs).filter(l => ['Licencia', 'Vacaciones', 'Permiso'].includes(l.estado)).length}
+                                </h3>
+                            </div>
+                            <div className="p-4 bg-purple-50 text-purple-600 rounded-2xl">
+                                <CalendarDays size={24} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Barra de Filtros y Acciones Masivas */}
+                    <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="relative w-full md:w-96">
+                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Filtrar por técnico o RUT..."
+                                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-400 transition-all"
+                                value={asistenciaSearch}
+                                onChange={(e) => setAsistenciaSearch(e.target.value)}
+                            />
+                        </div>
+                        
+                        <div className="flex w-full md:w-auto items-center justify-end gap-2 flex-wrap">
+                            <button
+                                onClick={handleMarkAllPresent}
+                                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2"
+                            >
+                                <CheckCircle2 size={14} className="text-emerald-500" /> Marcar Presentes
+                            </button>
+                            <button
+                                onClick={handleSaveAsistencia}
+                                disabled={asistenciaSaving || asistenciaLoading}
+                                className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-teal-100 flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {asistenciaSaving ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" /> Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save size={14} /> Guardar Asistencia
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Tabla / Lista de Asistencia */}
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
+                        {asistenciaLoading ? (
+                            <div className="p-20 text-center space-y-3">
+                                <Loader2 size={40} className="animate-spin text-teal-600 mx-auto" />
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cargando registros de asistencia...</p>
+                            </div>
+                        ) : miEquipo.filter(t => t.rrhh?._id).length === 0 ? (
+                            <div className="p-20 text-center space-y-3 text-slate-400">
+                                <Users size={40} className="mx-auto" />
+                                <p className="text-sm font-black uppercase tracking-wider">No tienes técnicos vinculados a tu equipo</p>
+                                <p className="text-xs font-bold italic">Ve a la pestaña "Mi Dotación" para vincular personal mediante su RUT.</p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-slate-100">
+                                {miEquipo
+                                    .filter(t => t.rrhh?._id)
+                                    .filter(t => {
+                                        const query = asistenciaSearch.toLowerCase();
+                                        return t.nombre?.toLowerCase().includes(query) || t.rut?.toLowerCase().includes(query);
+                                    })
+                                    .map(tec => {
+                                        const log = asistenciaLogs[tec.rrhh._id] || {};
+                                        const estado = log.estado || 'Presente';
+                                        
+                                        // Definir color de borde de avatar según estado
+                                        let borderClass = 'border-slate-200';
+                                        if (estado === 'Presente') borderClass = 'border-emerald-500 ring-2 ring-emerald-50';
+                                        else if (estado === 'Ausente') borderClass = 'border-rose-500 ring-2 ring-rose-50';
+                                        else if (estado === 'Libre') borderClass = 'border-slate-400 ring-2 ring-slate-50';
+                                        else if (estado === 'Permiso') borderClass = 'border-amber-500 ring-2 ring-amber-50';
+                                        else if (['Licencia', 'Vacaciones'].includes(estado)) borderClass = 'border-purple-500 ring-2 ring-purple-50';
+
+                                        return (
+                                            <div key={tec._id} className="p-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 hover:bg-slate-50/50 transition-colors">
+                                                
+                                                {/* Columna 1: Datos Personales */}
+                                                <div className="flex items-center gap-4 min-w-[280px]">
+                                                    <div className={`w-14 h-14 rounded-full border-2 bg-white overflow-hidden flex items-center justify-center transition-all ${borderClass}`}>
+                                                        {tec.rrhh?.profilePic ? (
+                                                            <img src={tec.rrhh.profilePic} alt={tec.nombre} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="text-base font-black text-slate-500 uppercase">
+                                                                {tec.nombre?.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-base font-black text-slate-800">{tec.nombre}</h4>
+                                                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">{tec.rut} · {tec.cargo || tec.rrhh?.position}</p>
+                                                        <p className="text-[9px] text-slate-500 font-bold mt-0.5">{tec.proyectoDisplay || 'Sin Proyecto'}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Columna 2: Selectores de Estado */}
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <button
+                                                        onClick={() => handleUpdateLog(tec.rrhh._id, 'estado', 'Presente')}
+                                                        disabled={log.isLocked}
+                                                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+                                                            estado === 'Presente'
+                                                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50'
+                                                        }`}
+                                                    >
+                                                        Presente
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpdateLog(tec.rrhh._id, 'estado', 'Ausente')}
+                                                        disabled={log.isLocked}
+                                                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+                                                            estado === 'Ausente'
+                                                                ? 'bg-rose-500 border-rose-500 text-white shadow-sm'
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50'
+                                                        }`}
+                                                    >
+                                                        Ausente
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpdateLog(tec.rrhh._id, 'estado', 'Libre')}
+                                                        disabled={log.isLocked}
+                                                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+                                                            estado === 'Libre'
+                                                                ? 'bg-slate-600 border-slate-600 text-white shadow-sm'
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50'
+                                                        }`}
+                                                    >
+                                                        Libre
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpdateLog(tec.rrhh._id, 'estado', 'Permiso')}
+                                                        disabled={log.isLocked}
+                                                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+                                                            estado === 'Permiso'
+                                                                ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50'
+                                                        }`}
+                                                    >
+                                                        Permiso
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpdateLog(tec.rrhh._id, 'estado', 'Licencia')}
+                                                        disabled={log.isLocked}
+                                                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+                                                            estado === 'Licencia' || estado === 'Vacaciones'
+                                                                ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50'
+                                                        }`}
+                                                    >
+                                                        Licencia
+                                                    </button>
+                                                </div>
+
+                                                {/* Columna 3: Detalles Contextuales */}
+                                                <div className="flex-1 w-full lg:w-auto grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-[300px]">
+                                                    {log.isLocked ? (
+                                                        <div className="sm:col-span-2 bg-purple-50 border border-purple-100 rounded-2xl p-3 flex items-center gap-2 text-xs font-bold text-purple-700 animate-in fade-in duration-300">
+                                                            <CalendarDays size={16} />
+                                                            <span>{log.observacion}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            {estado === 'Presente' ? (
+                                                                <>
+                                                                    <div className="flex flex-col gap-1">
+                                                                        <label className="text-[9px] font-black uppercase text-slate-400">Atraso (Minutos)</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            placeholder="Minutos..."
+                                                                            value={log.minutosTardanza || ''}
+                                                                            onChange={(e) => handleUpdateLog(tec.rrhh._id, 'minutosTardanza', e.target.value)}
+                                                                            className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-400"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex flex-col gap-1">
+                                                                        <label className="text-[9px] font-black uppercase text-slate-400">Horas Extra Aprobadas</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            step="0.5"
+                                                                            placeholder="Horas..."
+                                                                            value={log.horasExtraAprobadas || ''}
+                                                                            onChange={(e) => handleUpdateLog(tec.rrhh._id, 'horasExtraAprobadas', e.target.value)}
+                                                                            className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-400"
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            ) : estado !== 'Libre' ? (
+                                                                <div className="sm:col-span-2 flex flex-col gap-1">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400">Tipo de Ausencia / Permiso</label>
+                                                                    <select
+                                                                        value={log.tipoAusencia || ''}
+                                                                        onChange={(e) => handleUpdateLog(tec.rrhh._id, 'tipoAusencia', e.target.value)}
+                                                                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-white focus:ring-2 focus:ring-teal-400"
+                                                                    >
+                                                                        {estado === 'Ausente' && (
+                                                                            <>
+                                                                                <option value="Inasistencia Injustificada">Inasistencia Injustificada</option>
+                                                                                <option value="Accidente del Trabajo">Accidente del Trabajo</option>
+                                                                            </>
+                                                                        )}
+                                                                        {estado === 'Permiso' && (
+                                                                            <>
+                                                                                <option value="Permiso con Goce de Sueldo">Permiso con Goce de Sueldo</option>
+                                                                                <option value="Permiso sin Goce de Sueldo">Permiso sin Goce de Sueldo</option>
+                                                                                <option value="Licencia Maternal/Paternal">Licencia Maternal/Paternal</option>
+                                                                            </>
+                                                                        )}
+                                                                        {estado === 'Licencia' && (
+                                                                            <>
+                                                                                <option value="Licencia Médica">Licencia Médica</option>
+                                                                            </>
+                                                                        )}
+                                                                        {estado === 'Vacaciones' && (
+                                                                            <>
+                                                                                <option value="Vacaciones">Vacaciones</option>
+                                                                            </>
+                                                                        )}
+                                                                    </select>
+                                                                </div>
+                                                            ) : null}
+                                                            
+                                                            {estado !== 'Libre' && (
+                                                                <div className="sm:col-span-2 flex flex-col gap-1">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400">Observaciones</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Comentario sobre disponibilidad..."
+                                                                        value={log.observacion || ''}
+                                                                        onChange={(e) => handleUpdateLog(tec.rrhh._id, 'observacion', e.target.value)}
+                                                                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-teal-400"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
 
             {/* VISTA: RESUMEN / DASHBOARD */}
@@ -727,8 +1323,16 @@ const PortalSupervision = () => {
                                             <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">ID TOA</p>
                                             <button 
                                                 onClick={() => {
-                                                    const val = prompt('Nuevo ID Recurso TOA:', tec.idRecursoToa || tec.rrhh?.idRecursoToa || '');
-                                                    if (val !== null) handleUpdateIdToa(tec._id, val);
+                                                    setPromptModal({
+                                                        title: 'Configurar ID TOA',
+                                                        subtitle: `Asignando identificador para ${tec.nombre || (tec.nombres && tec.apellidos ? `${tec.nombres} ${tec.apellidos}` : '')}`,
+                                                        placeholder: 'Ej: 12345',
+                                                        defaultValue: tec.idRecursoToa || tec.rrhh?.idRecursoToa || '',
+                                                        required: true,
+                                                        onConfirm: (val) => {
+                                                            handleUpdateIdToa(tec._id, val);
+                                                        }
+                                                    });
                                                 }}
                                                 className="text-[10px] font-bold text-indigo-500 font-mono hover:underline decoration-dotted underline-offset-4"
                                             >
@@ -1032,6 +1636,35 @@ const PortalSupervision = () => {
                                         </div>
                                     </div>
 
+                                    {s.estado === 'Pendiente' && (
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => {
+                                                    setConfirmModal({
+                                                        title: 'Aprobar Solicitud',
+                                                        message: `¿Estás seguro de que deseas aprobar la solicitud de ${s.tipo} para ${s.techName}?`,
+                                                        onConfirm: () => handleApproveVacation(s.candId, s._id, s.approvalChain)
+                                                    });
+                                                }}
+                                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-100/50 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Check size={14} /> Aprobar
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setConfirmModal({
+                                                        title: 'Rechazar Solicitud',
+                                                        message: `¿Estás seguro de que deseas rechazar la solicitud de ${s.tipo} para ${s.techName}?`,
+                                                        onConfirm: () => handleRejectVacation(s.candId, s._id, s.approvalChain)
+                                                    });
+                                                }}
+                                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-100/50 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <X size={14} /> Rechazar
+                                            </button>
+                                        </div>
+                                    )}
+
                                     <div className="space-y-2">
                                         <label className="text-[9px] font-black text-slate-400 uppercase italic ml-2">Comentario Supervisor para Gerencia</label>
                                         <div className="flex gap-2">
@@ -1078,31 +1711,34 @@ const PortalSupervision = () => {
 
                 // Datos para Gráfico de Tendencia (Últimos 7 días)
                 const trendData = last7Days.map(date => {
-                    const dayProd = produccion.filter(p => (p.fecha)?.startsWith(date));
+                    const dayProd = (produccion || []).filter(p => p && p.fecha && String(p.fecha).startsWith(date));
                     return {
-                        fecha: new Date(date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
-                        completadas: dayProd.filter(p => p.Estado?.toLowerCase().includes('complet')).length,
-                        puntos: dayProd.reduce((acc, p) => acc + (parseFloat(p.puntos) || 0), 0)
+                        fecha: new Date(date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
+                        completadas: dayProd.filter(p => p && p.Estado && String(p.Estado).toLowerCase().includes('complet')).length,
+                        puntos: dayProd.reduce((acc, p) => acc + (parseFloat(p?.puntos) || 0), 0)
                     };
                 });
 
                 // Datos para Ranking de Técnicos (Puntos acumulados)
-                const techRanking = miEquipo.map(tec => {
+                const techRanking = (miEquipo || []).map(tec => {
+                    if (!tec) return null;
                     const idToa = tec.idRecursoToa || tec.rrhh?.idRecursoToa || tec.rrhh?.externalId;
-                    const tecProd = produccion.filter(p => {
+                    const tecProd = (produccion || []).filter(p => {
+                        if (!p) return false;
                         const prodIdToa = p['ID_Recurso'] || p.idRecurso || p.idRecursoToa;
-                        return (prodIdToa && idToa && prodIdToa.toString() === idToa.toString()) || 
+                        return (prodIdToa && idToa && String(prodIdToa) === String(idToa)) || 
                                (p.tecnicoRut === tec.rut || p.rut === tec.rut);
                     });
                     return {
                         name: tec.nombres?.split(' ')[0] || tec.nombre?.split(' ')[0] || 'Técnico',
-                        puntos: tecProd.reduce((acc, p) => acc + (parseFloat(p.puntos) || 0), 0),
-                        ots: tecProd.filter(p => p.Estado?.toLowerCase().includes('complet')).length
+                        puntos: tecProd.reduce((acc, p) => acc + (parseFloat(p?.puntos) || 0), 0),
+                        ots: tecProd.filter(p => p && p.Estado && String(p.Estado).toLowerCase().includes('complet')).length
                     };
-                }).sort((a, b) => b.puntos - a.puntos).slice(0, 8);
+                }).filter(Boolean).sort((a, b) => b.puntos - a.puntos).slice(0, 8);
 
                 // Datos para Mix de Estados (Pie Chart)
-                const statusCounts = produccion.reduce((acc, p) => {
+                const statusCounts = (produccion || []).reduce((acc, p) => {
+                    if (!p) return acc;
                     const estado = p.Estado || 'Pendiente';
                     acc[estado] = (acc[estado] || 0) + 1;
                     return acc;
@@ -1120,8 +1756,8 @@ const PortalSupervision = () => {
                                 <p className="text-[10px] font-black uppercase tracking-widest opacity-60 italic">Puntos Equipo (Hoy)</p>
                                 <div className="flex items-end gap-2 relative z-10">
                                     <h4 className="text-6xl font-black">
-                                        {Math.round(produccion.filter(p => (p.fecha)?.startsWith(new Date().toISOString().split('T')[0]))
-                                            .reduce((acc, p) => acc + (parseFloat(p.puntos) || 0), 0))}
+                                        {Math.round((produccion || []).filter(p => p && p.fecha && String(p.fecha).startsWith(new Date().toISOString().split('T')[0]))
+                                            .reduce((acc, p) => acc + (parseFloat(p?.puntos) || 0), 0))}
                                     </h4>
                                     <span className="text-xs font-bold mb-3 uppercase italic">Pts</span>
                                 </div>
@@ -1133,7 +1769,7 @@ const PortalSupervision = () => {
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Efectividad</p>
                                 </div>
                                 <h4 className="text-4xl font-black text-slate-800">
-                                    {Math.round((produccion.filter(p => p.Estado?.toLowerCase().includes('complet')).length / Math.max(1, produccion.length)) * 100)}%
+                                    {Math.round(((produccion || []).filter(p => p && p.Estado && String(p.Estado).toLowerCase().includes('complet')).length / Math.max(1, (produccion || []).length)) * 100)}%
                                 </h4>
                                 <p className="text-[9px] font-bold text-slate-400 uppercase mt-1 italic">Vs Total de Órdenes</p>
                             </div>
@@ -1155,7 +1791,7 @@ const PortalSupervision = () => {
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Promedio/Técnico</p>
                                 </div>
                                 <h4 className="text-4xl font-black text-slate-800">
-                                    {Math.round(produccion.filter(p => p.Estado?.toLowerCase().includes('complet')).length / Math.max(1, miEquipo.length))}
+                                    {Math.round((produccion || []).filter(p => p && p.Estado && String(p.Estado).toLowerCase().includes('complet')).length / Math.max(1, (miEquipo || []).length))}
                                 </h4>
                                 <p className="text-[9px] font-bold text-slate-400 uppercase mt-1 italic">OTs por persona</p>
                             </div>
@@ -1446,9 +2082,21 @@ const PortalSupervision = () => {
                                                             <>
                                                                 <button
                                                                     onClick={() => {
-                                                                        const comentario = prompt("¿Algún comentario o nota para el técnico? (Opcional)");
-                                                                        api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Aprobado', comentarioSupervisor: comentario })
-                                                                            .then(() => { alert("Aprobado"); fetchData(); });
+                                                                        setPromptModal({
+                                                                            title: 'Aprobar Carga',
+                                                                            subtitle: `¿Algún comentario o nota para la carga de la patente ${req.patente}? (Opcional)`,
+                                                                            placeholder: 'Comentario opcional...',
+                                                                            defaultValue: '',
+                                                                            required: false,
+                                                                            onConfirm: (comentario) => {
+                                                                                api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Aprobado', comentarioSupervisor: comentario })
+                                                                                    .then(() => { 
+                                                                                        showToast("Carga aprobada correctamente", "success"); 
+                                                                                        fetchData(); 
+                                                                                    })
+                                                                                    .catch(() => showToast("Error al aprobar la carga", "error"));
+                                                                            }
+                                                                        });
                                                                     }}
                                                                     className="p-3.5 bg-emerald-500 text-white rounded-2xl shadow-xl shadow-emerald-200 hover:scale-110 active:scale-95 transition-all hover:bg-emerald-600"
                                                                     title="Aprobar Carga"
@@ -1457,9 +2105,21 @@ const PortalSupervision = () => {
                                                                 </button>
                                                                 <button
                                                                     onClick={() => {
-                                                                        const comentario = prompt("Razón del rechazo:");
-                                                                        api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Rechazado', comentarioSupervisor: comentario })
-                                                                            .then(() => { alert("Rechazado"); fetchData(); });
+                                                                        setPromptModal({
+                                                                            title: 'Rechazar Carga',
+                                                                            subtitle: `Ingresa el motivo del rechazo para la patente ${req.patente}:`,
+                                                                            placeholder: 'Motivo del rechazo...',
+                                                                            defaultValue: '',
+                                                                            required: true,
+                                                                            onConfirm: (comentario) => {
+                                                                                api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Rechazado', comentarioSupervisor: comentario })
+                                                                                    .then(() => { 
+                                                                                        showToast("Carga rechazada correctamente", "success"); 
+                                                                                        fetchData(); 
+                                                                                    })
+                                                                                    .catch(() => showToast("Error al rechazar la carga", "error"));
+                                                                            }
+                                                                        });
                                                                     }}
                                                                     className="p-3.5 bg-rose-500 text-white rounded-2xl shadow-xl shadow-rose-200 hover:scale-110 active:scale-95 transition-all hover:bg-rose-600"
                                                                     title="Rechazar"
@@ -1472,7 +2132,11 @@ const PortalSupervision = () => {
                                                             <button
                                                                 onClick={() => {
                                                                     api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Carga Realizada' })
-                                                                        .then(() => { alert("Confirmado"); fetchData(); });
+                                                                        .then(() => { 
+                                                                            showToast("Confirmación de carga realizada", "success"); 
+                                                                            fetchData(); 
+                                                                        })
+                                                                        .catch(() => showToast("Error al confirmar la carga", "error"));
                                                                 }}
                                                                 className="flex items-center gap-3 px-6 py-4 bg-slate-900 text-white rounded-2xl shadow-2xl shadow-slate-200 hover:scale-[1.05] active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest group/btn"
                                                             >
@@ -1815,6 +2479,116 @@ const PortalSupervision = () => {
             )}
             {activePanelFlota === 'documento' && (
                 <SlideOverDocumentoPdf documento={selectedDocumento} vehiculo={selectedVehiculo} onClose={closePanelFlota} />
+            )}
+
+            {/* ── MODALES CUSTOM: TOAST, PROMPT Y CONFIRM ──────────────────────── */}
+            
+            {/* Toast Notification Component */}
+            {notification && (
+                <div className="fixed bottom-5 right-5 z-[9999] animate-in slide-in-from-bottom-5 fade-in duration-300">
+                    <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl backdrop-blur-md border ${
+                        notification.type === 'success' ? 'bg-emerald-500/95 border-emerald-400 text-white shadow-emerald-100/50' :
+                        notification.type === 'error' ? 'bg-rose-500/95 border-rose-400 text-white shadow-rose-100/50' :
+                        'bg-slate-900/95 border-slate-800 text-white'
+                    }`}>
+                        {notification.type === 'success' && <CheckCircle2 size={18} className="text-white shrink-0" />}
+                        {notification.type === 'error' && <AlertCircle size={18} className="text-white shrink-0" />}
+                        {notification.type === 'info' && <Info size={18} className="text-white shrink-0" />}
+                        <span className="text-xs font-black uppercase tracking-wide">{notification.message}</span>
+                        <button onClick={() => setNotification(null)} className="ml-2 p-1 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition-all">
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* PromptModal Component */}
+            {promptModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">{promptModal.title}</h3>
+                        {promptModal.subtitle && <p className="text-xs font-bold text-slate-400 uppercase italic mb-4">{promptModal.subtitle}</p>}
+                        <input
+                            type="text"
+                            placeholder={promptModal.placeholder || "Escribe aquí..."}
+                            defaultValue={promptModal.defaultValue || ""}
+                            id="custom-prompt-input"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition-all mb-6"
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    const inputVal = document.getElementById('custom-prompt-input')?.value || '';
+                                    if (promptModal.required && !inputVal.trim()) {
+                                        showToast('Este campo es requerido', 'error');
+                                        return;
+                                    }
+                                    promptModal.onConfirm(inputVal);
+                                    setPromptModal(null);
+                                }
+                            }}
+                        />
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    if (promptModal.onCancel) promptModal.onCancel();
+                                    setPromptModal(null);
+                                }}
+                                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const inputVal = document.getElementById('custom-prompt-input')?.value || '';
+                                    if (promptModal.required && !inputVal.trim()) {
+                                        showToast('Este campo es requerido', 'error');
+                                        return;
+                                    }
+                                    promptModal.onConfirm(inputVal);
+                                    setPromptModal(null);
+                                }}
+                                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-100 transition-all"
+                            >
+                                Aceptar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ConfirmModal Component */}
+            {confirmModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200 text-center">
+                        <div className="p-4 bg-rose-50 text-rose-500 rounded-[2rem] w-fit mx-auto mb-6">
+                            <AlertTriangle size={32} />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">{confirmModal.title}</h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase italic mb-6 leading-relaxed">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    if (confirmModal.onCancel) confirmModal.onCancel();
+                                    setConfirmModal(null);
+                                }}
+                                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    confirmModal.onConfirm();
+                                    setConfirmModal(null);
+                                }}
+                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-100 transition-all"
+                            >
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
         </div>

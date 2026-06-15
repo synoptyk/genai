@@ -163,6 +163,7 @@ const CeoCommandCenter = () => {
 
         // 8. Configuraciones & Social
         social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        social_webmail: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         emp360_facturacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         emp360_tesoreria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -576,7 +577,7 @@ const CeoCommandCenter = () => {
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                         { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
                                         { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
-                                        { id: 'social_chat' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
+                                        { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
                                         { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
                                         { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
@@ -738,6 +739,7 @@ const CeoCommandCenter = () => {
                                         { id: 'cfg_clientes', label: 'Configuración Clientes' },
                                         { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                         { id: 'social_chat', label: 'Chat Social 360' },
+                                        { id: 'social_webmail', label: 'Genai Mail (Webmail)' },
                                         { id: 'comunic_video', label: 'Videollamadas' }
                                     ]
                                 },
@@ -1162,7 +1164,7 @@ const CeoCommandCenter = () => {
                                     { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                     { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
                                     { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
-                                    { id: 'social_chat' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
+                                    { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
                                     { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
                                     { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
@@ -1324,6 +1326,7 @@ const CeoCommandCenter = () => {
                                                 { id: 'cfg_clientes', label: 'Configuración Clientes' },
                                                 { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                                 { id: 'social_chat', label: 'Chat Social 360' },
+                                                { id: 'social_webmail', label: 'Genai Mail (Webmail)' },
                                                 { id: 'comunic_video', label: 'Videollamadas' }
                                             ]
                                         },

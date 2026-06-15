@@ -20,7 +20,7 @@ const PersonalActivo = () => {
         setLoading(true);
         try {
             const [empRes, projRes] = await Promise.all([
-                candidatosApi.getAll({ status: 'Contratado' }),
+                candidatosApi.getAll({ status: 'Contratado,En Terreno,Listo Terreno,Licencia Médica' }),
                 proyectosApi.getAll(),
             ]);
             const today = new Date();
@@ -67,9 +67,6 @@ const PersonalActivo = () => {
     const cecos = [...new Set(employees.map(e => e.ceco).filter(Boolean))];
 
     const filtered = employees.filter(e => {
-        // REGLA DE NEGOCIO: Exigencia global de ID Recurso en personal activo
-        if (!e.idRecursoToa || e.idRecursoToa.trim() === '') return false;
-
         const term = searchTerm.toLowerCase();
         const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
         const cleanRut = e.rut ? e.rut.replace(/[^0-9kK]/gi, '') : '';

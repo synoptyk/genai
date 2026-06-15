@@ -102,6 +102,7 @@ const defaultPermisosModulos = {
 
     // 8. Configuraciones & Social
     social_chat: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
+    social_webmail: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
     comunic_video: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
     emp360_facturacion: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
     emp360_tesoreria: { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false },
@@ -832,6 +833,7 @@ const GestorPersonal = () => {
                                                 modules: [
                                                     { id: 'social_chat',  label: 'Chat 360 (Social)' },
                                                     { id: 'comunic_video', label: 'Video Llamadas' },
+                                                    { id: 'social_webmail', label: 'Genai Mail (Webmail)' },
                                                     { id: 'cfg_baremos',   label: 'Baremos Base' },
                                                     { id: 'cfg_clientes',  label: 'Tarifario Clientes' },
                                                     { id: 'cfg_empresa',   label: 'Config. Empresa' },

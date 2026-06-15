@@ -740,6 +740,7 @@ app.use('/api/rrhh/time-tracker', require('./platforms/rrhh/routes/timeTrackerRo
 app.use('/api/rrhh/plantillas', require('./platforms/rrhh/routes/plantillaRoutes'));
 app.use('/api/comunicaciones', require('./platforms/comunicaciones/routes/chatRoutes'));
 app.use('/api/reuniones', require('./platforms/comunicaciones/routes/reunionesRoutes'));
+app.use('/api/webmail', require('./platforms/comunicaciones/webmailRoutes'));
 app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes'));
 app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 app.use('/api/notifications', require('./platforms/rrhh/routes/notificationRoutes'));

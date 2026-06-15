@@ -200,6 +200,7 @@ const empresaSchema = new mongoose.Schema({
             // 9. Comunicaciones & Social
             social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            social_webmail: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
             // 10. Empresa 360
             emp360_facturacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },

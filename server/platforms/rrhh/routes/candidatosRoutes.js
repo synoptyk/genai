@@ -278,7 +278,13 @@ router.get('/', protect, authorize('admin', 'rrhh_captura', ROLES.SUPERVISOR), a
         }
 
         if (includeInactive !== 'true') filter.isActive = true;
-        if (status) filter.status = status;
+        if (status) {
+            if (status.includes(',')) {
+                filter.status = { $in: status.split(',').map(s => s.trim()) };
+            } else {
+                filter.status = status;
+            }
+        }
         if (position) filter.position = new RegExp(position, 'i');
         if (projectId) filter.projectId = projectId;
         if (req.query.empresaRef && ['system_admin', 'ceo'].includes(req.user.role)) {
@@ -702,6 +708,544 @@ router.post('/bulk', protect, authorize('admin', 'rrhh_captura:crear'), async (r
 
     } catch (err) {
         console.error('❌ POST /api/rrhh/candidatos/bulk ERROR:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.post('/bulk-finiquitos', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body.finiquitos) ? req.body.finiquitos : [];
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'No se enviaron registros para procesar' });
+        }
+
+        console.log(`\n📥 CARGA MASIVA FINIQUITOS: Procesando ${rows.length} registros...`);
+
+        // Helper parsers inside the function
+        const parseExcelDate = (val) => {
+            if (!val) return null;
+            if (val instanceof Date) return val;
+            if (typeof val === 'number' || !isNaN(Number(val))) {
+                const num = Number(val);
+                const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+                return isNaN(date.getTime()) ? null : date;
+            }
+            const s = String(val).trim();
+            if (!s || s === 'SIN TÉRMINO' || s.toUpperCase() === 'N/A' || s.toUpperCase() === 'NULL' || s === 'undefined') return null;
+
+            if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                const d = new Date(s);
+                return isNaN(d.getTime()) ? null : d;
+            }
+
+            const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+            if (match) {
+                const day = parseInt(match[1], 10);
+                const month = parseInt(match[2], 10) - 1;
+                const year = parseInt(match[3], 10);
+                const d = new Date(year, month, day);
+                return isNaN(d.getTime()) ? null : d;
+            }
+
+            const d = new Date(s);
+            return isNaN(d.getTime()) ? null : d;
+        };
+
+        const mapCausal = (val) => {
+            if (!val) return null;
+            const s = String(val).trim().toLowerCase();
+            if (s.includes('necesidad') || s.includes('161')) {
+                return 'Necesidades de la empresa (Art. 161)';
+            }
+            if (s.includes('renuncia') || s.includes('159 n°2') || s.includes('159 no 2') || s.includes('159-2')) {
+                return 'Renuncia voluntaria (Art. 159 N°2)';
+            }
+            if (s.includes('mutuo') || s.includes('159 n°1') || s.includes('159 no 1') || s.includes('159-1')) {
+                return 'Mutuo acuerdo (Art. 159 N°1)';
+            }
+            if (s.includes('vencimiento') || s.includes('plazo') || s.includes('159 n°4') || s.includes('159 no 4') || s.includes('159-4')) {
+                return 'Vencimiento del plazo (Art. 159 N°4)';
+            }
+            if (s.includes('caso fortuito') || s.includes('fuerza mayor') || s.includes('159 n°6') || s.includes('159 no 6') || s.includes('159-6')) {
+                return 'Caso fortuito o fuerza mayor (Art. 159 N°6)';
+            }
+            if (s.includes('probidad') || s.includes('160')) {
+                return 'Falta de probidad (Art. 160)';
+            }
+            if (s.includes('abandono') || s.includes('160 n°4') || s.includes('160 no 4') || s.includes('160-4')) {
+                return 'Abandono del trabajo (Art. 160 N°4)';
+            }
+            return 'Otro';
+        };
+
+        // Paso 1: Validación Completa ("Todo o Nada")
+        const rowErrors = [];
+        const validRowsData = [];
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const lineNum = i + 1;
+
+            const cleanRut = normalizeRut(row.RUT || row.rut);
+            if (!cleanRut) {
+                rowErrors.push(`Fila ${lineNum}: El RUT es obligatorio o inválido.`);
+                continue;
+            }
+
+            // Buscar Candidato
+            const candidate = await Candidato.findOne({ rut: cleanRut, empresaRef: req.user.empresaRef });
+            if (!candidate) {
+                rowErrors.push(`Fila ${lineNum}: Colaborador con RUT ${row.RUT || row.rut} no registrado.`);
+                continue;
+            }
+
+            if (candidate.status === 'Finiquitado') {
+                rowErrors.push(`Fila ${lineNum}: El colaborador ${candidate.fullName} ya se encuentra finiquitado.`);
+                continue;
+            }
+
+            // Validar Fecha de Egreso
+            const rawFechaEgreso = row['Fecha Egreso'] || row.fechaEgreso;
+            if (!rawFechaEgreso) {
+                rowErrors.push(`Fila ${lineNum}: La Fecha de Egreso es obligatoria.`);
+                continue;
+            }
+
+            const fechaEgreso = parseExcelDate(rawFechaEgreso);
+            if (!fechaEgreso) {
+                rowErrors.push(`Fila ${lineNum}: La Fecha de Egreso '${rawFechaEgreso}' no tiene un formato válido (use YYYY-MM-DD o Excel Date).`);
+                continue;
+            }
+
+            const fechaIngreso = candidate.contractStartDate ? new Date(candidate.contractStartDate) : new Date(candidate.createdAt);
+            if (fechaEgreso < fechaIngreso) {
+                rowErrors.push(`Fila ${lineNum}: La fecha de egreso (${fechaEgreso.toISOString().slice(0, 10)}) no puede ser anterior a la de ingreso (${fechaIngreso.toISOString().slice(0, 10)}).`);
+                continue;
+            }
+
+            // Validar Causal
+            const rawCausal = row['Causal Término'] || row.causalTermino;
+            if (!rawCausal) {
+                rowErrors.push(`Fila ${lineNum}: La Causal de Término es obligatoria.`);
+                continue;
+            }
+
+            const causalTermino = mapCausal(rawCausal);
+            if (!causalTermino) {
+                rowErrors.push(`Fila ${lineNum}: Causal de término no válida.`);
+                continue;
+            }
+
+            // Buscar si tiene Licencia Médica activa aprobada que coincida con la fecha de egreso
+            const activeLicencia = (candidate.vacaciones || []).find(v => {
+                if (v.tipo === 'Licencia Médica' && v.estado === 'Aprobado' && v.fechaInicio && v.fechaFin) {
+                    const inicio = new Date(v.fechaInicio);
+                    const fin = new Date(v.fechaFin);
+                    const egresoDate = new Date(fechaEgreso);
+                    egresoDate.setHours(0,0,0,0);
+                    inicio.setHours(0,0,0,0);
+                    fin.setHours(0,0,0,0);
+                    return egresoDate >= inicio && egresoDate <= fin;
+                }
+                return false;
+            });
+
+            if (activeLicencia && causalTermino === 'Necesidades de la empresa (Art. 161)') {
+                const initStr = new Date(activeLicencia.fechaInicio).toLocaleDateString('es-CL');
+                const finStr = new Date(activeLicencia.fechaFin).toLocaleDateString('es-CL');
+                rowErrors.push(`Fila ${lineNum}: El colaborador ${candidate.fullName} tiene una Licencia Médica aprobada vigente (desde ${initStr} hasta ${finStr}) que coincide con la fecha de egreso. La ley prohíbe desvincular a un colaborador bajo el Art. 161 con licencia médica activa.`);
+                continue;
+            }
+
+            // Validar Fecha de Notificación si la causal es Art. 161
+            const rawFechaNotificacion = row['Fecha Notificación'] || row.fechaNotificacion;
+            let fechaNotificacion = null;
+            if (rawFechaNotificacion) {
+                fechaNotificacion = parseExcelDate(rawFechaNotificacion);
+                if (!fechaNotificacion) {
+                    rowErrors.push(`Fila ${lineNum}: La Fecha de Notificación '${rawFechaNotificacion}' no tiene un formato válido (use YYYY-MM-DD o Excel Date).`);
+                    continue;
+                }
+            }
+
+            // Recolectar parámetros opcionales
+            const parseVal = (name, def = 0) => {
+                const val = row[name];
+                if (val === undefined || val === null || val === '') return def;
+                const num = Number(val);
+                return isNaN(num) ? def : num;
+            };
+
+            const pagarDiasProporcionalesRaw = row['Pagar Días Proporcionales (SI/NO)'] || row.pagarDiasProporcionales;
+            const pagarDiasProporcionales = (pagarDiasProporcionalesRaw === 'SI' || pagarDiasProporcionalesRaw === 'si' || pagarDiasProporcionalesRaw === 'Si' || pagarDiasProporcionalesRaw === true || String(pagarDiasProporcionalesRaw).toLowerCase() === 'true');
+            const diasTrabajadosMes = parseVal('Días Trabajados Mes', 0);
+            
+            let diasVacacionesTomados = row['Vacaciones Tomadas Override'] !== undefined && row['Vacaciones Tomadas Override'] !== null && row['Vacaciones Tomadas Override'] !== ''
+                ? Number(row['Vacaciones Tomadas Override'])
+                : null;
+            if (diasVacacionesTomados === null || isNaN(diasVacacionesTomados)) {
+                const totalTomadas = (candidate.vacaciones || []).reduce((sum, v) => sum + (v.diasHabiles || 0), 0);
+                diasVacacionesTomados = totalTomadas;
+            }
+
+            const diasVacacionesProgresivas = parseVal('Vacaciones Progresivas', 0);
+            const valorUF = parseVal('Valor UF', 38500);
+            const otrosHaberes = parseVal('Otros Haberes', 0);
+            const otrosDescuentos = parseVal('Otros Descuentos', 0);
+            const descuentoPrestamoCaja = parseVal('Préstamo Caja', 0);
+            const descuentoPrestamoEmpresa = parseVal('Préstamo Empresa', 0);
+            const descuentoAnticipos = parseVal('Anticipos', 0);
+            const indemnizacionVoluntaria = parseVal('Indemnización Voluntaria', 0);
+            const aguinaldosOtros = parseVal('Aguinaldos y Otros', 0);
+            const descuentoSeguroColectivo = parseVal('Seguro Colectivo', 0);
+            const descuentoEquiposNoDevueltos = parseVal('Equipos No Devueltos', 0);
+
+            const descuentoAfpProporcional = row['AFP Proporcional Override'] !== undefined && row['AFP Proporcional Override'] !== null && row['AFP Proporcional Override'] !== ''
+                ? Number(row['AFP Proporcional Override'])
+                : null;
+            const descuentoSaludProporcional = row['Salud Proporcional Override'] !== undefined && row['Salud Proporcional Override'] !== null && row['Salud Proporcional Override'] !== ''
+                ? Number(row['Salud Proporcional Override'])
+                : null;
+            const descuentoAfcProporcional = row['AFC Proporcional Override'] !== undefined && row['AFC Proporcional Override'] !== null && row['AFC Proporcional Override'] !== ''
+                ? Number(row['AFC Proporcional Override'])
+                : null;
+
+            validRowsData.push({
+                candidate,
+                fechaIngreso,
+                fechaEgreso,
+                fechaNotificacion,
+                causalTermino,
+                pagarDiasProporcionales,
+                diasTrabajadosMes,
+                diasVacacionesTomados,
+                diasVacacionesProgresivas,
+                valorUF,
+                otrosHaberes,
+                otrosDescuentos,
+                descuentoPrestamoCaja,
+                descuentoPrestamoEmpresa,
+                descuentoAnticipos,
+                indemnizacionVoluntaria,
+                aguinaldosOtros,
+                descuentoSeguroColectivo,
+                descuentoEquiposNoDevueltos,
+                descuentoAfpProporcional,
+                descuentoSaludProporcional,
+                descuentoAfcProporcional,
+                row
+            });
+        }
+
+        if (rowErrors.length > 0) {
+            console.log(`❌ Carga masiva rechazada: ${rowErrors.length} errores encontrados.`);
+            return res.status(400).json({ 
+                message: 'La carga masiva fue rechazada debido a errores de validación.', 
+                errors: rowErrors 
+            });
+        }
+
+        // Paso 2: Procesamiento
+        let processedCount = 0;
+        const savedFiniquitos = [];
+
+        for (const data of validRowsData) {
+            const {
+                candidate,
+                fechaIngreso,
+                fechaEgreso,
+                fechaNotificacion,
+                causalTermino,
+                pagarDiasProporcionales,
+                diasTrabajadosMes,
+                diasVacacionesTomados,
+                diasVacacionesProgresivas,
+                valorUF,
+                otrosHaberes,
+                otrosDescuentos,
+                descuentoPrestamoCaja,
+                descuentoPrestamoEmpresa,
+                descuentoAnticipos,
+                indemnizacionVoluntaria,
+                aguinaldosOtros,
+                descuentoSeguroColectivo,
+                descuentoEquiposNoDevueltos,
+                descuentoAfpProporcional,
+                descuentoSaludProporcional,
+                descuentoAfcProporcional
+            } = data;
+
+            const sueldoBaseFijo = Number(candidate.sueldoBase || 0);
+            const promedioSueldoVariable = Number(candidate.promedioSueldoVariable || 0);
+            const colacion = Number(candidate.colacion || 0);
+            const movilizacion = Number(candidate.movilizacion || 0);
+            const gratificacion = Number(candidate.gratificacion || (sueldoBaseFijo > 0 ? Math.min(sueldoBaseFijo * 0.25, 197917) : 0));
+
+            const diffTime = Math.abs(fechaEgreso - fechaIngreso);
+            const totalDaysOfService = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            const { years, months, days } = calcularAntiguedadDetallada(fechaIngreso, fechaEgreso);
+
+            let aniosServicioCalculados = 0;
+            let montoIndemnizacionAnos = 0;
+            const totalAntiguedadMeses = (years * 12) + months;
+            const aplicaIAS = (causalTermino === 'Necesidades de la empresa (Art. 161)');
+
+            if (aplicaIAS && totalAntiguedadMeses >= 12) {
+                if (months > 6 || (months === 6 && days > 0)) {
+                    aniosServicioCalculados = years + 1;
+                } else {
+                    aniosServicioCalculados = years;
+                }
+                aniosServicioCalculados = Math.min(aniosServicioCalculados, 11);
+            }
+
+            const sueldoImponible = sueldoBaseFijo + promedioSueldoVariable + colacion + movilizacion;
+            const topeRemuneracion = 90 * valorUF;
+            const sueldoImponibleConTope = Math.min(sueldoImponible, topeRemuneracion);
+
+            if (aplicaIAS) {
+                montoIndemnizacionAnos = aniosServicioCalculados * sueldoImponibleConTope;
+            }
+
+            let computedExcluirAviso = false;
+            let isAvisoTardio = false;
+            let diffNotifDays = 0;
+            const bulkWarnings = [];
+
+            // Add non-blocking medical leave warning for other causals if any
+            const activeLicencia = (candidate.vacaciones || []).find(v => {
+                if (v.tipo === 'Licencia Médica' && v.estado === 'Aprobado' && v.fechaInicio && v.fechaFin) {
+                    const inicio = new Date(v.fechaInicio);
+                    const fin = new Date(v.fechaFin);
+                    const egresoDate = new Date(fechaEgreso);
+                    egresoDate.setHours(0,0,0,0);
+                    inicio.setHours(0,0,0,0);
+                    fin.setHours(0,0,0,0);
+                    return egresoDate >= inicio && egresoDate <= fin;
+                }
+                return false;
+            });
+            if (activeLicencia) {
+                const initStr = new Date(activeLicencia.fechaInicio).toLocaleDateString('es-CL');
+                const finStr = new Date(activeLicencia.fechaFin).toLocaleDateString('es-CL');
+                bulkWarnings.push(`El colaborador tiene una Licencia Médica aprobada vigente (desde ${initStr} hasta ${finStr}) que coincide con la fecha de egreso.`);
+            }
+
+            if (causalTermino === 'Necesidades de la empresa (Art. 161)') {
+                if (fechaNotificacion) {
+                    const fNotif = new Date(fechaNotificacion);
+                    const fEgres = new Date(fechaEgreso);
+                    fNotif.setHours(0,0,0,0);
+                    fEgres.setHours(0,0,0,0);
+                    diffNotifDays = Math.round((fEgres - fNotif) / (1000 * 60 * 60 * 24));
+                    if (diffNotifDays < 30) {
+                        isAvisoTardio = true;
+                        computedExcluirAviso = false;
+                        bulkWarnings.push(`Aviso previo fuera de plazo legal: notificado con ${diffNotifDays} días de anticipación (mínimo legal: 30 días). Se forzará el pago de la Indemnización Sustitutiva de Aviso Previo.`);
+                    } else {
+                        computedExcluirAviso = true;
+                    }
+                } else {
+                    computedExcluirAviso = false;
+                    bulkWarnings.push("Falta ingresar la fecha de notificación de despido para verificar el plazo legal de aviso previo de 30 días.");
+                }
+            } else {
+                computedExcluirAviso = true;
+            }
+
+            let montoIndemnizacionAviso = 0;
+            if (causalTermino === 'Necesidades de la empresa (Art. 161)' && !computedExcluirAviso) {
+                montoIndemnizacionAviso = sueldoImponibleConTope;
+            }
+
+            const diasVacacionesHabilesGanados = (totalAntiguedadMeses * 1.25) + (days * (1.25 / 30)) + Number(diasVacacionesProgresivas);
+            const diasVacacionesHabilesPendientes = Math.max(0, diasVacacionesHabilesGanados - Number(diasVacacionesTomados));
+            const diasVacacionesCorridos = calcularProyeccionFeriado(fechaEgreso, diasVacacionesHabilesPendientes);
+            const valorDiaFeriado = sueldoImponible / 30;
+            const montoFeriadoProporcional = Math.round(diasVacacionesCorridos * valorDiaFeriado);
+
+            let montoAFC = candidate.montoAFC || 0;
+            const rawMontoAFC = data.row['Monto AFC'] !== undefined ? data.row['Monto AFC'] : data.row.montoAFC;
+            if (rawMontoAFC !== undefined && rawMontoAFC !== null && rawMontoAFC !== '') {
+                montoAFC = Number(rawMontoAFC);
+            }
+            const descuentoAFCAplicado = causalTermino === 'Necesidades de la empresa (Art. 161)' 
+                ? Math.min(montoAFC, montoIndemnizacionAnos) 
+                : 0;
+
+            let montoSueldoProporcional = 0;
+            let montoColacionProporcional = 0;
+            let montoMovilizacionProporcional = 0;
+            let montoGratificacionProporcional = 0;
+            let totalHaberesProporcionales = 0;
+
+            if (pagarDiasProporcionales && diasTrabajadosMes > 0) {
+                montoSueldoProporcional = Math.round((sueldoBaseFijo / 30) * diasTrabajadosMes);
+                montoColacionProporcional = Math.round((colacion / 30) * diasTrabajadosMes);
+                montoMovilizacionProporcional = Math.round((movilizacion / 30) * diasTrabajadosMes);
+                montoGratificacionProporcional = Math.round((gratificacion / 30) * diasTrabajadosMes);
+                totalHaberesProporcionales = montoSueldoProporcional + montoColacionProporcional + montoMovilizacionProporcional + montoGratificacionProporcional;
+            }
+
+            const baseImponibleProporcional = montoSueldoProporcional + montoGratificacionProporcional;
+            
+            let afpDeduction = 0;
+            if (descuentoAfpProporcional !== null) {
+                afpDeduction = descuentoAfpProporcional;
+            } else if (baseImponibleProporcional > 0) {
+                afpDeduction = Math.round(baseImponibleProporcional * 0.115);
+            }
+
+            let saludDeduction = 0;
+            if (descuentoSaludProporcional !== null) {
+                saludDeduction = descuentoSaludProporcional;
+            } else if (baseImponibleProporcional > 0) {
+                saludDeduction = Math.round(baseImponibleProporcional * 0.07);
+            }
+
+            let afcDeductionProp = 0;
+            if (descuentoAfcProporcional !== null) {
+                afcDeductionProp = descuentoAfcProporcional;
+            } else if (baseImponibleProporcional > 0) {
+                const esIndefinido = candidate.contractStep === 'INDEFINIDO' || (candidate.contractType && candidate.contractType.toUpperCase().includes('INDEF'));
+                if (esIndefinido) {
+                    afcDeductionProp = Math.round(baseImponibleProporcional * 0.006);
+                }
+            }
+
+            const netoFiniquito = Math.max(0, 
+                montoIndemnizacionAnos + 
+                montoIndemnizacionAviso + 
+                montoFeriadoProporcional + 
+                Number(otrosHaberes) + 
+                Number(indemnizacionVoluntaria) +
+                Number(aguinaldosOtros) +
+                totalHaberesProporcionales - 
+                descuentoAFCAplicado - 
+                Number(otrosDescuentos) - 
+                Number(descuentoPrestamoCaja) - 
+                Number(descuentoPrestamoEmpresa) - 
+                Number(descuentoAnticipos) -
+                Number(afpDeduction) -
+                Number(saludDeduction) -
+                Number(afcDeductionProp) -
+                Number(descuentoSeguroColectivo) -
+                Number(descuentoEquiposNoDevueltos)
+            );
+
+            // Deductions threshold check
+            const totalHaberes = montoIndemnizacionAnos + 
+                montoIndemnizacionAviso + 
+                montoFeriadoProporcional + 
+                Number(otrosHaberes) + 
+                Number(indemnizacionVoluntaria) +
+                Number(aguinaldosOtros) +
+                totalHaberesProporcionales;
+
+            const totalDescuentos = descuentoAFCAplicado + 
+                Number(otrosDescuentos) + 
+                Number(descuentoPrestamoCaja) + 
+                Number(descuentoPrestamoEmpresa) + 
+                Number(descuentoAnticipos) +
+                Number(afpDeduction) +
+                Number(saludDeduction) +
+                Number(afcDeductionProp) +
+                Number(descuentoSeguroColectivo) +
+                Number(descuentoEquiposNoDevueltos);
+
+            if (totalHaberes > 0) {
+                const pct = (totalDescuentos / totalHaberes) * 100;
+                if (pct > 45) {
+                    bulkWarnings.push(`La suma de descuentos ($${totalDescuentos.toLocaleString('es-CL')}) representa el ${pct.toFixed(1)}% del total de haberes, superando el límite legal del 45%.`);
+                }
+            }
+
+            if (netoFiniquito <= 0) {
+                bulkWarnings.push("El neto a pagar en el finiquito es $0. Esto genera un alto riesgo de fiscalización por parte de la Dirección del Trabajo (DT).");
+            }
+
+            const finiquitoDetalle = {
+                fechaEgreso,
+                fechaNotificacion,
+                causalTermino,
+                diasVacacionesTomados,
+                diasVacacionesProgresivas,
+                sueldoBaseFijo,
+                promedioSueldoVariable,
+                colacion,
+                movilizacion,
+                gratificacion,
+                valorUF,
+                montoAFC: causalTermino === 'Necesidades de la empresa (Art. 161)' ? montoAFC : 0,
+                otrosDescuentos,
+                otrosHaberes,
+                excluirAviso: computedExcluirAviso,
+                pagarDiasProporcionales,
+                diasTrabajadosMes,
+                descuentoPrestamoCaja,
+                descuentoPrestamoEmpresa,
+                descuentoAnticipos,
+                indemnizacionVoluntaria,
+                aguinaldosOtros,
+                descuentoAfpProporcional: afpDeduction,
+                descuentoSaludProporcional: saludDeduction,
+                descuentoAfcProporcional: afcDeductionProp,
+                descuentoSeguroColectivo,
+                descuentoEquiposNoDevueltos,
+                netoFiniquito,
+                warnings: bulkWarnings
+            };
+
+            const oldStatus = candidate.status;
+            
+            candidate.status = 'Finiquitado';
+            candidate.fechaFiniquito = fechaEgreso;
+            candidate.finiquitoMotivo = causalTermino;
+            candidate.finiquitoDetalle = finiquitoDetalle;
+            candidate.history.push({
+                action: 'Carga Masiva Finiquitos',
+                description: `Finiquitado masivamente. Causal: ${causalTermino}. Neto: $${netoFiniquito.toLocaleString('es-CL')}`,
+                user: req.user?.name || 'Sistema'
+            });
+
+            const saved = await candidate.save();
+
+            await syncToTecnico(saved, req.user.empresaRef, { createIfMissing: true });
+            await updateProyectoCubiertos(saved, oldStatus, 'Finiquitado');
+
+            try {
+                const notificationService = require('../../../utils/notificationService');
+                await notificationService.notifyAction({
+                    actor: req.user,
+                    moduleKey: 'rrhh_captura',
+                    action: 'finiquitó a (masivo)',
+                    entityName: `colaborador ${saved.fullName}`,
+                    entityId: saved._id,
+                    companyRef: req.user.empresaRef,
+                    isImportant: false,
+                    messageExtra: `Causal: ${saved.finiquitoMotivo} | Neto: $${netoFiniquito.toLocaleString('es-CL')}`
+                });
+            } catch (err) {
+                console.error('Error notificando finiquito masivo:', err.message);
+            }
+
+            processedCount++;
+            savedFiniquitos.push({
+                rut: saved.rut,
+                fullName: saved.fullName,
+                netoFiniquito
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `Se procesaron exitosamente ${processedCount} finiquitos de colaboradores.`,
+            processedCount,
+            data: savedFiniquitos
+        });
+
+    } catch (err) {
+        console.error('❌ POST /api/rrhh/candidatos/bulk-finiquitos ERROR:', err);
         res.status(500).json({ message: err.message });
     }
 });
@@ -1202,6 +1746,582 @@ router.get('/remuneraciones/fijos', protect, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// --- CALCULADOR DE FINIQUITOS COMPLIANT CON LA DIRECCIÓN DEL TRABAJO (CHILE) ---
+function isFeriadoChile(fecha) {
+    const y = fecha.getFullYear();
+    const m = fecha.getMonth() + 1;
+    const d = fecha.getDate();
+    
+    // Feriados fijos en Chile
+    const fijos = [
+        '1-1',   // Año Nuevo
+        '5-1',   // Día del Trabajo
+        '5-21',  // Glorias Navales
+        '7-16',  // Virgen del Carmen
+        '8-15',  // Asunción de la Virgen
+        '9-18',  // Fiestas Patrias
+        '9-19',  // Glorias del Ejército
+        '10-31', // Iglesias Evangélicas
+        '11-1',  // Todos los Santos
+        '12-8',  // Inmaculada Concepción
+        '12-25'  // Navidad
+    ];
+    
+    if (fijos.includes(`${m}-${d}`)) return true;
+    
+    // Feriados móviles específicos (Viernes/Sábado Santo y San Pedro y San Pablo)
+    if (y === 2025) {
+        if (m === 4 && (d === 18 || d === 19)) return true;
+        if (m === 6 && d === 29) return true;
+        if (m === 10 && d === 12) return true;
+    }
+    if (y === 2026) {
+        if (m === 4 && (d === 3 || d === 4)) return true;
+        if (m === 6 && d === 29) return true;
+        if (m === 10 && d === 12) return true;
+    }
+    
+    return false;
+}
+
+function calcularProyeccionFeriado(fechaEgreso, diasHabilesPendientes) {
+    let fechaCursor = new Date(fechaEgreso.getTime());
+    let diasHabilesRestantes = diasHabilesPendientes;
+    let diasCorridos = 0;
+    
+    while (diasHabilesRestantes > 0) {
+        fechaCursor.setDate(fechaCursor.getDate() + 1);
+        const dayOfWeek = fechaCursor.getDay(); // 0 = Domingo, 6 = Sábado
+        const esFinDeSemana = (dayOfWeek === 0 || dayOfWeek === 6);
+        const esFeriado = isFeriadoChile(fechaCursor);
+        
+        if (esFinDeSemana || esFeriado) {
+            diasCorridos += 1;
+        } else {
+            if (diasHabilesRestantes >= 1) {
+                diasHabilesRestantes -= 1;
+                diasCorridos += 1;
+            } else {
+                diasCorridos += diasHabilesRestantes;
+                diasHabilesRestantes = 0;
+            }
+        }
+    }
+    return diasCorridos;
+}
+
+function calcularAntiguedadDetallada(fechaInicio, fechaFin) {
+    const start = new Date(fechaInicio);
+    const end = new Date(fechaFin);
+    
+    let months = 0;
+    let milestone = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+    const target = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+    
+    while (true) {
+        let nextMilestone = new Date(Date.UTC(milestone.getUTCFullYear(), milestone.getUTCMonth() + 1, milestone.getUTCDate()));
+        
+        if (nextMilestone.getUTCDate() !== milestone.getUTCDate()) {
+            nextMilestone = new Date(Date.UTC(milestone.getUTCFullYear(), milestone.getUTCMonth() + 2, 0));
+        }
+        
+        if (nextMilestone <= target) {
+            milestone = nextMilestone;
+            months++;
+        } else {
+            break;
+        }
+    }
+    
+    let days = 0;
+    if (target.getTime() > milestone.getTime()) {
+        const diffTime = target.getTime() - milestone.getTime();
+        days = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+    
+    let years = Math.floor(months / 12);
+    months = months % 12;
+    
+    return { years, months, days };
+}
+
+router.post('/:id/calcular-finiquito', protect, async (req, res) => {
+    try {
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'Colaborador no encontrado' });
+
+        const fechaIngreso = c.contractStartDate ? new Date(c.contractStartDate) : new Date(c.createdAt);
+        const {
+            fechaEgreso: fechaEgresoStr,
+            fechaNotificacion: fechaNotificacionStr = null,
+            causalTermino,
+            diasVacacionesTomados = 0,
+            diasVacacionesProgresivas = 0,
+            sueldoBaseFijo = 0,
+            promedioSueldoVariable = 0,
+            colacion = 0,
+            movilizacion = 0,
+            gratificacion = 0,
+            valorUF = 38500,
+            montoAFC = 0,
+            otrosDescuentos = 0,
+            otrosHaberes = 0,
+            excluirAviso = false,
+            
+            // Nuevas variables operativas y financieras
+            pagarDiasProporcionales = false,
+            diasTrabajadosMes = 0,
+            descuentoPrestamoCaja = 0,
+            descuentoPrestamoEmpresa = 0,
+            descuentoAnticipos = 0,
+
+            // Haberes adicionales
+            indemnizacionVoluntaria = 0,
+            aguinaldosOtros = 0,
+
+            // Deducciones de leyes sociales proporcionales (si se pasan, se usan; si no, se precalculan)
+            descuentoAfpProporcional = null,
+            descuentoSaludProporcional = null,
+            descuentoAfcProporcional = null,
+            descuentoSeguroColectivo = 0,
+            descuentoEquiposNoDevueltos = 0
+        } = req.body;
+
+        if (!fechaEgresoStr) {
+            return res.status(400).json({ message: 'La fecha de egreso es requerida para calcular el finiquito.' });
+        }
+
+        const fechaEgreso = new Date(fechaEgresoStr);
+        if (fechaEgreso < fechaIngreso) {
+            return res.status(400).json({ message: 'La fecha de egreso no puede ser anterior a la de ingreso.' });
+        }
+
+        const warnings = [];
+
+        // 1. Validar si tiene Licencia Médica activa aprobada que coincida con la fecha de egreso
+        const activeLicencia = (c.vacaciones || []).find(v => {
+            if (v.tipo === 'Licencia Médica' && v.estado === 'Aprobado' && v.fechaInicio && v.fechaFin) {
+                const inicio = new Date(v.fechaInicio);
+                const fin = new Date(v.fechaFin);
+                const egresoDate = new Date(fechaEgreso);
+                egresoDate.setHours(0,0,0,0);
+                inicio.setHours(0,0,0,0);
+                fin.setHours(0,0,0,0);
+                return egresoDate >= inicio && egresoDate <= fin;
+            }
+            return false;
+        });
+
+        if (activeLicencia) {
+            const initStr = new Date(activeLicencia.fechaInicio).toLocaleDateString('es-CL');
+            const finStr = new Date(activeLicencia.fechaFin).toLocaleDateString('es-CL');
+            warnings.push(`El colaborador tiene una Licencia Médica aprobada vigente (desde ${initStr} hasta ${finStr}) que coincide con la fecha de egreso. La ley prohíbe desvincular a un colaborador con licencia médica activa bajo el Art. 161 (Necesidades de la empresa).`);
+        }
+
+        // 2. Calcular antigüedad en días de corrido
+        const diffTime = Math.abs(fechaEgreso - fechaIngreso);
+        const totalDaysOfService = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // Incluye el día de egreso
+
+        // Desglose de años, meses y días usando método UTC robusto e inclusive
+        const { years, months, days } = calcularAntiguedadDetallada(fechaIngreso, fechaEgreso);
+
+        // 3. Indemnización por Años de Servicio (Art. 163 Código del Trabajo)
+        let aniosServicioCalculados = 0;
+        let montoIndemnizacionAnos = 0;
+
+        const totalAntiguedadMeses = (years * 12) + months;
+        const aplicaIAS = (causalTermino === 'Necesidades de la empresa (Art. 161)');
+
+        if (aplicaIAS && totalAntiguedadMeses >= 12) {
+            if (months > 6 || (months === 6 && days > 0)) {
+                aniosServicioCalculados = years + 1;
+            } else {
+                aniosServicioCalculados = years;
+            }
+            // Tope de 11 años
+            aniosServicioCalculados = Math.min(aniosServicioCalculados, 11);
+        }
+
+        // Base de cálculo imponible (Sueldo Base + promedio variable + asignaciones regulares)
+        const sueldoImponible = Number(sueldoBaseFijo) + Number(promedioSueldoVariable) + Number(colacion) + Number(movilizacion);
+        
+        // Tope 90 UF para indemnizaciones
+        const topeRemuneracion = 90 * Number(valorUF);
+        const sueldoImponibleConTope = Math.min(sueldoImponible, topeRemuneracion);
+
+        if (aplicaIAS) {
+            montoIndemnizacionAnos = aniosServicioCalculados * sueldoImponibleConTope;
+        }
+
+        // 4. Indemnización Sustitutiva de Aviso Previo (ISAP) y cálculo de plazo de aviso (30 días)
+        let computedExcluirAviso = excluirAviso;
+        if (causalTermino === 'Necesidades de la empresa (Art. 161)') {
+            if (fechaNotificacionStr) {
+                const fNotif = new Date(fechaNotificacionStr);
+                const fEgres = new Date(fechaEgreso);
+                fNotif.setHours(0,0,0,0);
+                fEgres.setHours(0,0,0,0);
+                const diffNotifDays = Math.round((fEgres - fNotif) / (1000 * 60 * 60 * 24));
+                if (diffNotifDays < 30) {
+                    computedExcluirAviso = false;
+                    warnings.push(`Aviso previo fuera de plazo legal: notificado con ${diffNotifDays} días de anticipación (mínimo legal: 30 días). Se forzará el pago de la Indemnización Sustitutiva de Aviso Previo.`);
+                } else {
+                    computedExcluirAviso = true;
+                }
+            } else {
+                warnings.push("Falta ingresar la fecha de notificación de despido para verificar el plazo legal de aviso previo de 30 días.");
+            }
+        } else {
+            computedExcluirAviso = true;
+        }
+
+        let montoIndemnizacionAviso = 0;
+        if (causalTermino === 'Necesidades de la empresa (Art. 161)' && !computedExcluirAviso) {
+            montoIndemnizacionAviso = sueldoImponibleConTope;
+        }
+
+        // 5. Feriado Proporcional (DT Chile: Meses completos * 1.25 + Días sueltos * 1.25/30 + Vacaciones Progresivas)
+        const diasVacacionesHabilesGanados = (totalAntiguedadMeses * 1.25) + (days * (1.25 / 30)) + Number(diasVacacionesProgresivas);
+        const diasVacacionesHabilesPendientes = Math.max(0, diasVacacionesHabilesGanados - Number(diasVacacionesTomados));
+        
+        // Proyección calendarizada
+        const diasVacacionesCorridos = calcularProyeccionFeriado(fechaEgreso, diasVacacionesHabilesPendientes);
+        const valorDiaFeriado = sueldoImponible / 30;
+        const montoFeriadoProporcional = Math.round(diasVacacionesCorridos * valorDiaFeriado);
+
+        // 6. Descuento AFC (Topado legalmente al monto de la indemnización por años de servicio)
+        const descuentoAFCAplicado = causalTermino === 'Necesidades de la empresa (Art. 161)' 
+            ? Math.min(Number(montoAFC), montoIndemnizacionAnos) 
+            : 0;
+
+        // 7. Días Proporcionales del mes de término (Sueldo Proporcional)
+        let montoSueldoProporcional = 0;
+        let montoColacionProporcional = 0;
+        let montoMovilizacionProporcional = 0;
+        let montoGratificacionProporcional = 0;
+        let totalHaberesProporcionales = 0;
+
+        if (pagarDiasProporcionales && Number(diasTrabajadosMes) > 0) {
+            montoSueldoProporcional = Math.round((Number(sueldoBaseFijo) / 30) * Number(diasTrabajadosMes));
+            montoColacionProporcional = Math.round((Number(colacion) / 30) * Number(diasTrabajadosMes));
+            montoMovilizacionProporcional = Math.round((Number(movilizacion) / 30) * Number(diasTrabajadosMes));
+            montoGratificacionProporcional = Math.round((Number(gratificacion) / 30) * Number(diasTrabajadosMes));
+            totalHaberesProporcionales = montoSueldoProporcional + montoColacionProporcional + montoMovilizacionProporcional + montoGratificacionProporcional;
+        }
+
+        // Cotizaciones sobre días proporcionales (AFP, Salud, AFC)
+        const baseImponibleProporcional = montoSueldoProporcional + montoGratificacionProporcional;
+        
+        let afpDeduction = 0;
+        if (descuentoAfpProporcional !== undefined && descuentoAfpProporcional !== null) {
+            afpDeduction = Number(descuentoAfpProporcional);
+        } else if (baseImponibleProporcional > 0) {
+            afpDeduction = Math.round(baseImponibleProporcional * 0.115); // Tasa AFP promedio (~11.5%)
+        }
+
+        let saludDeduction = 0;
+        if (descuentoSaludProporcional !== undefined && descuentoSaludProporcional !== null) {
+            saludDeduction = Number(descuentoSaludProporcional);
+        } else if (baseImponibleProporcional > 0) {
+            saludDeduction = Math.round(baseImponibleProporcional * 0.07); // Salud (7%)
+        }
+
+        let afcDeductionProp = 0;
+        if (descuentoAfcProporcional !== undefined && descuentoAfcProporcional !== null) {
+            afcDeductionProp = Number(descuentoAfcProporcional);
+        } else if (baseImponibleProporcional > 0) {
+            // Se cobra 0.6% de AFC si el tipo de contrato es Indefinido
+            const esIndefinido = c.contractStep === 'INDEFINIDO' || (c.contractType && c.contractType.toUpperCase().includes('INDEF'));
+            if (esIndefinido) {
+                afcDeductionProp = Math.round(baseImponibleProporcional * 0.006);
+            }
+        }
+
+        // 8. Neto Finiquito
+        const netoFiniquito = Math.max(0, 
+            montoIndemnizacionAnos + 
+            montoIndemnizacionAviso + 
+            montoFeriadoProporcional + 
+            Number(otrosHaberes) + 
+            Number(indemnizacionVoluntaria) +
+            Number(aguinaldosOtros) +
+            totalHaberesProporcionales - 
+            descuentoAFCAplicado - 
+            Number(otrosDescuentos) - 
+            Number(descuentoPrestamoCaja) - 
+            Number(descuentoPrestamoEmpresa) - 
+            Number(descuentoAnticipos) -
+            Number(afpDeduction) -
+            Number(saludDeduction) -
+            Number(afcDeductionProp) -
+            Number(descuentoSeguroColectivo) -
+            Number(descuentoEquiposNoDevueltos)
+        );
+
+        // Validaciones financieras y de topes legales
+        const totalHaberes = montoIndemnizacionAnos + 
+            montoIndemnizacionAviso + 
+            montoFeriadoProporcional + 
+            Number(otrosHaberes) + 
+            Number(indemnizacionVoluntaria) +
+            Number(aguinaldosOtros) +
+            totalHaberesProporcionales;
+
+        const totalDescuentos = descuentoAFCAplicado + 
+            Number(otrosDescuentos) + 
+            Number(descuentoPrestamoCaja) + 
+            Number(descuentoPrestamoEmpresa) + 
+            Number(descuentoAnticipos) +
+            Number(afpDeduction) +
+            Number(saludDeduction) +
+            Number(afcDeductionProp) +
+            Number(descuentoSeguroColectivo) +
+            Number(descuentoEquiposNoDevueltos);
+
+        if (totalHaberes > 0) {
+            const pct = (totalDescuentos / totalHaberes) * 100;
+            if (pct > 45) {
+                warnings.push(`La suma de descuentos ($${totalDescuentos.toLocaleString('es-CL')}) representa el ${pct.toFixed(1)}% del total de haberes, superando el límite legal del 45% del total imponible/haberes.`);
+            }
+        }
+
+        if (netoFiniquito <= 0) {
+            warnings.push("El neto a pagar en el finiquito es $0. Esto genera un alto riesgo de fiscalización por parte de la Dirección del Trabajo (DT).");
+        }
+
+        res.json({
+            fechaIngresoReal: fechaIngreso,
+            fechaEgreso: fechaEgreso,
+            fechaNotificacion: fechaNotificacionStr ? new Date(fechaNotificacionStr) : null,
+            warnings,
+            excluirAviso: computedExcluirAviso,
+            antiguedad: {
+                anios: years,
+                meses: months,
+                dias: days,
+                diasTotales: totalDaysOfService
+            },
+            valoresBase: {
+                sueldoBaseFijo,
+                promedioSueldoVariable,
+                colacion,
+                movilizacion,
+                gratificacion: Number(gratificacion),
+                sueldoImponible,
+                sueldoImponibleConTope
+            },
+            feriadoProporcional: {
+                ganados: Number(diasVacacionesHabilesGanados.toFixed(4)),
+                tomados: Number(diasVacacionesTomados),
+                progresivas: Number(diasVacacionesProgresivas),
+                pendientesHabiles: Number(diasVacacionesHabilesPendientes.toFixed(4)),
+                diasCorridosCalculados: Number(diasVacacionesCorridos.toFixed(4)),
+                monto: montoFeriadoProporcional
+            },
+            diasProporcionales: {
+                pagarDiasProporcionales,
+                diasTrabajadosMes: Number(diasTrabajadosMes),
+                montoSueldoProporcional,
+                montoColacionProporcional,
+                montoMovilizacionProporcional,
+                montoGratificacionProporcional,
+                totalHaberesProporcionales
+            },
+            descuentosDetallados: {
+                descuentoPrestamoCaja: Number(descuentoPrestamoCaja),
+                descuentoPrestamoEmpresa: Number(descuentoPrestamoEmpresa),
+                descuentoAnticipos: Number(descuentoAnticipos),
+                descuentoAfpProporcional: afpDeduction,
+                descuentoSaludProporcional: saludDeduction,
+                descuentoAfcProporcional: afcDeductionProp,
+                descuentoSeguroColectivo: Number(descuentoSeguroColectivo),
+                descuentoEquiposNoDevueltos: Number(descuentoEquiposNoDevueltos)
+            },
+            haberesAdicionales: {
+                indemnizacionVoluntaria: Number(indemnizacionVoluntaria),
+                aguinaldosOtros: Number(aguinaldosOtros)
+            },
+            indemnizaciones: {
+                aniosServicioCalculados,
+                montoIAS: montoIndemnizacionAnos,
+                montoISAP: montoIndemnizacionAviso,
+                descuentoAFC: descuentoAFCAplicado
+            },
+            netoFiniquito
+        });
+
+    } catch (err) {
+        console.error('Error calculando finiquito:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// @route   PUT /api/rrhh/candidatos/:id/guardar-finiquito
+// @desc    Guardar cálculo de finiquito formal de desvinculación
+// @access  Private
+router.put('/:id/guardar-finiquito', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
+    try {
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'Colaborador no encontrado' });
+
+        const oldStatus = c.status;
+        const { finiquitoDetalle } = req.body;
+        
+        if (!finiquitoDetalle) {
+            return res.status(400).json({ message: 'Los detalles del finiquito son requeridos.' });
+        }
+
+        // Sanitizar campos de fecha vacíos para evitar errores de casteo
+        if (finiquitoDetalle.notariaFechaFirma === '') {
+            finiquitoDetalle.notariaFechaFirma = null;
+        }
+
+        // Actualizar el Candidato
+        c.status = 'Finiquitado';
+        c.fechaFiniquito = new Date(finiquitoDetalle.fechaEgreso);
+        c.finiquitoMotivo = finiquitoDetalle.causalTermino;
+        c.finiquitoDetalle = finiquitoDetalle;
+        
+        c.history.push({
+            action: 'Desvinculación y Finiquito',
+            description: `Colaborador finiquitado por causa: ${finiquitoDetalle.causalTermino}. Neto finiquito: $${Number(finiquitoDetalle.netoFiniquito).toLocaleString('es-CL')}`,
+            user: req.user?.name || 'Sistema'
+        });
+
+        const saved = await c.save();
+        
+        // Sincronizar al módulo técnico (Tecnico)
+        await syncToTecnico(saved, req.user.empresaRef, { createIfMissing: true });
+        
+        // Descontar dotación del proyecto si corresponde
+        await updateProyectoCubiertos(saved, oldStatus, 'Finiquitado');
+
+        // Notificación
+        try {
+            const notificationService = require('../../../utils/notificationService');
+            await notificationService.notifyAction({
+                actor: req.user,
+                moduleKey: 'rrhh_captura',
+                action: 'finiquitó a',
+                entityName: `colaborador ${saved.fullName}`,
+                entityId: saved._id,
+                companyRef: req.user.empresaRef,
+                isImportant: true,
+                messageExtra: `Causal: ${saved.finiquitoMotivo} | Monto Neto: $${Number(finiquitoDetalle.netoFiniquito).toLocaleString('es-CL')}`
+            });
+        } catch (err) {
+            console.error('Error notificando finiquito:', err.message);
+        }
+
+        res.json(saved);
+    } catch (err) {
+        console.error('Error guardando finiquito:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// @route   POST /api/rrhh/candidatos/parse-renuncia
+// @desc    Parse voluntary resignation letter and match worker
+// @access  Private
+router.post('/parse-renuncia', protect, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No se ha subido ningún archivo.' });
+        }
+
+        const fileName = req.file.originalname || '';
+        const fileContent = req.file.buffer ? req.file.buffer.toString('utf8') : '';
+
+        // 1. Buscar todos los candidatos contratados / activos de la empresa
+        const candidatosActivos = await Candidato.find({
+            empresaRef: req.user.empresaRef,
+            status: { $in: ['Contratado', 'En Terreno', 'Listo Terreno', 'Licencia Médica'] }
+        });
+
+        let matchedCandidato = null;
+        let score = 0;
+
+        // 2. Buscar coincidencias de RUT en el texto o en el nombre del archivo
+        const cleanRutFromFile = fileContent.replace(/[^0-9kK]/g, '');
+        const cleanRutFromFileName = fileName.replace(/[^0-9kK]/g, '');
+
+        for (const c of candidatosActivos) {
+            if (!c.rut) continue;
+            const cRutClean = c.rut.replace(/[^0-9kK]/g, '');
+            
+            // Si el RUT exacto (limpio) aparece en el nombre del archivo o en el texto
+            if (cRutClean && (cleanRutFromFileName.includes(cRutClean) || cleanRutFromFile.includes(cRutClean))) {
+                matchedCandidato = c;
+                break;
+            }
+
+            // O si partes del nombre completo están en el nombre del archivo o en el texto
+            const nameParts = c.fullName ? c.fullName.toLowerCase().split(' ').filter(p => p.length > 2) : [];
+            let currentScore = 0;
+            nameParts.forEach(part => {
+                if (fileName.toLowerCase().includes(part)) currentScore += 2;
+                if (fileContent.toLowerCase().includes(part)) currentScore += 1;
+            });
+
+            if (currentScore > score) {
+                score = currentScore;
+                matchedCandidato = c;
+            }
+        }
+
+        // 3. Buscar fechas en el archivo para proponer como fecha de egreso
+        let proposedDate = new Date(); // Por defecto, hoy
+        const dateRegex = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g;
+        const matches = fileContent.match(dateRegex);
+        if (matches && matches.length > 0) {
+            const dateStr = matches[0].replace(/\//g, '-');
+            const parts = dateStr.split('-');
+            const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            if (!isNaN(d.getTime())) {
+                proposedDate = d;
+            }
+        } else {
+            // Intentar buscar fechas verbales comunes, ej. "15 de junio de 2026"
+            const verbalDateRegex = /(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+de\s+(\d{4})/i;
+            const verbalMatch = fileContent.match(verbalDateRegex);
+            if (verbalMatch) {
+                const day = parseInt(verbalMatch[1]);
+                const monthName = verbalMatch[2].toLowerCase();
+                const year = parseInt(verbalMatch[3]);
+                const monthsMap = {
+                    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+                    julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+                };
+                const month = monthsMap[monthName] !== undefined ? monthsMap[monthName] : 5;
+                const d = new Date(year, month, day);
+                if (!isNaN(d.getTime())) {
+                    proposedDate = d;
+                }
+            }
+        }
+
+        res.json({
+            success: true,
+            matched: matchedCandidato ? {
+                _id: matchedCandidato._id,
+                fullName: matchedCandidato.fullName,
+                rut: matchedCandidato.rut,
+                position: matchedCandidato.position,
+                sueldoBase: matchedCandidato.sueldoBase,
+                contractStartDate: matchedCandidato.contractStartDate,
+                contractType: matchedCandidato.contractType,
+                vacaciones: matchedCandidato.vacaciones
+            } : null,
+            proposedDate: proposedDate.toISOString().split('T')[0],
+            causalTermino: 'Renuncia voluntaria (Art. 159 N°2)'
+        });
+
+    } catch (err) {
+        console.error('Error al procesar renuncia:', err);
+        res.status(500).json({ message: err.message });
+    }
 });
 
 module.exports = router;

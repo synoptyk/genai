@@ -3,8 +3,12 @@ const router = express.Router();
 const Tecnico = require('../models/Tecnico');
 const Candidato = require('../../rrhh/models/Candidato');
 const PlatformUser = require('../../auth/PlatformUser');
+const Empresa = require('../../auth/models/Empresa');
+const BonoConfig = require('../../admin/models/BonoConfig');
+const Vehiculo = require('../models/Vehiculo');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
+
 
 // Helper to normalize RUT for comparison
 const cleanRut = (r) => (r || "").toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
@@ -349,19 +353,22 @@ router.get('/supervisores', authorize('cfg_personal:ver', 'op_designaciones:ver'
     const empresaRef = req.user.empresaRef;
     const PlatformUser = require('../../auth/PlatformUser');
 
-    // Obtener IDs de supervisores únicos desde los técnicos vinculados
-    const tecnicosConSup = await Tecnico.find({ empresaRef, supervisorId: { $exists: true, $ne: null } })
-      .select('supervisorId')
+    // Buscar todos los usuarios con roles de supervisión o jefatura en esta empresa
+    const filter = {
+      role: { $in: [ROLES.SUPERVISOR, 'supervisor_hse', ROLES.JEFATURA] }
+    };
+    if (req.user.role !== ROLES.SYSTEM_ADMIN && empresaRef) {
+      filter.empresaRef = empresaRef;
+    }
+    const supervisores = await PlatformUser.find(filter)
+      .select('_id name email role')
       .lean();
 
-    const supervisorIds = [...new Set(tecnicosConSup.map(t => String(t.supervisorId)).filter(Boolean))];
-    if (supervisorIds.length === 0) return res.json([]);
-
-    const supervisores = await PlatformUser.find({ _id: { $in: supervisorIds } })
-      .select('_id name email')
-      .lean();
-
-    res.json(supervisores.map(s => ({ _id: s._id, nombre: s.name || s.email || String(s._id), email: s.email })));
+    res.json(supervisores.map(s => ({
+      _id: s._id,
+      nombre: `${s.name || s.email || String(s._id)} (${s.role?.toUpperCase()})`,
+      email: s.email
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -387,6 +394,7 @@ router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotaci
     const tecnicos = await Tecnico.find(filter)
       .populate('empresaRef', 'nombre')
       .populate('bonosConfig')
+      .populate('supervisorId', 'name email role')
       .sort({ createdAt: -1 });
     res.json(tecnicos);
   } catch (err) {
@@ -528,6 +536,10 @@ router.post('/', authorize('cfg_personal:crear', 'op_designaciones:editar', 'op_
   const { rut, nombres, apellidos } = req.body;
   if (!rut) return res.status(400).json({ error: "RUT requerido" });
 
+  if (req.body.supervisorId === '') {
+    req.body.supervisorId = null;
+  }
+
   try {
     const r = cleanRut(rut);
     const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
@@ -553,9 +565,15 @@ router.post('/', authorize('cfg_personal:crear', 'op_designaciones:editar', 'op_
       }
     }
 
+    const updateData = { ...req.body };
+    delete updateData._id;
+    delete updateData.__v;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+
     const tecnico = await Tecnico.findOneAndUpdate(
       empresaFilter,
-      { ...req.body, rut: r, empresaRef: req.user.empresaRef },
+      { ...updateData, rut: r, empresaRef: req.user.empresaRef },
       { new: true, upsert: true }
     ).populate('bonosConfig');
 
@@ -583,7 +601,8 @@ router.post('/', authorize('cfg_personal:crear', 'op_designaciones:editar', 'op_
 
     res.json(tecnico);
   } catch (err) {
-    res.status(500).json({ error: "Error al guardar." });
+    console.error("Error en POST /api/tecnicos:", err);
+    res.status(500).json({ error: "Error al guardar: " + err.message });
   }
 });
 

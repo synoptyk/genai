@@ -97,6 +97,7 @@ const ALL_PERMISSION_KEYS = [
     // Configuraciones & Social
     'social_chat',
     'comunic_video',
+    'social_webmail',
     'emp360_facturacion',
     'emp360_tesoreria',
     'emp360_biometria',

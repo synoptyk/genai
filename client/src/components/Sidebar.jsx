@@ -737,32 +737,34 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           )}
 
           {/* ─── WEBMAIL 360 ─── */}
-          <div className={`relative group/parent ${isCollapsed ? 'w-full flex justify-center' : ''} mb-1`}>
-            <Link
-              to="/webmail"
-              title={isCollapsed ? 'Genai Mail' : ''}
-              className={`flex items-center gap-3 py-3 rounded-2xl transition-all duration-200 group
-              ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
-              ${isActive('/webmail')
-                  ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-200'
-                  : 'bg-indigo-50 border border-indigo-100 hover:border-indigo-300 hover:shadow-md'}`}
-            >
-              <div className={`p-2 rounded-xl flex-shrink-0 ${isActive('/webmail') ? 'bg-white/20' : 'bg-indigo-500'} transition-all`}>
-                <Mail size={16} className="text-white" />
-              </div>
-              {!isCollapsed && (
-                <div>
-                  <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/webmail') ? 'text-white' : 'text-indigo-800'}`}>
-                    Genai Mail
-                  </span>
-                  <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/webmail') ? 'text-indigo-100' : 'text-indigo-500'}`}>
-                    Correo Corporativo Integrado
-                  </span>
+          {hasSubAccess('social_webmail') && (
+            <div className={`relative group/parent ${isCollapsed ? 'w-full flex justify-center' : ''} mb-1`}>
+              <Link
+                to="/webmail"
+                title={isCollapsed ? 'Genai Mail' : ''}
+                className={`flex items-center gap-3 py-3 rounded-2xl transition-all duration-200 group
+                ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
+                ${isActive('/webmail')
+                    ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-200'
+                    : 'bg-indigo-50 border border-indigo-100 hover:border-indigo-300 hover:shadow-md'}`}
+              >
+                <div className={`p-2 rounded-xl flex-shrink-0 ${isActive('/webmail') ? 'bg-white/20' : 'bg-indigo-500'} transition-all`}>
+                  <Mail size={16} className="text-white" />
                 </div>
-              )}
-              {!isCollapsed && isActive('/webmail') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
-            </Link>
-          </div>
+                {!isCollapsed && (
+                  <div>
+                    <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/webmail') ? 'text-white' : 'text-indigo-800'}`}>
+                      Genai Mail
+                    </span>
+                    <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/webmail') ? 'text-indigo-100' : 'text-indigo-500'}`}>
+                      Correo Corporativo Integrado
+                    </span>
+                  </div>
+                )}
+                {!isCollapsed && isActive('/webmail') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
+              </Link>
+            </div>
+          )}
 
           {/* ─── MÓDULO 1: ADMINISTRACIÓN ─── */}
           {hasAccess('admin') && (

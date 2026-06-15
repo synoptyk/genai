@@ -55,6 +55,8 @@ export const candidatosApi = {
     updateStatus: (id, data) => rrhhApi.put(`/candidatos/${id}/status`, data),
     updateInterview: (id, data) => rrhhApi.put(`/candidatos/${id}/interview`, data),
     updateHiring: (id, data) => rrhhApi.put(`/candidatos/${id}/hiring`, data),
+    calcularFiniquito: (id, data) => rrhhApi.post(`/candidatos/${id}/calcular-finiquito`, data),
+    guardarFiniquito: (id, data) => rrhhApi.put(`/candidatos/${id}/guardar-finiquito`, data),
     getFiniquitos: async (params = {}) => {
         try {
             return await rrhhApi.get('/candidatos/finiquitos', { params });
@@ -78,9 +80,11 @@ export const candidatosApi = {
     uploadCV: (id, formData) => rrhhApi.post(`/candidatos/${id}/cv`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
     updateDocumentStatus: (id, docId, status, extra = {}) => rrhhApi.put(`/candidatos/${id}/documents/${docId}`, { status, ...extra }),
     bulkCreate: (candidatos) => rrhhApi.post('/candidatos/bulk', { candidatos }),
+    bulkFiniquitos: (finiquitos) => rrhhApi.post('/candidatos/bulk-finiquitos', { finiquitos }),
     remove: (id) => rrhhApi.delete(`/candidatos/${id}`),
     syncBase: () => rrhhApi.post('/candidatos/sincronizar-base'),
     parseCV: (formData) => rrhhApi.post('/candidatos-ai/parse-cv', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    parseRenuncia: (formData) => rrhhApi.post('/candidatos/parse-renuncia', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 export const liquidacionesApi = {

@@ -322,7 +322,7 @@ function AppRoutes() {
       {/* COMUNICACIONES */}
       <Route path="/video-call/:roomId" element={<ProtectedRoute allowPermissions={['comunic_video']}><VideoCallRoom /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute allowPermissions={['social_chat']}><Chat360 /></ProtectedRoute>} />
-      <Route path="/webmail" element={<ProtectedRoute><AppShell><Webmail /></AppShell></ProtectedRoute>} />
+      <Route path="/webmail" element={<ProtectedRoute allowPermissions={['social_webmail']}><AppShell><Webmail /></AppShell></ProtectedRoute>} />
 
       {/* GENAI360 — ASISTENTE DE INTELIGENCIA ARTIFICIAL */}
       <Route path="/ai/asistente" element={<ProtectedRoute allowPermissions={['ai_asistente']}><AppShell><AIAssistant /></AppShell></ProtectedRoute>} />

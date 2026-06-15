@@ -7,6 +7,7 @@ import {
   Heart, GraduationCap, Shirt, Truck,
   Clock, Map,
   FileText,
+  UserMinus,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatRut } from '../utils/rutUtils';
@@ -71,6 +72,224 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
       if (isNaN(d.getTime())) return dateStr;
       return d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch (e) { return dateStr; }
+  };
+
+  const printFiniquitoPdf = () => {
+    const candidato = data;
+    const fd = candidato.finiquitoDetalle || {};
+    const fechaFiniquitoStr = candidato.fechaFiniquito
+        ? new Date(candidato.fechaFiniquito).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })
+        : new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' });
+    
+    const fechaIngresoStr = candidato.contractStartDate
+        ? new Date(candidato.contractStartDate).toLocaleDateString('es-CL')
+        : (fd.fechaIngresoReal ? new Date(fd.fechaIngresoReal).toLocaleDateString('es-CL') : 'No registrada');
+        
+    const fechaEgresoStr = candidato.fechaFiniquito
+        ? new Date(candidato.fechaFiniquito).toLocaleDateString('es-CL')
+        : (fd.fechaEgreso ? new Date(fd.fechaEgreso).toLocaleDateString('es-CL') : 'No registrada');
+
+    const projectName = candidato.projectName || 'No asignado';
+    const empresaNombre = candidato.empresaRef?.nombre || 'Empresa Empleadora';
+    const causalTermino = fd.causalTermino || candidato.finiquitoMotivo || 'Necesidades de la empresa (Art. 161)';
+
+    const aniosServicio = fd.aniosServicioCalculados || 0;
+    const montoIAS = fd.montoIndemnizacionAnos || 0;
+    const montoISAP = fd.montoIndemnizacionAviso || 0;
+    const montoFP = fd.montoFeriadoProporcional || 0;
+    const diasFP = fd.diasVacacionesCorridosCalculados || 0;
+    const diasHabilesFP = fd.diasVacacionesHabilesCalculados || 0;
+    const otrosHaberes = fd.otrosHaberes || 0;
+    
+    const descuentoAFC = fd.descuentoAFC || 0;
+    const otrosDescuentos = fd.otrosDescuentos || 0;
+    const netoFiniquito = fd.netoFiniquito !== undefined ? fd.netoFiniquito : 0;
+
+    const totalHaberes = montoIAS + montoISAP + montoFP + otrosHaberes;
+    const totalDescuentos = descuentoAFC + otrosDescuentos;
+
+    const html = `
+        <html>
+        <head>
+            <title>Acta de Finiquito - ${candidato.fullName}</title>
+            <style>
+                body { font-family: 'Arial', sans-serif; color: #1e293b; margin: 40px; line-height: 1.5; font-size: 12px; }
+                .header { text-align: center; margin-bottom: 30px; }
+                .header h1 { font-size: 18px; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a; }
+                .header p { font-size: 11px; margin: 5px 0 0 0; color: #64748b; font-weight: bold; }
+                .body-text { margin-bottom: 20px; text-align: justify; }
+                .table-title { font-weight: bold; margin-bottom: 8px; text-transform: uppercase; font-size: 11px; color: #334155; }
+                table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+                th { background: #f1f5f9; font-weight: bold; font-size: 11px; }
+                .text-right { text-align: right; }
+                .font-bold { font-weight: bold; }
+                .section { margin-top: 25px; }
+                .reserva-box { border: 2px dashed #94a3b8; padding: 15px; margin-top: 25px; border-radius: 8px; background: #f8fafc; }
+                .reserva-title { font-weight: 900; font-size: 11px; text-transform: uppercase; color: #475569; margin-bottom: 6px; }
+                .firmas { display: flex; justify-content: space-between; margin-top: 60px; }
+                .firma-box { width: 45%; text-align: center; }
+                .linea { border-top: 1px solid #475569; margin-top: 50px; margin-bottom: 5px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>${fd.procesadoEn === 'Notaria' ? 'Acta de Finiquito de Contrato de Trabajo (Legalizado ante Notario)' : 'Acta de Finiquito de Contrato de Trabajo'}</h1>
+                <p>${fd.procesadoEn === 'Notaria' ? `PROCESADO EN: ${fd.notariaNombre || 'NOTARÍA PÚBLICA'}` : 'DIRECCIÓN DEL TRABAJO COMPLIANT'}</p>
+            </div>
+            
+            <div class="body-text">
+                En la ciudad de Rancagua, Chile, a ${fechaFiniquitoStr}, comparecen por una parte <strong>${empresaNombre}</strong>, en adelante "el Empleador", y por la otra don (ña) <strong>${candidato.fullName}</strong>, nacionalidad ${candidato.nationality || 'Chilena'}, cédula de identidad N° <strong>${candidato.rut}</strong>, de profesión u oficio <strong>${candidato.position || 'Colaborador'}</strong>, domiciliado(a) en ${candidato.address || 'No registrado'}, en adelante "el Trabajador", quienes dejan constancia de lo siguiente:
+            </div>
+
+            <div class="body-text">
+                <strong>PRIMERO:</strong> Las partes declaran que la relación laboral que los unía, iniciada con fecha ${fechaIngresoStr}, ha terminado con fecha ${fechaEgresoStr}, por la causal contemplada en el Código del Trabajo: <strong>"${causalTermino}"</strong>.
+            </div>
+
+            <div class="body-text">
+                <strong>SEGUNDO:</strong> El Empleador practica la liquidación de los haberes que le corresponden al Trabajador con motivo del término de su contrato de trabajo, la que arroja los siguientes conceptos e importes:
+            </div>
+
+            <div class="table-title">Desglose de Haberes e Indemnizaciones</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concepto / Detalle</th>
+                        <th class="text-right" style="width: 150px;">Monto ($)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${montoIAS > 0 ? `
+                    <tr>
+                        <td>Indemnización por Años de Servicio (${aniosServicio} año(s) calculado(s))</td>
+                        <td class="text-right">$${montoIAS.toLocaleString('es-CL')}</td>
+                    </tr>` : ''}
+                    ${montoISAP > 0 ? `
+                    <tr>
+                        <td>Indemnización Sustitutiva de Aviso Previo</td>
+                        <td class="text-right">$${montoISAP.toLocaleString('es-CL')}</td>
+                    </tr>` : ''}
+                    <tr>
+                        <td>Feriado Proporcional (${diasFP} días corridos, equivalentes a ${diasHabilesFP} días hábiles)</td>
+                        <td class="text-right">$${montoFP.toLocaleString('es-CL')}</td>
+                    </tr>
+                    ${otrosHaberes > 0 ? `
+                    <tr>
+                        <td>Otros Haberes devengados a pagar</td>
+                        <td class="text-right">$${otrosHaberes.toLocaleString('es-CL')}</td>
+                    </tr>` : ''}
+                    <tr class="font-bold">
+                        <td>TOTAL HABERES</td>
+                        <td class="text-right">$${totalHaberes.toLocaleString('es-CL')}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="table-title">Desglose de Descuentos</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concepto / Detalle</th>
+                        <th class="text-right" style="width: 150px;">Monto ($)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${descuentoAFC > 0 ? `
+                    <tr>
+                        <td>Descuento Aporte Empleador Seguro de Cesantía (Art. 13 Ley 19.728)</td>
+                        <td class="text-right text-red-600">-$${descuentoAFC.toLocaleString('es-CL')}</td>
+                    </tr>` : ''}
+                    ${otrosDescuentos > 0 ? `
+                    <tr>
+                        <td>Otros Descuentos autorizados / deudas / anticipos</td>
+                        <td class="text-right text-red-600">-$${otrosDescuentos.toLocaleString('es-CL')}</td>
+                    </tr>` : ''}
+                    <tr class="font-bold">
+                        <td>TOTAL DESCUENTOS</td>
+                        <td class="text-right">-$${totalDescuentos.toLocaleString('es-CL')}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <table>
+                <tbody>
+                    <tr class="font-bold" style="font-size: 13px; background: #e2e8f0;">
+                        <td>SALDO NETO A PAGAR AL TRABAJADOR</td>
+                        <td class="text-right" style="color: #047857;">$${netoFiniquito.toLocaleString('es-CL')}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="body-text">
+                <strong>TERCERO:</strong> El Trabajador declara recibir del Empleador, a su entera satisfacción, la suma neta de <strong>$${netoFiniquito.toLocaleString('es-CL')}</strong> mediante transferencia bancaria o vale vista, y otorga con esto el más amplio, completo y recíproco finiquito de todas las obligaciones laborales, declarando no tener deuda pendiente alguna por concepto de remuneraciones, horas extras, feriado legal o proporcional, cotizaciones previsionales u otros.
+            </div>
+
+            <div class="reserva-box">
+                <div class="reserva-title">Reserva de Derechos del Trabajador (Espacio Legal de la DT)</div>
+                <div style="font-size: 10px; color: #64748b; margin-bottom: 20px;">
+                    De conformidad con la doctrina de la Dirección del Trabajo, el trabajador conserva la facultad de consignar su reserva de derechos al estampar su firma para posteriores acciones ante tribunales.
+                </div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 16px; margin-bottom: 10px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 16px; margin-bottom: 10px;"></div>
+                <div style="border-bottom: 1px solid #cbd5e1; height: 16px;"></div>
+            </div>
+
+            ${fd.procesadoEn === 'Notaria' ? `
+            <div class="reserva-box" style="border: 1px solid #cbd5e1; padding: 15px; margin-top: 25px; border-radius: 8px; background: #f8fafc;">
+                <div class="reserva-title" style="font-weight: 900; font-size: 11px; text-transform: uppercase; color: #475569; margin-bottom: 6px;">
+                    Certificación de Ministro de Fe (Notario Público)
+                </div>
+                <div style="font-size: 10px; color: #334155; line-height: 1.4; text-align: justify;">
+                    Autorizo las firmas de los comparecientes don/ña <strong>${candidato.fullName}</strong> y el representante legal de <strong>${empresaNombre}</strong>, quienes firman ante mí en señal de conformidad y ratificación de este documento, y después de haber pagado la suma de $${netoFiniquito.toLocaleString('es-CL')} pactada.
+                </div>
+                <div style="font-size: 9px; color: #64748b; margin-top: 8px; font-weight: bold;">
+                    Fecha de legalización: ${fd.notariaFechaFirma ? new Date(fd.notariaFechaFirma).toLocaleDateString('es-CL') : '______'} | Gastos notariales: $${(fd.notariaGastos || 0).toLocaleString('es-CL')} (Pagado por ${fd.notariaPagadoPor})
+                </div>
+            </div>` : ''}
+
+            ${fd.procesadoEn === 'Notaria' ? `
+            <div class="firmas" style="display: flex; justify-content: space-between; margin-top: 60px;">
+                <div class="firma-box" style="width: 30%; text-align: center;">
+                    <div class="linea"></div>
+                    <p class="font-bold">${candidato.fullName}</p>
+                    <p>TRABAJADOR</p>
+                    <p>RUT: ${candidato.rut}</p>
+                </div>
+                <div class="firma-box" style="width: 30%; text-align: center;">
+                    <div class="linea"></div>
+                    <p class="font-bold">${empresaNombre}</p>
+                    <p>EMPLEADOR</p>
+                </div>
+                <div class="firma-box" style="width: 30%; text-align: center;">
+                    <div class="linea"></div>
+                    <p class="font-bold">${fd.notariaNombre || 'NOTARIO PÚBLICO'}</p>
+                    <p>MINISTRO DE FE / NOTARIO</p>
+                </div>
+            </div>
+            ` : `
+            <div class="firmas">
+                <div class="firma-box" style="width: 45%;">
+                    <div class="linea"></div>
+                    <p class="font-bold">${candidato.fullName}</p>
+                    <p>TRABAJADOR</p>
+                    <p>RUT: ${candidato.rut}</p>
+                </div>
+                <div class="firma-box" style="width: 45%;">
+                    <div class="linea"></div>
+                    <p class="font-bold">${empresaNombre}</p>
+                    <p>EMPLEADOR</p>
+                </div>
+            </div>
+            `}
+        </body>
+        </html>
+    `;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) return alert('No se pudo abrir la ventana de impresión. Por favor, desactiva el bloqueador de popups.');
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 500);
   };
 
   const AdvancedSignature = ({ payload, label, fallbackName, fallbackPosition, fallbackDate }) => {
@@ -628,12 +847,108 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                 </div>
               )}
             </section>
+
+            {/* 12. SECCIÓN FINIQUITO */}
+            <section className="print-no-break">
+              <div className="flex items-center gap-3 mb-6 border-l-4 border-violet-600 pl-5">
+                <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">12. Desvinculación y Finiquito</h2>
+              </div>
+              {data.status === 'Finiquitado' || data.finiquitoDetalle ? (
+                <div className="bg-violet-50/50 p-6 rounded-[2.5rem] border border-violet-100 shadow-sm">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div>
+                      <span className="px-3 py-1 bg-violet-600 text-white rounded-full text-[8px] font-black uppercase tracking-widest">Colaborador Finiquitado</span>
+                      <h3 className="text-sm font-black text-slate-800 uppercase mt-2">{data.finiquitoDetalle?.causalTermino || data.finiquitoMotivo || 'Necesidades de la empresa (Art. 161)'}</h3>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">
+                        Causal legal aplicada • Egreso: {formatDate(data.fechaFiniquito || data.finiquitoDetalle?.fechaEgreso)}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={printFiniquitoPdf}
+                      className="flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl shadow-violet-100/20 active:scale-95 transition-all"
+                    >
+                      <Printer size={12} /> Descargar Acta PDF
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-4 mt-6">
+                    <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm">
+                      <span className="text-[7px] font-black text-slate-300 uppercase block mb-1 tracking-widest">Total Neto Liquidado</span>
+                      <div className="text-[12px] font-black text-emerald-600">${Number(data.finiquitoDetalle?.netoFiniquito || 0).toLocaleString('es-CL')}</div>
+                    </div>
+                    <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm">
+                      <span className="text-[7px] font-black text-slate-300 uppercase block mb-1 tracking-widest">Antigüedad Calculada</span>
+                      <div className="text-[10px] font-black text-slate-700 uppercase">{data.finiquitoDetalle?.aniosServicioCalculados || 0} Años</div>
+                    </div>
+                    <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm">
+                      <span className="text-[7px] font-black text-slate-300 uppercase block mb-1 tracking-widest">Vacaciones Proporcionales</span>
+                      <div className="text-[10px] font-black text-slate-700 uppercase">{data.finiquitoDetalle?.diasVacacionesHabilesCalculados || 0} Días Hábiles</div>
+                    </div>
+                    <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm">
+                      <span className="text-[7px] font-black text-slate-300 uppercase block mb-1 tracking-widest">Canal de Legalización</span>
+                      <div className="text-[10px] font-black text-slate-700 uppercase">
+                        {data.finiquitoDetalle?.procesadoEn === 'Notaria' ? '🏛️ En Notaría' : '📁 Módulo GenAI'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {data.finiquitoDetalle?.procesadoEn === 'Notaria' && (
+                    <div className="mt-4 p-4 bg-slate-900 text-white rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div>
+                        <p className="text-[7px] font-black text-blue-400 uppercase tracking-widest">Detalles Notaría Externa</p>
+                        <p className="text-[10px] font-black uppercase mt-1">{data.finiquitoDetalle.notariaNombre || 'Notaría Pública'}</p>
+                      </div>
+                      <div className="flex gap-6">
+                        <div>
+                          <p className="text-[6px] font-black text-slate-400 uppercase">Fecha Firma</p>
+                          <p className="text-[8px] font-bold mt-0.5">{formatDate(data.finiquitoDetalle.notariaFechaFirma)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[6px] font-black text-slate-400 uppercase">Gastos Notaría</p>
+                          <p className="text-[8px] font-bold mt-0.5">${(data.finiquitoDetalle.notariaGastos || 0).toLocaleString('es-CL')}</p>
+                        </div>
+                        <div>
+                          <p className="text-[6px] font-black text-slate-400 uppercase">Estado Trámite</p>
+                          <span className={`inline-block px-2 py-0.5 text-[6px] font-black uppercase rounded-full mt-0.5 ${
+                            data.finiquitoDetalle.notariaEstado === 'Firmado' ? 'bg-emerald-500/25 text-emerald-300' :
+                            data.finiquitoDetalle.notariaEstado === 'Rechazado' ? 'bg-rose-500/25 text-rose-300' :
+                            'bg-amber-500/25 text-amber-300'
+                          }`}>
+                            {data.finiquitoDetalle.notariaEstado || 'Pendiente'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-amber-50/30 p-6 rounded-[2.5rem] border border-amber-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-[1.5rem] flex items-center justify-center flex-shrink-0">
+                      <UserMinus size={24} />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-sm font-black text-slate-800 uppercase leading-none">Colaborador en Estatus Activo</h3>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase mt-2 max-w-xl leading-relaxed">
+                        Para desvincular formalmente a este colaborador y calcular sus indemnizaciones y haberes previsionales conforme a la doctrina oficial de la Dirección del Trabajo (DT), inicia el proceso en el Asistente de Finiquitos.
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => window.location.href = `/rrhh/finiquitos?candidatoId=${data._id}`}
+                    className="flex items-center gap-2.5 px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-amber-100/20 active:scale-95 transition-all whitespace-nowrap self-stretch md:self-auto justify-center"
+                  >
+                    <UserMinus size={14} /> Desvincular Colaborador
+                  </button>
+                </div>
+              )}
+            </section>
           </div>
 
-          {/* 12. VALIDACIÓN DIGITAL AVANZADA */}
+          {/* 13. VALIDACIÓN DIGITAL AVANZADA */}
           <section className="bg-slate-900 -mx-12 px-12 py-12 rounded-b-[4rem] text-white print-no-break shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] mt-12">
             <div className="flex items-center gap-4 mb-10 border-l-4 border-blue-400 pl-5">
-              <h2 className="text-xs font-black text-white uppercase tracking-[0.3em] leading-none">12. Validación Digital Certificada</h2>
+              <h2 className="text-xs font-black text-white uppercase tracking-[0.3em] leading-none">13. Validación Digital Certificada</h2>
               <span className="bg-blue-400/20 text-blue-300 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Plataforma Corporativa</span>
             </div>
   

@@ -41,6 +41,7 @@ const Dotacion = () => {
     // Modal de Gestión Operativa
     const [modalOpen, setModalOpen] = useState(false);
     const [editData, setEditData] = useState(null);
+    const [supervisoresList, setSupervisoresList] = useState([]);
     const [activeTab, setActiveTab] = useState('operativa'); 
     const [cargaTemp, setCargaTemp] = useState({ rut: '', nombre: '', parentesco: '' });
 
@@ -69,15 +70,16 @@ const Dotacion = () => {
             const endpoint = (isSupervisor && !isHighLevel) 
                 ? `/tecnicos/supervisor/${userId}` 
                 : '/tecnicos';
-            
-            const [resPersonal, resFlota, resBonos] = await Promise.all([
+            const [resPersonal, resFlota, resBonos, resSupervisores] = await Promise.all([
                 telecomApi.get(endpoint),
                 telecomApi.get('/vehiculos'),
-                bonosConfigApi.getAll().catch(() => ({ data: [] }))
+                bonosConfigApi.getAll().catch(() => ({ data: [] })),
+                isHighLevel ? telecomApi.get('/tecnicos/supervisores').catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
             ]);
 
             const flotaDB = resFlota.data;
             setBonosMaster(resBonos.data || []);
+            setSupervisoresList(resSupervisores.data || []);
             let contadorMovil = 0;
             let contadorAlertas = 0;
 
@@ -398,6 +400,11 @@ const Dotacion = () => {
                                         <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">
                                             RUT: {formatRut(p.rut)} • {p.cargo}
                                         </p>
+                                        {p.supervisorId && (
+                                            <p className="text-[9px] font-bold text-slate-500 mt-1 block">
+                                                👤 Jefatura/Sup: <span className="text-blue-600 font-extrabold">{p.supervisorId.name || p.supervisorId.email}</span>
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* OPERATIONAL META */}
@@ -488,6 +495,11 @@ const Dotacion = () => {
                                                         {p.nombre} {p.apellidos}
                                                     </h5>
                                                     <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">RUT: {formatRut(p.rut)}</p>
+                                                    {p.supervisorId && (
+                                                        <span className="text-[9px] text-blue-500 font-bold block mt-0.5">
+                                                            👤 Sup: {p.supervisorId.name || p.supervisorId.email}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
@@ -742,9 +754,24 @@ const Dotacion = () => {
                                                 <InputGroup label="Centro Costo (CECO)" value={editData.ceco} onChange={v => setEditData({ ...editData, ceco: v })} />
                                             )}
                                         </div>
-                                    </div>
+                                     </div>
 
-                                    <div className="col-span-2 border-t border-slate-100 pt-4 mt-2"></div>
+                                     {isHighLevel && (
+                                         <div className="col-span-2">
+                                             <SelectGroup 
+                                                 label="Supervisor / Jefatura Asignada" 
+                                                 value={editData.supervisorId?._id || editData.supervisorId || ''} 
+                                                 onChange={v => setEditData({ ...editData, supervisorId: v || null })}
+                                             >
+                                                 <option value="">Sin Asignar</option>
+                                                 {supervisoresList.map(s => (
+                                                     <option key={s._id} value={s._id}>{s.nombre}</option>
+                                                 ))}
+                                             </SelectGroup>
+                                         </div>
+                                     )}
+
+                                     <div className="col-span-2 border-t border-slate-100 pt-4 mt-2"></div>
 
                                     {/* TOA INFO (Operational - Editable for Supervisor) */}
                                     <div className="col-span-2 grid grid-cols-2 gap-4 bg-orange-50/30 p-4 rounded-xl border border-orange-100">
@@ -1166,17 +1193,23 @@ const Dotacion = () => {
 };
 
 // --- HELPER COMPONENTS FOR FORM ---
-const InputGroup = ({ label, value, onChange, type = "text" }) => (
-    <div>
-        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 ml-1">{label}</label>
-        <input
-            type={type}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-            value={value || ''}
-            onChange={e => onChange(e.target.value)}
-        />
-    </div>
-);
+const InputGroup = ({ label, value, onChange, type = "text" }) => {
+    let displayValue = value || '';
+    if (type === 'date' && displayValue && displayValue.includes('T')) {
+        displayValue = displayValue.split('T')[0];
+    }
+    return (
+        <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 ml-1">{label}</label>
+            <input
+                type={type}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                value={displayValue}
+                onChange={e => onChange(e.target.value)}
+            />
+        </div>
+    );
+};
 
 const SelectGroup = ({ label, value, onChange, children }) => (
     <div className="relative group">

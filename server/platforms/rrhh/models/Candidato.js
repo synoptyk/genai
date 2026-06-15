@@ -224,6 +224,65 @@ const CandidatoSchema = new mongoose.Schema({
     bonosConfig: [{ type: mongoose.Schema.Types.ObjectId, ref: 'BonoConfig' }],
     fechaFiniquito: Date,
     finiquitoMotivo: String,
+    finiquitoDetalle: {
+        fechaIngresoReal: Date,
+        fechaEgreso: Date,
+        fechaNotificacion: Date,
+        causalTermino: String,
+        sueldoBaseFijo: Number,
+        promedioSueldoVariable: Number,
+        colacion: Number,
+        movilizacion: Number,
+        valorUF: Number,
+        diasVacacionesTomados: Number,
+        diasVacacionesProgresivas: { type: Number, default: 0 },
+        diasVacacionesHabilesCalculados: Number,
+        diasVacacionesCorridosCalculados: Number,
+        montoFeriadoProporcional: Number,
+        aniosServicioCalculados: Number,
+        montoIndemnizacionAnos: Number,
+        montoIndemnizacionAviso: Number,
+        descuentoAFC: Number,
+        
+        // Días Proporcionales del mes de término
+        pagarDiasProporcionales: { type: Boolean, default: false },
+        diasTrabajadosMes: { type: Number, default: 0 },
+        montoSueldoProporcional: { type: Number, default: 0 },
+        montoColacionProporcional: { type: Number, default: 0 },
+        montoMovilizacionProporcional: { type: Number, default: 0 },
+        gratificacion: { type: Number, default: 0 },
+        montoGratificacionProporcional: { type: Number, default: 0 },
+
+        // Haberes Adicionales
+        indemnizacionVoluntaria: { type: Number, default: 0 },
+        aguinaldosOtros: { type: Number, default: 0 },
+
+        // Descuentos detallados
+        descuentoPrestamoCaja: { type: Number, default: 0 },
+        descuentoPrestamoEmpresa: { type: Number, default: 0 },
+        descuentoAnticipos: { type: Number, default: 0 },
+        descuentoAfpProporcional: { type: Number, default: 0 },
+        descuentoSaludProporcional: { type: Number, default: 0 },
+        descuentoAfcProporcional: { type: Number, default: 0 },
+        descuentoSeguroColectivo: { type: Number, default: 0 },
+        descuentoEquiposNoDevueltos: { type: Number, default: 0 },
+
+        otrosHaberes: Number,
+        otrosDescuentos: Number,
+        netoFiniquito: Number,
+        excluirAviso: Boolean,
+        observacionesReservas: String,
+        calculadoEn: { type: Date, default: Date.now },
+        
+        // Legalización y Notaría
+        procesadoEn: { type: String, enum: ['Modulo', 'Notaria'], default: 'Modulo' },
+        notariaNombre: String,
+        notariaFechaFirma: Date,
+        notariaGastos: { type: Number, default: 0 },
+        notariaPagadoPor: { type: String, enum: ['Empleador', 'Trabajador', 'Compartido'], default: 'Empleador' },
+        notariaEstado: { type: String, enum: ['Pendiente', 'En Notaria', 'Firmado', 'Rechazado'], default: 'Pendiente' },
+        warnings: [String]
+    },
 
     // Operativos
     requiereLicencia: { type: String, default: 'NO' },
