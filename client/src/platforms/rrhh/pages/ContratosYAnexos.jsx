@@ -11,6 +11,11 @@ import { QRCodeSVG } from 'qrcode.react';
 import { plantillasApi, candidatosApi, configApi, contratosApi } from '../rrhhApi';
 import { formatRut } from '../../../utils/rutUtils';
 
+const cleanHtmlOfLocalResources = (htmlString) => {
+    if (!htmlString) return '';
+    return htmlString.replace(/<img[^>]+src=["'](?:file:\/\/[^"']+|[^"']*msohtmlclip[^"']*)["'][^>]*>/gi, '');
+};
+
 const ContratosYAnexos = () => {
     const [view, setView] = useState('selection'); // selection, designer, upload
     const [subview, setSubview] = useState('list'); // list, create
@@ -1057,7 +1062,7 @@ const ContratosYAnexos = () => {
                                  <div 
                                      className="w-full min-h-[1050px] p-24 bg-white border border-slate-100 rounded-sm text-slate-800 text-sm font-medium leading-[1.8] shadow-2xl mx-auto overflow-y-auto"
                                      style={{ width: '210mm' }}
-                                     dangerouslySetInnerHTML={{ __html: renderTemplateWithPreviewData(template.contenido) }}
+                                     dangerouslySetInnerHTML={{ __html: renderTemplateWithPreviewData(cleanHtmlOfLocalResources(template.contenido)) }}
                                  />
                              ) : (
                                  <div 
@@ -1076,7 +1081,7 @@ const ContratosYAnexos = () => {
                                          backgroundColor: '#fff',
                                          color: '#1a1a1a'
                                      }}
-                                     dangerouslySetInnerHTML={{ __html: template.contenido }}
+                                     dangerouslySetInnerHTML={{ __html: cleanHtmlOfLocalResources(template.contenido) }}
                                  />
                              )}
 
@@ -1150,7 +1155,7 @@ const ContratosYAnexos = () => {
                         {/* ── CONTENIDO DEL CONTRATO ── */}
                         <div 
                             className="text-slate-800 text-[13px] leading-[1.8] text-justify space-y-4"
-                            dangerouslySetInnerHTML={{ __html: previewContent }}
+                            dangerouslySetInnerHTML={{ __html: cleanHtmlOfLocalResources(previewContent) }}
                         />
 
                         {/* ── SECCIÓN DE FIRMAS PREMIUM ── */}
