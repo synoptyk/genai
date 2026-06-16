@@ -27,4 +27,10 @@ client-cloudbuild.yaml
 google-deploy.sh
 client/build/
 **/build/
+~/
+~
+mongodb-backups/
+**/mongodb-backups/
+~
+~*
 
