@@ -22,4 +22,13 @@ router.post('/rooms/create', protect, chatController.createRoom);
 router.get('/users/search', protect, chatController.searchUsers);
 router.get('/users/contacts', protect, chatController.getContacts);
 
+// Estados (Status)
+router.get('/status', protect, chatController.getStatuses);
+router.post('/status', protect, chatController.createStatus);
+router.post('/status/:id/view', protect, chatController.markStatusViewed);
+
+// Comunicados (Announcements)
+router.get('/announcements', protect, chatController.getAnnouncements);
+router.post('/announcements', protect, chatController.createAnnouncement);
+
 module.exports = router;

@@ -53,6 +53,15 @@ export const chatApi = {
     createRoom: (data) => comunicacionesApi.post('/rooms/create', data),
     searchUsers: (query) => comunicacionesApi.get(`/users/search?q=${query}`),
     getContacts: () => comunicacionesApi.get('/users/contacts'),
+
+    // Estados
+    getStatuses: () => comunicacionesApi.get('/status'),
+    createStatus: (data) => comunicacionesApi.post('/status', data),
+    markStatusViewed: (id) => comunicacionesApi.post(`/status/${id}/view`),
+
+    // Comunicados
+    getAnnouncements: (limit = 20) => comunicacionesApi.get('/announcements', { params: { limit } }),
+    createAnnouncement: (data) => comunicacionesApi.post('/announcements', data),
 };
 
 export const reunionesApi = {

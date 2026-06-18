@@ -1,6 +1,8 @@
 const Message = require('../models/Message');
 const Room = require('../models/Room');
 const PlatformUser = require('../../auth/PlatformUser');
+const ChatStatus = require('../models/ChatStatus');
+const ChatAnnouncement = require('../models/ChatAnnouncement');
 const mongoose = require('mongoose');
 const ROLES = require('../../auth/roles');
 
@@ -484,3 +486,140 @@ exports.notifyUser = (userId, payload) => {
     return sentCount > 0;
 };
 
+// ================= ESTADOS (STATUS) =================
+
+exports.getStatuses = async (req, res) => {
+    try {
+        const user = req.user;
+        const empRef = user.empresaRef || user._id; // Fallback
+
+        // Find statuses that have not expired
+        let statuses = await ChatStatus.find({
+            empresaRef: empRef,
+            expiresAt: { $gt: new Date() }
+        }).populate('userRef', 'name avatar role cargo').sort({ createdAt: -1 });
+
+        // Filter by canUserContact
+        statuses = statuses.filter(s => s.userRef && canUserContact(user, s.userRef));
+
+        res.json(statuses);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.createStatus = async (req, res) => {
+    try {
+        const user = req.user;
+        const { type, content, mediaUrl, backgroundColor } = req.body;
+        
+        // 24 hours from now
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+
+        const newStatus = new ChatStatus({
+            userRef: user._id,
+            empresaRef: user.empresaRef || user._id,
+            type: type || 'text',
+            content,
+            mediaUrl,
+            backgroundColor: backgroundColor || '#4f46e5',
+            expiresAt,
+            viewers: []
+        });
+
+        await newStatus.save();
+        
+        // Optional: We could notify all clients that there's a new status
+        // But statuses are typically polled or requested when opening the tab
+        res.status(201).json(newStatus);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.markStatusViewed = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const status = await ChatStatus.findByIdAndUpdate(id, {
+            $addToSet: { viewers: req.user._id }
+        }, { new: true });
+        res.json(status);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ================= COMUNICADOS (ANNOUNCEMENTS) =================
+
+exports.getAnnouncements = async (req, res) => {
+    try {
+        const user = req.user;
+        const empRef = user.empresaRef || user._id;
+
+        const limit = parseInt(req.query.limit) || 20;
+
+        const announcements = await ChatAnnouncement.find({ empresaRef: empRef })
+            .populate('authorRef', 'name avatar role cargo')
+            .sort({ createdAt: -1 })
+            .limit(limit);
+
+        res.json(announcements);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.createAnnouncement = async (req, res) => {
+    try {
+        const user = req.user;
+        const c = classifyUser(user);
+        
+        if (c === 'tecnico') {
+            return res.status(403).json({ error: 'No tienes permisos para crear comunicados corporativos.' });
+        }
+
+        const { title, content, mediaUrl, priority } = req.body;
+
+        const ann = new ChatAnnouncement({
+            authorRef: user._id,
+            empresaRef: user.empresaRef || user._id,
+            title,
+            content,
+            mediaUrl,
+            priority: priority || 'normal'
+        });
+
+        await ann.save();
+        await ann.populate('authorRef', 'name avatar role cargo');
+
+        // Notificar a todos los usuarios de la empresa
+        const payload = {
+            type: 'global_notification',
+            data: {
+                _id: ann._id,
+                text: `Nuevo comunicado: ${title}`,
+                senderName: 'Empresa 360',
+                createdAt: new Date(),
+                isAnnouncement: true
+            }
+        };
+
+        // Notify all connected clients in the same company
+        let sentCount = 0;
+        const targetEmpStr = String(ann.empresaRef);
+        clients.forEach(client => {
+            if (String(client.empresaRef || client.userId) === targetEmpStr || isSystemAdmin({role: 'system_admin'})) {
+                try {
+                    client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
+                    sentCount++;
+                } catch (e) {}
+            }
+        });
+        console.log(`[SSE] Comunicado enviado a ${sentCount} clientes.`);
+
+        res.status(201).json(ann);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};

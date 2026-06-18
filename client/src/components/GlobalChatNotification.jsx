@@ -150,8 +150,8 @@ const GlobalChatNotification = () => {
             const newNotif = {
                 id: msg._id || Date.now(),
                 text: msg.type === 'video_link' ? '📞 Te invitaron a una videollamada' : msg.text,
-                senderName: msg.senderRef?.name,
-                avatar: msg.senderRef?.avatar,
+                senderName: msg.senderRef?.name || msg.senderName,
+                avatar: msg.senderRef?.avatar || msg.avatar,
                 roomName: parsed.roomName,
                 roomId: msg.roomId,
                 isChat: true

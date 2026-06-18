@@ -4,8 +4,11 @@ import {
     MoreVertical, Paperclip, Smile, Check, 
     CheckCheck, Video, Phone, Bell, 
     User, Briefcase, Building2, MapPin,
-    Circle, X, ChevronRight, Hash, HeadphonesIcon, Building, ShieldAlert, Calendar
+    Circle, X, ChevronRight, Hash, HeadphonesIcon, Building, ShieldAlert, Calendar,
+    CircleDashed, Megaphone, ArrowLeft
 } from 'lucide-react';
+import ChatStatusPanel from './ChatStatusPanel';
+import ChatAnnouncementPanel from './ChatAnnouncementPanel';
 import { chatApi } from '../comunicacionesApi';
 import API_URL from '../../../config';
 import AgendaPanel from './AgendaPanel';
@@ -20,7 +23,8 @@ const Chat360 = () => {
     const [inputText, setInputText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [sidebarTab, setSidebarTab] = useState('chats'); // 'chats' | 'contacts'
+    const [sidebarTab, setSidebarTab] = useState('chats'); // 'chats' | 'contacts' | 'agenda'
+    const [mainView, setMainView] = useState('chat'); // 'chat' | 'status' | 'announcements'
     
     // UI Modal New Group
     const [showNewGroupModal, setShowNewGroupModal] = useState(false);
@@ -325,8 +329,32 @@ const Chat360 = () => {
 
     return (
         <div className="page-sm flex h-screen bg-[#F0F2F5] overflow-hidden antialiased font-sans flex-col md:flex-row">
+            {mainView === 'status' && (
+                <div className="w-full h-full flex flex-col z-20 absolute inset-0 bg-[#f0f2f5]">
+                    <div className="p-4 bg-indigo-600 text-white flex items-center gap-4 shadow-md">
+                        <button onClick={() => setMainView('chat')} className="hover:bg-white/20 p-2 rounded-full transition-colors">
+                            <ArrowLeft size={24} />
+                        </button>
+                        <h2 className="font-black tracking-widest uppercase text-sm">Estados 360</h2>
+                    </div>
+                    <ChatStatusPanel user={user} />
+                </div>
+            )}
+            
+            {mainView === 'announcements' && (
+                <div className="w-full h-full flex flex-col z-20 absolute inset-0 bg-[#E5DDD5]">
+                    <div className="p-4 bg-amber-600 text-white flex items-center gap-4 shadow-md">
+                        <button onClick={() => setMainView('chat')} className="hover:bg-white/20 p-2 rounded-full transition-colors">
+                            <ArrowLeft size={24} />
+                        </button>
+                        <h2 className="font-black tracking-widest uppercase text-sm">Comunicados Oficiales</h2>
+                    </div>
+                    <ChatAnnouncementPanel user={user} />
+                </div>
+            )}
+
             {/* Sidebar Izquierda: Contactos y Salas */}
-            <div className="w-full md:w-[400px] border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col shadow-xl md:shadow-xl z-10 md:max-h-screen">
+            <div className={`w-full md:w-[400px] border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col shadow-xl md:shadow-xl z-10 md:max-h-screen ${mainView !== 'chat' ? 'hidden md:flex' : 'flex'}`}>
                 {/* Header Pro */}
                 <div className="p-3 sm:p-4 bg-[#F0F2F5] flex justify-between items-center border-b border-gray-200">
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -341,13 +369,24 @@ const Chat360 = () => {
                         </div>
                     </div>
                     <div className="flex gap-4 text-gray-500">
-                        <MessageSquare 
+                        <CircleDashed 
                             size={20} 
                             className="cursor-pointer hover:text-indigo-600 transition-colors" 
+                            title="Estados" 
+                            onClick={() => setMainView('status')}
+                        />
+                        <Megaphone 
+                            size={20} 
+                            className="cursor-pointer hover:text-amber-600 transition-colors" 
+                            title="Comunicados Empresa" 
+                            onClick={() => setMainView('announcements')}
+                        />
+                        <MessageSquare 
+                            size={20} 
+                            className="cursor-pointer hover:text-indigo-600 transition-colors ml-2" 
                             title="Nuevo Grupo" 
                             onClick={() => setShowNewGroupModal(true)}
                         />
-                        <MoreVertical size={20} className="cursor-pointer hover:text-indigo-600 transition-colors" />
                     </div>
                 </div>
 
