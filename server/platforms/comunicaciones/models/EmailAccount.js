@@ -95,6 +95,41 @@ const EmailAccountSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    // Perfil completo de firma (datos + HTML generado)
+    signatureProfile: {
+        nombre:        { type: String, default: '' },
+        cargo:         { type: String, default: '' },
+        phone:         { type: String, default: '' },
+        address:       { type: String, default: '' },
+        logo:          { type: String, default: '' },   // URL del logo
+        website:       { type: String, default: '' },
+        styleKey:      { type: String, default: 'corporativa' },
+        signatureHtml: { type: String, default: '' }    // HTML final guardado
+    },
+    // Contenedor de múltiples firmas guardadas
+    savedSignatures: [{
+        id:            { type: String, required: true },
+        name:          { type: String, default: 'Firma Guardada' },
+        nombre:        { type: String, default: '' },
+        cargo:         { type: String, default: '' },
+        phone:         { type: String, default: '' },
+        address:       { type: String, default: '' },
+        logo:          { type: String, default: '' },
+        website:       { type: String, default: '' },
+        styleKey:      { type: String, default: 'corporativa' },
+        signatureHtml: { type: String, default: '' },
+        createdAt:     { type: Date, default: Date.now }
+    }],
+    outOfOffice: {
+        enabled: { type: Boolean, default: false },
+        message: { type: String, default: '' },
+        startDate: { type: Date, default: null },
+        endDate: { type: Date, default: null }
+    },
+    activeAddins: {
+        type: [String],
+        default: []
+    },
     status: {
         type: String,
         enum: ['active', 'error'],

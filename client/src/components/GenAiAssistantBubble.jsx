@@ -6,7 +6,7 @@ import API_URL from '../config';
 import { useAuth } from '../platforms/auth/AuthContext';
 import { BRAND } from '../branding/brand';
 
-const HIDE_ON_PATHS = ['/login'];
+const HIDE_ON_PATHS = ['/login', '/webmail'];
 const STANDARD_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 const createSessionId = () => `fg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

@@ -1,8 +1,9 @@
-const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const isCapacitor = typeof window !== 'undefined' && window.Capacitor !== undefined;
+const isLocal = !isCapacitor && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
 const VITE_API_URL = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_URL : null;
 const REACT_APP_API_URL = process.env.REACT_APP_API_URL;
-const PROD_API_URL = "https://genai-server-712351259179.us-central1.run.app";
+const PROD_API_URL = "http://34.27.229.165:5003";
 const LOCAL_API_URL = "http://localhost:5003";
 const localApiFlag = (() => {
   try {

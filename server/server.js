@@ -6634,6 +6634,12 @@ const serverInstance = app.listen(PORT, '0.0.0.0', () => {
   } catch (err) {
     console.error('⚠️ Error inicializando CRON:', err.message);
   }
+  try {
+    const { startScheduledEmailWorker } = require('./platforms/comunicaciones/scheduledEmailWorker');
+    startScheduledEmailWorker();
+  } catch (err) {
+    console.error('⚠️ Error inicializando worker de correo programado:', err.message);
+  }
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ ERROR: El puerto ${PORT} ya está en uso. Intentando cerrar procesos antiguos o usa otro puerto.`);

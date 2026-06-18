@@ -47,10 +47,10 @@ const GRUPOS_FALLBACK = GRUPOS_PRODUCCION;
 
 // Evitar que un error no capturado mate el proceso
 process.on('unhandledRejection', (err) => {
-    console.error('[BOT] unhandledRejection:', err?.message || err);
+    console.error('[BOT] unhandledRejection:', err?.stack || err);
 });
 process.on('uncaughtException', (err) => {
-    console.error('[BOT] uncaughtException:', err?.message || err);
+    console.error('[BOT] uncaughtException:', err?.stack || err);
 });
 
 // =============================================================================

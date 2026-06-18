@@ -175,7 +175,9 @@ const CeoCommandCenter = () => {
         cfg_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_empresa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_personal: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        ai_asistente: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
+        ai_asistente: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ai_genai_mail: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ai_genai_inteligencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
     };
 
     const [formData, setFormData] = useState({
@@ -577,7 +579,7 @@ const CeoCommandCenter = () => {
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                         { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
                                         { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
-                                        { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
+                                        { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' }, { id: 'ai_genai_mail' }, { id: 'ai_genai_inteligencia' },
                                         { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
                                         { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
@@ -746,7 +748,9 @@ const CeoCommandCenter = () => {
                                 {
                                     category: 'GENAI360', icon: Brain, color: 'violet',
                                     modules: [
-                                        { id: 'ai_asistente', label: 'Asistente AI' }
+                                        { id: 'ai_asistente', label: 'Asistente AI' },
+                                        { id: 'ai_genai_mail', label: 'GenAI Mail' },
+                                        { id: 'ai_genai_inteligencia', label: 'GenAI Inteligencia' }
                                     ]
                                 }
                             ].map((cat, catIdx) => {
@@ -1164,7 +1168,7 @@ const CeoCommandCenter = () => {
                                     { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                     { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
                                     { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
-                                    { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
+                                    { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' }, { id: 'ai_genai_mail' }, { id: 'ai_genai_inteligencia' },
                                     { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
                                     { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
@@ -1333,7 +1337,9 @@ const CeoCommandCenter = () => {
                                         {
                                             category: 'GENAI360', icon: Brain, color: 'violet',
                                             modules: [
-                                                { id: 'ai_asistente', label: 'Asistente AI' }
+                                                { id: 'ai_asistente', label: 'Asistente AI' },
+                                                { id: 'ai_genai_mail', label: 'GenAI Mail' },
+                                                { id: 'ai_genai_inteligencia', label: 'GenAI Inteligencia' }
                                             ]
                                         }
                                 ].map((cat, catIdx) => (
