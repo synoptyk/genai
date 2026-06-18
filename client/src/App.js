@@ -6,7 +6,8 @@ import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
-import GenAiAssistantBubble from './components/GenAiAssistantBubble';
+import GlobalMailNotification from './components/GlobalMailNotification';
+import GlobalChatWidget from './components/GlobalChatWidget';
 import ScrollToTopButton from './components/ScrollToTopButton';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { applyGlobalBranding } from './branding/brand';
@@ -104,6 +105,7 @@ import Evaluaciones360 from './platforms/empresa360/pages/Evaluaciones360';
 import Biometria360 from './platforms/empresa360/pages/Biometria360';
 import Tesoreria360 from './platforms/empresa360/pages/Tesoreria360';
 import Webmail from './platforms/comunicaciones/pages/Webmail';
+import InternalBrowser from './components/InternalBrowser';
 import ProximamenteModule from './components/ProximamenteModule';
 
 
@@ -188,6 +190,8 @@ const AppShell = ({ children }) => {
         </main>
       </div>
       <GlobalChatNotification />
+      <GlobalMailNotification />
+      <GlobalChatWidget />
       <ScrollToTopButton scrollContainerRef={mainRef} />
     </div>
   );
@@ -323,6 +327,7 @@ function AppRoutes() {
       <Route path="/video-call/:roomId" element={<ProtectedRoute allowPermissions={['comunic_video']}><VideoCallRoom /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute allowPermissions={['social_chat']}><Chat360 /></ProtectedRoute>} />
       <Route path="/webmail" element={<ProtectedRoute allowPermissions={['social_webmail']}><AppShell><Webmail /></AppShell></ProtectedRoute>} />
+      <Route path="/browser" element={<ProtectedRoute><AppShell><InternalBrowser /></AppShell></ProtectedRoute>} />
 
       {/* GENAI360 — ASISTENTE DE INTELIGENCIA ARTIFICIAL */}
       <Route path="/ai/asistente" element={<ProtectedRoute allowPermissions={['ai_asistente']}><AppShell><AIAssistant /></AppShell></ProtectedRoute>} />
@@ -354,8 +359,6 @@ function AppRoutes() {
 }
 
 function App() {
-  const showFloatingGenAI = process.env.NODE_ENV !== 'production' || process.env.REACT_APP_ENABLE_PUBLIC_GENAI === 'true';
-
   React.useEffect(() => {
     applyGlobalBranding();
   }, []);
@@ -366,7 +369,6 @@ function App() {
         <IndicadoresProvider>
           <AppRoutes />
           <PWAInstallPrompt />
-          {showFloatingGenAI ? <GenAiAssistantBubble /> : null}
         </IndicadoresProvider>
       </AuthProvider>
     </Router>

@@ -2,6 +2,8 @@
   "name": "Genai",
   "version": "0.1.0",
   "private": true,
+  "main": "public/electron.js",
+  "homepage": "./",
   "dependencies": {
     "@capacitor/android": "^8.4.0",
     "@capacitor/core": "^8.4.0",
@@ -28,7 +30,27 @@
     "gen ai": "react-scripts start",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "electron:dev": "concurrently \"BROWSER=none npm start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build:mac": "npm run build && electron-builder -m -c.extraMetadata.main=build/electron.js",
+    "electron:build:win": "npm run build && electron-builder -w -c.extraMetadata.main=build/electron.js"
+  },
+  "build": {
+    "appId": "com.synoptik.genai",
+    "productName": "GenAI Enterprise",
+    "directories": {
+      "buildResources": "public"
+    },
+    "files": [
+      "build/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    }
   },
   "eslintConfig": {
     "extends": [
@@ -56,6 +78,12 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.0",
-    "tailwindcss": "^3.4.1"
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "electron-is-dev": "^3.0.1",
+    "tailwindcss": "^3.4.1",
+    "wait-on": "^9.0.10"
   }
 }

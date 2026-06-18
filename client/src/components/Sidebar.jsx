@@ -766,6 +766,34 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </div>
           )}
 
+          {/* ─── WEB BROWSER ─── */}
+          <div className={`relative group/parent ${isCollapsed ? 'w-full flex justify-center' : ''} mb-1`}>
+            <Link
+              to="/browser"
+              title={isCollapsed ? 'Navegador Web' : ''}
+              className={`flex items-center gap-3 py-3 rounded-2xl transition-all duration-200 group
+              ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
+              ${isActive('/browser')
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-200'
+                  : 'bg-cyan-50 border border-cyan-100 hover:border-cyan-300 hover:shadow-md'}`}
+            >
+              <div className={`p-2 rounded-xl flex-shrink-0 ${isActive('/browser') ? 'bg-white/20' : 'bg-cyan-500'} transition-all`}>
+                <Globe size={16} className="text-white" />
+              </div>
+              {!isCollapsed && (
+                <div>
+                  <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/browser') ? 'text-white' : 'text-cyan-800'}`}>
+                    Navegador Web
+                  </span>
+                  <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/browser') ? 'text-cyan-100' : 'text-cyan-500'}`}>
+                    Internet Interno Libre
+                  </span>
+                </div>
+              )}
+              {!isCollapsed && isActive('/browser') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
+            </Link>
+          </div>
+
           {/* ─── MÓDULO 1: ADMINISTRACIÓN ─── */}
           {hasAccess('admin') && (
             <section>

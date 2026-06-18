@@ -10,6 +10,7 @@ const EmailContact = require('./models/EmailContact');
 const EmailTask = require('./models/EmailTask');
 const EmailNote = require('./models/EmailNote');
 const EmailCategory = require('./models/EmailCategory');
+const Candidato = require('../rrhh/models/Candidato');
 const { encryptText, decryptText } = require('../../utils/cryptoUtils');
 const { ImapFlow } = require('imapflow');
 const nodemailer = require('nodemailer');
@@ -201,15 +202,33 @@ async function getImapClient(account) {
     await client.connect();
 
     // Eventos en tiempo real mediante SSE
-    client.on('exists', (data) => {
+    client.on('exists', async (data) => {
         try {
+            // Obtener remitente y asunto del nuevo correo
+            let newMailMsg = null;
+            try {
+                // Fetch the highest sequence number (the new email)
+                const msg = await client.fetchOne('*', { envelope: true });
+                if (msg && msg.envelope) {
+                    newMailMsg = {
+                        subject: msg.envelope.subject || 'Sin Asunto',
+                        fromName: msg.envelope.from?.[0]?.name || msg.envelope.from?.[0]?.address || 'Desconocido',
+                        fromAddress: msg.envelope.from?.[0]?.address || ''
+                    };
+                }
+            } catch (fetchErr) {
+                console.error('Error fetching new email details for SSE:', fetchErr);
+            }
+
             const chatController = require('./controllers/chatController');
             if (chatController && chatController.notifyUser) {
                 chatController.notifyUser(account.usuarioRef, {
                     type: 'NEW_MAIL',
                     accountId: account._id,
+                    accountEmail: account.email,
                     mailbox: client.mailbox?.path || 'INBOX',
-                    total: data.count
+                    total: data.count,
+                    newMailDetails: newMailMsg
                 });
             }
         } catch (err) {
@@ -243,6 +262,31 @@ async function getImapClient(account) {
 }
 
 // ─── 1. Gestión de Cuentas ───────────────────────────────────────────────
+
+router.get('/accounts', protect, authorize('social_webmail'), async (req, res) => {
+    try {
+        const accounts = await EmailAccount.find({
+            usuarioRef: req.user._id,
+            status: { $ne: 'deleted' }
+        }).select('-passwordEncrypted');
+        
+        // Auto-conectar en segundo plano para activar el modo IDLE (Notificaciones Push)
+        setTimeout(() => {
+            accounts.forEach(acc => {
+                if (acc.status === 'active') {
+                    getImapClient(acc).then(client => {
+                        // Asegurar que la bandeja de entrada esté seleccionada para que ImapFlow entre en IDLE
+                        client.getMailboxLock('INBOX').then(lock => lock.release()).catch(() => {});
+                    }).catch(() => {});
+                }
+            });
+        }, 1000);
+
+        res.json(accounts);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 router.post('/accounts', protect, authorize('social_webmail'), async (req, res) => {
     try {
@@ -286,14 +330,7 @@ router.post('/accounts', protect, authorize('social_webmail'), async (req, res) 
     }
 });
 
-router.get('/accounts', protect, authorize('social_webmail'), async (req, res) => {
-    try {
-        const accounts = await EmailAccount.find({ usuarioRef: req.user._id }).select('-passwordEncrypted');
-        res.json(accounts);
-    } catch (err) {
-        res.status(500).json({ message: 'Error obteniendo cuentas' });
-    }
-});
+
 
 router.delete('/accounts/:id', protect, authorize('social_webmail'), async (req, res) => {
     try {
@@ -1462,6 +1499,22 @@ router.get('/contacts', protect, authorize('social_webmail'), async (req, res) =
         res.json(contacts);
     } catch (err) {
         res.status(500).json({ message: 'Error obteniendo contactos' });
+    }
+});
+
+// --- DIRECTORIO 360 (Captura de Talento) ---
+router.get('/directory', protect, authorize('social_webmail'), async (req, res) => {
+    try {
+        // Obtenemos candidatos activos que tengan un email registrado
+        const directory = await Candidato.find({
+            empresaRef: req.user.empresaRef || req.user._id,
+            isActive: true,
+            email: { $ne: null, $ne: '' }
+        }).select('fullName email position departamento area status').lean();
+
+        res.json(directory);
+    } catch (err) {
+        res.status(500).json({ message: 'Error obteniendo directorio 360', error: err.message });
     }
 });
 

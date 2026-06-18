@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import {
     Mail, Send, Inbox, Trash2, Star, RefreshCw, Plus, X, Calendar, Clock,
     ChevronDown, Search, AlertCircle, CheckCircle,
-    Reply, ArrowLeft, ArrowRight, Eye, EyeOff, Loader2,
+    Reply, ReplyAll, ArrowLeft, ArrowRight, Eye, EyeOff, Loader2,
     Shield, Lock, Globe, Server, AtSign, Wifi,
     Sparkles, Edit3, Briefcase, Zap, Command,
     Maximize2, Minimize2, Paperclip, MoreVertical,
@@ -11,8 +11,9 @@ import {
     Undo, Redo, Link2, Image, Table,
     Bold, Italic, Underline, Strikethrough, Subscript, Superscript,
     AlignLeft, AlignCenter, AlignRight, List, ListOrdered, RemoveFormatting, Eraser,
-    Save, Check
+    Save, Check, Users
 } from 'lucide-react';
+import DirectoryModal from '../../../components/DirectoryModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5003';
 
@@ -928,11 +929,213 @@ const AddAccountModal = ({ onClose, onAdded }) => {
 };
 
 // ─── Compose Modal (GenAI Powered & Rich Editor) ──────────────────────────────
-const ComposeModal = ({ account, accounts = [], onClose, replyTo = null, showAlert }) => {
+const EmailChipsInput = ({ value, onChange, placeholder, suggestions = [], id }) => {
+    const parseValue = (val) => val ? val.split(',').map(e => e.trim()).filter(e => e) : [];
+    const [chips, setChips] = useState(parseValue(value));
+    const [inputValue, setInputValue] = useState('');
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const inputRef = useRef(null);
+    const containerRef = useRef(null);
+
+    useEffect(() => {
+        const newChips = parseValue(value);
+        if (newChips.join(',') !== chips.join(',')) {
+            setChips(newChips);
+        }
+    }, [value]);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setShowSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const updateExternal = (newChips) => {
+        setChips(newChips);
+        onChange(newChips.join(', '));
+    };
+
+    const addChip = (emailOrGroup) => {
+        if (typeof emailOrGroup === 'object' && emailOrGroup.isGroup) {
+            let currentChips = [...chips];
+            emailOrGroup.emails.forEach(em => {
+                if (em && !currentChips.includes(em)) currentChips.push(em);
+            });
+            updateExternal(currentChips);
+        } else {
+            const cleanEmail = emailOrGroup.trim();
+            if (cleanEmail && !chips.includes(cleanEmail)) {
+                const newChips = [...chips, cleanEmail];
+                updateExternal(newChips);
+            }
+        }
+        setInputValue('');
+        setShowSuggestions(false);
+        inputRef.current?.focus();
+    };
+
+    const removeChip = (indexToRemove) => {
+        const newChips = chips.filter((_, i) => i !== indexToRemove);
+        updateExternal(newChips);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
+            e.preventDefault();
+            if (inputValue.trim()) {
+                // Si el usuario pega correos separados por comas
+                const emails = inputValue.split(/[\s,;]+/).filter(x => x.trim());
+                let currentChips = [...chips];
+                emails.forEach(em => {
+                    if (!currentChips.includes(em)) currentChips.push(em);
+                });
+                updateExternal(currentChips);
+                setInputValue('');
+            }
+        } else if (e.key === 'Backspace' && !inputValue && chips.length > 0) {
+            removeChip(chips.length - 1);
+        }
+    };
+
+    const handleInputChange = (e) => {
+        setInputValue(e.target.value);
+        setShowSuggestions(true);
+    };
+
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const paste = (e.clipboardData || window.clipboardData).getData('text');
+        const emails = paste.split(/[\s,;]+/).filter(em => em.trim());
+        if (emails.length > 0) {
+            let currentChips = [...chips];
+            emails.forEach(em => {
+                if (!currentChips.includes(em)) currentChips.push(em);
+            });
+            updateExternal(currentChips);
+            setInputValue('');
+        }
+    };
+
+    const filteredSuggestions = useMemo(() => {
+        if (!inputValue.trim()) return [];
+        const search = inputValue.toLowerCase();
+        
+        // Find individual matches
+        const individuals = suggestions.filter(s => 
+            (s.email.toLowerCase().includes(search) || 
+            (s.name && s.name.toLowerCase().includes(search))) &&
+            !chips.includes(s.email)
+        ).slice(0, 5);
+
+        // Find group matches (Cargos and Departamentos)
+        const groups = {};
+        suggestions.forEach(c => {
+            if (c.position) {
+                const key = `cargo:${c.position}`;
+                if (!groups[key]) groups[key] = { isGroup: true, name: `👥 Cargo: ${c.position}`, emails: [] };
+                groups[key].emails.push(c.email);
+            }
+            if (c.departamento) {
+                const key = `depto:${c.departamento}`;
+                if (!groups[key]) groups[key] = { isGroup: true, name: `🏢 Depto: ${c.departamento}`, emails: [] };
+                groups[key].emails.push(c.email);
+            }
+        });
+
+        const matchedGroups = Object.values(groups)
+            .filter(g => g.emails.length > 1 && g.name.toLowerCase().includes(search))
+            .slice(0, 3);
+
+        return [...matchedGroups, ...individuals];
+    }, [inputValue, suggestions, chips]);
+
+    return (
+        <div ref={containerRef} className="relative flex-1 flex flex-col justify-center min-h-[30px] ml-4 bg-transparent cursor-text" onClick={() => inputRef.current?.focus()}>
+            <div className="flex flex-wrap items-center gap-1.5 w-full">
+                {chips.map((chip, idx) => {
+                    const match = suggestions.find(s => s.email === chip);
+                    const initials = match && match.name ? match.name.substring(0,2).toUpperCase() : chip.substring(0,2).toUpperCase();
+                    const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-rose-500', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500'];
+                    const color = colors[chip.length % colors.length];
+
+                    return (
+                        <div key={idx} className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 text-[11px] px-2 py-0.5 rounded-full shadow-sm select-none hover:bg-slate-200 transition-colors group">
+                            <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white ${color}`}>
+                                {initials}
+                            </div>
+                            <span className="font-medium max-w-[200px] truncate">{match && match.name ? match.name : chip}</span>
+                            <button onClick={(e) => { e.stopPropagation(); removeChip(idx); }} className="w-3.5 h-3.5 rounded-full hover:bg-slate-300 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                                <X size={10} />
+                            </button>
+                        </div>
+                    );
+                })}
+                <input
+                    id={id}
+                    ref={inputRef}
+                    type="text"
+                    className="flex-1 min-w-[150px] bg-transparent border-none p-0 text-[13px] text-slate-700 focus:ring-0 placeholder-slate-400 outline-none"
+                    placeholder={chips.length === 0 ? placeholder : ''}
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    onFocus={() => setShowSuggestions(true)}
+                />
+            </div>
+            
+            {showSuggestions && inputValue && filteredSuggestions.length > 0 && (
+                <div className="absolute top-[110%] left-0 w-full max-w-[350px] bg-white border border-slate-200 rounded-xl shadow-xl z-[999] overflow-hidden">
+                    {filteredSuggestions.map((s, idx) => {
+                        if (s.isGroup) {
+                            return (
+                                <div key={`group-${idx}`} onClick={(e) => { e.stopPropagation(); addChip(s); }} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors bg-indigo-50/30">
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-indigo-600 bg-indigo-100 shadow-sm border border-indigo-200">
+                                        <Users size={14} />
+                                    </div>
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                        <span className="text-[12px] font-bold text-indigo-700 truncate">{s.name}</span>
+                                        <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">{s.emails.length} personas</span>
+                                    </div>
+                                </div>
+                            );
+                        }
+
+                        const initials = s.name ? s.name.substring(0,2).toUpperCase() : s.email.substring(0,2).toUpperCase();
+                        const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-rose-500', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500'];
+                        const color = colors[s.email.length % colors.length];
+                        
+                        return (
+                            <div key={idx} onClick={(e) => { e.stopPropagation(); addChip(s.email); }} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${color}`}>
+                                    {initials}
+                                </div>
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    {s.name && <span className="text-[12px] font-bold text-slate-700 truncate">{s.name}</span>}
+                                    <span className="text-[11px] text-slate-500 truncate">{s.email}</span>
+                                    {(s.position || s.departamento) && (
+                                        <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{s.position} {s.departamento ? `- ${s.departamento}` : ''}</span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ComposeModal = ({ account, accounts = [], onClose, replyTo = null, showAlert, messages = [], directoryContacts = [] }) => {
     const [currentAccount, setCurrentAccount] = useState(account);
     const [showCc, setShowCc] = useState(replyTo?.cc ? true : false);
     const [showBcc, setShowBcc] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showDirectoryModal, setShowDirectoryModal] = useState(false);
     const [showAISidebar, setShowAISidebar] = useState(false);
 
     // Generar firma si está configurada en la cuenta
@@ -944,9 +1147,42 @@ const ComposeModal = ({ account, accounts = [], onClose, replyTo = null, showAle
         ? `<br/><br/><div style="border-left: 2px solid #cbd5e1; padding-left: 10px; margin-left: 5px; color: #475569; font-family: inherit;"><b>De:</b> ${replyTo.from?.name || replyTo.from?.address} &lt;${replyTo.from?.address}&gt;<br/><b>Asunto:</b> ${replyTo.subject}<br/><br/>${replyTo.htmlBody || replyTo.textBody?.replace(/\n/g, '<br/>') || ''}</div>`
         : signatureHtml;
 
+    const getReplyAllCc = () => {
+        if (!replyTo || !replyTo.isReplyAll) {
+            // Manejo original para cuando no es reply all
+            if (replyTo && !replyTo.isForward && Array.isArray(replyTo.cc)) {
+                return replyTo.cc.map(c => c.address).join(', ');
+            }
+            return replyTo && !replyTo.isForward ? replyTo.cc || '' : '';
+        }
+        
+        const myEmail = account.email.toLowerCase();
+        let allCc = [];
+        
+        if (Array.isArray(replyTo.to)) {
+            replyTo.to.forEach(t => {
+                if (t.address && t.address.toLowerCase() !== myEmail && t.address.toLowerCase() !== replyTo.from?.address?.toLowerCase()) {
+                    allCc.push(t.address);
+                }
+            });
+        }
+        
+        if (Array.isArray(replyTo.cc)) {
+            replyTo.cc.forEach(c => {
+                if (c.address && c.address.toLowerCase() !== myEmail) {
+                    allCc.push(c.address);
+                }
+            });
+        } else if (typeof replyTo.cc === 'string') {
+             allCc.push(replyTo.cc);
+        }
+        
+        return allCc.join(', ');
+    };
+
     const [form, setForm] = useState({
         to: replyTo && !replyTo.isForward ? replyTo.from?.address || '' : '',
-        cc: replyTo && !replyTo.isForward ? replyTo.cc || '' : '',
+        cc: getReplyAllCc(),
         bcc: '',
         importance: 'normal',
         subject: replyTo ? `${replyTo.isForward ? 'RV:' : 'RE:'} ${replyTo.subject}` : '',
@@ -985,6 +1221,48 @@ const ComposeModal = ({ account, accounts = [], onClose, replyTo = null, showAle
     // Attachments State
     const [attachments, setAttachments] = useState([]);
     const fileInputRef = useRef(null);
+
+    // Extract known contacts for autocomplete
+    const knownContacts = useMemo(() => {
+        const contactsMap = new Map();
+        (messages || []).forEach(msg => {
+            if (msg.from && msg.from.address) {
+                if (!contactsMap.has(msg.from.address.toLowerCase())) {
+                    contactsMap.set(msg.from.address.toLowerCase(), { email: msg.from.address, name: msg.from.name || '' });
+                }
+            }
+            if (msg.to && Array.isArray(msg.to)) {
+                msg.to.forEach(t => {
+                    if (t.address && !contactsMap.has(t.address.toLowerCase())) {
+                        contactsMap.set(t.address.toLowerCase(), { email: t.address, name: t.name || '' });
+                    }
+                });
+            }
+            if (msg.cc && Array.isArray(msg.cc)) {
+                msg.cc.forEach(c => {
+                    if (c.address && !contactsMap.has(c.address.toLowerCase())) {
+                        contactsMap.set(c.address.toLowerCase(), { email: c.address, name: c.name || '' });
+                    }
+                });
+            }
+        });
+        return Array.from(contactsMap.values());
+    }, [messages]);
+
+    const allSuggestions = useMemo(() => {
+        const map = new Map();
+        knownContacts.forEach(c => map.set(c.email.toLowerCase(), c));
+        directoryContacts.forEach(c => {
+            const email = c.email.toLowerCase();
+            if (!map.has(email)) {
+                map.set(email, { ...c, name: c.fullName });
+            } else {
+                // Enrich existing with directory info
+                map.set(email, { ...map.get(email), position: c.position, departamento: c.departamento });
+            }
+        });
+        return Array.from(map.values());
+    }, [knownContacts, directoryContacts]);
 
     // Dictation & Scheduling States
     const [listening, setListening] = useState(false);
@@ -1175,9 +1453,22 @@ const ComposeModal = ({ account, accounts = [], onClose, replyTo = null, showAle
                             {/* Para: Input with CC/CCO toggles */}
                             <div className="flex items-center border-b border-slate-100/50 relative pr-4">
                                 <span className="w-16 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest px-4">Para</span>
-                                <input type="email" placeholder="destinatario@empresa.com" value={form.to}
-                                    onChange={e => setForm(f => ({ ...f, to: e.target.value }))} className="w-full px-5 py-3 bg-transparent text-[13px] text-slate-800 focus:outline-none placeholder:text-slate-400 font-medium" />
+                                    <EmailChipsInput 
+                                        id="to"
+                                        placeholder="destinatario@empresa.com" 
+                                        value={form.to}
+                                        onChange={(newVal) => setForm(f => ({ ...f, to: newVal }))}
+                                        suggestions={allSuggestions}
+                                    />
                                 <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowDirectoryModal(true)} 
+                                        className="px-2.5 py-1 flex items-center gap-1 text-[10px] font-black rounded-lg border bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100 transition-all shadow-sm"
+                                        title="Directorio 360 (Talento)"
+                                    >
+                                        <Users size={12} /> DIR 360
+                                    </button>
                                     <button 
                                         type="button" 
                                         onClick={() => setShowCc(c => !c)} 
@@ -1197,19 +1488,29 @@ const ComposeModal = ({ account, accounts = [], onClose, replyTo = null, showAle
 
                             {/* CC: Input */}
                             {showCc && (
-                                <div className="flex items-center border-b border-slate-100/50 animate-in slide-in-from-top-2 duration-100">
+                                <div className="flex items-center border-b border-slate-100/50 animate-in slide-in-from-top-2 duration-100 min-h-[44px]">
                                     <span className="w-16 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest px-4">CC</span>
-                                    <input type="text" placeholder="copia@empresa.com" value={form.cc}
-                                        onChange={e => setForm(f => ({ ...f, cc: e.target.value }))} className="w-full px-5 py-3 bg-transparent text-[13px] text-slate-800 focus:outline-none placeholder:text-slate-400 font-medium" />
+                                    <EmailChipsInput 
+                                        id="cc"
+                                        placeholder="copia@empresa.com" 
+                                        value={form.cc}
+                                        onChange={(newVal) => setForm(f => ({ ...f, cc: newVal }))}
+                                        suggestions={allSuggestions}
+                                    />
                                 </div>
                             )}
 
                             {/* CCO: Input */}
                             {showBcc && (
-                                <div className="flex items-center border-b border-slate-100/50 animate-in slide-in-from-top-2 duration-100">
+                                <div className="flex items-center border-b border-slate-100/50 animate-in slide-in-from-top-2 duration-100 min-h-[44px]">
                                     <span className="w-16 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest px-4">CCO</span>
-                                    <input type="text" placeholder="copia_oculta@empresa.com" value={form.bcc}
-                                        onChange={e => setForm(f => ({ ...f, bcc: e.target.value }))} className="w-full px-5 py-3 bg-transparent text-[13px] text-slate-800 focus:outline-none placeholder:text-slate-400 font-medium" />
+                                    <EmailChipsInput 
+                                        id="bcc"
+                                        placeholder="copia_oculta@empresa.com" 
+                                        value={form.bcc}
+                                        onChange={(newVal) => setForm(f => ({ ...f, bcc: newVal }))}
+                                        suggestions={allSuggestions}
+                                    />
                                 </div>
                             )}
 
@@ -1441,6 +1742,20 @@ const ComposeModal = ({ account, accounts = [], onClose, replyTo = null, showAle
                     </div>
                 )}
             </div>
+            
+            {showDirectoryModal && (
+                <DirectoryModal 
+                    contacts={directoryContacts} 
+                    onClose={() => setShowDirectoryModal(false)} 
+                    onSelect={(emails) => {
+                        const currentTo = form.to ? form.to.split(',').map(e => e.trim()).filter(Boolean) : [];
+                        emails.forEach(e => {
+                            if (!currentTo.includes(e)) currentTo.push(e);
+                        });
+                        setForm(f => ({ ...f, to: currentTo.join(', ') }));
+                    }} 
+                />
+            )}
         </div>
     );
 };
@@ -1594,6 +1909,10 @@ const EmailDetail = ({ email, onBack, onReply, onDelete, accountId, activeAddins
                     <button onClick={() => onReply(email)} title="Responder"
                         className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 flex items-center justify-center bg-slate-50 border border-slate-200/80 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:scale-[1.05] active:scale-[0.95] text-slate-600 rounded-xl transition-all shadow-sm">
                         <Reply size={16} />
+                    </button>
+                    <button onClick={() => onReply({...email, isReplyAll: true})} title="Responder a Todos"
+                        className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 flex items-center justify-center bg-slate-50 border border-slate-200/80 hover:bg-violet-600 hover:text-white hover:border-violet-600 hover:scale-[1.05] active:scale-[0.95] text-slate-600 rounded-xl transition-all shadow-sm">
+                        <ReplyAll size={16} />
                     </button>
                     <button onClick={() => onReply({...email, isForward: true})} title="Reenviar"
                         className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 flex items-center justify-center bg-slate-50 border border-slate-200/80 hover:bg-sky-600 hover:text-white hover:border-sky-600 hover:scale-[1.05] active:scale-[0.95] text-slate-600 rounded-xl transition-all shadow-sm">
@@ -1804,13 +2123,12 @@ const MessageRow = ({ msg, isSelected, isChecked, onToggleCheck, onClick }) => {
 
     return (
         <div onClick={onClick}
-            className={`w-full text-left flex items-start gap-3 px-4 sm:px-5 py-4 transition-all border-b group relative overflow-hidden cursor-pointer
-                hover:scale-[1.005] hover:shadow-[0_4px_12px_rgba(0,0,0,0.02)] active:scale-[0.995]
-                ${isSelected ? 'bg-indigo-50/70 border-b-indigo-100' : isChecked ? 'bg-indigo-50/30 border-b-indigo-100/60' : 'border-b-slate-100/60 hover:bg-slate-50/60'}
-                ${!msg.seen && !isSelected && !isChecked ? 'bg-white' : (msg.seen && !isSelected && !isChecked ? 'bg-slate-50/20' : '')}`}>
-            
-            {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-indigo-500 to-violet-600" />}
-            {isChecked && !isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-300" />}
+            className={`w-full text-left flex items-start gap-3 p-4 mb-3 transition-all rounded-2xl group relative overflow-hidden cursor-pointer backdrop-blur-md shadow-sm border
+                hover:scale-[1.02] hover:shadow-xl hover:shadow-indigo-500/10 active:scale-[0.98]
+                ${isSelected ? 'bg-gradient-to-br from-indigo-500/10 to-fuchsia-500/10 border-indigo-200/60 ring-1 ring-indigo-500/20' : 
+                  isChecked ? 'bg-indigo-50/40 border-indigo-200/40' : 
+                  'bg-white/40 hover:bg-white/60 border-white/40'}
+                ${!msg.seen && !isSelected && !isChecked ? 'bg-white/70 shadow-md border-white/60' : ''}`}>
 
             {/* Checkbox for Bulk Actions */}
             <button 
@@ -2756,6 +3074,7 @@ const Webmail = () => {
     const [rules, setRules] = useState([]);
     const [quickSteps, setQuickSteps] = useState([]);
     const [scheduledEmails, setScheduledEmails] = useState([]);
+    const [directoryContacts, setDirectoryContacts] = useState([]);
 
     // Responsiveness hook
     useEffect(() => {
@@ -2790,13 +3109,17 @@ const Webmail = () => {
         setTimeout(() => setAlert(null), 4000);
     };
 
-    // Load accounts
+    // Load accounts and directory
     useEffect(() => {
         api('/accounts').then(data => {
             setAccounts(data);
             if (data.length > 0) setSelectedAccount(data[0]);
         }).catch(e => console.error("Accounts err", e))
           .finally(() => setLoadingAccounts(false));
+          
+        api('/directory').then(data => {
+            setDirectoryContacts(data);
+        }).catch(e => console.error("Directory fetch err", e));
     }, []);
 
     // Load folders when account changes
@@ -3165,7 +3488,10 @@ const Webmail = () => {
     };
 
     return (
-        <div className="h-full w-full flex flex-col bg-slate-100/50 overflow-hidden font-sans relative">
+        <div className="h-full w-full flex flex-col bg-gradient-to-br from-indigo-50 via-white to-purple-50 overflow-hidden font-sans relative">
+            {/* Ambient Background Glows */}
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-400/20 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-fuchsia-400/20 rounded-full blur-[120px] pointer-events-none mix-blend-multiply" />
             {/* Global Alert */}
             {alert && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[999] px-6 py-3 rounded-full shadow-2xl text-[13px] font-black uppercase tracking-widest flex items-center gap-3 animate-in fade-in slide-in-from-top-4"
@@ -3177,26 +3503,31 @@ const Webmail = () => {
 
             {/* Application Top Bar */}
             {isMobile ? (
-                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-white border-b border-slate-200/60 shadow-sm flex-shrink-0 z-20">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-white/80 backdrop-blur-xl border-b border-white/60 shadow-sm flex-shrink-0 z-40 relative">
                     <div className="flex items-center gap-1.5">
                         <button onClick={() => setShowMobileSidebar(true)} className="p-2 -ml-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl" title="Mostrar Carpetas">
                             <Menu size={20} />
                         </button>
-                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider truncate max-w-[120px]">
+                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider truncate max-w-[100px] sm:max-w-[150px]">
                             {selectedFolder === 'INBOX' ? 'Bandeja' : selectedFolder === 'Sent' ? 'Enviados' : selectedFolder === 'Trash' ? 'Papelera' : selectedFolder}
                         </span>
                     </div>
 
                     {accounts.length > 0 && (
-                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-full pl-2 pr-0.5 py-0.5 shadow-inner">
-                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${selectedAccount?.status === 'error' ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
-                            <select value={selectedAccount?._id || ''}
-                                onChange={e => setSelectedAccount(accounts.find(a => a._id === e.target.value))}
-                                className="text-[10px] font-bold text-slate-600 bg-transparent focus:outline-none cursor-pointer max-w-[85px] truncate">
-                                {accounts.map(a => <option key={a._id} value={a._id}>{a.email.split('@')[0]}</option>)}
-                            </select>
-                            <button onClick={() => deleteAccount(selectedAccount._id)} className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-rose-100 text-slate-300 hover:text-rose-500 transition-colors" title="Desvincular cuenta">
-                                <Trash2 size={9} />
+                        <div className="flex items-center gap-1">
+                            <button onClick={loadMessages} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Sincronizar">
+                                <RefreshCw size={16} className={loadingMessages ? 'animate-spin text-indigo-500' : ''} />
+                            </button>
+                            <div className="hidden sm:flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-full pl-2 pr-0.5 py-0.5 shadow-inner">
+                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${selectedAccount?.status === 'error' ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                <select value={selectedAccount?._id || ''}
+                                    onChange={e => setSelectedAccount(accounts.find(a => a._id === e.target.value))}
+                                    className="text-[10px] font-bold text-slate-600 bg-transparent focus:outline-none cursor-pointer max-w-[85px] truncate">
+                                    {accounts.map(a => <option key={a._id} value={a._id}>{a.email.split('@')[0]}</option>)}
+                                </select>
+                            </div>
+                            <button onClick={() => { setShowCompose(true); setReplyTarget(null); }} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl" title="Nuevo Correo">
+                                <Edit3 size={16} />
                             </button>
                         </div>
                     )}
@@ -3206,7 +3537,7 @@ const Webmail = () => {
                     </button>
                 </div>
             ) : (
-                <div className="flex items-center justify-between gap-4 px-6 py-3.5 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-sm flex-shrink-0 z-20">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-white/60 backdrop-blur-2xl border-b border-white/60 shadow-sm flex-shrink-0 z-40 relative">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white flex-shrink-0">
                             <Sparkles size={18} />
@@ -3220,13 +3551,13 @@ const Webmail = () => {
                     </div>
 
                     {accounts.length > 0 && (
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-full pl-3 pr-2 py-1.5 shadow-inner">
+                        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 flex-1">
+                            <div className="flex items-center gap-2 bg-white/50 backdrop-blur-sm border border-white/60 rounded-full pl-3 pr-2 py-1.5 shadow-sm">
                                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${selectedAccount?.status === 'error' ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} 
                                      title={selectedAccount?.status === 'error' ? `Error: ${selectedAccount.lastError}` : 'Conexión Establecida'} />
                                 <select value={selectedAccount?._id || ''}
                                     onChange={e => setSelectedAccount(accounts.find(a => a._id === e.target.value))}
-                                    className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[180px] truncate">
+                                    className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[120px] lg:max-w-[180px] truncate">
                                     {accounts.map(a => <option key={a._id} value={a._id}>{a.email}</option>)}
                                 </select>
                                 <button onClick={() => deleteAccount(selectedAccount._id)} className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-rose-100 text-slate-300 hover:text-rose-500 transition-colors ml-1" title="Desvincular cuenta">
@@ -3234,20 +3565,25 @@ const Webmail = () => {
                                 </button>
                             </div>
 
+                            <button onClick={loadMessages} title="Sincronizar Bandejas"
+                                className="px-3 py-2 bg-white/50 border border-white/60 hover:bg-indigo-50/50 hover:border-indigo-200 text-slate-600 hover:text-indigo-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]">
+                                <RefreshCw size={15} className={loadingMessages ? 'animate-spin text-indigo-500' : ''} /> <span className="hidden xl:inline">Sincronizar</span>
+                            </button>
+
                             <button onClick={() => setShowAddModal(true)} title="Añadir Cuenta"
-                                className="px-3 py-2 text-slate-600 hover:text-indigo-700 bg-white border border-slate-200/80 hover:border-indigo-200 hover:bg-indigo-50/30 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm">
-                                <Plus size={16} /> <span className="hidden sm:inline">Vincular</span>
+                                className="px-3 py-2 bg-white/50 border border-white/60 hover:border-indigo-200 hover:bg-indigo-50/50 text-slate-600 hover:text-indigo-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm">
+                                <Plus size={15} /> <span className="hidden xl:inline">Vincular</span>
                             </button>
 
                             {selectedAccount && (
                                 <>
                                     <button onClick={() => setShowAddinsStore(true)}
-                                        className="px-3 py-2 bg-slate-50 border border-slate-200 hover:bg-indigo-50/30 hover:border-indigo-200 text-slate-650 hover:text-indigo-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]">
-                                        ⚡ <span className="hidden sm:inline">Add-ins</span>
+                                        className="px-3 py-2 bg-white/50 border border-white/60 hover:bg-indigo-50/50 hover:border-indigo-200 text-slate-650 hover:text-indigo-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]">
+                                        ⚡ <span className="hidden lg:inline">Add-ins</span>
                                     </button>
                                     <button onClick={() => setShowSettings(true)}
-                                        className="px-3 py-2 bg-slate-50 border border-slate-200 hover:bg-indigo-50/30 hover:border-indigo-200 text-slate-655 hover:text-indigo-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]">
-                                        ⚙️ <span className="hidden sm:inline">Configuración</span>
+                                        className="px-3 py-2 bg-white/50 border border-white/60 hover:bg-indigo-50/50 hover:border-indigo-200 text-slate-655 hover:text-indigo-700 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]">
+                                        ⚙️ <span className="hidden lg:inline">Configuración</span>
                                     </button>
                                     <button onClick={() => { setShowCompose(true); setReplyTarget(null); }}
                                         className="flex items-center gap-1.5 px-4.5 py-2.5 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 hover:from-indigo-700 hover:via-violet-700 hover:to-fuchsia-700 text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-600/20 hover:shadow-lg hover:shadow-indigo-600/30 hover:scale-[1.03] active:scale-[0.97] hover:-translate-y-0.5 active:translate-y-0">
@@ -3325,7 +3661,7 @@ const Webmail = () => {
                     
                     {/* Pane 1: Folders Sidebar (Desktop Only) */}
                     {!isMobile && (
-                        <div className="w-60 flex-shrink-0 bg-slate-50 border-r border-slate-200/80 flex flex-col pt-4 overflow-y-auto">
+                        <div className="w-60 flex-shrink-0 bg-white/40 backdrop-blur-md border-r border-white/50 flex flex-col pt-4 overflow-y-auto z-10 relative">
                             <div className="px-5 mb-4">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 pl-2">Buzones Principales</p>
                                 {renderFolderButtons("light")}
@@ -3350,7 +3686,7 @@ const Webmail = () => {
 
                     {/* Pane 2: Message List (Desktop or Mobile List View) */}
                     {(!isMobile || mobileView === 'list') && (
-                        <div className="w-full md:w-96 flex-shrink-0 flex flex-col border-r border-slate-200/80 bg-white relative z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)]">
+                        <div className="w-full md:w-[400px] flex-shrink-0 flex flex-col border-r border-white/40 bg-white/50 backdrop-blur-lg relative z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)]">
                             {/* Connection Error Banner */}
                             {imapError && (
                                 <div className="m-3 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5">
@@ -3463,7 +3799,7 @@ const Webmail = () => {
                             )}
 
                             {/* Message List */}
-                            <div className="flex-1 overflow-y-auto bg-slate-50/20 custom-scrollbar">
+                            <div className="flex-1 overflow-y-auto bg-transparent custom-scrollbar p-2">
                                 {loadingMessages ? (
                                     <div className="flex flex-col items-center justify-center h-48 gap-3">
                                         <Loader2 className="animate-spin text-indigo-500" size={28} />
@@ -3504,7 +3840,7 @@ const Webmail = () => {
 
                     {/* Pane 3: Email Reader (Desktop or Mobile Detail View) */}
                     {(!isMobile || mobileView === 'detail') && (
-                        <div className="flex-1 bg-slate-50 flex flex-col relative h-full">
+                        <div className="flex-1 bg-white/60 backdrop-blur-xl flex flex-col relative h-full m-3 rounded-3xl border border-white shadow-2xl overflow-hidden z-30">
                             {loadingDetail ? (
                                 <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-150">
                                     <div className="flex flex-col items-center gap-4 p-8 bg-white rounded-3xl shadow-2xl border border-slate-100">
@@ -3569,7 +3905,7 @@ const Webmail = () => {
                             {[
                                 { id: 'calendar', title: 'Calendario', icon: <Calendar size={18} /> },
                                 { id: 'tasks', title: 'Tareas', icon: <CheckSquare size={18} /> },
-                                { id: 'notes', title: 'Notas', icon: <Edit3 size={18} /> }
+                                    { id: 'notes', title: 'Notas', icon: <Edit3 size={18} /> }
                             ].map(item => {
                                 const isActive = rightSidebarTab === item.id;
                                 return (
@@ -3604,7 +3940,7 @@ const Webmail = () => {
                     }} />
             )}
             {showCompose && selectedAccount && (
-                <ComposeModal account={selectedAccount} accounts={accounts} replyTo={replyTarget} showAlert={showAlert}
+                <ComposeModal account={selectedAccount} accounts={accounts} replyTo={replyTarget} showAlert={showAlert} messages={messages} directoryContacts={directoryContacts}
                     onClose={() => { setShowCompose(false); setReplyTarget(null); }} />
             )}
 

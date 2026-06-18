@@ -26,24 +26,34 @@ const isTecnicoPrincipal = (u) => isTecnicoRole(u) || isTecnicoCargo(u);
 const isAdministrativoPrincipal = (u) => [ROLES.ADMINISTRATIVO, ROLES.RRHH, ROLES.AUDITOR, ROLES.JEFATURA].includes(roleOf(u));
 
 function classifyUser(u) {
-    if (isManagerPrincipal(u)) return 'manager';
-    if (isSupervisorPrincipal(u)) return 'supervisor';
-    if (isTecnicoPrincipal(u)) return 'tecnico';
-    if (isAdministrativoPrincipal(u)) return 'administrativo';
-    return 'other';
+    if (!u) return 'other';
+    const role = String(u.role || '').toLowerCase();
+    const cargo = String(u.cargo || '').toLowerCase();
+
+    const isManager = ['system_admin', 'ceo', 'ceo_genai', 'admin', 'gerencia'].includes(role) || /(geren|ceo|director|administrador|jefatura\s*general)/i.test(cargo);
+    const isSupervisor = role === 'supervisor' || /(supervisor|jefe\s*de\s*terreno|jefe)/i.test(cargo);
+    const isTecnico = ['tecnico', 'operativo'].includes(role) || /(tecnico|t[eé]cnico|operativo|conductor|chofer|maestro|ayudante|guardia|operador)/i.test(cargo);
+    const isAdmin = ['administrativo', 'rrhh', 'auditor', 'jefatura'].includes(role);
+
+    if (isManager) return 'manager';
+    if (isSupervisor) return 'supervisor';
+    if (isTecnico) return 'tecnico';
+    if (isAdmin) return 'administrativo';
+    return 'tecnico'; // Tratamos al resto como técnico por seguridad
 }
 
 function canUserContact(viewer, target) {
-    if (!target) return false;
+    if (!viewer || !target) return false;
     const v = classifyUser(viewer);
     const t = classifyUser(target);
 
     if (v === 'manager') return true;
     if (v === 'supervisor') return ['tecnico', 'administrativo', 'manager', 'supervisor'].includes(t);
-    if (v === 'tecnico') return t === 'supervisor';
+    
+    // Tecnicos/operativos solo pueden ver a supervisores y otros tecnicos/administrativos. NUNCA a managers.
+    if (v === 'tecnico') return ['tecnico', 'supervisor', 'administrativo'].includes(t);
 
-    // Fallback conservador
-    return ['supervisor', 'administrativo'].includes(t);
+    return ['supervisor', 'administrativo', 'tecnico'].includes(t);
 }
 
 function buildBaseVisibilityQuery(user) {

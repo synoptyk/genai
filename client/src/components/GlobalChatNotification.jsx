@@ -101,7 +101,7 @@ const GlobalChatNotification = () => {
             return;
           }
 
-          if (parsed.type === 'new_appeal') {
+            if (parsed.type === 'new_appeal') {
             const data = parsed.data;
             console.log('🔔 [SSE Notification] Recibida nueva apelación de técnico:', data);
             
@@ -130,10 +130,22 @@ const GlobalChatNotification = () => {
             return;
           }
 
+          if (parsed.type === 'NEW_MAIL') {
+            const data = parsed.data || parsed;
+            console.log('🔔 [SSE Notification] Nuevo Correo:', data);
+            const ev = new CustomEvent('newMailNotif', { detail: data });
+            window.dispatchEvent(ev);
+            return;
+          }
+
           if (parsed.type === 'global_notification') {
             const msg = parsed.data;
             if (msg.senderRef?._id === user._id) return;
             if (window.location.pathname === '/chat') return;
+            
+            // Dispatch browser event for GlobalChatWidget
+            const ev = new CustomEvent('newChatNotif', { detail: { ...msg, roomName: parsed.roomName } });
+            window.dispatchEvent(ev);
 
             const newNotif = {
                 id: msg._id || Date.now(),
@@ -141,7 +153,8 @@ const GlobalChatNotification = () => {
                 senderName: msg.senderRef?.name,
                 avatar: msg.senderRef?.avatar,
                 roomName: parsed.roomName,
-                roomId: msg.roomId
+                roomId: msg.roomId,
+                isChat: true
             };
 
             setNotifications(prev => {

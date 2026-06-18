@@ -9,6 +9,7 @@ import {
 import { chatApi } from '../comunicacionesApi';
 import API_URL from '../../../config';
 import AgendaPanel from './AgendaPanel';
+import DirectoryModal from '../../../components/DirectoryModal';
 
 const Chat360 = () => {
     // 1. Estado Global
@@ -38,15 +39,15 @@ const Chat360 = () => {
     const cargoOf = (u) => String(u?.cargo || '').toLowerCase();
 
     const isManagerRole = (u) => ['system_admin', 'ceo', 'ceo_genai', 'admin', 'gerencia'].includes(roleOf(u));
-    const isManagerCargo = (u) => /(geren|ceo|director|administrador\s*maestro|usuario\s*maestro|admin\s*maestro)/i.test(cargoOf(u));
+    const isManagerCargo = (u) => /(geren|ceo|director|administrador\s*maestro|usuario\s*maestro|admin\s*maestro|jefatura\s*general)/i.test(cargoOf(u));
     const isManagerPrincipal = (u) => isManagerRole(u) || isManagerCargo(u);
 
     const isSupervisorRole = (u) => roleOf(u) === 'supervisor';
-    const isSupervisorCargo = (u) => /(supervisor|jefe\s*de\s*terreno)/i.test(cargoOf(u));
+    const isSupervisorCargo = (u) => /(supervisor|jefe\s*de\s*terreno|jefe)/i.test(cargoOf(u));
     const isSupervisorPrincipal = (u) => isSupervisorRole(u) || isSupervisorCargo(u);
 
     const isTecnicoRole = (u) => ['tecnico', 'operativo'].includes(roleOf(u));
-    const isTecnicoCargo = (u) => /(tecnico|t[eé]cnico|operativo)/i.test(cargoOf(u));
+    const isTecnicoCargo = (u) => /(tecnico|t[eé]cnico|operativo|conductor|chofer|maestro|ayudante|guardia|operador)/i.test(cargoOf(u));
     const isTecnicoPrincipal = (u) => isTecnicoRole(u) || isTecnicoCargo(u);
 
     const isAdministrativoPrincipal = (u) => ['administrativo', 'rrhh', 'auditor', 'jefatura'].includes(roleOf(u));
@@ -56,19 +57,24 @@ const Chat360 = () => {
         if (isSupervisorPrincipal(u)) return 'supervisor';
         if (isTecnicoPrincipal(u)) return 'tecnico';
         if (isAdministrativoPrincipal(u)) return 'administrativo';
-        return 'other';
+        return 'tecnico'; // Tratamos a todos los demás como técnico/operativo por seguridad
     };
 
     const canUserContact = (viewer, target) => {
         if (!viewer || !target) return false;
+        
+        // Reglas de negocio: Gerentes ven a todos.
+        // Operativos NO ven a gerentes (no pueden hablarles directamente)
         const v = classifyUser(viewer);
         const t = classifyUser(target);
 
         if (v === 'manager') return true;
         if (v === 'supervisor') return ['tecnico', 'administrativo', 'manager', 'supervisor'].includes(t);
-        if (v === 'tecnico') return t === 'supervisor';
+        
+        // Tecnicos/operativos solo pueden ver a supervisores y otros tecnicos/administrativos. NUNCA a managers.
+        if (v === 'tecnico') return ['tecnico', 'supervisor', 'administrativo'].includes(t);
 
-        return ['supervisor', 'administrativo'].includes(t);
+        return ['supervisor', 'administrativo', 'tecnico'].includes(t);
     };
 
     const messagesEndRef = useRef(null);
@@ -562,112 +568,48 @@ const Chat360 = () => {
             </div>
             )}
 
-            {/* Modal Crear Grupo */}
+            {/* Modal Crear Grupo con Directorio 360 */}
             {showNewGroupModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
-                            <div>
-                                <h3 className="text-xl font-black tracking-tighter uppercase">Nuevo Grupo</h3>
-                                <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Diseña tu comunidad de trabajo</p>
-                            </div>
-                            <button onClick={() => setShowNewGroupModal(false)} className="p-2 hover:bg-white/10 rounded-xl"><X size={20} /></button>
+                <DirectoryModal 
+                    contacts={visibleContacts}
+                    onClose={() => setShowNewGroupModal(false)}
+                    actionText="Crear Comunidad"
+                    headerContent={
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Nombre de la Comunidad / Grupo</label>
+                            <input 
+                                type="text" 
+                                className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-sm"
+                                placeholder="Ej: Difusión Gerencia, Equipo Soporte..."
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                            />
                         </div>
-                        <div className="p-6 space-y-6">
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Nombre del Grupo</label>
-                                <input 
-                                    type="text" 
-                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
-                                    placeholder="Ej: Equipo Prevención Sede Norte"
-                                    value={newGroupName}
-                                    onChange={(e) => setNewGroupName(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => handleSelectPreset('operativo')}
-                                        className="flex-1 bg-amber-500/10 text-amber-700 text-[9px] font-black uppercase py-2 rounded-xl border border-amber-200 hover:bg-amber-500 hover:text-white transition-all"
-                                    >
-                                        💼 Personal Operativo
-                                    </button>
-                                    <button 
-                                        onClick={() => handleSelectPreset('administrativo')}
-                                        className="flex-1 bg-blue-500/10 text-blue-700 text-[9px] font-black uppercase py-2 rounded-xl border border-blue-200 hover:bg-blue-500 hover:text-white transition-all"
-                                    >
-                                        🏢 Personal Administrativo
-                                    </button>
-                                    <button 
-                                        onClick={() => handleSelectPreset('todos')}
-                                        className="flex-1 bg-indigo-500/10 text-indigo-700 text-[9px] font-black uppercase py-2 rounded-xl border border-indigo-200 hover:bg-indigo-500 hover:text-white transition-all"
-                                    >
-                                        ⭐ Toda la Empresa
-                                    </button>
-                                </div>
-
-                                <div className="relative">
-                                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                    <input 
-                                        type="text" 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
-                                        placeholder="Buscar por nombre o cargo..."
-                                        value={userSearch}
-                                        onChange={(e) => setUserSearch(e.target.value)}
-                                    />
-                                </div>
-                                <div className="mt-3 max-h-40 overflow-y-auto space-y-2">
-                                    {visibleFoundUsers.map(u => (
-                                        <div 
-                                            key={u._id} 
-                                            onClick={() => !selectedMembers.find(m => m._id === u._id) && setSelectedMembers([...selectedMembers, u])}
-                                            className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100 cursor-pointer transition-all"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-xs">
-                                                    {u.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-black text-slate-700">{u.name}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">{u.cargo}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {user?.role === 'ceo_genai' && u.empresaRef !== user.empresaRef && <span className="text-[8px] bg-red-100 text-red-600 px-1 rounded">EXT</span>}
-                                                <ChevronRight size={14} className="text-slate-300" />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            {selectedMembers.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedMembers.map(m => (
-                                        <div key={m._id} className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full text-[10px] font-black uppercase">
-                                            {m.name}
-                                            <X size={12} className="cursor-pointer" onClick={() => setSelectedMembers(selectedMembers.filter(sm => sm._id !== m._id))} />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <div className="p-6 bg-slate-50 flex gap-3">
-                            <button 
-                                onClick={() => setShowNewGroupModal(false)}
-                                className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600"
-                            >
-                                Cancelar
-                            </button>
-                            <button 
-                                onClick={createGroup}
-                                disabled={!newGroupName.trim() || selectedMembers.length === 0}
-                                className="flex-[2] bg-indigo-600 text-white rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:shadow-none hover:bg-indigo-700 transition-all"
-                            >
-                                Crear Comunidad
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                    }
+                    onSelect={(selectedIds, selectedObjects) => {
+                        if (!newGroupName.trim()) {
+                            alert("Debes ingresar un nombre para el grupo antes de crearlo.");
+                            // Si queremos que el modal no se cierre, habría que evitar que onSelect llame a onClose.
+                            // Como DirectoryModal llama a onClose, lo volvemos a abrir si falla la validación.
+                            setShowNewGroupModal(true);
+                            return;
+                        }
+                        // createGroup function assumes `selectedMembers` state has objects with `_id`
+                        // DirectoryModal returns `selectedObjects`!
+                        const allowedMembers = selectedObjects.filter((m) => canUserContact(user, m));
+                        if (allowedMembers.length === 0) return;
+                        
+                        chatApi.createRoom({
+                            name: newGroupName,
+                            members: allowedMembers.map(m => m._id),
+                            type: 'group'
+                        }).then(res => {
+                            setRooms(prev => [res.data, ...prev]);
+                            setActiveRoom(res.data);
+                            setNewGroupName('');
+                        }).catch(e => console.error("Error creando grupo:", e));
+                    }}
+                />
             )}
         </div>
     );
