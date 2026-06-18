@@ -20,12 +20,16 @@ const Groq = require('groq-sdk');
 const axios = require('axios');
 
 // ─── Groq AI Client (Llama 3.3 — 14,400 req/día gratis en producción) ───
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groq = null;
+if (process.env.GROQ_API_KEY) {
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+}
 const GROQ_MODEL = 'llama-3.1-8b-instant';
 
 
 /** Llama a Groq y devuelve el texto de respuesta */
 async function groqChat(systemPrompt, userContent) {
+    if (!groq) throw new Error('GROQ_API_KEY no configurada en este entorno.');
     const completion = await groq.chat.completions.create({
         model: GROQ_MODEL,
         messages: [
