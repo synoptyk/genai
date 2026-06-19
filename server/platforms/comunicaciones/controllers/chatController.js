@@ -92,7 +92,11 @@ exports.getMessages = async (req, res) => {
         } else {
             // Aislamiento: El usuario debe ser miembro o ser de la misma empresa para salas públicas
             const isMember = room.members.some(id => id.toString() === user._id.toString());
-            if (!isMember && room.empresaRef !== user.empresaRef && user.role !== 'system_admin') {
+            const userEmpRef = String(user.empresaRef?._id || user.empresaRef || '');
+            const roomEmpRef = String(room.empresaRef?._id || room.empresaRef || '');
+            const sameCompany = userEmpRef && roomEmpRef && userEmpRef === roomEmpRef;
+
+            if (!isMember && !sameCompany && user.role !== 'system_admin') {
                 return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
             }
 
