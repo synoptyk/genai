@@ -11,6 +11,7 @@ router.post('/send', protect, chatController.sendMessage);
 
 // Marcar como leídos
 router.post('/read', protect, chatController.markAsRead);
+router.post('/typing/:roomId', protect, chatController.sendTyping);
 
 // Stream Real-time (SSE)
 router.get('/stream/global', protect, chatController.globalStream);

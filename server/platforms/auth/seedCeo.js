@@ -8,8 +8,8 @@ const PlatformUser = require('./PlatformUser');
 
 const CEO_DATA = {
     name: 'Mauricio Barrientos',
-    email: 'admin@platform-os.cl',
-    password: 'Platform2026*ADMIN',
+    email: process.env.CEO_EMAIL || 'admin@platform-os.cl',
+    password: process.env.CEO_PASSWORD,
     role: 'system_admin',
     cargo: 'CEO & Fundador',
     status: 'Activo',
@@ -21,6 +21,12 @@ const CEO_DATA = {
 };
 
 async function seed() {
+    if (!CEO_DATA.password) {
+        console.error('❌ ERROR: CEO_PASSWORD no definida en el entorno. No se puede crear el usuario CEO.');
+        process.exit(1);
+        return;
+    }
+
     try {
         await mongoose.connect(process.env.MONGO_URI);
         console.log('✅ Conectado a MongoDB');
@@ -33,7 +39,7 @@ async function seed() {
             await PlatformUser.create({ ...CEO_DATA, tokenVersion: 1 });
             console.log('🚀 Usuario CEO creado exitosamente:');
             console.log('   Email:', CEO_DATA.email);
-            console.log('   Password:', CEO_DATA.password);
+            console.log('   Password: [hidden]');
             console.log('   ⚠️  CAMBIA LA CONTRASEÑA EN PRODUCCIÓN');
         }
     } catch (e) {

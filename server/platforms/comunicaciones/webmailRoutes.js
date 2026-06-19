@@ -188,7 +188,7 @@ async function getImapClient(account) {
             pass = account.imapPassword;
             // Migrar automáticamente a encriptación
             account.passwordEncrypted = encryptText(account.imapPassword);
-            account.save().catch(e => console.error("Error migrating legacy IMAP password:", e));
+            account.save().catch(e => console.error("Error migrating legacy IMAP credentials:", e));
         }
 
         client = new ImapFlow({
@@ -717,7 +717,7 @@ router.post('/send/:id', protect, authorize('social_webmail'), async (req, res) 
                 pass = account.smtpPassword;
                 // Migrar automáticamente a encriptación
                 account.passwordEncrypted = encryptText(account.smtpPassword);
-                account.save().catch(e => console.error("Error migrating legacy SMTP password:", e));
+                account.save().catch(e => console.error("Error migrating legacy SMTP credentials:", e));
             }
 
             transporterConfig = {

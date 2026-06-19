@@ -23,7 +23,14 @@
     "deploy:msg": "git add . && git commit && git push",
     "deploy:google": "./google-deploy.sh",
     "deploy:full": "npm run deploy && npm run deploy:google",
-    "restart": "lsof -ti:5003,3000 | xargs kill -9 2>/dev/null || true && npm run dev"
+    "restart": "lsof -ti:5003,3000 | xargs kill -9 2>/dev/null || true && npm run dev",
+    "security:audit": "node scripts/security-audit.js",
+    "security:check-env": "node -e \"require('./server/utils/envValidator').initializeEnvironment()\"",
+    "security:install-hook": "cp scripts/pre-commit-security-hook.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit",
+    "audit:npm": "npm audit --json && echo '✅ Audit complete'",
+    "audit:all": "npm run security:audit && npm run audit:npm",
+    "prebuild": "npm run security:audit",
+    "predeploy": "npm run security:audit && npm run security:check-env"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -4,8 +4,10 @@
     "slug": "genai-mobile",
     "version": "1.0.1",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0f172a"
     },
@@ -21,6 +23,7 @@
     ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.synoptik.genai360",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Esta aplicación necesita tu ubicación para registrar actividades, inspecciones y firma de documentos.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Esta aplicación necesita acceso a tu ubicación para registrar tus actividades operativas, firmar documentos y funcionar correctamente en terreno."
@@ -30,6 +33,7 @@
       "package": "com.synoptik.genai360",
       "versionCode": 3,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
       },
       "permissions": [

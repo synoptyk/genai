@@ -577,11 +577,19 @@ if (!process.env.MONGO_URI) {
         }
 
         const existing = await PlatformUser.findOne({ email: ceoEmail });
+        const seedPassword = process.env.SEED_ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'Platform2026*Master' : undefined);
+
         if (!existing) {
+          if (!seedPassword) {
+            console.error('❌ ERROR: SEED_ADMIN_PASSWORD no definida. No se puede crear el CEO en producción.');
+            process.exit(1);
+            return;
+          }
+
           const ceo = new PlatformUser({
             name: 'Mauricio Barrientos',
             email: ceoEmail,
-            password: process.env.SEED_ADMIN_PASSWORD || 'Platform2026*Master',
+            password: seedPassword,
             role: 'system_admin',
             cargo: 'System Administrator',
             status: 'Activo',

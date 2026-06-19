@@ -23,6 +23,7 @@ const Chat360 = () => {
     const [inputText, setInputText] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [typingUsers, setTypingUsers] = useState([]);
     const [sidebarTab, setSidebarTab] = useState('chats'); // 'chats' | 'contacts' | 'agenda'
     const [mainView, setMainView] = useState('chat'); // 'chat' | 'status' | 'announcements'
     
@@ -83,6 +84,9 @@ const Chat360 = () => {
 
     const messagesEndRef = useRef(null);
     const eventSourceRef = useRef(null);
+    const localTypingTimeoutRef = useRef(null);
+    const typingUsersTimeoutsRef = useRef({});
+    const typingStateRef = useRef(false);
 
     const visibleContacts = useMemo(() => {
         if (!user) return contacts;
@@ -187,6 +191,54 @@ const Chat360 = () => {
                         if (parsed.data.senderRef?._id !== user._id) {
                             new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
                         }
+                        setRooms(prev => prev.map(room => {
+                            const roomId = activeRoom._id || activeRoom.id;
+                            if (String(room._id || room.id) === String(roomId)) {
+                                return { ...room, unreadCount: 0, lastMessage: parsed.data };
+                            }
+                            return room;
+                        }));
+                    }
+
+                    if (parsed.type === 'typing') {
+                        const payload = parsed.data;
+                        if (String(payload.roomId) !== String(activeRoom._id || activeRoom.id) || payload.userId === user._id) return;
+
+                        setTypingUsers(prev => {
+                            const exists = prev.find(u => String(u.userId) === String(payload.userId));
+                            if (exists) return prev;
+                            return [...prev, { userId: payload.userId, name: payload.name }];
+                        });
+
+                        if (typingUsersTimeoutsRef.current[payload.userId]) {
+                            clearTimeout(typingUsersTimeoutsRef.current[payload.userId]);
+                        }
+                        typingUsersTimeoutsRef.current[payload.userId] = setTimeout(() => {
+                            setTypingUsers(prev => prev.filter(u => String(u.userId) !== String(payload.userId)));
+                            delete typingUsersTimeoutsRef.current[payload.userId];
+                        }, 1800);
+                    }
+
+                    if (parsed.type === 'message_read') {
+                        const payload = parsed.data;
+                        if (String(payload.roomId) === String(activeRoom._id || activeRoom.id)) {
+                            setRooms(prev => prev.map(room => {
+                                if (String(room._id || room.id) === String(payload.roomId)) {
+                                    return { ...room, unreadCount: 0 };
+                                }
+                                return room;
+                            }));
+
+                            setMessages(prev => prev.map(msg => {
+                                if (String(msg.senderRef?._id) === String(user._id)) {
+                                    const alreadyRead = Array.isArray(msg.isReadBy) && msg.isReadBy.some(id => String(id) === String(payload.userId));
+                                    if (!alreadyRead) {
+                                        return { ...msg, isReadBy: [...(msg.isReadBy || []), payload.userId] };
+                                    }
+                                }
+                                return msg;
+                            }));
+                        }
                     }
                 } catch (e) {
                     console.error("Error parsing chat message:", e);
@@ -210,6 +262,7 @@ const Chat360 = () => {
                 const res = await chatApi.getMessages(activeRoom._id || activeRoom.id);
                 setMessages(res.data);
                 scrollToBottom();
+                markRoomAsRead(activeRoom);
             } catch (e) { console.error("Error historial:", e); }
             finally { setIsLoading(false); }
         };
@@ -220,8 +273,54 @@ const Chat360 = () => {
         return () => {
             if (es) es.close();
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
+            if (localTypingTimeoutRef.current) clearTimeout(localTypingTimeoutRef.current);
+            Object.values(typingUsersTimeoutsRef.current).forEach(clearTimeout);
+            typingUsersTimeoutsRef.current = {};
         };
     }, [activeRoom, user]);
+
+    const markRoomAsRead = async (room) => {
+        if (!room) return;
+        try {
+            await chatApi.markAsRead({ roomId: room._id || room.id });
+            setRooms(prev => prev.map(r => {
+                if (String(r._id || r.id) === String(room._id || room.id)) {
+                    return { ...r, unreadCount: 0 };
+                }
+                return r;
+            }));
+        } catch (e) {
+            console.error('Error marcando sala como leída:', e);
+        }
+    };
+
+    const sendTypingStatus = async (isTyping) => {
+        if (!activeRoom || !user) return;
+        try {
+            if (typingStateRef.current === isTyping) return;
+            typingStateRef.current = isTyping;
+            await chatApi.sendTyping(activeRoom._id || activeRoom.id, { isTyping });
+        } catch (e) {
+            console.error('Error enviando estado de escritura:', e);
+        }
+    };
+
+    useEffect(() => {
+        setTypingUsers([]);
+        typingStateRef.current = false;
+        Object.values(typingUsersTimeoutsRef.current).forEach(clearTimeout);
+        typingUsersTimeoutsRef.current = {};
+    }, [activeRoom]);
+
+    const handleInputChange = (e) => {
+        setInputText(e.target.value);
+        if (!activeRoom) return;
+        if (!typingStateRef.current) sendTypingStatus(true);
+        if (localTypingTimeoutRef.current) clearTimeout(localTypingTimeoutRef.current);
+        localTypingTimeoutRef.current = setTimeout(() => {
+            sendTypingStatus(false);
+        }, 1200);
+    };
 
     const scrollToBottom = () => {
         setTimeout(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, 100);
@@ -237,6 +336,7 @@ const Chat360 = () => {
                 type: 'text'
             });
             setInputText('');
+            sendTypingStatus(false);
         } catch (e) { console.error("Error enviado mensaje:", e); }
     };
 
@@ -303,6 +403,7 @@ const Chat360 = () => {
         if (existing) {
             setActiveRoom(existing);
             setSidebarTab('chats');
+            markRoomAsRead(existing);
         } else {
             // Crear nueva sala directa
             try {
@@ -314,6 +415,7 @@ const Chat360 = () => {
                 setRooms(prev => [res.data, ...prev]);
                 setActiveRoom(res.data);
                 setSidebarTab('chats');
+                markRoomAsRead(res.data);
             } catch (e) {
                 console.error("Error creando chat directo:", e);
             }
@@ -438,7 +540,10 @@ const Chat360 = () => {
                         visibleRooms.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase())).map(room => (
                             <div 
                                 key={room._id || room.id}
-                                onClick={() => setActiveRoom(room)}
+                                onClick={() => {
+                                    setActiveRoom(room);
+                                    markRoomAsRead(room);
+                                }}
                                 className={`p-4 flex items-center gap-3 cursor-pointer transition-all border-b border-gray-50 hover:bg-gray-50 ${activeRoom?._id === room._id ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : ''}`}
                             >
                                 <div className="relative">
@@ -450,13 +555,20 @@ const Chat360 = () => {
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-baseline">
+                                    <div className="flex justify-between items-baseline gap-2">
                                         <h4 className="text-sm font-black text-gray-800 uppercase truncate tracking-tight">{room.name}</h4>
                                         <span className="text-[10px] text-gray-400 font-bold">{formatTime(room.updatedAt)}</span>
                                     </div>
-                                    <p className="text-xs text-gray-500 truncate mt-0.5 font-medium">
-                                        {room.lastMessage?.text || room.description || 'Inicia la conversación...'}
-                                    </p>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-xs text-gray-500 truncate mt-0.5 font-medium flex-1">
+                                            {room.lastMessage?.text || room.description || 'Inicia la conversación...'}
+                                        </p>
+                                        {room.unreadCount > 0 && (
+                                            <span className="inline-flex items-center justify-center min-w-[22px] h-6 rounded-full bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest px-2">
+                                                {room.unreadCount > 9 ? '9+' : room.unreadCount}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))
@@ -518,6 +630,11 @@ const Chat360 = () => {
                                 <MoreVertical size={20} className="cursor-pointer hover:text-indigo-600 transition-colors" />
                             </div>
                         </div>
+                        {typingUsers.length > 0 && (
+                            <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl text-xs font-black uppercase tracking-widest text-indigo-700 mx-3 mt-3">
+                                {typingUsers.map((u) => u.name).join(', ')} {typingUsers.length === 1 ? 'está escribiendo...' : 'están escribiendo...'}
+                            </div>
+                        )}
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-4" style={{background: 'radial-gradient(circle, #d9e8d9 1px, transparent 1px) center / 20px 20px, #e5ded8'}}>
                             {isLoading ? (
@@ -563,7 +680,11 @@ const Chat360 = () => {
                                                     <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
                                                     <div className="flex items-center justify-end gap-1 mt-1">
                                                         <span className={`text-[8px] font-bold uppercase ${isMe ? 'text-indigo-200' : 'text-gray-400'}`}>{formatTime(msg.createdAt)}</span>
-                                                        {isMe && <CheckCheck size={10} className="text-indigo-200" />}
+                                                        {isMe && (
+                                                            <span className="flex items-center gap-1 text-[9px] uppercase font-black text-indigo-200">
+                                                                {msg.isReadBy?.length > 1 ? 'Leído' : 'Enviado'} <CheckCheck size={10} className="text-indigo-200" />
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}
@@ -583,7 +704,8 @@ const Chat360 = () => {
                                     placeholder="Escribe tu mensaje aquí..."
                                     className="flex-1 bg-white border-none py-3 px-5 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-100 outline-none text-sm"
                                     value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
+                                    onChange={handleInputChange}
+                                    onBlur={() => sendTypingStatus(false)}
                                 />
                                 <button type="submit" className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-600 text-white shadow-lg"><Send size={20} /></button>
                             </form>

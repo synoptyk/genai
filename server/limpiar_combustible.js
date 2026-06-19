@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 require('dotenv').config({ path: __dirname + '/.env' });
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/genai';
 const ConsumoCombustible = require('./platforms/agentetelecom/models/ConsumoCombustible');
 
 async function cleanDuplicates() {

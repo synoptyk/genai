@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const uri = process.env.MONGO_URI || "mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin&directConnection=true";
+const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/genai';
 
 mongoose.connect(uri)
   .then(async () => {

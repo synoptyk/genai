@@ -4,7 +4,7 @@ const Schema = new mongoose.Schema({}, { strict: false });
 const Actividad = mongoose.model('Actividad', Schema, 'actividades');
 
 async function run() {
-  await mongoose.connect('mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin');
+  await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/genai');
   
   const query = {
       fecha: { $gte: new Date('2026-06-01T00:00:00Z'), $lt: new Date('2026-07-01T00:00:00Z') },

@@ -1,6 +1,6 @@
 const { MongoClient } = require('mongodb');
 
-const mongoUri = 'mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin&directConnection=true';
+const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/genai';
 
 async function checkWorker() {
     const client = new MongoClient(mongoUri);

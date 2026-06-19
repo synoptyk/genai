@@ -53,6 +53,7 @@ export const chatApi = {
     createRoom: (data) => comunicacionesApi.post('/rooms/create', data),
     searchUsers: (query) => comunicacionesApi.get(`/users/search?q=${query}`),
     getContacts: () => comunicacionesApi.get('/users/contacts'),
+    sendTyping: (roomId, data) => comunicacionesApi.post(`/typing/${roomId}`, data),
 
     // Estados
     getStatuses: () => comunicacionesApi.get('/status'),

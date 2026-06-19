@@ -183,6 +183,12 @@ exports.sendMessage = async (req, res) => {
 
         await newMsg.save();
 
+        if (roomObj) {
+            roomObj.lastMessage = newMsg._id;
+            roomObj.updatedAt = new Date();
+            await roomObj.save();
+        }
+
         // Broadcast vía SSE a todos los interesados (mismo roomId o contexto empresa)
         const populatedMsg = await Message.findById(newMsg._id).populate('senderRef', 'name cargo role isOnline avatar');
         
@@ -230,6 +236,40 @@ exports.markAsRead = async (req, res) => {
             { roomId, 'isReadBy': { $ne: userId } },
             { $push: { isReadBy: userId } }
         );
+
+        clients.forEach(client => {
+            if (client.roomId === roomId) {
+                client.res.write(`data: ${JSON.stringify({ type: 'message_read', data: { roomId, userId } })}\n\n`);
+            }
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.sendTyping = async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        const { isTyping } = req.body;
+        const user = req.user;
+
+        const payload = {
+            type: 'typing',
+            data: {
+                roomId,
+                isTyping: !!isTyping,
+                userId: user._id,
+                name: user.name || 'Alguien'
+            }
+        };
+
+        clients.forEach(client => {
+            if (client.roomId === roomId && String(client.userId) !== String(user._id)) {
+                client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
+            }
+        });
 
         res.json({ success: true });
     } catch (error) {
@@ -364,6 +404,21 @@ exports.getRooms = async (req, res) => {
             const others = (room.members || []).filter(id => String(id) !== String(user._id));
             if (others.length === 0) return true;
             return others.every(id => canUserContact(user, memberMap.get(String(id))));
+        });
+
+        const roomIds = rooms.map(room => String(room._id || room.id));
+        const unreadCounts = roomIds.length > 0 ? await Message.aggregate([
+            { $match: { roomId: { $in: roomIds }, isReadBy: { $ne: user._id } } },
+            { $group: { _id: '$roomId', count: { $sum: 1 } } }
+        ]) : [];
+        const unreadMap = new Map(unreadCounts.map(item => [String(item._id), item.count]));
+
+        rooms = rooms.map(room => {
+            const roomObj = room.toObject ? room.toObject() : room;
+            return {
+                ...roomObj,
+                unreadCount: unreadMap.get(String(roomObj._id || roomObj.id)) || 0
+            };
         });
 
         res.json(rooms);

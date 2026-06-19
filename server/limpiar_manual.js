@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const uri = "mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin&directConnection=true";
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/genai';
 
 async function limpiarBase() {
     try {

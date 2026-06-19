@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const MONGO_URI = 'mongodb+srv://ceo_synoptyk_reclutando:ReclutaSeguro.%23%23@clusterreclutando.im7etzo.mongodb.net/reclutando?retryWrites=true&w=majority&appName=ClusterReclutando';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/genai';
 
 const cleanRut = (r) => (r || "").toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
 

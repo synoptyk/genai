@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-mongoose.connect('mongodb+srv://ceo_synoptyk_reclutando:ReclutaSeguro.%23%23@clusterreclutando.im7etzo.mongodb.net/reclutando?retryWrites=true&w=majority&appName=ClusterReclutando');
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/genai');
 
 async function run() {
   const Empresa = mongoose.model('Empresa', new mongoose.Schema({ nombre: String }));

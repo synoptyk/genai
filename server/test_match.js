@@ -6,7 +6,7 @@ const Candidato = mongoose.model('Candidato', Schema, 'candidatos');
 const Actividad = mongoose.model('Actividad', Schema, 'actividades');
 
 async function run() {
-  await mongoose.connect('mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin');
+  await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/genai');
   
   // Simulated techMap
   const techMap = {};

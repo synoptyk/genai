@@ -1,51 +1,171 @@
-# Dependencias
-node_modules/
-.npm/
-
-# Entorno
+# ============================================================================
+# 🔐 SEGURIDAD - VARIABLES DE ENTORNO Y SECRETOS
+# ============================================================================
 .env
 .env.local
 .env.*.local
-!.env.example
+.env.production
+.env.staging
+.env.test
+.env.*.backup
+.secrets/
+secrets.json
+*.key
+*.pem
+*.pfx
+*.cert
+.ssh/
 
-# Build y Logs
+# ============================================================================
+# 🔐 CREDENCIALES Y TOKENS
+# ============================================================================
+**/credentials.json
+**/credentials-*.json
+**/tokens.json
+**/auth-tokens/**
+**/.credentials/
+**/.auth/
+**/oauth-cache/
+**/google-auth/
+**/microsoft-auth/
+
+# ============================================================================
+# 📦 DEPENDENCIAS Y MÓDULOS
+# ============================================================================
+node_modules/
+.npm/
+package-lock.json
+npm-debug.log*
+yarn.lock
+*.tgz
 dist/
 build/
-*.log
-docker-compose.override.yml
-npm-debug.log*
 
-# Sistema
+# ============================================================================
+# 📝 LOGS Y DIAGNÓSTICOS
+# ============================================================================
+*.log
+logs/
+*.log.*
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+server/logs/
+client/logs/
+.pnpm-debug.log
+
+# ============================================================================
+# 💾 BASES DE DATOS
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.bson
+mongo/
+**/mongodb-backups/
+**/db-backups/
+db/
+
+# ============================================================================
+# 🎨 IDE Y EDITOR
+# ============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
 .DS_Store
 Thumbs.db
+.project
+.classpath
+.c9/
+*.sublime-workspace
 
-# Temporales de Agente
-tmp/
-temp/
-screenshots/
-bot/output/
-/server/.cache/
-server/logs/
-.claude/
-node_modules
-node_modules/
-client/node_modules/
-server/node_modules/
-.env
-node_modules/
-**/node_modules/
+# ============================================================================
+# 🌐 CACHÉ Y TEMPORALES
+# ============================================================================
 .cache/
 **/.cache/
-.env
-*.log
+tmp/
+temp/
 /server/.cache/
-/client/build/
-/server/logs/
+/server/.puppeteerrc.cjs
+/client/.next/
+/client/out/
+.next/
+build-cache/
 
-# Backups y Datos Pesados
-**/mongodb-backups/
-**/~/*/
-~/**
-*.bson
+# ============================================================================
+# 🤖 AGENTES Y BOTS
+# ============================================================================
+bot/output/
+bot/screenshots/
+screenshots/
+.agents/
+.claude/
+.qodo/
+
+# ============================================================================
+# 📊 DATOS SENSIBLES
+# ============================================================================
 *.json.gz
+*.json.bak
+*.backup
+data/
+exports/
+**/test-data/
+**/fixture-data/
+.test-db/
+
+# ============================================================================
+# 🐳 DOCKER Y DEPLOYMENT
+# ============================================================================
+docker-compose.override.yml
+docker-compose.local.yml
+.dockerignore
+.env.docker
+
+# ============================================================================
+# 🚀 BUILD OUTPUTS
+# ============================================================================
+dist/
+build/
+out/
+coverage/
+.next/
+.turbo/
+.vercel/
+
+# ============================================================================
+# 📁 DIRECTORIOS ESPECÍFICOS (PERMITIR SOLO EJEMPLOS)
+# ============================================================================
+# Permitir solo archivos .example
+!.env.example
+!.env.example.*
+!config.example.js
+
+# ============================================================================
+# 🔒 ARCHIVOS ESPECÍFICOS A IGNORAR
+# ============================================================================
+server/.env
+server/.env.*
+client/.env
+client/.env.*
+mobile/.env
+mobile/.env.*
+docker/.env
+
+# Archivos de prueba que contengan datos reales
+**/test-credentials.js
+**/real-api-keys.js
+
+# ============================================================================
+# 📱 MOBILE
+# ============================================================================
+mobile/node_modules/
+mobile/build/
+mobile/dist/
+mobile/android/app/build/
+mobile/ios/Pods/
 *.metadata.json

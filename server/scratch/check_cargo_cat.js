@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
-const URI = 'mongodb+srv://ceo_synoptyk_reclutando:ReclutaSeguro.%23%23@clusterreclutando.im7etzo.mongodb.net/reclutando?retryWrites=true&w=majority&appName=ClusterReclutando';
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+
+const URI = process.env.MONGO_URI || 'mongodb://localhost:27017/reclutando';
 
 // Connect to MongoDB
-mongoose.connect(URI);
+mongoose.connect(URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
 // Define schemas manually to avoid loading files and registering them out of order
 const CategoriaSchema = new mongoose.Schema({
