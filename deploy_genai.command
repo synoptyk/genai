@@ -12,6 +12,12 @@ git push
 # 2. Ejecutar script de despliegue en Google Cloud
 if [ -f "./google-deploy.sh" ]; then
     echo "☁️  Iniciando despliegue en Google Cloud Run..."
+    if [ -f "./.env" ]; then
+        echo "🔐 Cargando variables desde .env..."
+        set -a
+        source ./.env
+        set +a
+    fi
     chmod +x google-deploy.sh
     ./google-deploy.sh
 else
