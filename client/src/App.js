@@ -361,6 +361,21 @@ function AppRoutes() {
 function App() {
   React.useEffect(() => {
     applyGlobalBranding();
+
+    // Solicitar permiso de GPS al iniciar la plataforma
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('✅ [GPS Web] Permiso de ubicación concedido:', position.coords.latitude, position.coords.longitude);
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            console.warn('⚠️ [GPS Web] El usuario denegó el permiso de ubicación.');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
   }, []);
 
   return (

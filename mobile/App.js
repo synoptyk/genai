@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
+import * as Location from 'expo-location';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 
@@ -10,6 +11,24 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
+
+  const requestLocationPermission = async () => {
+    try {
+      // Pedir permiso de ubicación al inicio de la app
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        console.log('✅ [GPS] Permiso de ubicación concedido.');
+      } else {
+        console.log('⚠️ [GPS] Permiso de ubicación denegado. Algunas funciones no estarán disponibles.');
+      }
+    } catch (error) {
+      console.warn('[GPS] Error al solicitar permisos de ubicación:', error);
+    }
+  };
 
   return (
     <>
