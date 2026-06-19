@@ -97,10 +97,12 @@ exports.getMessages = async (req, res) => {
             const sameCompany = userEmpRef && roomEmpRef && userEmpRef === roomEmpRef;
 
             if (!isMember && !sameCompany && user.role !== 'system_admin') {
+                console.log(`[403] Not a member and not same company. isMember:${isMember}, sameCompany:${sameCompany}, userRole:${user.role}, roomType:${room.type}`);
                 return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
             }
 
             if (room.type === 'company' && isTecnicoPrincipal(user)) {
+                console.log(`[403] Tecnico trying to access company room. User role:${user.role}, cargo:${user.cargo}`);
                 return res.status(403).json({ error: 'Los técnicos no pueden acceder al chat global de empresa.' });
             }
 
@@ -110,6 +112,7 @@ exports.getMessages = async (req, res) => {
                     const participants = await PlatformUser.find({ _id: { $in: others } }).select('role cargo empresaRef').lean();
                     const hasForbidden = participants.some(p => !canUserContact(user, p));
                     if (hasForbidden) {
+                        console.log(`[403] Participant out of reach. User:${user.role}/${user.cargo}`);
                         return res.status(403).json({ error: 'Esta sala incluye participantes fuera de tu alcance de comunicación.' });
                     }
                 }
@@ -359,31 +362,18 @@ exports.getRooms = async (req, res) => {
             ]
         }).populate('lastMessage').sort({ updatedAt: -1 });
 
-        // Auto-siembra: Si no hay salas de empresa o soporte, asegurarlas
+        // Auto-siembra: Si no hay salas de empresa, asegurarlas
         const hasCompany = rooms.some(r => r.type === 'company');
-        const hasSupport = rooms.some(r => r.type === 'support');
 
-        if (!hasCompany || !hasSupport) {
-            if (!hasCompany) {
-                const companyRoom = new Room({
-                    name: `COMUNIDAD ${user.empresa?.nombre?.toUpperCase() || 'EMPRESA'}`,
-                    type: 'company',
-                    empresaRef: empRef,
-                    members: [user._id]
-                });
-                await companyRoom.save();
-                rooms.push(companyRoom);
-            }
-            if (!hasSupport) {
-                const supportRoom = new Room({
-                    name: 'Soporte GENAI360 Global',
-                    type: 'support',
-                    empresaRef: 'GENAI_GLOBAL',
-                    members: [user._id]
-                });
-                await supportRoom.save();
-                rooms.push(supportRoom);
-            }
+        if (!hasCompany) {
+            const companyRoom = new Room({
+                name: `COMUNIDAD ${user.empresa?.nombre?.toUpperCase() || 'EMPRESA'}`,
+                type: 'company',
+                empresaRef: empRef,
+                members: [user._id]
+            });
+            await companyRoom.save();
+            rooms.push(companyRoom);
         }
 
         // Filtrar salas no permitidas por matriz de visibilidad (incluye salas legacy)
@@ -396,8 +386,8 @@ exports.getRooms = async (req, res) => {
         const memberMap = new Map(membersMapArr.map(u => [String(u._id), u]));
 
         rooms = rooms.filter(room => {
+            if (room.type === 'support') return false; // FORCE HIDE ALL SUPPORT ROOMS
             if (isManagerPrincipal(user)) return true;
-            if (room.type === 'support') return true;
             if (room.type === 'company' && isTecnicoPrincipal(user)) return false;
             if (!['direct', 'group'].includes(room.type)) return true;
 
@@ -682,3 +672,86 @@ exports.createAnnouncement = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+// --- LLAMADAS Y VIDEOLLAMADAS (SEÑALIZACIÓN) ---
+
+exports.startCall = async (req, res) => {
+    try {
+        const { targetUserId, roomId, callType } = req.body; // callType: 'audio' | 'video'
+        const caller = req.user;
+
+        if (!targetUserId || !roomId || !callType) {
+            return res.status(400).json({ error: 'Faltan parámetros requeridos.' });
+        }
+
+        const payload = {
+            type: 'incoming_call',
+            data: {
+                roomId,
+                callType,
+                caller: {
+                    _id: caller._id,
+                    name: caller.name,
+                    avatar: caller.avatar,
+                    role: caller.role,
+                    cargo: caller.cargo
+                }
+            }
+        };
+
+        const targetClients = clients.filter(c => String(c.id) === String(targetUserId));
+        if (targetClients.length === 0) {
+            return res.status(404).json({ error: 'El usuario no está conectado actualmente.' });
+        }
+
+        targetClients.forEach(client => {
+            try {
+                client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
+            } catch (e) {
+                console.error('Error enviando SSE incoming_call', e);
+            }
+        });
+
+        res.status(200).json({ success: true, message: 'Llamada iniciada' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.respondCall = async (req, res) => {
+    try {
+        const { callerId, status, roomId } = req.body; // status: 'accepted' | 'rejected' | 'busy'
+        const responder = req.user;
+
+        if (!callerId || !status) {
+            return res.status(400).json({ error: 'Faltan parámetros requeridos.' });
+        }
+
+        const payload = {
+            type: `call_${status}`, // 'call_accepted' o 'call_rejected'
+            data: {
+                roomId,
+                responder: {
+                    _id: responder._id,
+                    name: responder.name
+                }
+            }
+        };
+
+        const callerClients = clients.filter(c => String(c.id) === String(callerId));
+        if (callerClients.length > 0) {
+            callerClients.forEach(client => {
+                try {
+                    client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
+                } catch (e) {
+                    console.error('Error enviando SSE call response', e);
+                }
+            });
+        }
+
+        res.status(200).json({ success: true, message: `Respuesta de llamada: ${status}` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+

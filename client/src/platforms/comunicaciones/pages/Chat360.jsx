@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
     Send, Search, Users, MessageSquare, 
     MoreVertical, Paperclip, Smile, Check, 
     CheckCheck, Video, Phone, Bell, 
     User, Briefcase, Building2, MapPin,
     Circle, X, ChevronRight, Hash, HeadphonesIcon, Building, ShieldAlert, Calendar,
-    CircleDashed, Megaphone, ArrowLeft
+    CircleDashed, Megaphone, ArrowLeft, Home
 } from 'lucide-react';
 import ChatStatusPanel from './ChatStatusPanel';
 import ChatAnnouncementPanel from './ChatAnnouncementPanel';
@@ -15,6 +16,7 @@ import AgendaPanel from './AgendaPanel';
 import DirectoryModal from '../../../components/DirectoryModal';
 
 const Chat360 = () => {
+    const navigate = useNavigate();
     // 1. Estado Global
     const [rooms, setRooms] = useState([]); 
     const [contacts, setContacts] = useState([]);
@@ -85,8 +87,39 @@ const Chat360 = () => {
     const messagesEndRef = useRef(null);
     const eventSourceRef = useRef(null);
     const localTypingTimeoutRef = useRef(null);
+    const observerRef = useRef(null);
     const typingUsersTimeoutsRef = useRef({});
     const typingStateRef = useRef(false);
+
+    const [isCalling, setIsCalling] = useState(false);
+    const [callTarget, setCallTarget] = useState(null);
+
+    // Escuchar respuestas de llamada
+    useEffect(() => {
+        const handleCallAccepted = (e) => {
+            const data = e.detail;
+            if (isCalling && data.roomId === (activeRoom?._id || activeRoom?.id)) {
+                setIsCalling(false);
+                window.open(`/video-call/${data.roomId}?type=${callTarget.type}`, '_blank', 'width=1000,height=800');
+            }
+        };
+
+        const handleCallRejected = (e) => {
+            const data = e.detail;
+            if (isCalling && data.roomId === (activeRoom?._id || activeRoom?.id)) {
+                setIsCalling(false);
+                alert(`Llamada rechazada por ${data.responder.name}`);
+            }
+        };
+
+        window.addEventListener('callAcceptedNotif', handleCallAccepted);
+        window.addEventListener('callRejectedNotif', handleCallRejected);
+
+        return () => {
+            window.removeEventListener('callAcceptedNotif', handleCallAccepted);
+            window.removeEventListener('callRejectedNotif', handleCallRejected);
+        };
+    }, [isCalling, activeRoom, callTarget]);
 
     const visibleContacts = useMemo(() => {
         if (!user) return contacts;
@@ -340,12 +373,40 @@ const Chat360 = () => {
         } catch (e) { console.error("Error enviado mensaje:", e); }
     };
 
-    const handleVideoCall = () => {
+    const initiateCall = async (type) => {
         if (!activeRoom) return;
         const roomId = activeRoom._id || activeRoom.id;
-        const roomLink = `/video-call/${roomId}`;
-        chatApi.sendMessage({ roomId, text: `📞 Ha iniciado una videollamada. [Unirse Aquí](${roomLink})`, type: 'video_link' });
-        window.open(roomLink, '_blank', 'width=1000,height=800');
+        
+        if (activeRoom.type === 'direct') {
+            const targetUser = activeRoom.members?.find(m => m._id !== user._id);
+            if (targetUser) {
+                setIsCalling(true);
+                setCallTarget({ type });
+                try {
+                    await fetch(`${API_URL}/api/comunicaciones/call/start`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${user.token}`
+                        },
+                        body: JSON.stringify({ targetUserId: targetUser._id, roomId, callType: type })
+                    });
+                    // Agregamos un log para el chat
+                    chatApi.sendMessage({ roomId, text: `📞 Ha iniciado una llamada de ${type === 'video' ? 'video' : 'audio'}.`, type: 'text' });
+                } catch (err) {
+                    console.error('Error iniciando llamada:', err);
+                    setIsCalling(false);
+                }
+            } else {
+                // Failsafe, solo abrimos
+                window.open(`/video-call/${roomId}?type=${type}`, '_blank', 'width=1000,height=800');
+            }
+        } else {
+            // Grupos o Canales: No timbramos a todos, simplemente abrimos la sala
+            const roomLink = `/video-call/${roomId}?type=${type}`;
+            chatApi.sendMessage({ roomId, text: `📞 Ha iniciado una llamada grupal. [Unirse Aquí](${roomLink})`, type: 'video_link' });
+            window.open(roomLink, '_blank', 'width=1000,height=800');
+        }
     };
 
     const createGroup = async () => {
@@ -456,10 +517,16 @@ const Chat360 = () => {
             )}
 
             {/* Sidebar Izquierda: Contactos y Salas */}
-            <div className={`w-full md:w-[400px] border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col shadow-xl md:shadow-xl z-10 md:max-h-screen ${mainView !== 'chat' ? 'hidden md:flex' : 'flex'}`}>
+            <div className={`w-full md:w-[400px] border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col shadow-xl md:shadow-xl z-10 md:max-h-screen ${(mainView !== 'chat' || activeRoom) ? 'hidden md:flex' : 'flex'}`}>
                 {/* Header Pro */}
                 <div className="p-3 sm:p-4 bg-[#F0F2F5] flex justify-between items-center border-b border-gray-200">
                     <div className="flex items-center gap-2 sm:gap-3">
+                        <button onClick={() => navigate(-1)} className="text-gray-500 hover:text-indigo-600 transition-colors" title="Volver atrás">
+                            <ArrowLeft size={20} />
+                        </button>
+                        <button onClick={() => navigate('/dashboard')} className="text-gray-500 hover:text-indigo-600 transition-colors mr-2" title="Inicio">
+                            <Home size={20} />
+                        </button>
                         <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-black shadow-lg">
                             {user?.name?.charAt(0) || <User />}
                         </div>
@@ -609,11 +676,14 @@ const Chat360 = () => {
             {sidebarTab === 'agenda' ? (
                 <AgendaPanel user={user} contacts={visibleContacts} onOpenVideoCall={(roomId) => window.open(`/video-call/${roomId}`, 'VideoCall', 'width=1000,height=800')} />
             ) : (
-                <div className="hidden md:flex flex-1 flex-col bg-[#E5DDD5] relative">
+                <div className={`${activeRoom ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-[#E5DDD5] relative`}>
                 {activeRoom ? (
                     <>
                         <div className="p-3 bg-[#F0F2F5] flex justify-between items-center border-l border-gray-200 shadow-sm z-20">
                             <div className="flex items-center gap-3">
+                                <button onClick={() => setActiveRoom(null)} className="md:hidden mr-1 p-2 rounded-full hover:bg-gray-200 text-gray-600 transition-colors">
+                                    <ArrowLeft size={24} />
+                                </button>
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shadow-md ${activeRoom.type === 'company' ? 'bg-amber-500' : activeRoom.type === 'support' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
                                     {activeRoom.type === 'support' ? <HeadphonesIcon size={20} /> : <Users size={20} />}
                                 </div>
@@ -624,9 +694,10 @@ const Chat360 = () => {
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex gap-5 text-gray-600">
-                                <Video size={20} className="cursor-pointer hover:text-indigo-600 transition-colors" onClick={handleVideoCall} title="Iniciar Videollamada" />
-                                <Phone size={18} className="cursor-pointer hover:text-indigo-600 transition-colors" />
+                            <div className="flex gap-5 text-gray-600 items-center">
+                                {isCalling && <span className="text-sm font-bold text-indigo-500 animate-pulse">Llamando...</span>}
+                                <Video size={20} className={`cursor-pointer transition-colors ${isCalling ? 'text-gray-300' : 'hover:text-indigo-600'}`} onClick={() => !isCalling && initiateCall('video')} title="Iniciar Videollamada" />
+                                <Phone size={18} className={`cursor-pointer transition-colors ${isCalling ? 'text-gray-300' : 'hover:text-indigo-600'}`} onClick={() => !isCalling && initiateCall('audio')} title="Iniciar Llamada" />
                                 <MoreVertical size={20} className="cursor-pointer hover:text-indigo-600 transition-colors" />
                             </div>
                         </div>

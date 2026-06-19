@@ -3,10 +3,12 @@ import { useAuth } from '../platforms/auth/AuthContext';
 import { X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import API_URL from '../config';
+import IncomingCallOverlay from '../platforms/comunicaciones/components/IncomingCallOverlay';
 
 const GlobalChatNotification = () => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
+  const [incomingCall, setIncomingCall] = useState(null); // Estado para llamadas entrantes
   const navigate = useNavigate();
   const location = useLocation();
   const esRef = useRef(null);
@@ -138,6 +140,28 @@ const GlobalChatNotification = () => {
             return;
           }
 
+          if (parsed.type === 'incoming_call') {
+            console.log('🔔 [SSE] Llamada Entrante:', parsed.data);
+            setIncomingCall(parsed.data);
+            return;
+          }
+
+          if (parsed.type === 'call_accepted') {
+            console.log('🔔 [SSE] Llamada Aceptada:', parsed.data);
+            // Dispatch event for Chat360 to know it was accepted
+            const ev = new CustomEvent('callAcceptedNotif', { detail: parsed.data });
+            window.dispatchEvent(ev);
+            return;
+          }
+
+          if (parsed.type === 'call_rejected') {
+            console.log('🔔 [SSE] Llamada Rechazada:', parsed.data);
+            // Dispatch event for Chat360
+            const ev = new CustomEvent('callRejectedNotif', { detail: parsed.data });
+            window.dispatchEvent(ev);
+            return;
+          }
+
           if (parsed.type === 'global_notification') {
             const msg = parsed.data;
             if (msg.senderRef?._id === user._id) return;
@@ -214,10 +238,51 @@ const GlobalChatNotification = () => {
      setNotifications([]);
   };
 
-  if (notifications.length === 0) return null;
+  const handleAcceptCall = async (roomId, callType) => {
+    try {
+      await fetch(`${API_URL}/api/comunicaciones/call/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
+        body: JSON.stringify({ callerId: incomingCall.caller._id, status: 'accepted', roomId })
+      });
+      setIncomingCall(null);
+      navigate(`/video-call/${roomId}?type=${callType}`);
+    } catch (err) {
+      console.error('Error accepting call', err);
+    }
+  };
+
+  const handleRejectCall = async () => {
+    try {
+      await fetch(`${API_URL}/api/comunicaciones/call/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
+        body: JSON.stringify({ callerId: incomingCall.caller._id, status: 'rejected', roomId: incomingCall.roomId })
+      });
+      setIncomingCall(null);
+    } catch (err) {
+      console.error('Error rejecting call', err);
+    }
+  };
+
+  if (notifications.length === 0 && !incomingCall) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 items-end">
+    <>
+      {incomingCall && (
+        <IncomingCallOverlay
+          callData={incomingCall}
+          onAccept={handleAcceptCall}
+          onReject={handleRejectCall}
+        />
+      )}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 items-end">
       {notifications.map(n => {
         if (n.isAppeal) {
           const isAprobada = n.status === 'aprobada';
@@ -360,6 +425,7 @@ const GlobalChatNotification = () => {
         );
       })}
     </div>
+    </>
   );
 };
 

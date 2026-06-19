@@ -23,6 +23,10 @@ router.post('/rooms/create', protect, chatController.createRoom);
 router.get('/users/search', protect, chatController.searchUsers);
 router.get('/users/contacts', protect, chatController.getContacts);
 
+// Rutas de Llamadas (Audio/Video Señalización)
+router.post('/call/start', protect, chatController.startCall);
+router.post('/call/respond', protect, chatController.respondCall);
+
 // Estados (Status)
 router.get('/status', protect, chatController.getStatuses);
 router.post('/status', protect, chatController.createStatus);

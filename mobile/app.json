@@ -45,6 +45,12 @@
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2d1b3d37-4712-458e-b487-07f8bb576bd4"
+      }
+    },
+    "owner": "maurobflores"
   }
 }

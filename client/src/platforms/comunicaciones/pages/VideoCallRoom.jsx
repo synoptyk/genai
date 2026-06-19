@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Mic, MicOff, Video, VideoOff, PhoneOff, MonitorUp, Users,
     ShieldCheck, Clock, Cast, MessageSquare, LayoutGrid, Hand,
@@ -29,13 +29,18 @@ const loadJitsiScript = () => {
 const VideoCallRoom = () => {
     const { roomId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
+
+    const queryParams = new URLSearchParams(location.search);
+    const callType = queryParams.get('type') || 'video';
+    const isAudioOnly = callType === 'audio';
 
     const conferenceRef = useRef(null);
     const apiRef = useRef(null);
 
     const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(false);
+    const [isVideoOff, setIsVideoOff] = useState(isAudioOnly);
     const [connecting, setConnecting] = useState(true);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [isSharingScreen, setIsSharingScreen] = useState(false);
@@ -53,7 +58,7 @@ const VideoCallRoom = () => {
 
     const recognitionRef = useRef(null);
 
-    const inviteLink = useMemo(() => `${window.location.origin}/video-call/${roomId}`, [roomId]);
+    const inviteLink = useMemo(() => `${window.location.origin}/video-call/${roomId}?type=${callType}`, [roomId, callType]);
 
     useEffect(() => {
         let mounted = true;
@@ -77,7 +82,8 @@ const VideoCallRoom = () => {
                     configOverwrite: {
                         prejoinPageEnabled: false,
                         startWithAudioMuted: false,
-                        startWithVideoMuted: false,
+                        startWithVideoMuted: isAudioOnly,
+                        startAudioOnly: isAudioOnly,
                         disableModeratorIndicator: false,
                         enableNoisyMicDetection: true,
                         disableDeepLinking: true,
