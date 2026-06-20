@@ -1,5 +1,5 @@
 {
-  "name": "Genai",
+  "name": "genai360",
   "version": "1.0.0",
   "scripts": {
     "start": "npm run server:prod",

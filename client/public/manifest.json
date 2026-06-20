@@ -6,19 +6,19 @@
   "description": "Plataforma de Gestión Inteligente e Integración 360",
   "icons": [
     {
-      "src": "synoptyk-192-v2.png",
+      "src": "logo192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "synoptyk-512-v2.png",
+      "src": "logo512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "synoptyk-512-v2.png",
+      "src": "logo512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

@@ -9,6 +9,7 @@ import {
 import { useAuth } from './AuthContext';
 import { formatRut, validateRut } from '../../utils/rutUtils';
 import { BRAND } from '../../branding/brand';
+import axios from 'axios';
 
 const PLATFORM_AREAS = [
     { icon: Activity, label: 'Control Operativo', color: 'indigo' },
@@ -31,19 +32,21 @@ const colorMap = {
 const PlatformLogin = () => {
     const navigate = useNavigate();
     const [remember, setRemember] = useState(false);
-    const { login, register, verifyPin } = useAuth();
-    const [mode, setMode] = useState('login'); // login, register, pin
+    const { login, register, verifyPin, API_BASE } = useAuth();
+    const [mode, setMode] = useState('login'); // login, register, pin, forgot-password
     const [loading, setLoading] = useState(false);
     const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState('');
+    const [successMsg, setSuccessMsg] = useState('');
 
     // PIN state
     const [pin, setPin] = useState('');
     const [pendingEmail, setPendingEmail] = useState('');
 
-    // Login state
+    // Login / Forgot state
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [forgotEmail, setForgotEmail] = useState('');
 
     // Register state
     const [regName, setRegName] = useState('');
@@ -77,6 +80,21 @@ const PlatformLogin = () => {
             handleLoginRedirect(data);
         } catch (err) {
             setError(err.response?.data?.message || 'Credenciales incorrectas. Por favor verifica tus datos.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccessMsg('');
+        setLoading(true);
+        try {
+            const { data } = await axios.post(`${API_BASE}/auth/forgot-password`, { email: forgotEmail });
+            setSuccessMsg(data.message);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Error al enviar el correo.');
         } finally {
             setLoading(false);
         }
@@ -257,6 +275,16 @@ const PlatformLogin = () => {
                         <div className="h-1 w-10 sm:w-12 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-3 sm:mt-5" />
                     </div>
 
+                    {/* Success alert */}
+                    {successMsg && (
+                        <div className="mb-6 p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl flex items-start gap-3">
+                            <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-emerald-600 text-[10px] font-black"><CheckCircle2 size={12}/></span>
+                            </div>
+                            <p className="text-emerald-700 text-[12px] font-semibold leading-relaxed">{successMsg}</p>
+                        </div>
+                    )}
+
                     {/* Error alert */}
                     {error && (
                         <div className="mb-6 p-4 bg-rose-50 border-2 border-rose-100 rounded-2xl flex items-start gap-3">
@@ -325,6 +353,9 @@ const PlatformLogin = () => {
                                         className="w-4 h-4 accent-indigo-600 rounded" />
                                     <span className="text-[10px] sm:text-[12px] font-semibold text-slate-500">Mantener sesión</span>
                                 </label>
+                                <button type="button" onClick={() => { setMode('forgot-password'); setError(''); setSuccessMsg(''); }} className="text-[10px] sm:text-[12px] font-bold text-indigo-600 hover:text-violet-600 underline underline-offset-2">
+                                    Olvidé mi contraseña
+                                </button>
                             </div>
 
                             <button type="submit" disabled={loading}
@@ -393,6 +424,38 @@ const PlatformLogin = () => {
                                 Cancelar e intentar login
                             </button>
                         </div>
+                    ) : mode === 'forgot-password' ? (
+                        /* ── FORGOT PASSWORD FORM ── */
+                        <form onSubmit={handleForgotPassword} className="space-y-4 sm:space-y-6">
+                            <div className="text-center mb-6">
+                                <p className="text-[10px] sm:text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-2 sm:mb-3">Recuperar Acceso</p>
+                                <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                                    Ingresa el correo electrónico asociado a tu cuenta y te enviaremos un enlace para restablecer tu contraseña.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="label-style text-xs sm:text-sm">Correo Electrónico</label>
+                                <div className="relative">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <input
+                                        type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
+                                        className="input-style input-icon text-sm py-3 sm:py-4"
+                                        placeholder="correo@empresa.cl" required
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit" disabled={loading}
+                                className="btn-primary w-full text-white py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60">
+                                {loading ? <Loader2 className="animate-spin" size={18} /> : <span className="flex items-center gap-2 sm:gap-3">Enviar Correo <ArrowRight size={16} /></span>}
+                            </button>
+
+                            <button type="button" onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); }}
+                                className="w-full text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors mt-4">
+                                Cancelar y Volver
+                            </button>
+                        </form>
                     ) : (
                         /* ── REGISTER FORM ── */
                         <form onSubmit={handleRegister} className="space-y-3 sm:space-y-4">
@@ -458,15 +521,17 @@ const PlatformLogin = () => {
                     )}
 
                     {/* Toggle */}
-                    <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-slate-100 text-center">
-                        <p className="text-xs sm:text-sm text-slate-400 font-medium mb-2 sm:mb-3">
-                            {mode === 'login' ? '¿Tu empresa aún no tiene acceso?' : '¿Ya tienes una cuenta?'}
-                        </p>
-                        <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
-                            className="text-[11px] sm:text-[13px] font-black text-indigo-600 hover:text-violet-600 transition-colors underline underline-offset-4 decoration-indigo-200 flex items-center gap-1 sm:gap-2 mx-auto">
-                            {mode === 'login' ? <span className="flex items-center gap-1 sm:gap-2"><UserPlus size={12} /> Solicitar Acceso Corporativo</span> : <span className="flex items-center gap-1 sm:gap-2"><ArrowRight size={12} /> Iniciar Sesión</span>}
-                        </button>
-                    </div>
+                    {mode === 'login' || mode === 'register' ? (
+                        <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-slate-100 text-center">
+                            <p className="text-xs sm:text-sm text-slate-400 font-medium mb-2 sm:mb-3">
+                                {mode === 'login' ? '¿Tu empresa aún no tiene acceso?' : '¿Ya tienes una cuenta?'}
+                            </p>
+                            <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMsg(''); }}
+                                className="text-[11px] sm:text-[13px] font-black text-indigo-600 hover:text-violet-600 transition-colors underline underline-offset-4 decoration-indigo-200 flex items-center gap-1 sm:gap-2 mx-auto">
+                                {mode === 'login' ? <span className="flex items-center gap-1 sm:gap-2"><UserPlus size={12} /> Solicitar Acceso Corporativo</span> : <span className="flex items-center gap-1 sm:gap-2"><ArrowRight size={12} /> Iniciar Sesión</span>}
+                            </button>
+                        </div>
+                    ) : null}
 
                     {/* Footer note */}
                      <p className="text-center text-[9px] sm:text-[10px] text-slate-300 font-medium mt-6 sm:mt-10">{BRAND.loginFooter}</p>

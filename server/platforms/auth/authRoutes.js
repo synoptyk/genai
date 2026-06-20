@@ -8,6 +8,8 @@ const notificationConfigController = require('./notificacionConfigController');
 router.post('/login', authController.login);
 router.post('/verify-pin', authController.verifyPin);
 router.post('/register', authController.register); // Public + Internal Auth
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password/:token', authController.resetPassword);
 router.get('/me', protect, authController.getMe);
 router.post('/setup-pin', protect, authController.setupPin);
 

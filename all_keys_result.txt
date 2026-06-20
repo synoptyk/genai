@@ -1,1 +1,0 @@
-◇ injected env (21) from server/.env // tip: ◈ encrypted .env [www.dotenvx.com]

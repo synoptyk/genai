@@ -8,7 +8,7 @@ import {
     Download, Monitor, Smartphone, Laptop
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import { BRAND } from '../../branding/brand';
+import { BRAND, getPublicUrl } from '../../branding/brand';
 
 const PILLARS = [
     { id: 'operativo', label: 'Control Operativo', icon: Activity, bg: 'bg-indigo-50', border: 'border-indigo-200', iconBg: 'bg-indigo-600', text: 'text-indigo-700', stat: '99.9%', statLabel: 'Uptime Operacional', desc: 'Seguimiento en tiempo real de todas las operaciones. KPIs ejecutivos, alertas automáticas y toma de decisiones basada en datos.', items: ['Dashboard Ejecutivo en Tiempo Real', 'Alertas y Notificaciones Inteligentes', 'Gestión de Órdenes de Trabajo', 'Control de Actividades por Área'] },
@@ -69,11 +69,11 @@ const DownloadsDropdown = () => {
             {isOpen && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 16, overflow: 'hidden', minWidth: 260, zIndex: 100, boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Desktop IDE</div>
-                    <a href="/downloads/GenAI-Mac.dmg" download style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <a href="https://storage.googleapis.com/genai360-downloads/GENAI360-Mac.dmg" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Laptop size={16} color="#06b6d4" /> Apple Mac (DMG)</div>
                         <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
                     </a>
-                    <a href="/downloads/GenAI-Win.exe" download style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <a href="https://storage.googleapis.com/genai360-downloads/GENAI360-Win.exe" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Monitor size={16} color="#06b6d4" /> Windows (x64)</div>
                         <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
                     </a>
@@ -436,7 +436,7 @@ const PlatformLanding = () => {
                             <div style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(20px)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 40, padding: 40, maxWidth: 420, width: '100%', boxShadow: '0 0 60px rgba(99,102,241,0.15), 0 30px 60px rgba(0,0,0,0.4)' }}>
                                 <div style={{ position: 'relative', marginBottom: 28, display: 'flex', justifyContent: 'center' }}>
                                     <div style={{ position: 'absolute', inset: -6, background: 'linear-gradient(135deg, #06b6d4, #6366f1, #7c3aed)', borderRadius: 32, opacity: 0.6, filter: 'blur(8px)' }} />
-                                    <img src="/ceo_mauro.jpg" alt="Mauro - Fundador & CEO" className="photo-ring"
+                                    <img src={getPublicUrl('/ceo_mauro.jpg')} alt="Mauro - Fundador & CEO" className="photo-ring"
                                         style={{ width: 200, height: 200, objectFit: 'cover', objectPosition: 'top', borderRadius: 26, position: 'relative', border: '2px solid rgba(6,182,212,0.5)' }} />
                                     <div style={{ position: 'absolute', top: -14, right: -14, background: 'linear-gradient(135deg, #06b6d4, #6366f1)', color: '#fff', fontWeight: 800, padding: '8px 18px', borderRadius: 12, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.15em', transform: 'rotate(3deg)', boxShadow: '0 8px 24px rgba(6,182,212,0.3)' }}>
                                         Fundador & CEO

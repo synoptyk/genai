@@ -1,5 +1,5 @@
 {
-  "name": "Genai",
+  "name": "genai360",
   "version": "0.1.0",
   "private": true,
   "main": "public/electron.js",
@@ -37,7 +37,7 @@
   },
   "build": {
     "appId": "com.synoptik.genai",
-    "productName": "GenAI Enterprise",
+    "productName": "GENAI360",
     "directories": {
       "buildResources": "public"
     },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './platforms/auth/AuthContext';
 import { IndicadoresProvider } from './contexts/IndicadoresContext';
 import axios from 'axios';
@@ -13,6 +13,7 @@ import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { applyGlobalBranding } from './branding/brand';
 import PlatformLanding from './platforms/auth/PlatformLanding';
 import PlatformLogin from './platforms/auth/PlatformLogin';
+import ResetPassword from './platforms/auth/ResetPassword';
 import SystemCommandCenter from './platforms/auth/SystemCommandCenter';
 import NotFound from './platforms/auth/NotFound';
 import MisClientes from './platforms/admin/pages/MisClientes';
@@ -204,6 +205,7 @@ function AppRoutes() {
       {/* ── PUBLIC ROUTES ── */}
       <Route path="/" element={<PlatformLanding />} />
       <Route path="/login" element={<PlatformLogin />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/gps/live/:token" element={<GpsDriverTracker />} />
 
       {/* ── CEO MODULE (protected + CEO only) ── */}
@@ -359,6 +361,9 @@ function AppRoutes() {
     </Routes>
   );
 }
+
+const isElectron = typeof window !== 'undefined' && window.location.protocol === 'file:';
+const Router = isElectron ? HashRouter : BrowserRouter;
 
 function App() {
   React.useEffect(() => {

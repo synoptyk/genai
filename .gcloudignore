@@ -34,3 +34,9 @@ mongodb-backups/
 ~
 ~*
 
+client/dist/
+**/dist/
+~/
+~*
+client/android/
+**/android/

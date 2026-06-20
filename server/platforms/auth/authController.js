@@ -640,3 +640,97 @@ exports.resetPin = async (req, res) => {
         res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
+
+// POST /api/auth/forgot-password
+exports.forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await PlatformUser.findOne({ email: email.toLowerCase().trim() }).populate('empresaRef');
+        if (!user) {
+            return res.status(404).json({ message: 'No existe una cuenta con este correo.' });
+        }
+
+        // Generar token en crudo
+        const resetToken = crypto.randomBytes(32).toString('hex');
+
+        // Hashear token y guardarlo
+        user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+        user.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1 hora
+
+        await user.save();
+
+        // Enviar email
+        // Considera URL dinámica si estás en producción vs dev. Aquí usaremos un origin
+        const origin = req.headers.origin || 'http://localhost:3000';
+        const resetUrl = `${origin}/reset-password/${resetToken}`;
+
+        const { sendPasswordResetEmail } = require('../../utils/mailer');
+        
+        const empresaNombre = user.empresa?.nombre || user.empresaRef?.nombre;
+        const empresaLogo = user.empresa?.logo || user.empresaRef?.logo;
+
+        try {
+            await sendPasswordResetEmail({
+                email: user.email,
+                name: user.name,
+                resetUrl,
+                companyName: empresaNombre,
+                companyLogo: empresaLogo
+            });
+            res.json({ message: 'Correo enviado. Revisa tu bandeja de entrada.' });
+        } catch (error) {
+            console.error('Error enviando correo de recuperación:', error);
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpire = undefined;
+            await user.save();
+            res.status(500).json({ message: 'El correo no pudo ser enviado. Inténtalo más tarde.' });
+        }
+    } catch (e) {
+        console.error('❌ Error en forgotPassword:', e);
+        res.status(500).json({ message: 'Hubo un error al procesar tu solicitud.' });
+    }
+};
+
+// POST /api/auth/reset-password/:token
+exports.resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    try {
+        if (!password || password.length < 6) {
+            return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+        }
+
+        // Hashear el token enviado por la URL
+        const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
+
+        // Buscar usuario que tenga ese token hasheado y que aún no haya expirado
+        const user = await PlatformUser.findOne({
+            resetPasswordToken,
+            resetPasswordExpire: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'El token es inválido o ha expirado.' });
+        }
+
+        // Setear nueva contraseña
+        user.password = password;
+        
+        // El token se usó, por lo tanto limpiar los campos para no permitir reutilización
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        
+        // Evitar fallos de validación en usuarios legacy
+        if (!user.empresa || !user.empresa.nombre) {
+            user.empresa = { nombre: 'Enterprise Platform', plan: 'starter' };
+        }
+
+        await user.save();
+
+        res.json({ message: 'Contraseña actualizada correctamente. Ahora puedes iniciar sesión.' });
+    } catch (e) {
+        console.error('❌ Error en resetPassword:', e);
+        res.status(500).json({ message: 'Error al restablecer la contraseña.' });
+    }
+};

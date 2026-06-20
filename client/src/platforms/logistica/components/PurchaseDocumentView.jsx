@@ -13,6 +13,7 @@ import {
     XCircle,
     Clock
 } from 'lucide-react';
+import { getPublicUrl } from '../../../branding/brand';
 
 const PurchaseDocumentView = ({ data, type = 'SC', onClose }) => {
     if (!data) return null;
@@ -190,7 +191,7 @@ const PurchaseDocumentView = ({ data, type = 'SC', onClose }) => {
                                 <p className="text-[8px] font-bold text-emerald-500 uppercase mt-1">Sello de Integridad Logística</p>
                             </div>
                             <div className="opacity-10 grayscale select-none flex flex-col items-center">
-                                <img src="/logo.png" alt="Plataforma" className="h-4" onError={(e) => e.target.style.display='none'} />
+                                <img src={getPublicUrl('/logo.png')} alt="Plataforma" className="h-4" onError={(e) => e.target.style.display='none'} />
                                 <span className="text-[20px] font-black text-slate-900 tracking-tighter mt-1 italic">SISTEMA CORPORATIVO</span>
                             </div>
                         </div>

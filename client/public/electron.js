@@ -9,7 +9,7 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 768,
-    title: 'GenAI Enterprise',
+    title: 'GENAI360',
     show: false,
     webPreferences: {
       nodeIntegration: true,

@@ -1,3 +1,13 @@
+export const getPublicUrl = (path) => {
+  if (typeof window !== 'undefined') {
+    const isElectron = window.location.protocol === 'file:';
+    if (isElectron && path.startsWith('/')) {
+      return '.' + path;
+    }
+  }
+  return path;
+};
+
 export const BRAND = {
   companyName: 'Synoptyk',
   productName: 'GENAI360',
@@ -14,7 +24,7 @@ export const BRAND = {
     'México': 'Orquestación multi-sede con visibilidad 360 y decisiones más rápidas.',
     Argentina: 'Eficiencia financiera-operativa con procesos auditables de extremo a extremo.'
   },
-  logoPath: '/genai-assistant-logo.png',
+  logoPath: getPublicUrl('/genai-assistant-logo.png'),
   aiModuleLabel: 'GENAI360',
   aiAssistantLabel: 'Asistente GENAI360',
   aiSupportLabel: 'GENAI360 Support',

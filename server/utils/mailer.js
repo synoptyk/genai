@@ -108,6 +108,49 @@ exports.sendWelcomeEmail = async (data) => {
 };
 
 /**
+ * Envía un correo de recuperación de contraseña
+ * @param {Object} data { email, name, resetUrl, companyName, companyLogo }
+ */
+exports.sendPasswordResetEmail = async (data) => {
+  const { email, name, resetUrl, companyName, companyLogo } = data;
+  const finalFromName = companyName ? `${companyName} via ${BRAND.productName}` : (process.env.FROM_NAME || `Soporte ${BRAND.productName}`);
+
+  const mailOptions = {
+    from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
+    to: email,
+    subject: `Recuperación de Contraseña - ${companyName || BRAND.productName}`,
+    html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; border: 1px solid #eaeaea; border-radius: 16px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);">
+            <div style="padding: 48px 48px 0 48px; text-align: left;">
+                ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 48px; margin-bottom: 32px; border-radius: 8px;">` : `<h1 style="margin: 0 0 32px 0; font-size: 24px; font-weight: 800; color: #0f172a;">${companyName || 'Portal Corporativo'}</h1>`}
+                <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #0f172a;">Hola, ${name || 'Usuario'}</h2>
+                <p style="margin: 0 0 32px 0; font-size: 16px; color: #334155; line-height: 1.6;">Hemos recibido una solicitud para restablecer tu contraseña. Haz clic en el botón de abajo para elegir una nueva contraseña.</p>
+                
+                <div style="text-align: center; margin-bottom: 48px;">
+                    <a href="${resetUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">RESTABLECER CONTRASEÑA</a>
+                </div>
+
+                <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b; line-height: 1.6;">Este enlace será válido por 1 hora. Si no solicitaste este cambio, puedes ignorar este correo de forma segura.</p>
+            </div>
+            <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
+                <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 500;">Sistema Automatizado de Notificaciones.</p>
+            </div>
+        </div>
+        `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`📧 Email de recuperación enviado a: ${email} | ID: ${info.messageId}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error enviando email de recuperación a ${email}:`, error.message);
+    if (error.response) console.error('Detalle SMTP:', error.response);
+    return false;
+  }
+};
+
+/**
  * Envía el resumen del AST al correo del trabajador al finalizar el registro
  * @param {Object} ast - Documento AST guardado en MongoDB
  */
