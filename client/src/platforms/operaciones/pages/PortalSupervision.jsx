@@ -628,7 +628,7 @@ const PortalSupervision = () => {
     );
 
     return (
-        <div className="max-w-[1400px] mx-auto pb-20 px-4 pt-4 animate-in fade-in duration-500">
+        <div className="max-w-[1400px] mx-auto pb-20 px-4 pt-4 animate-in fade-in duration-500 w-full overflow-x-hidden relative">
 
             {/* Header Dinámico */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
@@ -826,7 +826,7 @@ const PortalSupervision = () => {
 
             {/* VISTA: ASISTENCIA OPERATIVA */}
             {currentView === 'asistencia_operativa' && (
-                <div className="max-w-[1400px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                <div className="max-w-[1400px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-500 w-full overflow-x-hidden relative">
                     
                     {/* Tarjeta de Encabezado */}
                     <div className="bg-gradient-to-r from-teal-600 to-emerald-600 rounded-[2.5rem] p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -1196,7 +1196,7 @@ const PortalSupervision = () => {
 
             {/* VISTA: MI DOTACIÓN */}
             {currentView === 'dotacion' && (
-                <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-500">
+                <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-500 w-full overflow-x-hidden relative">
                     <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl space-y-6">
                         <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
                             <div className="p-4 bg-violet-100 text-violet-600 rounded-[1.5rem]"><Users size={32} /></div>
@@ -1410,7 +1410,7 @@ const PortalSupervision = () => {
                         </div>
 
                         {/* Data Table */}
-                        <div className="flex-1 overflow-auto">
+                        <div className="flex-1 overflow-auto custom-scrollbar">
                             {filteredVehiculosFlota.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full p-10 text-center">
                                     <Truck size={48} className="text-slate-200 mb-4" />
@@ -1530,7 +1530,7 @@ const PortalSupervision = () => {
                             </div>
                         ))}
                     </div>
-                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-x-auto">
+                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-x-auto custom-scrollbar">
                         <h2 className="text-xl font-black text-slate-800 uppercase italic mb-6">Estado AST del Día — Mi Equipo</h2>
                         <table className="w-full">
                             <thead>
@@ -1595,7 +1595,7 @@ const PortalSupervision = () => {
 
             {/* VISTA: SOLICITUDES */}
             {currentView === 'solicitudes' && (
-                <div className="max-w-4xl mx-auto space-y-6 animate-in slide-in-from-bottom duration-500">
+                <div className="max-w-4xl mx-auto space-y-6 animate-in slide-in-from-bottom duration-500 w-full overflow-x-hidden relative">
                     <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-6 italic">Permisos del Equipo</h2>
                     <div className="grid grid-cols-1 gap-4">
                         {solicitudes.map((s, idx) => {
@@ -1894,7 +1894,7 @@ const PortalSupervision = () => {
                                         <span className="px-3 py-1 bg-white rounded-full border border-slate-200 text-[9px] font-black text-slate-400 uppercase tracking-tighter">Últimas 50 OTs</span>
                                     </div>
                                 </div>
-                                <div className="overflow-x-auto">
+                                <div className="overflow-x-auto custom-scrollbar">
                                     <table className="w-full text-left border-collapse text-[10px]">
                                         <thead>
                                             <tr className="bg-slate-50/80">
@@ -1999,7 +1999,7 @@ const PortalSupervision = () => {
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/30">

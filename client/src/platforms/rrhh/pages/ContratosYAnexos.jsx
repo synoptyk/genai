@@ -549,7 +549,7 @@ const ContratosYAnexos = () => {
                             </h3>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left">
                                 <thead>
                                     <tr className="border-b border-slate-100">

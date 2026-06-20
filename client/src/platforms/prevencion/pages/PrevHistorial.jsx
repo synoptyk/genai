@@ -88,7 +88,7 @@ const PrevHistorial = () => {
     );
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-20 w-full overflow-x-hidden relative">
             {/* HEADER */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div className="flex items-center gap-4">
@@ -148,7 +148,7 @@ const PrevHistorial = () => {
                         <p className="text-slate-400 text-xs mt-2 max-w-xs font-medium">Inicia actividades preventivas para ver la trazabilidad del sistema aquí.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 bg-slate-50/30">

@@ -199,7 +199,7 @@ const MisClientes = () => {
 
             {/* CLIENTS LIST (PREMIUM CARDS / TABLE) */}
             <div className="bg-white/80 backdrop-blur-2xl border border-indigo-100/50 rounded-2xl sm:rounded-[3rem] shadow-2xl shadow-indigo-100/30 overflow-hidden">
-                <div className="overflow-x-auto scrollbar-thin">
+                <div className="overflow-x-auto custom-scrollbar scrollbar-thin">
                     <table className="w-full">
                         <thead>
                             <tr className="bg-indigo-50/50 border-b border-indigo-100/50">

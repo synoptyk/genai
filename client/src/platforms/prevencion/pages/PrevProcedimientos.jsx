@@ -140,7 +140,7 @@ const PrevProcedimientos = () => {
     };
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-20 w-full overflow-x-hidden relative">
             <div className="flex items-center justify-between mb-10">
                 <div className="flex items-center gap-4">
                     <div className="bg-rose-600 text-white p-4 rounded-[1.5rem] shadow-xl shadow-rose-200 transform -rotate-3">

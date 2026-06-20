@@ -50,7 +50,7 @@ const RelacionesLaborales = () => {
     };
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-20 w-full overflow-x-hidden relative">
             <div className="flex items-center gap-4 mb-8">
                 <div className="bg-rose-600 text-white p-3 rounded-2xl shadow-lg shadow-rose-200">
                     <ShieldAlert size={24} />
@@ -99,50 +99,52 @@ const RelacionesLaborales = () => {
 
             {/* List */}
             <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50">
-                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaborador</th>
-                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo / Categoría</th>
-                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Motivo</th>
-                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
-                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {loading ? (
-                            <tr><td colSpan="5" className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-rose-500" /></td></tr>
-                        ) : employees.map(e => {
-                            const records = activeTab === 'disciplinary' ? e.amonestaciones : e.felicitaciones;
-                            if (!records || records.length === 0) return null;
-                            return records.map((r, i) => (
-                                <tr key={`${e._id}-${i}`} className="hover:bg-slate-50 transition-all">
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-600">{e.fullName.charAt(0)}</div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-900 uppercase">{e.fullName}</p>
-                                                <p className="text-[10px] font-bold text-slate-400">{e.rut}</p>
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50">
+                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaborador</th>
+                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo / Categoría</th>
+                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Motivo</th>
+                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
+                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {loading ? (
+                                <tr><td colSpan="5" className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-rose-500" /></td></tr>
+                            ) : employees.map(e => {
+                                const records = activeTab === 'disciplinary' ? e.amonestaciones : e.felicitaciones;
+                                if (!records || records.length === 0) return null;
+                                return records.map((r, i) => (
+                                    <tr key={`${e._id}-${i}`} className="hover:bg-slate-50 transition-all">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-600">{e.fullName.charAt(0)}</div>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 uppercase">{e.fullName}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400">{e.rut}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${activeTab === 'disciplinary' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                            {r.type || r.category || 'N/A'}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <p className="text-xs font-bold text-slate-600 max-w-xs truncate">{r.reason}</p>
-                                    </td>
-                                    <td className="px-8 py-6 text-xs font-bold text-slate-500">{new Date(r.date).toLocaleDateString()}</td>
-                                    <td className="px-8 py-6 text-right">
-                                        <button className="p-2 text-slate-400 hover:text-indigo-600 transition-all"><FileText size={18} /></button>
-                                    </td>
-                                </tr>
-                            ));
-                        })}
-                    </tbody>
-                </table>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${activeTab === 'disciplinary' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                {r.type || r.category || 'N/A'}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <p className="text-xs font-bold text-slate-600 max-w-xs truncate">{r.reason}</p>
+                                        </td>
+                                        <td className="px-8 py-6 text-xs font-bold text-slate-500">{new Date(r.date).toLocaleDateString()}</td>
+                                        <td className="px-8 py-6 text-right">
+                                            <button className="p-2 text-slate-400 hover:text-indigo-600 transition-all"><FileText size={18} /></button>
+                                        </td>
+                                    </tr>
+                                ));
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Modal */}

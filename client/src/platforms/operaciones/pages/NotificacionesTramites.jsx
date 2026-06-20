@@ -201,7 +201,7 @@ export default function NotificacionesTramites({ user, onBack, perfil }) {
     };
 
     return (
-        <div className="max-w-[1000px] mx-auto pb-20 px-4 pt-4 animate-in fade-in duration-700">
+        <div className="max-w-[1000px] mx-auto pb-20 px-4 pt-4 animate-in fade-in duration-700 w-full overflow-x-hidden relative">
             <div className="flex items-center gap-4 mb-8">
                 <button onClick={onBack} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm">
                     <ChevronLeft size={20} />

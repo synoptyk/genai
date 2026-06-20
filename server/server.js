@@ -795,6 +795,7 @@ app.use('/api/operaciones/combustible', require('./platforms/operaciones/routes/
 app.use('/api/operaciones/gastos', require('./platforms/operaciones/routes/gastoRoutes'));
 app.use('/api/flota/eficiencia', require('./platforms/agentetelecom/routes/flotaEficiencia'));
 app.use('/api/flota/proveedores', require('./platforms/agentetelecom/routes/proveedoresLeasing'));
+app.use('/api/flota/gps-activos', require('./platforms/agentetelecom/routes/gpsActivosRoutes'));
 
 
 

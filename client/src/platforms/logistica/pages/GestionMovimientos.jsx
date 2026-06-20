@@ -374,7 +374,7 @@ const GestionMovimientos = () => {
     const totalCantidadPiezas = items.reduce((acc, curr) => acc + curr.cantidad, 0);
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-300">
+        <div className="max-w-7xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-300 w-full overflow-x-hidden relative">
             {/* Header del Módulo */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 to-indigo-950 p-8 rounded-[2.5rem] shadow-xl text-white">
                 <div className="space-y-2">

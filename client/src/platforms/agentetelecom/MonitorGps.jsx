@@ -193,29 +193,9 @@ const MonitorGps = () => {
     <div className="flex flex-col h-full animate-in fade-in duration-700 w-full relative bg-slate-50/50 rounded-[2rem] overflow-hidden">
       <style>{pulsarStyles}</style>
 
-      {/* CONTROL HEADER (FLOATING) */}
-      <div className="absolute top-4 left-4 right-4 z-[400] flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 pointer-events-none">
-        <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-white shadow-xl shadow-slate-200/50 pointer-events-auto">
-          <h1 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-1">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            Monitor Satelital <span className="text-blue-600">Vivo</span>
-          </h1>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-              <Signal size={12} className="text-emerald-500" />
-              <span className="text-[10px] font-bold text-slate-500">CONECTADO</span>
-            </div>
-            <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-              <RefreshCw size={12} className="text-blue-500" />
-              <span className="text-[10px] font-bold text-slate-500">5s</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 items-center bg-white/90 backdrop-blur-md p-2 rounded-2xl border border-white shadow-xl shadow-slate-200/50 pointer-events-auto">
+      {/* BOTONES HUD SOBRE EL MAPA */}
+      <div className="absolute top-4 right-4 z-[400] flex flex-col xl:flex-row justify-end items-end xl:items-center gap-4 pointer-events-none">
+        <div className="flex flex-wrap gap-2 items-center justify-end bg-white/90 backdrop-blur-md p-2 rounded-2xl border border-white shadow-xl shadow-slate-200/50 pointer-events-auto">
           {/* Quick Filters */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             {['todos', 'movimiento', 'alerta'].map((tipo) => (
@@ -257,6 +237,28 @@ const MonitorGps = () => {
         <div className="w-full lg:w-96 bg-white border-r border-slate-100 flex flex-col z-20 shadow-xl shadow-slate-200/50">
           {/* Header Panel */}
           <div className="p-6 pb-2">
+            
+            {/* TÍTULO Y ESTADO */}
+            <div className="mb-6">
+              <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2 mb-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                Monitor Satelital
+              </h1>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                  <Signal size={12} className="text-emerald-500" />
+                  <span className="text-[10px] font-bold text-slate-500">CONECTADO</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                  <RefreshCw size={12} className="text-blue-500" />
+                  <span className="text-[10px] font-bold text-slate-500">5s</span>
+                </div>
+              </div>
+            </div>
+
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={16} />
               <input

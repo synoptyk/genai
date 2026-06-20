@@ -7,7 +7,7 @@ const PrevOperatividad = () => {
     const [view, setView] = useState('console'); // 'console' | 'standalone_ast'
 
     return (
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen bg-white w-full overflow-x-hidden relative">
             <div className="fixed top-6 right-10 z-[60] flex gap-2">
                 <button
                     onClick={() => setView('console')}

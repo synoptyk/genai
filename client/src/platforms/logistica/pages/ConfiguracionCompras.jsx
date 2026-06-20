@@ -62,7 +62,7 @@ const ConfiguracionCompras = () => {
     };
 
     return (
-        <div className="p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+        <div className="p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 w-full overflow-x-hidden relative">
             <header className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <div className="p-4 bg-indigo-600 rounded-[2rem] text-white shadow-xl shadow-indigo-100">
@@ -114,7 +114,7 @@ const ConfiguracionCompras = () => {
             {/* Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[3rem] w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+                    <div className="bg-white rounded-[3rem] w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="p-8 bg-indigo-600 text-white">
                             <h2 className="text-xl font-black tracking-tight">{editing ? 'Editar Tipo' : 'Nuevo Tipo de Compra'}</h2>
                             <p className="text-white/60 text-[10px] font-black uppercase tracking-widest mt-1">Define una categoría para los requerimientos internos.</p>

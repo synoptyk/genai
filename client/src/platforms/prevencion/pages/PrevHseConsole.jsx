@@ -123,7 +123,7 @@ const PrevHseConsole = () => {
     const filteredAsts = viewMode === 'smart' ? smartSample : asts.filter(ast => ast.estado === activeTab);
 
     return (
-        <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20">
+        <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20 w-full overflow-x-hidden relative">
             <div className="flex items-center justify-between mb-12">
                 <div className="flex items-center gap-6">
                     <div className="bg-slate-900 text-white p-5 rounded-[2rem] shadow-2xl transform -rotate-3 border-4 border-white">
@@ -234,7 +234,7 @@ const PrevHseConsole = () => {
             {/* MODAL DE REPORTE DE INCONSISTENCIA */}
             {feedbackAst && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 backdrop-blur-xl p-6">
-                    <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
+                    <div className="bg-white rounded-[3rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col animate-in zoom-in-95">
                         <div className="p-8 bg-rose-600 flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="bg-white/20 p-3 rounded-xl"><AlertTriangle size={20} className="text-white" /></div>
@@ -285,7 +285,7 @@ const PrevHseConsole = () => {
 
             {alert && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
-                    <div className="bg-white rounded-[3.5rem] p-12 max-w-md w-full shadow-2xl text-center flex flex-col items-center gap-8 animate-in zoom-in-95">
+                    <div className="bg-white rounded-[3.5rem] max-h-[90vh] overflow-y-auto p-12 max-w-md w-full shadow-2xl text-center flex flex-col items-center gap-8 animate-in zoom-in-95">
                         <div className={`p-6 rounded-[2rem] ${alert.type === 'error' ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'}`}>
                             <Info size={48} />
                         </div>

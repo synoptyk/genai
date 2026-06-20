@@ -504,7 +504,7 @@ const RemuCentral = () => {
     ];
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-4 md:p-8 pb-32">
+        <div className="min-h-full bg-slate-50/50 p-4 md:p-8 pb-32 w-full overflow-x-hidden relative">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div className="flex items-center gap-5">

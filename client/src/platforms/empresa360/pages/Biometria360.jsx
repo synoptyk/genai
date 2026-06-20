@@ -104,7 +104,7 @@ export default function Biometria360() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full overflow-x-hidden relative">
       <div className="rounded-2xl bg-white border border-slate-200 p-4">
         <div className="flex items-center gap-2 mb-3">
           <Fingerprint size={18} className="text-indigo-600" />

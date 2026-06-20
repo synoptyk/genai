@@ -1353,7 +1353,7 @@ const NominaRRHH = () => {
     }), [filtered]);
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="w-full overflow-x-hidden relative min-h-full bg-slate-50/50 p-6 pb-20">
             {/* ── HEADER EJECUTIVO ── */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 mt-4">
                 <div className="space-y-2">
@@ -1768,7 +1768,7 @@ const NominaRRHH = () => {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto custom-scrollbar pb-4">
                     <table className="w-full text-left min-w-[1200px] border-collapse">
                         <thead>
                             <tr className="bg-slate-50/80 backdrop-blur-xl sticky top-0 z-30 transition-shadow group">
@@ -2149,7 +2149,7 @@ const NominaRRHH = () => {
                         </div>
 
                         {/* Table */}
-                        <div className="overflow-y-auto flex-1">
+                        <div className="overflow-auto flex-1 custom-scrollbar">
                             <table className="w-full text-left">
                                 <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
                                     <tr className="border-b border-slate-100">

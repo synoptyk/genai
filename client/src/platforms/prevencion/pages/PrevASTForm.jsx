@@ -318,7 +318,7 @@ const PrevASTForm = () => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="min-h-screen bg-slate-50 p-4 md:p-8 w-full overflow-x-hidden relative">
             <div className="max-w-4xl mx-auto bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
                 <div className="bg-white p-10 text-slate-900 border-b border-slate-100">
                     <div className="flex items-center justify-between">

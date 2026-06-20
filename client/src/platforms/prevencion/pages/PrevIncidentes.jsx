@@ -77,7 +77,7 @@ const PrevIncidentes = () => {
     });
 
     return (
-        <div className="page-sm min-h-full bg-slate-50/50 p-3 sm:p-6 pb-20">
+        <div className="page-sm min-h-full bg-slate-50/50 p-3 sm:p-6 pb-20 w-full overflow-x-hidden relative">
             {/* HEADER */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div className="flex items-center gap-4">
@@ -164,7 +164,7 @@ const PrevIncidentes = () => {
                         <p className="text-slate-400 text-xs mt-2 max-w-xs font-medium">Todos los procesos están operando bajo los parámetros de seguridad establecidos.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/50">
@@ -227,7 +227,7 @@ const PrevIncidentes = () => {
             {/* MODAL CREAR INCIDENTE */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                             <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                                 <AlertTriangle size={16} className="text-rose-500" /> Nuevo Incidente

@@ -61,7 +61,7 @@ export default function Facturacion360() {
   };
 
   return (
-    <div className="page-sm space-y-4 sm:space-y-6">
+    <div className="page-sm space-y-4 sm:space-y-6 w-full overflow-x-hidden relative">
       <div className="rounded-xl sm:rounded-2xl bg-white border border-slate-200 p-3 sm:p-4">
         <div className="flex items-center gap-2 mb-3">
           <FileText size={16} className="sm:w-[18px] sm:h-[18px] text-indigo-600" />
@@ -86,7 +86,7 @@ export default function Facturacion360() {
         <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-xs sm:text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><PlusCircle size={14} /> Crear</button>
       </form>
 
-      <div className="rounded-xl sm:rounded-2xl bg-white border border-slate-200 overflow-x-auto">
+      <div className="rounded-xl sm:rounded-2xl bg-white border border-slate-200 overflow-x-auto custom-scrollbar">
         <table className="w-full text-xs">
           <thead className="bg-slate-50 text-slate-600">
             <tr>

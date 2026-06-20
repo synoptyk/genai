@@ -89,6 +89,7 @@ const Inventario = () => {
     const [statusFilter, setStatusFilter] = useState('Todos'); // 'Todos', 'Activo', 'Inactivo'
     const [categoryFilter, setCategoryFilter] = useState('Todos');
     const [selectedAssetForDepreciation, setSelectedAssetForDepreciation] = useState(null);
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
     // Modales de control
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -106,6 +107,9 @@ const Inventario = () => {
         modelo: '',
         nroSerie: '',
         imei: '',
+        imei2: '',
+        imei3: '',
+        numeroCelular: '',
         descripcion: '',
         unidadMedida: 'Unidad',
         tipo: 'Activo',
@@ -205,6 +209,9 @@ const Inventario = () => {
                 modelo: '',
                 nroSerie: '',
                 imei: '',
+                imei2: '',
+                imei3: '',
+                numeroCelular: '',
                 descripcion: '',
                 unidadMedida: 'Unidad',
                 tipo: 'Activo',
@@ -412,6 +419,8 @@ const Inventario = () => {
                     'Modelo': p.modelo || '',
                     'Nro. Serie': p.nroSerie || '',
                     'IMEI': p.imei || '',
+                    'IMEI 2': p.imei2 || '',
+                    'IMEI 3': p.imei3 || '',
                     'Descripción': p.descripcion || '',
                     'Unidad de Medida': p.unidadMedida || 'Unidad',
                     'Stock Total': totalStock,
@@ -626,7 +635,17 @@ const Inventario = () => {
     const openEditProduct = (prod) => {
         setEditingProduct({
             ...prod,
+            nombre: prod.nombre || '',
+            sku: prod.sku || '',
+            ean: prod.ean || '',
             categoria: prod.categoria?._id || prod.categoria || '',
+            marca: prod.marca || '',
+            modelo: prod.modelo || '',
+            nroSerie: prod.nroSerie || '',
+            imei: prod.imei || '',
+            imei2: prod.imei2 || '',
+            imei3: prod.imei3 || '',
+            numeroCelular: prod.numeroCelular || '',
             clienteRef: prod.clienteRef?._id || prod.clienteRef || '',
             fechaAdquisicion: prod.fechaAdquisicion ? new Date(prod.fechaAdquisicion).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             fotoUrl: prod.fotos?.[0] || ''
@@ -653,6 +672,37 @@ const Inventario = () => {
             return matchesSearch && matchesCategory && matchesStatus;
         });
     }, [productos, searchTerm, categoryFilter, statusFilter]);
+
+    // Ordenamiento
+    const sortedAssets = useMemo(() => {
+        let sortableItems = [...filteredAssets];
+        if (sortConfig.key !== null) {
+            sortableItems.sort((a, b) => {
+                let valA = a[sortConfig.key];
+                let valB = b[sortConfig.key];
+                
+                if (sortConfig.key.includes('.')) {
+                    const keys = sortConfig.key.split('.');
+                    valA = a[keys[0]] ? a[keys[0]][keys[1]] : '';
+                    valB = b[keys[0]] ? b[keys[0]][keys[1]] : '';
+                }
+
+                valA = typeof valA === 'string' ? valA.toLowerCase() : valA;
+                valB = typeof valB === 'string' ? valB.toLowerCase() : valB;
+
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [filteredAssets, sortConfig]);
+
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+        setSortConfig({ key, direction });
+    };
 
     // Filtrado de Existencias en Bodegas
     const filteredStock = useMemo(() => {
@@ -788,7 +838,7 @@ const Inventario = () => {
     }, [productos]);
 
     return (
-        <div className="page-sm space-y-6 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="page-sm space-y-6 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full overflow-x-hidden relative">
             
             {/* Cabecera Inteligente */}
             <div className="page-header flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 text-white p-6 sm:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
@@ -1215,39 +1265,42 @@ const Inventario = () => {
                     <div className={`w-full bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden transition-all duration-300 ${
                         selectedAssetForDepreciation ? 'xl:w-2/3' : 'w-full'
                     }`}>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto custom-scrollbar">
                             {activeTab === 'maestro' ? (
                                 viewType === 'tabla' ? (
                                     <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-50/80 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100 whitespace-nowrap">
+                                <thead className="bg-slate-50/90 backdrop-blur-md sticky top-0 z-20 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 whitespace-nowrap shadow-sm">
                                     <tr>
                                         <th className="px-4 py-5 w-16">Item</th>
-                                        <th className="px-4 py-5">SKU</th>
-                                        <th className="px-4 py-5">EAN</th>
-                                        <th className="px-4 py-5">Categoría</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('sku')}>SKU {sortConfig.key === 'sku' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('ean')}>EAN {sortConfig.key === 'ean' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('categoria.nombre')}>Categoría {sortConfig.key === 'categoria.nombre' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className="px-4 py-5 text-center">Imagen</th>
-                                        <th className="px-4 py-5">Nombre</th>
-                                        <th className="px-4 py-5">Marca</th>
-                                        <th className="px-4 py-5">Modelo</th>
-                                        <th className="px-4 py-5">Color</th>
-                                        <th className="px-4 py-5">Nro. Serie</th>
-                                        <th className="px-4 py-5">IMEI</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('nombre')}>Nombre {sortConfig.key === 'nombre' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('marca')}>Marca {sortConfig.key === 'marca' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('modelo')}>Modelo {sortConfig.key === 'modelo' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('color')}>Color {sortConfig.key === 'color' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('nroSerie')}>Nro. Serie {sortConfig.key === 'nroSerie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('imei')}>IMEI {sortConfig.key === 'imei' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('imei2')}>IMEI 2 {sortConfig.key === 'imei2' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('imei3')}>IMEI 3 {sortConfig.key === 'imei3' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('numeroCelular')}>Nro. Teléfono {sortConfig.key === 'numeroCelular' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className="px-4 py-5">Descripción</th>
-                                        <th className="px-4 py-5 text-center">Unidad</th>
+                                        <th className="px-4 py-5 text-center cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('unidadMedida')}>Unidad {sortConfig.key === 'unidadMedida' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className="px-4 py-5 text-center">Stock Total</th>
                                         <th className="px-4 py-5 text-center">Asignado</th>
                                         <th className="px-4 py-5 text-center">Disponible</th>
-                                        <th className="px-4 py-5">Segmentación</th>
-                                        <th className="px-4 py-5">Movilidad</th>
-                                        <th className="px-4 py-5">Propiedad</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('segmentacion')}>Segmentación {sortConfig.key === 'segmentacion' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('movilidad')}>Movilidad {sortConfig.key === 'movilidad' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className="px-4 py-5 cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('propiedad')}>Propiedad {sortConfig.key === 'propiedad' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className="px-4 py-5">Cliente Dueño</th>
-                                        <th className="px-4 py-5 text-right">Valor Unitario</th>
+                                        <th className="px-4 py-5 text-right cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('valorUnitario')}>Valor Unitario {sortConfig.key === 'valorUnitario' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className="px-4 py-5 text-right">Valor Residual</th>
-                                        <th className="px-4 py-5 text-center">Fecha Compra</th>
+                                        <th className="px-4 py-5 text-center cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('fechaAdquisicion')}>Fecha Compra {sortConfig.key === 'fechaAdquisicion' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className="px-4 py-5 text-center">Vida Útil (Meses)</th>
                                         <th className="px-4 py-5 text-right">Dep. Acumulada</th>
                                         <th className="px-4 py-5 text-right">Valor Libro</th>
-                                        <th className="px-4 py-5 text-center">Estado</th>
+                                        <th className="px-4 py-5 text-center cursor-pointer hover:text-slate-700 transition-colors" onClick={() => handleSort('status')}>Estado {sortConfig.key === 'status' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className="px-4 py-5 text-right w-28">Acciones</th>
                                     </tr>
                                 </thead>
@@ -1258,14 +1311,14 @@ const Inventario = () => {
                                                 <td colSpan="28" className="px-6 py-8" />
                                             </tr>
                                         ))
-                                    ) : filteredAssets.length === 0 ? (
+                                    ) : sortedAssets.length === 0 ? (
                                         <tr>
-                                            <td colSpan="28" className="px-6 py-20 text-center text-slate-400 font-bold">
+                                            <td colSpan="29" className="px-6 py-20 text-center text-slate-400 font-bold">
                                                 <Archive size={48} className="mx-auto mb-4 opacity-25" />
                                                 Sin activos registrados en el catálogo maestro
                                             </td>
                                         </tr>
-                                    ) : filteredAssets.map((p, index) => {
+                                    ) : sortedAssets.map((p, index) => {
                                         const isBlocked = p.status === 'Inactivo';
                                         
                                         // Calcular stock físico consolidado
@@ -1385,6 +1438,33 @@ const Inventario = () => {
                                                 <td className="px-4 py-4 whitespace-nowrap">
                                                     <span className="text-xs font-mono font-medium text-slate-600 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg uppercase">
                                                         {p.imei || '—'}
+                                                    </span>
+                                                </td>
+
+                                                {/* IMEI 2 */}
+                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                    <span className={`text-xs font-mono font-medium px-2 py-0.5 rounded-lg uppercase ${p.imei2 ? 'text-slate-600 bg-slate-50 border border-slate-100' : 'text-slate-400 bg-transparent border-transparent'}`}>
+                                                        {p.imei2 || '—'}
+                                                    </span>
+                                                </td>
+
+                                                {/* IMEI 3 */}
+                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                    <span className={`text-xs font-mono font-medium px-2 py-0.5 rounded-lg uppercase ${p.imei3 ? 'text-slate-600 bg-slate-50 border border-slate-100' : 'text-slate-400 bg-transparent border-transparent'}`}>
+                                                        {p.imei3 || '—'}
+                                                    </span>
+                                                </td>
+
+                                                {/* Nro. Teléfono */}
+                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                    <span className={`text-xs font-mono font-medium px-2 py-0.5 rounded-lg uppercase ${
+                                                        (p.categoria?.nombre?.toLowerCase().includes('chip') || p.categoria?.nombre?.toLowerCase().includes('celular') || p.numeroCelular)
+                                                            ? 'text-slate-600 bg-slate-50 border border-slate-100'
+                                                            : 'text-slate-400 bg-transparent border-transparent'
+                                                    }`}>
+                                                        {(p.categoria?.nombre?.toLowerCase().includes('chip') || p.categoria?.nombre?.toLowerCase().includes('celular') || p.numeroCelular) 
+                                                            ? (p.numeroCelular || '—') 
+                                                            : 'N/A'}
                                                     </span>
                                                 </td>
 
@@ -2157,7 +2237,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Número de Serie (S/N)</label>
                                             <input 
@@ -2173,6 +2253,36 @@ const Inventario = () => {
                                                 type="text" placeholder="Ej: 351234567890123"
                                                 value={assetForm.imei || ''}
                                                 onChange={e => setAssetForm({...assetForm, imei: e.target.value})}
+                                                className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Número Teléfono (Chips)</label>
+                                            <input 
+                                                type="text" placeholder="Ej: +56912345678"
+                                                value={assetForm.numeroCelular || ''}
+                                                onChange={e => setAssetForm({...assetForm, numeroCelular: e.target.value})}
+                                                className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">IMEI 2 (Equipos Duales)</label>
+                                            <input 
+                                                type="text" placeholder="Ej: 351234567890124"
+                                                value={assetForm.imei2 || ''}
+                                                onChange={e => setAssetForm({...assetForm, imei2: e.target.value})}
+                                                className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">IMEI 3 (Opcional)</label>
+                                            <input 
+                                                type="text" placeholder="Opcional"
+                                                value={assetForm.imei3 || ''}
+                                                onChange={e => setAssetForm({...assetForm, imei3: e.target.value})}
                                                 className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
                                             />
                                         </div>
@@ -2450,7 +2560,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Número de Serie (S/N)</label>
                                             <input 
@@ -2466,6 +2576,36 @@ const Inventario = () => {
                                                 type="text" placeholder="Ej: 351234567890123"
                                                 value={editingProduct.imei || ''}
                                                 onChange={e => setEditingProduct({...editingProduct, imei: e.target.value})}
+                                                className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Número Teléfono (Chips)</label>
+                                            <input 
+                                                type="text" placeholder="Ej: +56912345678"
+                                                value={editingProduct.numeroCelular || ''}
+                                                onChange={e => setEditingProduct({...editingProduct, numeroCelular: e.target.value})}
+                                                className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">IMEI 2 (Equipos Duales)</label>
+                                            <input 
+                                                type="text" placeholder="Ej: 351234567890124"
+                                                value={editingProduct.imei2 || ''}
+                                                onChange={e => setEditingProduct({...editingProduct, imei2: e.target.value})}
+                                                className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">IMEI 3 (Opcional)</label>
+                                            <input 
+                                                type="text" placeholder="Opcional"
+                                                value={editingProduct.imei3 || ''}
+                                                onChange={e => setEditingProduct({...editingProduct, imei3: e.target.value})}
                                                 className="w-full p-4 bg-slate-50 border-none rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-slate-900/10"
                                             />
                                         </div>

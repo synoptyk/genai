@@ -73,7 +73,7 @@ const VacacionesLicencias = () => {
     const filtered = filterTipo === 'all' ? allVacaciones : allVacaciones.filter(v => v.tipo === filterTipo);
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="w-full overflow-x-hidden relative min-h-full bg-slate-50/50 p-6 pb-20">
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
                     <div className="bg-cyan-500 text-white p-3 rounded-2xl shadow-lg shadow-cyan-200"><Plane size={24} /></div>
@@ -131,7 +131,7 @@ const VacacionesLicencias = () => {
 
             {showForm && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <div className="p-6 bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-between">
                             <h2 className="text-xl font-black text-white uppercase">Nueva Solicitud</h2>
                             <button onClick={() => setShowForm(false)} className="p-2 bg-white/20 rounded-xl text-white"><X size={20} /></button>

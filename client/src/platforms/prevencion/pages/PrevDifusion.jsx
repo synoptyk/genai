@@ -165,7 +165,7 @@ const PrevDifusion = () => {
     };
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20 text-left">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-20 text-left w-full overflow-x-hidden relative">
             {/* HEADER */}
             <div className="flex items-center justify-between mb-12">
                 <div className="flex items-center gap-6">

@@ -146,7 +146,7 @@ const Almacenes = () => {
     };
 
     return (
-        <div className="page-sm space-y-6 sm:space-y-8">
+        <div className="page-sm space-y-6 sm:space-y-8 w-full overflow-x-hidden relative">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Centros de Abastecimiento</h1>
@@ -259,7 +259,7 @@ const Almacenes = () => {
             {/* Modal Crear Almacén */}
             {showModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
                         <form onSubmit={handleCreate}>
                             <div className="p-8 border-b border-slate-50">
                                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">Nueva Unidad Logística</h2>

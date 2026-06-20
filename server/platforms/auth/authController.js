@@ -22,8 +22,8 @@ exports.login = async (req, res) => {
         const isMatch = await user.matchPassword(password);
         if (!isMatch) return res.status(401).json({ message: 'Contraseña incorrecta' });
 
-        if (user.status !== 'Activo' && !['system_admin', 'ceo'].includes(user.role))
-            return res.status(401).json({ message: 'Cuenta suspendida o inactiva. Contacte al administrador.' });
+        if (['Suspendido', 'Inactivo'].includes(user.status) && !['system_admin', 'ceo'].includes(user.role))
+            return res.status(403).json({ message: `Su cuenta está ${user.status.toLowerCase()}. Contacte al administrador.` });
 
         // Preparar nuevos valores
         const newTokens = (user.tokenVersion || 0) + 1;
@@ -396,6 +396,25 @@ exports.updateUser = async (req, res) => {
 
         await user.save();
 
+        if (payload.status || payload.role) {
+            try {
+                const AuditLog = require('../../models/AuditLog');
+                await AuditLog.create({
+                    usuarioRef: user._id,
+                    empresaRef: user.empresaRef || req.user.empresaRef,
+                    accion: 'MODIFICACION_SEGURIDAD_CUENTA',
+                    modulo: 'Administración de Usuarios',
+                    detalles: { 
+                        actor: req.user.email, 
+                        nuevoRol: payload.role || user.role, 
+                        nuevoEstado: payload.status || user.status 
+                    }
+                });
+            } catch (err) {
+                console.error('Error creando AuditLog', err.message);
+            }
+        }
+
         // Notificación de actualización de perfil para actor + admins
         try {
             await notificationService.notifyAction({
@@ -429,8 +448,24 @@ exports.deleteUser = async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const filter = ['system_admin', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
-        const result = await PlatformUser.findOneAndDelete(filter);
-        if (!result) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+        
+        const userToDelete = await PlatformUser.findOne(filter);
+        if (!userToDelete) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+
+        try {
+            const AuditLog = require('../../models/AuditLog');
+            await AuditLog.create({
+                usuarioRef: userToDelete._id,
+                empresaRef: userToDelete.empresaRef || req.user.empresaRef,
+                accion: 'ELIMINACION_USUARIO',
+                modulo: 'Administración de Usuarios',
+                detalles: { actor: req.user.email, emailEliminado: userToDelete.email }
+            });
+        } catch (e) {
+            console.error('Error en auditoría de eliminación:', e.message);
+        }
+
+        await PlatformUser.findByIdAndDelete(userToDelete._id);
         res.json({ message: 'Usuario eliminado' });
     } catch (e) {
         console.error('❌ Error en controlador auth:', e);

@@ -291,7 +291,7 @@ const ConfiguracionEmpresa = () => {
     ];
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6">
+        <div className="min-h-full bg-slate-50/50 p-6 w-full overflow-x-hidden relative">
             {/* Header */}
             <div className="flex items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">
@@ -513,7 +513,7 @@ const ConfiguracionEmpresa = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                            <div className="overflow-x-auto custom-scrollbar bg-white rounded-3xl border border-slate-100">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">
@@ -641,7 +641,7 @@ const ConfiguracionEmpresa = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                            <div className="overflow-x-auto custom-scrollbar bg-white rounded-3xl border border-slate-100">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">
@@ -802,7 +802,7 @@ const ConfiguracionEmpresa = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                            <div className="overflow-x-auto custom-scrollbar bg-white rounded-3xl border border-slate-100">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">
@@ -934,7 +934,7 @@ const ConfiguracionEmpresa = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                            <div className="overflow-x-auto custom-scrollbar bg-white rounded-3xl border border-slate-100">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">
@@ -1062,7 +1062,7 @@ const ConfiguracionEmpresa = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                            <div className="overflow-x-auto custom-scrollbar bg-white rounded-3xl border border-slate-100">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">

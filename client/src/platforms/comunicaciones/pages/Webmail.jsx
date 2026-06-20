@@ -2227,7 +2227,7 @@ const OfficeViewerModal = ({ filename, onClose }) => {
                                 <span className="text-xs font-black uppercase tracking-wider">Hoja de Cálculo: Reporte Financiero Q2</span>
                                 <span className="bg-emerald-700 text-[10px] px-2 py-0.5 rounded font-bold">Auto-calculado</span>
                             </div>
-                            <div className="overflow-x-auto flex-1">
+                            <div className="overflow-x-auto flex-1 custom-scrollbar">
                                 <table className="w-full text-left border-collapse text-xs text-slate-650">
                                     <thead>
                                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-widest text-[9px] font-black">

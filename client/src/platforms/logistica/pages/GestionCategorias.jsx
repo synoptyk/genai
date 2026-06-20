@@ -46,7 +46,7 @@ const GestionCategorias = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full overflow-x-hidden relative">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
@@ -104,7 +104,7 @@ const GestionCategorias = () => {
             {showModal && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-                    <div className="relative w-full max-w-md bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-200">
                         <form onSubmit={handleSubmit}>
                             <div className="p-8 border-b border-slate-100 bg-slate-50/50">
                                 <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nueva Categoría</h2>

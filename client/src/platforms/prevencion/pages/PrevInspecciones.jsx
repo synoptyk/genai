@@ -29,7 +29,7 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
     };
 
     return (
-            <div className="min-h-screen bg-slate-50/50 p-6 md:p-10">
+            <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 w-full overflow-x-hidden relative">
                 <div className="flex items-center justify-between mb-12">
                     <div className="flex items-center gap-6">
                         <div className="bg-slate-900 text-white p-5 rounded-[2rem] shadow-2xl border-4 border-white transform -rotate-3">

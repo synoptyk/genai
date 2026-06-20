@@ -288,7 +288,7 @@ const MisConductores = () => {
             <button onClick={openNew} className="text-indigo-600 text-xs font-bold hover:underline flex items-center gap-1"><Plus size={12} /> Registrar primer conductor</button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">

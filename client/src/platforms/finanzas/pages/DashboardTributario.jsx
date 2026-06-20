@@ -87,7 +87,7 @@ const DashboardTributario = () => {
     };
 
     return (
-        <div className="w-full max-w-7xl mx-auto pb-24">
+        <div className="w-full max-w-7xl mx-auto pb-24 overflow-x-hidden relative">
 
             {/* ── ENCABEZADO Y CONTROLES ── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 mt-2">
@@ -376,7 +376,7 @@ const DashboardTributario = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-x-auto">
+                    <div className="flex-1 overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b-2 border-slate-100">
@@ -440,7 +440,7 @@ const DashboardTributario = () => {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200">

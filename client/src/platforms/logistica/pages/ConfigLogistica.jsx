@@ -1519,7 +1519,7 @@ const ConfigLogistica = () => {
     const uniquePersonalEstados = Array.from(new Set((data.tecnicos || []).map(t => getAbbreviatedStatus(t.estadoActual)).filter(Boolean))).sort();
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-500 w-full overflow-x-hidden relative">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
                     <div className="p-4 bg-slate-900 text-white rounded-[2rem] shadow-2xl shadow-slate-200">
@@ -1535,20 +1535,20 @@ const ConfigLogistica = () => {
                         onClick={() => setShowModal(true)}
                         className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3"
                     >
-                        <Plus size={18} /> Crear {activeTab === 'bodegas' ? 'Bodega' : activeTab === 'categorias' ? 'Categoría' : activeTab === 'cargos' ? 'Equipamiento' : activeTab === 'seriados' ? 'Existencia Seriada' : 'Existencia'}
+                        <Plus size={18} /> Crear {activeTab === 'bodegas' ? 'Bodega' : activeTab === 'categorias' ? 'Categoría' : 'Equipamiento'}
                     </button>
                 )}
             </header>
 
             {/* TABS */}
             <div className="flex gap-2 p-1.5 bg-slate-100 rounded-[2rem] w-fit">
-                {['bodegas', 'personal', 'categorias', 'productos', 'seriados', 'cargos'].map(tab => (
+                {['bodegas', 'personal', 'categorias', 'cargos'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                     >
-                        {tab === 'bodegas' ? 'Bodegas y Almacenes' : tab === 'personal' ? 'Personal Trabajador' : tab === 'categorias' ? 'Categorías' : tab === 'productos' ? 'Existencia General' : tab === 'seriados' ? 'Existencias Seriadas' : 'Cargo Predeterminado'}
+                        {tab === 'bodegas' ? 'Bodegas y Almacenes' : tab === 'personal' ? 'Personal Trabajador' : tab === 'categorias' ? 'Categorías' : 'Cargo Predeterminado'}
                     </button>
                 ))}
             </div>
@@ -2016,7 +2016,7 @@ const ConfigLogistica = () => {
                     )}
 
                     {activeTab === 'bodegas' && almacenView === 'list' && (
-                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
@@ -2088,7 +2088,7 @@ const ConfigLogistica = () => {
                     )}
 
                     {activeTab === 'categorias' && categoriaView === 'list' && (
-                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
@@ -2133,7 +2133,7 @@ const ConfigLogistica = () => {
                     )}
 
                     {activeTab === 'productos' && productoView === 'list' && (
-                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden">
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
@@ -2214,7 +2214,7 @@ const ConfigLogistica = () => {
                     )}
 
                     {activeTab === 'seriados' && productoView === 'list' && (
-                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-x-auto custom-scrollbar shadow-sm">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400">
                                     <tr>
@@ -2551,7 +2551,8 @@ const ConfigLogistica = () => {
                                                             </div>
 
                                                             {/* Table of Lines */}
-                                                            <table className="w-full text-left border-collapse">
+                                                            <div className="overflow-x-auto custom-scrollbar">
+                                                                <table className="w-full text-left border-collapse">
                                                                 <thead>
                                                                     <tr className="bg-slate-50/60 text-[9px] uppercase font-black text-slate-400 tracking-wider">
                                                                         <th className="px-6 py-4 w-16 text-center">N°</th>
@@ -2655,7 +2656,8 @@ const ConfigLogistica = () => {
                                                                         </tr>
                                                                     )}
                                                                 </tbody>
-                                                            </table>
+                                                                </table>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}
@@ -2921,7 +2923,7 @@ const ConfigLogistica = () => {
                     )}
 
                     {activeTab === 'personal' && personalView === 'list' && (
-                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-x-auto custom-scrollbar shadow-sm animate-in fade-in zoom-in-95 duration-200">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
                                     <tr>
@@ -4064,7 +4066,7 @@ const ConfigLogistica = () => {
                                 </div>
                             ) : (
                                 <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
-                                    <div className="overflow-x-auto">
+                                    <div className="overflow-x-auto custom-scrollbar">
                                         <table className="w-full text-left">
                                             <thead className="bg-slate-50 text-[9px] uppercase font-black text-slate-400 border-b border-slate-100">
                                                 <tr>

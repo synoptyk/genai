@@ -309,7 +309,7 @@ const Proyectos = () => {
 
     // ── RENDER ─────────────────────────────────────────────────────────────
     return (
-        <div className="min-h-full font-sans">
+        <div className="w-full overflow-x-hidden relative min-h-full font-sans">
 
             {/* TOAST */}
             {toast && (

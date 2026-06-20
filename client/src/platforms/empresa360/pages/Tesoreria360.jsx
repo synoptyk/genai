@@ -50,7 +50,7 @@ export default function Tesoreria360() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full overflow-x-hidden relative">
       <div className="rounded-2xl bg-white border border-slate-200 p-4">
         <div className="flex items-center gap-2 mb-3">
           <Landmark size={18} className="text-indigo-600" />
@@ -77,7 +77,7 @@ export default function Tesoreria360() {
         </form>
       </div>
 
-      <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+      <div className="rounded-2xl bg-white border border-slate-200 overflow-x-auto custom-scrollbar">
         <table className="w-full text-xs">
           <thead className="bg-slate-50">
             <tr>

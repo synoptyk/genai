@@ -224,109 +224,111 @@ const HorarioPorDiaTable = ({ form, setForm }) => {
 
             {/* Tabla días */}
             <div className="overflow-hidden rounded-2xl border border-slate-100">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-50">
-                            <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Día</th>
-                            <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Entrada</th>
-                            <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Salida</th>
-                            <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Colación (min)</th>
-                            <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Hrs efectivas</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {dias.map((dia, idx) => {
-                            const h = getHorarioDia(form, dia);
-                            const hasOverride = (form.horariosPorDia || []).some(x => x.dia === dia);
-                            const dayHrs = calcDayHours(form, dia);
-                            const esSabadoDomingo = dia === 'Sábado' || dia === 'Domingo';
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="bg-slate-50">
+                                <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Día</th>
+                                <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Entrada</th>
+                                <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Salida</th>
+                                <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Colación (min)</th>
+                                <th className="px-3 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Hrs efectivas</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {dias.map((dia, idx) => {
+                                const h = getHorarioDia(form, dia);
+                                const hasOverride = (form.horariosPorDia || []).some(x => x.dia === dia);
+                                const dayHrs = calcDayHours(form, dia);
+                                const esSabadoDomingo = dia === 'Sábado' || dia === 'Domingo';
 
-                            return (
-                                <tr key={dia} className={`transition-colors ${esSabadoDomingo ? 'bg-amber-50/40' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
-                                    {/* Día */}
-                                    <td className="px-3 py-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full flex-shrink-0"
-                                                style={{ backgroundColor: form.color || '#6366F1' }} />
-                                            <span className="text-[10px] font-black text-slate-700 uppercase">
-                                                {dia.substring(0, 3)}
-                                            </span>
-                                            {hasOverride && (
-                                                <span className="text-[7px] font-black text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded-md border border-indigo-100">
-                                                    Custom
+                                return (
+                                    <tr key={dia} className={`transition-colors ${esSabadoDomingo ? 'bg-amber-50/40' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
+                                        {/* Día */}
+                                        <td className="px-3 py-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full flex-shrink-0"
+                                                    style={{ backgroundColor: form.color || '#6366F1' }} />
+                                                <span className="text-[10px] font-black text-slate-700 uppercase">
+                                                    {dia.substring(0, 3)}
                                                 </span>
-                                            )}
-                                        </div>
-                                    </td>
+                                                {hasOverride && (
+                                                    <span className="text-[7px] font-black text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded-md border border-indigo-100">
+                                                        Custom
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
 
-                                    {/* Hora entrada */}
-                                    <td className="px-3 py-2">
-                                        <input type="time"
-                                            value={h.horaEntrada}
-                                            onChange={e => updateDia(dia, 'horaEntrada', e.target.value)}
-                                            className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-100 w-24 transition-all hover:border-indigo-300" />
-                                    </td>
+                                        {/* Hora entrada */}
+                                        <td className="px-3 py-2">
+                                            <input type="time"
+                                                value={h.horaEntrada}
+                                                onChange={e => updateDia(dia, 'horaEntrada', e.target.value)}
+                                                className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-100 w-24 transition-all hover:border-indigo-300" />
+                                        </td>
 
-                                    {/* Hora salida */}
-                                    <td className="px-3 py-2">
-                                        <input type="time"
-                                            value={h.horaSalida}
-                                            onChange={e => updateDia(dia, 'horaSalida', e.target.value)}
-                                            className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-100 w-24 transition-all hover:border-indigo-300" />
-                                    </td>
+                                        {/* Hora salida */}
+                                        <td className="px-3 py-2">
+                                            <input type="time"
+                                                value={h.horaSalida}
+                                                onChange={e => updateDia(dia, 'horaSalida', e.target.value)}
+                                                className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-100 w-24 transition-all hover:border-indigo-300" />
+                                        </td>
 
-                                    {/* Colación */}
-                                    <td className="px-3 py-2">
-                                        <div className="flex items-center gap-1.5">
-                                            <Coffee size={11} className="text-amber-400 flex-shrink-0" />
-                                            <input type="number" min="0" max="120"
-                                                value={h.colacionMinutos}
-                                                onChange={e => updateDia(dia, 'colacionMinutos', parseInt(e.target.value) || 0)}
-                                                className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-100 w-16 text-center transition-all hover:border-amber-300" />
-                                        </div>
-                                    </td>
+                                        {/* Colación */}
+                                        <td className="px-3 py-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <Coffee size={11} className="text-amber-400 flex-shrink-0" />
+                                                <input type="number" min="0" max="120"
+                                                    value={h.colacionMinutos}
+                                                    onChange={e => updateDia(dia, 'colacionMinutos', parseInt(e.target.value) || 0)}
+                                                    className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-100 w-16 text-center transition-all hover:border-amber-300" />
+                                            </div>
+                                        </td>
 
-                                    {/* Horas efectivas */}
-                                    <td className="px-3 py-2 text-right">
-                                        <span className={`text-[11px] font-black tabular-nums px-2 py-1 rounded-xl inline-block ${
-                                            dayHrs === 0
-                                                ? 'text-slate-300 bg-slate-50'
-                                                : dayHrs < 4
-                                                ? 'text-amber-600 bg-amber-50'
-                                                : dayHrs > 9
-                                                ? 'text-rose-500 bg-rose-50'
-                                                : 'text-emerald-600 bg-emerald-50'
-                                        }`}>
-                                            {dayHrs.toFixed(1)}h
-                                        </span>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                    {/* Fila total */}
-                    <tfoot>
-                        <tr className="bg-slate-800 text-white">
-                            <td className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest" colSpan={4}>
-                                Total Semanal
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                                {(() => {
-                                    const total = calcWeeklyHours(form);
-                                    return (
-                                        <span className={`text-sm font-black tabular-nums ${
-                                            total > LIMITE_LEGAL.max ? 'text-rose-400' :
-                                            total > LIMITE_LEGAL.objetivo ? 'text-amber-300' :
-                                            'text-emerald-400'
-                                        }`}>
-                                            {total.toFixed(1)}h
-                                        </span>
-                                    );
-                                })()}
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
+                                        {/* Horas efectivas */}
+                                        <td className="px-3 py-2 text-right">
+                                            <span className={`text-[11px] font-black tabular-nums px-2 py-1 rounded-xl inline-block ${
+                                                dayHrs === 0
+                                                    ? 'text-slate-300 bg-slate-50'
+                                                    : dayHrs < 4
+                                                    ? 'text-amber-600 bg-amber-50'
+                                                    : dayHrs > 9
+                                                    ? 'text-rose-500 bg-rose-50'
+                                                    : 'text-emerald-600 bg-emerald-50'
+                                            }`}>
+                                                {dayHrs.toFixed(1)}h
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                        {/* Fila total */}
+                        <tfoot>
+                            <tr className="bg-slate-800 text-white">
+                                <td className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest" colSpan={4}>
+                                    Total Semanal
+                                </td>
+                                <td className="px-3 py-2.5 text-right">
+                                    {(() => {
+                                        const total = calcWeeklyHours(form);
+                                        return (
+                                            <span className={`text-sm font-black tabular-nums ${
+                                                total > LIMITE_LEGAL.max ? 'text-rose-400' :
+                                                total > LIMITE_LEGAL.objetivo ? 'text-amber-300' :
+                                                'text-emerald-400'
+                                            }`}>
+                                                {total.toFixed(1)}h
+                                            </span>
+                                        );
+                                    })()}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -425,7 +427,7 @@ const ProgramacionTurnos = () => {
     const diasCount = (form.diasSemana || []).length;
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-20 w-full overflow-x-hidden relative">
             {/* ── HEADER ── */}
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">

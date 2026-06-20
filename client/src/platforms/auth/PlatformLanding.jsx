@@ -4,7 +4,8 @@ import {
     Zap, ArrowRight, ChevronRight, CheckCircle2, Building2, BarChart3,
     ShieldCheck, Truck, BrainCircuit, GitBranch, Activity, Layers,
     Users, Package, Globe, TrendingUp, Network, Mail,
-    ClipboardList, Factory, Rocket, Star, Play, Quote
+    ClipboardList, Factory, Rocket, Star, Play, Quote,
+    Download, Monitor, Smartphone, Laptop
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { BRAND } from '../../branding/brand';
@@ -40,6 +41,57 @@ const STATS = [
     { value: '+40%', label: 'Eficiencia Operativa', icon: TrendingUp },
     { value: '-74%', label: 'Incidentes Preventibles', icon: ShieldCheck },
 ];
+
+const DownloadsDropdown = () => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div ref={dropdownRef} style={{ position: 'relative' }}>
+            <button 
+                onClick={() => setIsOpen(!isOpen)} 
+                style={{ color: '#fff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', transition: 'all 0.3s ease' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+            >
+                <Download size={17} /> 
+                Descargar Apps 
+                <ChevronRight size={17} style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', marginLeft: 6 }} />
+            </button>
+            {isOpen && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 16, overflow: 'hidden', minWidth: 260, zIndex: 100, boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Desktop IDE</div>
+                    <a href="/downloads/GenAI-Mac.dmg" download style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Laptop size={16} color="#06b6d4" /> Apple Mac (DMG)</div>
+                        <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
+                    </a>
+                    <a href="/downloads/GenAI-Win.exe" download style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Monitor size={16} color="#06b6d4" /> Windows (x64)</div>
+                        <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
+                    </a>
+                    
+                    <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Mobile Apps</div>
+                    <a href="#android" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Smartphone size={16} color="#a78bfa" /> Android (APK)</div>
+                        <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
+                    </a>
+                    <a href="#ios" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Smartphone size={16} color="#a78bfa" /> iOS (App Store)</div>
+                        <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
+                    </a>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const PlatformLanding = () => {
     const navigate = useNavigate();
@@ -191,7 +243,8 @@ const PlatformLanding = () => {
                             <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 Solicitar demo ejecutiva <ArrowRight size={17} />
                             </button>
-                            <a href="#pilares" style={{ color: '#94a3b8', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <DownloadsDropdown />
+                            <a href="#pilares" style={{ color: '#94a3b8', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.3s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
                                 Ver impacto por área <Play size={15} color="#06b6d4" />
                             </a>
                         </div>
@@ -452,9 +505,12 @@ const PlatformLanding = () => {
                     <p style={{ fontSize: 24, fontWeight: 900, color: '#e2e8f0', marginBottom: 24 }}>para que tú te enfoques en lo importante.</p>
                     <h2 style={{ fontSize: 40, fontWeight: 900, color: '#fff', marginBottom: 20, lineHeight: 1.2 }}>Tu empresa merece operar<br />con inteligencia real</h2>
                     <p style={{ fontSize: 18, color: '#64748b', marginBottom: 40 }}>Únete a las empresas que ya gestionan todo con nosotros.</p>
-                    <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '20px 48px', borderRadius: 20, fontSize: 16, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                        Acceder a la Plataforma <ArrowRight size={20} />
-                    </button>
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '20px 48px', borderRadius: 20, fontSize: 16, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                            Acceder a la Plataforma <ArrowRight size={20} />
+                        </button>
+                        <DownloadsDropdown />
+                    </div>
                 </div>
             </section>
 

@@ -277,7 +277,7 @@ const TiposBono = () => {
                             </div>
                         ) : (
                             /* LIST VIEW */
-                            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left">
                                     <thead>
                                         <tr className="bg-slate-50/50 text-[10px] uppercase font-black tracking-widest text-slate-400">

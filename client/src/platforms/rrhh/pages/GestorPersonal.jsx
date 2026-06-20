@@ -359,7 +359,7 @@ const GestorPersonal = () => {
     }
 
     return (
-        <div className="h-full bg-slate-50 relative flex flex-col p-6 overflow-hidden">
+        <div className="w-full overflow-x-hidden relative h-full bg-slate-50 flex flex-col p-6">
             {/* ALERT FLOTANTE PREMIUM */}
             {alert && (
                 <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] min-w-[320px] flex items-center gap-4 px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
@@ -429,7 +429,7 @@ const GestorPersonal = () => {
             </div>
 
             {/* TABLA PRINCIPAL / LOADER */}
-            <div className="flex-1 overflow-auto bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 hide-scrollbar">
+            <div className="flex-1 overflow-auto bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 custom-scrollbar">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
                         <div className="w-10 h-10 border-4 border-slate-100 border-t-orange-500 rounded-full animate-spin" />

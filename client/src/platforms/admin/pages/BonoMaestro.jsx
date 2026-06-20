@@ -436,7 +436,7 @@ const BonoMaestro = () => {
                                   </div>
                                 </div>
 
-                                <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                                <div className="bg-white border border-slate-100 rounded-2xl overflow-x-auto custom-scrollbar">
                                   <table className="w-full text-left border-collapse">
                                     <thead className="bg-slate-50 border-b border-slate-100">
                                       <tr>
@@ -554,7 +554,7 @@ const BonoMaestro = () => {
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                                  <div className="bg-white border border-slate-100 rounded-2xl overflow-x-auto custom-scrollbar">
                                     <table className="w-full text-left border-collapse">
                                       <thead className="bg-slate-50 border-b border-slate-100">
                                         <tr>
@@ -657,7 +657,7 @@ const BonoMaestro = () => {
                                     </select>
                                   </div>
                                 </div>
-                                <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                                <div className="bg-white border border-slate-100 rounded-2xl overflow-x-auto custom-scrollbar">
                                   <table className="w-full text-left border-collapse">
                                     <thead className="bg-slate-50 border-b border-slate-100">
                                       <tr>

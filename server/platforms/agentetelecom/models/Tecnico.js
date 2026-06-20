@@ -138,4 +138,119 @@ TecnicoSchema.pre('save', function (next) {
   next();
 });
 
+// ── HOOKS DE CROSS-TALKING E INTERCONEXIÓN ─────────────────────────
+const handleBajaTecnico = async (doc) => {
+  if (!doc) return;
+  if (['INACTIVO', 'FINIQUITADO', 'BLOQUEADO'].includes(doc.estadoActual)) {
+    try {
+      const PlatformUser = mongoose.model('PlatformUser');
+      const Almacen = mongoose.model('Almacen');
+      const GpsActivo = mongoose.model('GpsActivo');
+      const AuditLog = mongoose.model('AuditLog');
+
+      // 1. Suspender al usuario de la plataforma
+      const user = await PlatformUser.findOneAndUpdate(
+        { rut: doc.rut, empresaRef: doc.empresaRef },
+        { status: 'Suspendido' }
+      );
+
+      if (user) {
+        await AuditLog.create({
+          usuarioRef: user._id,
+          empresaRef: doc.empresaRef,
+          accion: 'SUSPENSION_AUTOMATICA_POR_BAJA',
+          modulo: 'Recursos Humanos',
+          detalles: { rut: doc.rut, estadoTecnico: doc.estadoActual }
+        }).catch(err => console.error("Error creating AuditLog", err));
+      }
+
+      // 2. Liberar existencias hacia la Bodega Central y bloquear la bodega técnica
+      const almacenesTecnico = await Almacen.find({ tecnicoRef: doc._id, empresaRef: doc.empresaRef });
+      if (almacenesTecnico.length > 0) {
+        const bodegaCentral = await Almacen.findOne({ tipo: 'Central', empresaRef: doc.empresaRef });
+        if (bodegaCentral) {
+          const StockNivel = mongoose.model('StockNivel');
+          const Movimiento = mongoose.model('Movimiento');
+          const Producto = mongoose.model('Producto');
+
+          for (const almacenTec of almacenesTecnico) {
+            const stocks = await StockNivel.find({ almacenRef: almacenTec._id, empresaRef: doc.empresaRef });
+            for (const stock of stocks) {
+              const qtyN = stock.cantidadNuevo || 0;
+              const qtyUB = stock.cantidadUsadoBueno || 0;
+              const qtyUM = stock.cantidadUsadoMalo || 0;
+              const qtyM = stock.cantidadMerma || 0;
+
+              const totalToTransfer = qtyN + qtyUB + qtyUM + qtyM;
+
+              if (totalToTransfer > 0) {
+                await Movimiento.create({
+                  tipo: 'REVERSA',
+                  productoRef: stock.productoRef,
+                  cantidad: totalToTransfer,
+                  estadoProducto: qtyN > 0 ? 'Nuevo' : (qtyUB > 0 ? 'Usado Bueno' : 'Usado Malo'),
+                  almacenOrigen: almacenTec._id,
+                  almacenDestino: bodegaCentral._id,
+                  motivo: `Devolución automática por baja/bloqueo de técnico ${doc.rut}`,
+                  documentoReferencia: 'AUTO-REVERSA-BAJA',
+                  usuarioRef: user ? user._id : null,
+                  empresaRef: doc.empresaRef
+                });
+
+                await StockNivel.findOneAndUpdate(
+                  { productoRef: stock.productoRef, almacenRef: bodegaCentral._id, empresaRef: doc.empresaRef },
+                  { $inc: { 
+                      cantidadNuevo: qtyN, 
+                      cantidadUsadoBueno: qtyUB, 
+                      cantidadUsadoMalo: qtyUM, 
+                      cantidadMerma: qtyM 
+                  } },
+                  { upsert: true }
+                );
+
+                await StockNivel.updateOne(
+                  { _id: stock._id },
+                  { $set: { cantidadNuevo: 0, cantidadUsadoBueno: 0, cantidadUsadoMalo: 0, cantidadMerma: 0 } }
+                );
+                
+                if (qtyN + qtyUB > 0) {
+                  await Producto.findOneAndUpdate(
+                      { _id: stock.productoRef, empresaRef: doc.empresaRef },
+                      { $inc: { stockActual: qtyN + qtyUB } }
+                  );
+                }
+              }
+            }
+            
+            almacenTec.status = 'Inactivo';
+            await almacenTec.save();
+          }
+        } else {
+            await Almacen.updateMany(
+                { tecnicoRef: doc._id, empresaRef: doc.empresaRef },
+                { status: 'Inactivo' }
+            );
+        }
+      }
+
+      // 3. Desactivar GPS asociado
+      await GpsActivo.updateMany(
+        { 'vinculadoA.tecnicoRef': doc._id, empresaRef: doc.empresaRef },
+        { isActive: false, estado: 'APAGADO' }
+      );
+
+    } catch (error) {
+      console.error('[Cross-Talking Error] Error en handleBajaTecnico:', error);
+    }
+  }
+};
+
+TecnicoSchema.post('save', async function(doc) {
+  await handleBajaTecnico(doc);
+});
+
+TecnicoSchema.post('findOneAndUpdate', async function(doc) {
+  await handleBajaTecnico(doc);
+});
+
 module.exports = mongoose.model('Tecnico', TecnicoSchema);

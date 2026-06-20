@@ -68,7 +68,7 @@ const PrevInspeccionesAuditoria = () => {
     }, [filteredInspecciones]);
 
     return (
-        <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20">
+        <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20 w-full overflow-x-hidden relative">
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-6">
                     <div className="bg-slate-900 text-white p-4 rounded-[1.5rem] shadow-xl border-2 border-white">

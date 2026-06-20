@@ -1049,7 +1049,7 @@ const CapturaTalento = () => {
                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Gestión Estratégica de Capital Humano</p>
                 </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 w-full lg:w-auto">
                 <div className="hidden lg:flex items-center gap-3 bg-white/50 backdrop-blur-md px-6 py-4 rounded-2xl border border-slate-200 shadow-sm">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resultados:</span>
                     <span className="text-lg font-black text-indigo-700">{filteredCandidatos.length}</span>
@@ -1456,7 +1456,7 @@ const CapturaTalento = () => {
                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Sincronizando Capital Humano...</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto no-scrollbar">
+                    <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-900 text-white border-b-4 border-slate-800">
                                 <tr>
@@ -2580,9 +2580,9 @@ const CapturaTalento = () => {
     );
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+        <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden w-full relative">
             {!showForm ? (
-                <div className="max-w-[1600px] mx-auto animate-in fade-in duration-700">
+                <div className="max-w-[1600px] mx-auto animate-in fade-in duration-700 w-full">
                     {renderHeader()}
                     <div className="sticky top-0 z-[100] bg-[#F8FAFC]/90 backdrop-blur-md -mx-4 md:-mx-10 px-4 md:px-10 pt-4">
                         {renderFilters()}
@@ -2592,7 +2592,7 @@ const CapturaTalento = () => {
                 </div>
             ) : (
                 <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-4">
-                    <div className="w-full max-w-[1100px]">
+                    <div className="w-full max-w-[1100px] max-h-[90vh] overflow-y-auto custom-scrollbar bg-white rounded-3xl">
                         {renderForm()}
                     </div>
                 </div>
@@ -2978,7 +2978,7 @@ const CapturaTalento = () => {
                                                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vista Previa de Datos (Primeros 10)</span>
                                                     <span className="text-[9px] font-bold text-slate-400 italic">Desliza para ver la grilla completa</span>
                                                 </div>
-                                                <div className="overflow-x-auto">
+                                                <div className="overflow-x-auto custom-scrollbar">
                                                     <table className="w-full text-left border-collapse text-xs">
                                                         <thead>
                                                             <tr className="bg-slate-100/50 text-[9px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-200">

@@ -169,3 +169,4 @@ mobile/dist/
 mobile/android/app/build/
 mobile/ios/Pods/
 *.metadata.json
+client/public/downloads/

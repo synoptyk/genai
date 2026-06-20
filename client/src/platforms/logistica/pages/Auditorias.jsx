@@ -165,7 +165,7 @@ const Auditorias = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full overflow-x-hidden relative">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
@@ -366,112 +366,114 @@ const Auditorias = () => {
                                         </div>
                                     </div>
 
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                <th className="pb-6 px-4">Producto / Activo</th>
-                                                <th className="pb-6 px-4 text-center">Snapshot Sistema</th>
-                                                <th className="pb-6 px-4 text-center w-40">Conteo Físico</th>
-                                                <th className="pb-6 px-4 text-center">Evidencia Visual</th>
-                                                <th className="pb-6 px-4 text-right">Balance</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                        {stockParaAuditar.map((item, idx) => (
-                                            <React.Fragment key={idx}>
-                                                <tr className="group hover:bg-slate-50/50 transition-all">
-                                                    <td className="py-6 px-4">
-                                                        <div className="text-[13px] font-black text-slate-800 uppercase tracking-tight">{item.nombre}</div>
-                                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku} · {item.estado}</div>
-                                                        {(item.modelo || item.serie) && (
-                                                            <div className="mt-1 flex gap-2">
-                                                                {item.modelo && <span className="bg-slate-100 px-2 py-0.5 rounded-lg text-[8px] font-black text-slate-500 uppercase">{item.modelo}</span>}
-                                                                {item.serie && <span className="bg-amber-100 px-2 py-0.5 rounded-lg text-[8px] font-black text-amber-700 uppercase">S/N: {item.serie}</span>}
+                                    <div className="overflow-x-auto custom-scrollbar">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    <th className="pb-6 px-4">Producto / Activo</th>
+                                                    <th className="pb-6 px-4 text-center">Snapshot Sistema</th>
+                                                    <th className="pb-6 px-4 text-center w-40">Conteo Físico</th>
+                                                    <th className="pb-6 px-4 text-center">Evidencia Visual</th>
+                                                    <th className="pb-6 px-4 text-right">Balance</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                            {stockParaAuditar.map((item, idx) => (
+                                                <React.Fragment key={idx}>
+                                                    <tr className="group hover:bg-slate-50/50 transition-all">
+                                                        <td className="py-6 px-4">
+                                                            <div className="text-[13px] font-black text-slate-800 uppercase tracking-tight">{item.nombre}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.sku} · {item.estado}</div>
+                                                            {(item.modelo || item.serie) && (
+                                                                <div className="mt-1 flex gap-2">
+                                                                    {item.modelo && <span className="bg-slate-100 px-2 py-0.5 rounded-lg text-[8px] font-black text-slate-500 uppercase">{item.modelo}</span>}
+                                                                    {item.serie && <span className="bg-amber-100 px-2 py-0.5 rounded-lg text-[8px] font-black text-amber-700 uppercase">S/N: {item.serie}</span>}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-6 px-4 text-center font-bold text-slate-500 text-lg">{item.stockSistema}</td>
+                                                        <td className="py-6 px-4">
+                                                            <input 
+                                                                type="number"
+                                                                value={item.conteoFisico}
+                                                                onChange={(e) => handleCountChange(idx, e.target.value)}
+                                                                className="w-full bg-white border-2 border-slate-100 rounded-2xl px-5 py-4 text-center text-xl font-black focus:border-indigo-500 outline-none shadow-sm transition-all"
+                                                            />
+                                                        </td>
+                                                        <td className="py-6 px-4">
+                                                            <div className="flex justify-center">
+                                                                {item.fotoUrl ? (
+                                                                    <div className="relative group/foto">
+                                                                        <img src={item.fotoUrl} alt="Audit" className="w-16 h-16 rounded-2xl object-cover border-4 border-white shadow-lg shadow-black/10" />
+                                                                        <button 
+                                                                            onClick={() => {
+                                                                                const next = [...stockParaAuditar];
+                                                                                next[idx].fotoUrl = '';
+                                                                                setStockParaAuditar(next);
+                                                                            }}
+                                                                            className="absolute -top-3 -right-3 bg-rose-500 text-white p-2 rounded-full shadow-lg"
+                                                                        >
+                                                                            <X size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <label className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl cursor-pointer hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center shadow-inner border border-indigo-100/50 group/btn">
+                                                                        <Camera size={24} className="group-hover/btn:scale-110 transition-transform" />
+                                                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-white animate-pulse" />
+                                                                        <input 
+                                                                            type="file" 
+                                                                            accept="image/*" 
+                                                                            capture="environment"
+                                                                            className="hidden" 
+                                                                            onChange={(e) => handlePhotoUpload(idx, e)}
+                                                                        />
+                                                                    </label>
+                                                                )}
                                                             </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-6 px-4 text-center font-bold text-slate-500 text-lg">{item.stockSistema}</td>
-                                                    <td className="py-6 px-4">
-                                                        <input 
-                                                            type="number"
-                                                            value={item.conteoFisico}
-                                                            onChange={(e) => handleCountChange(idx, e.target.value)}
-                                                            className="w-full bg-white border-2 border-slate-100 rounded-2xl px-5 py-4 text-center text-xl font-black focus:border-indigo-500 outline-none shadow-sm transition-all"
-                                                        />
-                                                    </td>
-                                                    <td className="py-6 px-4">
-                                                        <div className="flex justify-center">
-                                                            {item.fotoUrl ? (
-                                                                <div className="relative group/foto">
-                                                                    <img src={item.fotoUrl} alt="Audit" className="w-16 h-16 rounded-2xl object-cover border-4 border-white shadow-lg shadow-black/10" />
-                                                                    <button 
-                                                                        onClick={() => {
+                                                        </td>
+                                                        <td className={`py-6 px-4 text-right font-black text-lg ${item.diferencia === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                            {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
+                                                        </td>
+                                                    </tr>
+                                                    <tr className="bg-slate-50/20 group hover:bg-slate-50/50 transition-all border-b border-slate-50">
+                                                        <td colSpan={5} className="px-10 py-3">
+                                                            <div className="flex items-center gap-6">
+                                                                <div className="flex items-center gap-2 flex-1">
+                                                                    <PenTool size={14} className="text-slate-300" />
+                                                                    <input 
+                                                                        type="text"
+                                                                        placeholder="Notas específicas..."
+                                                                        className="flex-1 bg-transparent text-[10px] font-bold text-slate-500 outline-none border-none py-1"
+                                                                        value={item.comentario}
+                                                                        onChange={(e) => {
                                                                             const next = [...stockParaAuditar];
-                                                                            next[idx].fotoUrl = '';
+                                                                            next[idx].comentario = e.target.value;
                                                                             setStockParaAuditar(next);
                                                                         }}
-                                                                        className="absolute -top-3 -right-3 bg-rose-500 text-white p-2 rounded-full shadow-lg"
-                                                                    >
-                                                                        <X size={12} />
-                                                                    </button>
-                                                                </div>
-                                                            ) : (
-                                                                <label className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl cursor-pointer hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center shadow-inner border border-indigo-100/50 group/btn">
-                                                                    <Camera size={24} className="group-hover/btn:scale-110 transition-transform" />
-                                                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-white animate-pulse" />
-                                                                    <input 
-                                                                        type="file" 
-                                                                        accept="image/*" 
-                                                                        capture="environment"
-                                                                        className="hidden" 
-                                                                        onChange={(e) => handlePhotoUpload(idx, e)}
                                                                     />
-                                                                </label>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className={`py-6 px-4 text-right font-black text-lg ${item.diferencia === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                        {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
-                                                    </td>
-                                                </tr>
-                                                <tr className="bg-slate-50/20 group hover:bg-slate-50/50 transition-all border-b border-slate-50">
-                                                    <td colSpan={5} className="px-10 py-3">
-                                                        <div className="flex items-center gap-6">
-                                                            <div className="flex items-center gap-2 flex-1">
-                                                                <PenTool size={14} className="text-slate-300" />
-                                                                <input 
-                                                                    type="text"
-                                                                    placeholder="Notas específicas..."
-                                                                    className="flex-1 bg-transparent text-[10px] font-bold text-slate-500 outline-none border-none py-1"
-                                                                    value={item.comentario}
-                                                                    onChange={(e) => {
-                                                                        const next = [...stockParaAuditar];
-                                                                        next[idx].comentario = e.target.value;
-                                                                        setStockParaAuditar(next);
-                                                                    }}
-                                                                />
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">S/N Detectado:</span>
+                                                                    <input 
+                                                                        type="text"
+                                                                        placeholder="Escanear o digitar serie..."
+                                                                        className="w-40 bg-white border border-slate-200 rounded-lg px-3 py-1 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                        value={item.serie}
+                                                                        onChange={(e) => {
+                                                                            const next = [...stockParaAuditar];
+                                                                            next[idx].serie = e.target.value;
+                                                                            setStockParaAuditar(next);
+                                                                        }}
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">S/N Detectado:</span>
-                                                                <input 
-                                                                    type="text"
-                                                                    placeholder="Escanear o digitar serie..."
-                                                                    className="w-40 bg-white border border-slate-200 rounded-lg px-3 py-1 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                                                                    value={item.serie}
-                                                                    onChange={(e) => {
-                                                                        const next = [...stockParaAuditar];
-                                                                        next[idx].serie = e.target.value;
-                                                                        setStockParaAuditar(next);
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            </React.Fragment>
-                                        ))}
-                                    </tbody>
-                                    </table>
+                                                        </td>
+                                                    </tr>
+                                                </React.Fragment>
+                                            ))}
+                                        </tbody>
+                                        </table>
+                                    </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
                                         <div className="md:col-span-2 space-y-4">

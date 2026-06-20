@@ -47,7 +47,7 @@ const SupervisorHseProgress = () => {
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto p-6 md:p-10 space-y-8 animate-in fade-in duration-700">
+        <div className="max-w-[1600px] mx-auto p-6 md:p-10 space-y-8 animate-in fade-in duration-700 w-full overflow-x-hidden relative">
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>

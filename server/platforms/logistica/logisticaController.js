@@ -845,6 +845,20 @@ exports.deleteProducto = async (req, res) => {
     try {
         const eliminado = await Producto.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!eliminado) return res.status(404).json({ message: 'Producto no encontrado' });
+
+        try {
+            const AuditLog = require('../../models/AuditLog');
+            await AuditLog.create({
+                usuarioRef: req.user._id,
+                empresaRef: req.user.empresaRef,
+                accion: 'ELIMINACION_PRODUCTO',
+                modulo: 'Logística',
+                detalles: { sku: eliminado.sku, nombre: eliminado.nombre }
+            });
+        } catch (e) {
+            console.error('Error AuditLog deleteProducto:', e.message);
+        }
+
         res.json({ message: 'Producto eliminado' });
     } catch (e) {
         res.status(400).json({ message: e.message });
@@ -982,6 +996,19 @@ exports.deleteAlmacen = async (req, res) => {
     try {
         const eliminado = await Almacen.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!eliminado) return res.status(404).json({ message: 'Almacen no encontrado' });
+
+        try {
+            const AuditLog = require('../../models/AuditLog');
+            await AuditLog.create({
+                usuarioRef: req.user._id,
+                empresaRef: req.user.empresaRef,
+                accion: 'ELIMINACION_ALMACEN',
+                modulo: 'Logística',
+                detalles: { codigo: eliminado.codigo, nombre: eliminado.nombre }
+            });
+        } catch (e) {
+            console.error('Error AuditLog deleteAlmacen:', e.message);
+        }
 
         await notificationService.notifyAction({
             actor: req.user,

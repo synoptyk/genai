@@ -145,7 +145,7 @@ export default function SlideOverCargaMasiva({ onClose, onSuccess }) {
                   Vista Previa ({preview.length} válidos)
                 </h3>
               </div>
-              <div className="max-h-60 overflow-y-auto">
+              <div className="max-h-60 overflow-y-auto overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-white sticky top-0 border-b border-slate-100 shadow-sm">
                     <tr>

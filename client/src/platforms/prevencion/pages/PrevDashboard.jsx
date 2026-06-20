@@ -61,7 +61,7 @@ const PrevDashboard = () => {
     }
 
     return (
-        <div className="page-sm min-h-full bg-slate-50/30 p-4 md:p-8 pb-20 sm:pb-32">
+        <div className="page-sm min-h-full bg-slate-50/30 p-4 md:p-8 pb-20 sm:pb-32 w-full overflow-x-hidden relative">
             {/* TOP HEADER - STICKY LOOK */}
             <div className={`page-header flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-8 sm:mb-10 transition-all ${scrolled ? 'bg-white/80 backdrop-blur-xl p-3 sm:p-4 -mx-2 sm:-mx-4 rounded-b-2xl sm:rounded-b-3xl sticky top-0 z-50 shadow-sm' : ''}`}>
                 <div className="flex items-center gap-3 sm:gap-4 text-left">

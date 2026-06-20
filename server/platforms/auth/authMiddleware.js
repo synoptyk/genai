@@ -28,6 +28,11 @@ exports.protect = async (req, res, next) => {
             console.error(`❌ [Auth] Error: Usuario ID ${decoded.id} no encontrado en DB`);
             return res.status(401).json({ message: 'Usuario no encontrado' });
         }
+
+        if (user.status === 'Suspendido' || user.status === 'Inactivo') {
+            console.error(`❌ [Auth] Error: Usuario ${user.email} intentó acceder pero está ${user.status}`);
+            return res.status(403).json({ message: `Su cuenta está ${user.status.toLowerCase()}. Por favor, contacte a su administrador.` });
+        }
         
         if (decoded.version !== undefined && user.tokenVersion !== undefined && decoded.version < user.tokenVersion) {
             console.error(`❌ [Auth] Sesión expirada para ${user.email} (Token v${decoded.version} < DB v${user.tokenVersion})`);

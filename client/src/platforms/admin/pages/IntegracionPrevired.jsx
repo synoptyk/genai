@@ -455,7 +455,7 @@ const IntegracionPrevired = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="p-8 overflow-x-auto">
+                            <div className="p-8 overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left">
                                     <thead>
                                         <tr className="border-b border-slate-100">

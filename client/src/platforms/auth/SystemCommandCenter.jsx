@@ -5,7 +5,7 @@ import {
     Zap, BarChart3, Activity, CheckCircle2, AlertTriangle, LogOut,
     Eye as EyeIcon, EyeOff, Search, Crown, UserPlus, Settings, Home,
     Plus, Globe, Calendar, DollarSign, Clock, Sliders,
-    Lock, Unlock, Shield, ShieldAlert, ShieldCheck, Brain, PanelLeftOpen
+    Lock, Unlock, Shield, ShieldAlert, ShieldCheck, Brain, PanelLeftOpen, Truck, Navigation
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
@@ -118,6 +118,7 @@ const CeoCommandCenter = () => {
         flota_eficiencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         flota_proveedores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        flota_gps_activos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
         // 4b. Distribución
         dist_conecta_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -574,7 +575,7 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_tipos_bono' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_config_notificaciones' },
                                         { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
-                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'dist_conecta_gps' }, { id: 'flota_eficiencia' }, { id: 'flota_proveedores' },
+                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'flota_gps_activos' }, { id: 'dist_conecta_gps' }, { id: 'flota_eficiencia' }, { id: 'flota_proveedores' },
                                         { id: 'dist_mis_conductores' }, { id: 'dist_historial_rutas' }, { id: 'dist_rutas_guiadas' },
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                         { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
@@ -664,12 +665,18 @@ const CeoCommandCenter = () => {
                                     ]
                                 },
                                 {
-                                    category: 'Flota & GPS', icon: Globe, color: 'sky',
+                                    category: 'Flota de Vehículos', icon: Truck, color: 'sky',
                                     modules: [
                                         { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                        { id: 'flota_gps', label: 'GPS SIMPLE' },
                                         { id: 'flota_eficiencia', label: 'Eficiencia Flota' },
                                         { id: 'flota_proveedores', label: 'Proveedores Leasing' }
+                                    ]
+                                },
+                                {
+                                    category: 'GPSGENAI', icon: Navigation, color: 'indigo',
+                                    modules: [
+                                        { id: 'flota_gps', label: 'GPS SIMPLE' },
+                                        { id: 'flota_gps_activos', label: 'GPS Activos' }
                                     ]
                                 },
                                 {
@@ -1163,7 +1170,7 @@ const CeoCommandCenter = () => {
                                     { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_tipos_bono' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_config_notificaciones' },
                                     { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' },
                                     { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
-                                    { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'flota_eficiencia' }, { id: 'flota_proveedores' }, { id: 'dist_conecta_gps' },
+                                    { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'flota_gps_activos' }, { id: 'flota_eficiencia' }, { id: 'flota_proveedores' }, { id: 'dist_conecta_gps' },
                                     { id: 'dist_mis_conductores' }, { id: 'dist_historial_rutas' }, { id: 'dist_rutas_guiadas' },
                                     { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                     { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
@@ -1253,12 +1260,18 @@ const CeoCommandCenter = () => {
                                             ]
                                         },
                                         {
-                                            category: 'Flota & GPS', icon: Globe, color: 'sky',
+                                            category: 'Flota de Vehículos', icon: Truck, color: 'sky',
                                             modules: [
                                                 { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                                { id: 'flota_gps', label: 'GPS SIMPLE' },
                                                 { id: 'flota_eficiencia', label: 'Eficiencia Flota' },
                                                 { id: 'flota_proveedores', label: 'Proveedores Leasing' }
+                                            ]
+                                        },
+                                        {
+                                            category: 'GPSGENAI', icon: Navigation, color: 'indigo',
+                                            modules: [
+                                                { id: 'flota_gps', label: 'GPS SIMPLE' },
+                                                { id: 'flota_gps_activos', label: 'GPS Activos' }
                                             ]
                                         },
                                         {
@@ -1633,7 +1646,7 @@ const CeoCommandCenter = () => {
                                         <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
                                     </div>
                                 ) : (
-                                    <div className="overflow-x-auto">
+                                    <div className="overflow-x-auto custom-scrollbar">
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="border-b border-slate-100 bg-slate-50/80">
@@ -1857,7 +1870,7 @@ const CeoCommandCenter = () => {
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 bg-slate-50/50">
+                            <div className="overflow-x-auto custom-scrollbar rounded-[2rem] border border-slate-100 bg-slate-50/50">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-slate-200 bg-slate-100/50">

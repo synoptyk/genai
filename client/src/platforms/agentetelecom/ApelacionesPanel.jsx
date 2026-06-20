@@ -319,7 +319,7 @@ export default function ApelacionesPanel() {
         </div>
 
         {/* Data Table (Light Theme) */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto custom-scrollbar">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="w-10 h-10 border-3 border-sky-100 border-t-sky-600 rounded-full animate-spin" />
@@ -578,7 +578,7 @@ export default function ApelacionesPanel() {
               <div className="space-y-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-sky-600 block border-b border-slate-150 pb-1.5">Análisis Comparativo (TOA vs Apelación)</span>
                 
-                <div className="overflow-hidden border border-slate-200 rounded-2xl bg-white shadow-inner">
+                <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-2xl bg-white shadow-inner">
                   <table className="w-full text-left border-collapse text-[11px]">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 font-black uppercase text-[8px] text-slate-450 tracking-wider">

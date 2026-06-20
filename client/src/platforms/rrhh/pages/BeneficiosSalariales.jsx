@@ -283,7 +283,7 @@ const Beneficios = () => {
     const conBeneficios = filtered.filter(e => getTotalBeneficios(e._id) > 0).length;
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-24">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-24 w-full overflow-x-hidden relative">
             {alert && (
                 <div className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-black uppercase tracking-wide animate-in slide-in-from-right ${alert.type === 'error' ? 'bg-sky-600' : 'bg-emerald-600'} text-white`}>
                     {alert.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
@@ -674,7 +674,7 @@ const Beneficios = () => {
                                 <p className="text-slate-400 font-bold">No hay transacciones registradas en este período</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b-2 border-slate-100">

@@ -229,7 +229,7 @@ const PortalesOperativos = () => {
                 </div>
 
                 {/* TABLE */}
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50">

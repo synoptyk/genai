@@ -211,7 +211,7 @@ const ConfigBaremo = ({ model, onChange }) => {
           <button onClick={() => onChange({ tramosBaremos: [...model.tramosBaremos, { desde: 0, hasta: 0, valor: 0 }] })}
             className="p-2 bg-white border border-indigo-100 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors"><Plus size={14} /></button>
         </div>
-        <div className="overflow-hidden border border-slate-100 rounded-2xl">
+        <div className="overflow-x-auto custom-scrollbar border border-slate-100 rounded-2xl">
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
@@ -254,7 +254,7 @@ const ConfigBaremo = ({ model, onChange }) => {
               </div>
               <button onClick={add} className={`p-1.5 bg-white border border-${color}-100 rounded-xl text-${color}-600 hover:bg-${color}-50`}><Plus size={12} /></button>
             </div>
-            <div className={`border border-${color}-100 rounded-2xl overflow-hidden`}>
+            <div className={`border border-${color}-100 rounded-2xl overflow-x-auto custom-scrollbar`}>
               <table className="w-full text-left">
                 <thead className={`bg-${color}-50/40 border-b border-${color}-100`}>
                   <tr>
@@ -389,7 +389,7 @@ const ConfigComision = ({ model, onChange }) => {
             <button onClick={() => set('tramos', [...(com.tramos || []), { desde: 0, hasta: 'Sin tope', valor: 0 }])}
               className="p-2 bg-white border border-amber-100 rounded-xl text-amber-600 hover:bg-amber-50"><Plus size={14} /></button>
           </div>
-          <div className="border border-amber-100 rounded-2xl overflow-hidden">
+          <div className="border border-amber-100 rounded-2xl overflow-x-auto custom-scrollbar">
             <table className="w-full text-left">
               <thead className="bg-amber-50/50 border-b border-amber-100">
                 <tr>
@@ -453,7 +453,7 @@ const ConfigMetaKpi = ({ model, onChange }) => {
           <button onClick={() => set('tramos', [...(mk.tramos || []), { desde: 100, hasta: 'Sin tope', monto: 0 }])}
             className="p-2 bg-white border border-violet-100 rounded-xl text-violet-600 hover:bg-violet-50"><Plus size={14} /></button>
         </div>
-        <div className="border border-violet-100 rounded-2xl overflow-hidden">
+        <div className="border border-violet-100 rounded-2xl overflow-x-auto custom-scrollbar">
           <table className="w-full text-left">
             <thead className="bg-violet-50/50 border-b border-violet-100">
               <tr>
@@ -508,7 +508,7 @@ const ConfigEscalaAntiguedad = ({ model, onChange }) => {
           <button onClick={() => set('tramos', [...(ea.tramos || []), { aniosDesde: 1, aniosHasta: 'Sin tope', valor: 0 }])}
             className="p-2 bg-white border border-teal-100 rounded-xl text-teal-600 hover:bg-teal-50"><Plus size={14} /></button>
         </div>
-        <div className="border border-teal-100 rounded-2xl overflow-hidden">
+        <div className="border border-teal-100 rounded-2xl overflow-x-auto custom-scrollbar">
           <table className="w-full text-left">
             <thead className="bg-teal-50/50 border-b border-teal-100">
               <tr>

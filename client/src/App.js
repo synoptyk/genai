@@ -32,6 +32,7 @@ import EficienciaFlota from './platforms/logistica/pages/EficienciaFlota';
 import Flota from './platforms/agentetelecom/Flota';
 import ProveedoresLeasing from './platforms/agentetelecom/Flota/ProveedoresLeasing';
 import MonitorGps from './platforms/agentetelecom/MonitorGps';
+import GPSActivos from './platforms/flota/pages/GPSActivos';
 import ConectaGPS from './platforms/agentetelecom/ConectaGPS';
 import MisConductores from './platforms/agentetelecom/MisConductores';
 import HistorialRutas from './platforms/agentetelecom/HistorialRutas';
@@ -230,6 +231,7 @@ function AppRoutes() {
       <Route path="/flota/eficiencia" element={<ProtectedRoute allowPermissions={['flota_eficiencia']}><AppShell><EficienciaFlota /></AppShell></ProtectedRoute>} />
       <Route path="/flota/proveedores" element={<ProtectedRoute allowPermissions={['flota_proveedores']}><AppShell><ProveedoresLeasing /></AppShell></ProtectedRoute>} />
       <Route path="/monitor-gps" element={<ProtectedRoute allowPermissions={['flota_gps']}><AppShell><MonitorGps /></AppShell></ProtectedRoute>} />
+      <Route path="/gps-activos" element={<ProtectedRoute allowPermissions={['flota_gps_activos']}><AppShell><GPSActivos /></AppShell></ProtectedRoute>} />
       <Route path="/industria/distribucion/conecta-gps" element={<ProtectedRoute allowPermissions={['dist_conecta_gps']}><AppShell><ConectaGPS /></AppShell></ProtectedRoute>} />
       <Route path="/industria/distribucion/mis-conductores" element={<ProtectedRoute allowPermissions={['dist_mis_conductores']}><AppShell><MisConductores /></AppShell></ProtectedRoute>} />
       <Route path="/industria/distribucion/historial-rutas" element={<ProtectedRoute allowPermissions={['dist_historial_rutas']}><AppShell><HistorialRutas /></AppShell></ProtectedRoute>} />

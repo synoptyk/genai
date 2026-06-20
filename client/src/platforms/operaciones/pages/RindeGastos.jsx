@@ -212,7 +212,7 @@ const RindeGastos = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 md:p-8 animate-in fade-in duration-700 font-sans">
+    <div className="min-h-screen bg-slate-50/50 p-6 md:p-8 animate-in fade-in duration-700 font-sans w-full overflow-x-hidden relative">
       {/* Header Premium */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -226,7 +226,7 @@ const RindeGastos = () => {
             <p className="text-slate-500 font-medium ml-1">Gestión corporativa de rendiciones y reembolsos</p>
           </div>
 
-          <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-xl shadow-slate-100 h-fit">
+          <div className="flex flex-wrap md:flex-nowrap bg-white p-1 rounded-2xl border border-slate-200 shadow-xl shadow-slate-100 h-fit w-full md:w-auto mt-4 md:mt-0">
             <button 
               onClick={() => setActiveTab('rendir')}
               className={`px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'rendir' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
@@ -458,7 +458,7 @@ const RindeGastos = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-slate-50/50">

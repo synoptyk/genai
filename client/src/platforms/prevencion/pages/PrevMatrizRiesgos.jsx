@@ -75,7 +75,7 @@ const PrevMatrizRiesgos = () => {
     });
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-32">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-32 w-full overflow-x-hidden relative">
             {/* HEADER */}
             <div className="flex items-center justify-between mb-10">
                 <div className="flex items-center gap-6">
@@ -183,7 +183,7 @@ const PrevMatrizRiesgos = () => {
             {/* MODAL EDICION */}
             {showEdit && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-                    <form onSubmit={handleSave} className="bg-white rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col text-left">
+                    <form onSubmit={handleSave} className="bg-white rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col text-left">
                         <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
                             <div className="flex items-center gap-4">
                                 <Settings2 className="text-rose-500" size={24} />

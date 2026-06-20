@@ -985,7 +985,7 @@ const ControlAsistencia = () => {
 
     // ─────────────────────────────────────────────────────────────────────────
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-24">
+        <div className="min-h-full bg-slate-50/50 p-6 pb-24 w-full overflow-x-hidden relative">
             {/* ALERT */}
             {alert && (
                 <div className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-black uppercase tracking-wide animate-in slide-in-from-right ${alert.type === 'error' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
@@ -1266,7 +1266,7 @@ const ControlAsistencia = () => {
                             <Loader2 size={36} className="animate-spin text-indigo-500 opacity-50" />
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto custom-scrollbar pb-4">
                             <table className="w-full border-collapse" style={{ minWidth: `${diasEnMes * 44 + 540}px` }}>
                                 <thead>
                                     <tr className="bg-slate-50 sticky top-0 z-20 border-b border-slate-200">
@@ -1566,7 +1566,7 @@ const ControlAsistencia = () => {
                     </div>
 
                     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden">
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left min-w-[900px]">
                                 <thead className="bg-slate-50/80">
                                     <tr>

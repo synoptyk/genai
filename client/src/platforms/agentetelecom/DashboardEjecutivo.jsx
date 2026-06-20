@@ -242,7 +242,7 @@ const EliteRankingTable = ({ tecnicos, metaDia, searchTerm, setSearchTerm }) => 
           className="w-full bg-slate-50/50 border border-slate-100 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
         />
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto custom-scrollbar">
         <table className="w-full text-left border-separate border-spacing-y-2">
           <thead>
             <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
@@ -1111,7 +1111,7 @@ const DashboardEjecutivo = () => {
               </div>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50/50 text-[9px] uppercase tracking-widest text-slate-400 font-black">

@@ -74,7 +74,7 @@ const LogisticaDashboard = () => {
     ];
 
     return (
-        <div className="page-sm space-y-6 sm:space-y-8 animate-in fade-in duration-500">
+        <div className="page-sm space-y-6 sm:space-y-8 animate-in fade-in duration-500 w-full overflow-x-hidden relative">
             {/* Header Area */}
             <div className="page-header flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>

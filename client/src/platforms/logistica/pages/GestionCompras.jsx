@@ -186,7 +186,7 @@ const GestionCompras = () => {
     };
 
     return (
-        <div className="page-sm space-y-6 sm:space-y-8">
+        <div className="page-sm space-y-6 sm:space-y-8 w-full overflow-x-hidden relative">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 tracking-tight">Círculo de Compras 360</h1>
@@ -237,7 +237,7 @@ const GestionCompras = () => {
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left">
                         <thead className="bg-slate-50/80 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100">
                             <tr>
@@ -511,10 +511,9 @@ const GestionCompras = () => {
                 </div>
             )}
 
-            {/* Modal Cotizaciones */}
             {showQuoteModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl animate-in zoom-in-95 overflow-hidden">
+                    <div className="bg-white rounded-[3rem] w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95">
                         <div className="p-8 bg-indigo-600 text-white">
                             <h2 className="text-xl font-black flex items-center gap-3">
                                 <DollarSign /> Registro de Cotización <span className="text-white/40 tracking-tight font-mono ml-auto">#{selectedSC.codigoSC}</span>
@@ -570,10 +569,9 @@ const GestionCompras = () => {
                 </div>
             )}
 
-            {/* Modal Generación OC */}
             {showOCModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden">
+                    <div className="bg-white rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95">
                         <div className="p-8 bg-slate-900 text-white">
                             <h2 className="text-xl font-black flex items-center gap-3"><Truck /> Generar Orden de Compra</h2>
                             <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1">Configura los precios unitarios finales para emitir el documento.</p>

@@ -187,7 +187,7 @@ const BonosFijos = () => {
     const totalGeneral = procesarBonosFijos.reduce((sum, item) => sum + item.totalPagar, 0);
 
     return (
-        <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans">
+        <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans w-full overflow-x-hidden relative">
             <div className="max-w-[1600px] mx-auto">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
                     <div>
@@ -200,7 +200,7 @@ const BonosFijos = () => {
                         </p>
                     </div>
                     
-                    <div className="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="flex flex-wrap md:flex-nowrap items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-full md:w-auto">
                         <Calendar size={16} className="text-slate-400 ml-2" />
                         <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="bg-transparent text-sm font-black text-slate-700 focus:outline-none pr-2" />
                         <button onClick={fetchData} className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all">

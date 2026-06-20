@@ -579,7 +579,7 @@ const HistorialRutas = () => {
                 <p className="text-xs font-black uppercase tracking-wider text-slate-700">Rutas históricas GPS</p>
               </div>
 
-              <div className="overflow-auto max-h-[620px]">
+              <div className="overflow-auto custom-scrollbar max-h-[620px]">
                 {historyRoutes.length === 0 && <p className="p-6 text-sm text-slate-500">No se encontraron rutas para el filtro seleccionado.</p>}
 
                 {historyRoutes.length > 0 && (

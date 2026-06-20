@@ -744,7 +744,7 @@ const PortalColaborador = () => {
         );
 
         return (
-            <div className="max-w-[1400px] mx-auto pb-20 px-4 pt-4 animate-in fade-in duration-700">
+            <div className="max-w-[1400px] mx-auto pb-20 px-4 pt-4 animate-in fade-in duration-700 w-full overflow-x-hidden relative">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
                     <div className="flex items-center gap-6">
                         <div className="relative group">
@@ -907,7 +907,7 @@ const PortalColaborador = () => {
         const gruposOrdenados = Object.keys(gruposLPU).sort();
 
         return (
-            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 {renderHeader('Catálogo LPU Baremizada', BarChart3)}
                 {loadingTarifas ? (
                     <div className="flex items-center justify-center py-20">
@@ -922,7 +922,7 @@ const PortalColaborador = () => {
                                         <div className="p-2 bg-indigo-50 rounded-xl"><BarChart3 size={18} className="text-indigo-600" /></div>
                                         <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">{grupo}</h3>
                                     </div>
-                                    <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                                    <div className="overflow-x-auto custom-scrollbar border border-slate-100 rounded-2xl">
                                         <table className="w-full min-w-[600px] text-left">
                                             <thead className="bg-slate-50 border-b border-slate-100">
                                                 <tr>
@@ -994,7 +994,7 @@ const PortalColaborador = () => {
         };
 
         return (
-            <div className="max-w-[1000px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[1000px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
                     {renderHeader("Mis Solicitudes", Calendar)}
                     <button
@@ -1141,7 +1141,7 @@ const PortalColaborador = () => {
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'configuracion-bonificacion') {
         return (
-            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 {renderHeader('Configuración de Cálculo de Bonificación', BarChart3)}
                 {loadingBonos ? (
                     <div className="flex items-center justify-center py-20">
@@ -1160,7 +1160,7 @@ const PortalColaborador = () => {
                                 <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex-1">Puntos No Calculables (se restan antes de aplicar tramo)</span>
                                 <span className="bg-white text-amber-700 px-3 py-1 rounded-xl text-sm font-black border border-amber-200">{puntosNoCalculables} pts</span>
                             </div>
-                            <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                            <div className="overflow-x-auto custom-scrollbar border border-slate-100 rounded-2xl">
                                 <table className="w-full min-w-[500px] text-left">
                                     <thead className="bg-slate-50 border-b border-slate-100">
                                         <tr>
@@ -1191,7 +1191,7 @@ const PortalColaborador = () => {
                                     <div className="p-2 bg-emerald-50 rounded-xl"><TrendingUp size={16} className="text-emerald-600" /></div>
                                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Calidad RR</h4>
                                 </div>
-                                <div className="overflow-x-auto border border-emerald-100 rounded-2xl">
+                                <div className="overflow-x-auto custom-scrollbar border border-emerald-100 rounded-2xl">
                                     <table className="w-full min-w-[300px] text-left">
                                         <thead className="bg-emerald-50/50 border-b border-emerald-100">
                                             <tr>
@@ -1219,7 +1219,7 @@ const PortalColaborador = () => {
                                     <div className="p-2 bg-blue-50 rounded-xl"><Settings size={16} className="text-blue-600" /></div>
                                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Calidad AI</h4>
                                 </div>
-                                <div className="overflow-x-auto border border-blue-100 rounded-2xl">
+                                <div className="overflow-x-auto custom-scrollbar border border-blue-100 rounded-2xl">
                                     <table className="w-full min-w-[300px] text-left">
                                         <thead className="bg-blue-50/50 border-b border-blue-100">
                                             <tr>
@@ -1260,7 +1260,7 @@ const PortalColaborador = () => {
     if (false && activeView === 'actividades-lpu-old') {
         const prod = null;
         return (
-            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32 w-full overflow-x-hidden relative">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
                     {renderHeader("Actividades LPU Baremizada", BarChart3)}
                     <div className="flex gap-2 p-1.5 bg-slate-100 rounded-3xl border border-slate-200">
@@ -1291,7 +1291,7 @@ const PortalColaborador = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -1437,7 +1437,7 @@ const PortalColaborador = () => {
 
 
         return (
-            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32 w-full overflow-x-hidden relative">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
                     {renderHeader("Mis KPI's & Producción", BarChart3)}
                     {/* Month Selector y acceso a Configuración de Cálculo */}
@@ -2220,7 +2220,7 @@ const PortalColaborador = () => {
                             </div>
 
                             {/* Vista de Escritorio - Tabla Completa */}
-                            <div className="hidden lg:block overflow-x-auto">
+                            <div className="hidden lg:block overflow-x-auto custom-scrollbar">
                                 <table className="w-full min-w-[900px] text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -2821,7 +2821,7 @@ const PortalColaborador = () => {
         const tecnicoFijo = tecnico?.idRecursoToa || tecnico?.idRecurso || tecnico?._id || user?.idRecurso || user?.id;
         
         return (
-            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32 w-full overflow-x-hidden relative">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
                     {renderHeader("Mis Garantías", ShieldAlert)}
                     {/* Month Selector */}
@@ -2862,7 +2862,7 @@ const PortalColaborador = () => {
         const tecnicoFijo = tecnico?.idRecursoToa || tecnico?.idRecurso || tecnico?._id || user?.idRecurso || user?.id;
         
         return (
-            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32 w-full overflow-x-hidden relative">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
                     {renderHeader("Mi Agenda", Calendar)}
                     {/* Month Selector */}
@@ -2909,7 +2909,7 @@ const PortalColaborador = () => {
         ];
 
         return (
-            <div className="max-w-[1000px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[1000px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 {renderHeader("Panel de Cumplimiento", ShieldCheck)}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -3076,7 +3076,7 @@ const PortalColaborador = () => {
         };
 
         return (
-            <div className="max-w-[1200px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[1200px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 {renderHeader("Mi Inventario & Auditorías", ClipboardList)}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -3624,7 +3624,7 @@ const PortalColaborador = () => {
         };
 
         return (
-            <div className="max-w-[800px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[800px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 {renderHeader("Solicitud de Combustible", Fuel)}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -3768,7 +3768,7 @@ const PortalColaborador = () => {
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'perfil') {
         return (
-            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 {renderHeader('Mi Perfil', User)}
                 <div className="space-y-6">
                     <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
@@ -3955,7 +3955,7 @@ const PortalColaborador = () => {
         };
 
         return (
-            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20 w-full overflow-x-hidden relative">
                 {renderHeader('Mis Activos', Truck)}
                 <div className="space-y-6">
                     {/* Vehículo asignado */}

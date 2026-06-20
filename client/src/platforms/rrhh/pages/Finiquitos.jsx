@@ -1099,7 +1099,7 @@ const Finiquitos = () => {
     });
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="w-full overflow-x-hidden relative min-h-full bg-slate-50/50 p-6 pb-20">
 
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
@@ -1224,7 +1224,7 @@ const Finiquitos = () => {
                 </div>
             ) : (
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
                                 <tr>

@@ -88,7 +88,7 @@ const Proveedores = () => {
     );
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full overflow-x-hidden relative">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Gestión de Proveedores</h1>
@@ -170,7 +170,7 @@ const Proveedores = () => {
 
             {showModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
                         <form onSubmit={handleSubmit}>
                             <div className="p-8 border-b border-slate-50">
                                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">{editing ? 'Editar' : 'Nuevo'} Proveedor</h2>

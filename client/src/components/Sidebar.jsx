@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Truck, Activity, Settings,
@@ -10,6 +11,7 @@ import {
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
   Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
+  Wallet, Clock, Building, Medal, ArrowLeft, MoreVertical, Search, Plus, List, Navigation,
   PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain, Route, TrendingDown, Gift, Mail
 } from 'lucide-react';
 
@@ -294,8 +296,53 @@ const SubModule = ({ label, icon: Icon, isOpen, onToggle, children, accent = 'in
 /* ═══════════════════════════════════════════════════════════════
    EXPANDED SECTION WRAPPER — colored left-border section
 ═══════════════════════════════════════════════════════════════ */
-const ExpandedSection = ({ color, children }) => {
+const ExpandedSection = ({ color, children, isCollapsed }) => {
   const t = THEME[color] || THEME.indigo;
+  const triggerRef = useRef(null);
+  const [topPos, setTopPos] = useState(0);
+
+  useEffect(() => {
+    if (isCollapsed && triggerRef.current) {
+      const parentSection = triggerRef.current.parentElement;
+      if (!parentSection) return;
+
+      const updatePosition = () => {
+        const rect = parentSection.getBoundingClientRect();
+        setTopPos(rect.top);
+      };
+
+      updatePosition();
+      
+      const sidebarNav = document.querySelector('.sidebar-nav');
+      if (sidebarNav) {
+        sidebarNav.addEventListener('scroll', updatePosition, { passive: true });
+      }
+      window.addEventListener('resize', updatePosition);
+      
+      return () => {
+        if (sidebarNav) sidebarNav.removeEventListener('scroll', updatePosition);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [isCollapsed]);
+  
+  if (isCollapsed) {
+    return (
+      <div ref={triggerRef} className="pointer-events-none w-full h-0">
+        {topPos > 0 && createPortal(
+          <div 
+            className={`fixed left-[4.5rem] z-[9999] w-64 rounded-2xl shadow-2xl bg-white border border-slate-100 p-3 space-y-1 animate-in fade-in zoom-in-95 duration-150`}
+            style={{ top: Math.max(16, topPos) }}
+          >
+            <div className={`w-12 h-1 rounded-full mb-3 ${t.bg} opacity-50`}></div>
+            {children}
+          </div>,
+          document.body
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={`mt-1 mb-3 rounded-xl border-l-4 ${t.borderLeft} ${t.bgSection} p-2 space-y-0.5`}>
       {children}
@@ -331,7 +378,21 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     industriaManufactura: false, industriaAgricola: false, industriaPesquero: false
   });
 
-  const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key) => {
+    if (isCollapsed) {
+      // Auto-cierra el resto en modo contraído para mostrar un popover a la vez
+      setOpenSections(prev => {
+        const newState = Object.keys(prev).reduce((acc, k) => {
+          acc[k] = false;
+          return acc;
+        }, {});
+        newState[key] = !prev[key];
+        return newState;
+      });
+    } else {
+      setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+    }
+  };
   const isActive = (path) => location.pathname === path;
 
   const handleLogout = () => { logout(); navigate('/'); };
@@ -366,7 +427,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     relacionesLaborales: ['rrhh_laborales', 'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones'],
     remuneraciones: ['rrhh_nomina', 'rend_cierre_bonos', 'admin_modelos_bonificacion', 'admin_tipos_bono'],
     prevencion: ['prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial'],
-    flota: ['flota_vehiculos', 'flota_gps', 'flota_eficiencia', 'flota_proveedores'],
+    flota: ['flota_vehiculos', 'flota_eficiencia', 'flota_proveedores'],
+    gpsgenai: ['flota_gps', 'flota_gps_activos'],
     operaciones: ['op_supervision', 'op_colaborador', 'op_dotacion', 'op_designaciones', 'op_gastos', 'op_portales'],
     seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_tarifario', 'rend_config_lpu', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'dist_historial_rutas', 'dist_rutas_guiadas', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
     logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias', 'logistica_almacenes'],
@@ -435,12 +497,21 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       }
     },
     {
-      key: 'flota', label: 'Flota & GPS', subtitle: 'Logística en Tiempo Real',
+      key: 'flota', label: 'Flota de Vehículos', subtitle: 'Gestión Administrativa',
       icon: Truck, color: 'sky',
       tooltip: {
+        title: 'Gestión de Flota',
+        description: 'Administración de vehículos, telemetría y proveedores.',
+        features: ['Flota de Vehículos', 'Eficiencia', 'Proveedores Leasing']
+      }
+    },
+    {
+      key: 'gpsgenai', label: 'GPSGENAI', subtitle: 'Logística en Tiempo Real',
+      icon: Navigation, color: 'indigo',
+      tooltip: {
         title: 'Mi Flota & GPS',
-        description: 'Monitoreo GPS en tiempo real de vehículos y asignación de conductores.',
-        features: ['Gestión de Vehículos', 'GPS SIMPLE', 'Asignación de Flota']
+        description: 'Monitoreo GPS en tiempo real de vehículos y activos.',
+        features: ['GPS SIMPLE', 'GPS ACTIVOS']
       }
     },
     {
@@ -613,7 +684,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     };
 
     return (
-      <section>
+      <section className="relative">
         <ParentModule
           key={moduleKey}
           label={label}
@@ -625,8 +696,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           tooltip={currentTooltip}
           isCollapsed={isCollapsed}
         />
-        {openSections[moduleKey] && !isCollapsed && (
-          <ExpandedSection color={color || module.accent}>
+        {openSections[moduleKey] && (
+          <ExpandedSection isCollapsed={isCollapsed} color={color || module.accent}>
             {childrenRenderer()}
           </ExpandedSection>
         )}
@@ -767,36 +838,38 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           )}
 
           {/* ─── WEB BROWSER ─── */}
-          <div className={`relative group/parent ${isCollapsed ? 'w-full flex justify-center' : ''} mb-1`}>
-            <Link
-              to="/browser"
-              title={isCollapsed ? 'Navegador Web' : ''}
-              className={`flex items-center gap-3 py-3 rounded-2xl transition-all duration-200 group
-              ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
-              ${isActive('/browser')
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-200'
-                  : 'bg-cyan-50 border border-cyan-100 hover:border-cyan-300 hover:shadow-md'}`}
-            >
-              <div className={`p-2 rounded-xl flex-shrink-0 ${isActive('/browser') ? 'bg-white/20' : 'bg-cyan-500'} transition-all`}>
-                <Globe size={16} className="text-white" />
-              </div>
-              {!isCollapsed && (
-                <div>
-                  <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/browser') ? 'text-white' : 'text-cyan-800'}`}>
-                    Navegador Web
-                  </span>
-                  <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/browser') ? 'text-cyan-100' : 'text-cyan-500'}`}>
-                    Internet Interno Libre
-                  </span>
+          {(window.navigator.userAgent.toLowerCase().indexOf('electron') > -1) && (
+            <div className={`relative group/parent ${isCollapsed ? 'w-full flex justify-center' : ''} mb-1`}>
+              <Link
+                to="/browser"
+                title={isCollapsed ? 'Navegador Web' : ''}
+                className={`flex items-center gap-3 py-3 rounded-2xl transition-all duration-200 group
+                ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
+                ${isActive('/browser')
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-200'
+                    : 'bg-cyan-50 border border-cyan-100 hover:border-cyan-300 hover:shadow-md'}`}
+              >
+                <div className={`p-2 rounded-xl flex-shrink-0 ${isActive('/browser') ? 'bg-white/20' : 'bg-cyan-500'} transition-all`}>
+                  <Globe size={16} className="text-white" />
                 </div>
-              )}
-              {!isCollapsed && isActive('/browser') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
-            </Link>
-          </div>
+                {!isCollapsed && (
+                  <div>
+                    <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/browser') ? 'text-white' : 'text-cyan-800'}`}>
+                      Navegador Web
+                    </span>
+                    <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/browser') ? 'text-cyan-100' : 'text-cyan-500'}`}>
+                      Internet Interno Libre
+                    </span>
+                  </div>
+                )}
+                {!isCollapsed && isActive('/browser') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
+              </Link>
+            </div>
+          )}
 
           {/* ─── MÓDULO 1: ADMINISTRACIÓN ─── */}
           {hasAccess('admin') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'admin')?.label}
                 subtitle={MODULES.find(m => m.key === 'admin')?.subtitle}
@@ -808,7 +881,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.admin && (
-                <ExpandedSection color="indigo">
+                <ExpandedSection isCollapsed={isCollapsed} color="indigo">
                   {hasSubAccess('admin_resumen_ejecutivo') && <MenuLink path="/dashboard" icon={LayoutDashboard} label="Dashboard 360" accent="indigo" isActive={isActive('/dashboard')} />}
                   {hasSubAccess('admin_mis_clientes') && <MenuLink path="/administracion/mis-clientes" icon={Users} label="Mis Clientes" accent="indigo" isActive={isActive('/administracion/mis-clientes')} />}
                   {hasSubAccess('admin_proyectos') && <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />}
@@ -839,7 +912,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           {/* ─── MÓDULO 2: RECURSOS HUMANOS ─── */}
           {hasAccess('rrhh') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'rrhh')?.label}
                 subtitle={MODULES.find(m => m.key === 'rrhh')?.subtitle}
@@ -851,7 +924,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.rrhh && (
-                <ExpandedSection color="violet">
+                <ExpandedSection isCollapsed={isCollapsed} color="violet">
                   {/* Group 1: Reclutamiento */}
                   {(hasSubAccess('rrhh_captura') || hasSubAccess('rrhh_documental')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-1 pb-0.5">Reclutamiento</p>}
                   {hasSubAccess('rrhh_captura') && <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />}
@@ -882,7 +955,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           {/* ─── MÓDULO: RELACIONES LABORALES ─── */}
           {(hasSubAccess('rrhh_laborales') || hasSubAccess('emp360_beneficios') || hasSubAccess('emp360_lms') || hasSubAccess('emp360_evaluaciones')) && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'relacionesLaborales')?.label}
                 subtitle={MODULES.find(m => m.key === 'relacionesLaborales')?.subtitle}
@@ -894,7 +967,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.relacionesLaborales && (
-                <ExpandedSection color="rose">
+                <ExpandedSection isCollapsed={isCollapsed} color="rose">
                   {hasSubAccess('rrhh_laborales') && (
                     <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Historia Laboral" accent="rose" isActive={isActive('/rrhh/relaciones-laborales')} />
                   )}
@@ -914,7 +987,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           {/* ─── MÓDULO: REMUNERACIONES ─── */}
           {hasAccess('remuneraciones') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label="Remuneraciones"
                 subtitle="Gestión de Nómina"
@@ -926,7 +999,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.remuneraciones && (
-                <ExpandedSection color="emerald">
+                <ExpandedSection isCollapsed={isCollapsed} color="emerald">
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={Calculator} label="Nómina (Payroll)" accent="emerald" isActive={isActive('/rrhh/nomina')} />}
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/remu-central" icon={Calculator} label="Remu Central" accent="emerald" isActive={isActive('/rrhh/remu-central')} />}
                   {hasSubAccess('admin_modelos_bonificacion') && <MenuLink path="/administracion/modelos-bonificacion" icon={SlidersHorizontal} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />}
@@ -951,7 +1024,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           {/* ─── MÓDULO 3: PREVENCIÓN DE RIESGOS ─── */}
           {hasAccess('prevencion') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'prevencion')?.label}
                 subtitle={MODULES.find(m => m.key === 'prevencion')?.subtitle}
@@ -963,7 +1036,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.prevencion && (
-                <ExpandedSection color="rose">
+                <ExpandedSection isCollapsed={isCollapsed} color="rose">
                   {hasSubAccess('prev_inspecciones') && (
                     <MenuLink path="/prevencion/inspecciones-auditoria" icon={ClipboardCheck} label="Auditoría Inspecciones" accent="rose" isActive={isActive('/prevencion/inspecciones-auditoria')} />
                   )}
@@ -1001,9 +1074,9 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </section>
           )}
 
-          {/* ─── MÓDULO 4: FLOTA & GPS ─── */}
+          {/* ─── MÓDULO 4: FLOTA ─── */}
           {hasAccess('flota') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'flota')?.label}
                 subtitle={MODULES.find(m => m.key === 'flota')?.subtitle}
@@ -1015,9 +1088,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.flota && (
-                <ExpandedSection color="sky">
+                <ExpandedSection isCollapsed={isCollapsed} color="sky">
                   {hasSubAccess('flota_vehiculos') && <MenuLink path="/flota" icon={Truck} label="Flota de Vehículos" accent="sky" isActive={isActive('/flota')} />}
-                  {hasSubAccess('flota_gps') && <MenuLink path="/monitor-gps" icon={MapPin} label="GPS SIMPLE" accent="sky" isActive={isActive('/monitor-gps')} />}
                   {hasSubAccess('flota_eficiencia') && <MenuLink path="/flota/eficiencia" icon={Activity} label="Eficiencia" accent="sky" isActive={isActive('/flota/eficiencia')} />}
                   {hasSubAccess('flota_proveedores') && <MenuLink path="/flota/proveedores" icon={UserPlus} label="Proveedores Leasing" accent="sky" isActive={isActive('/flota/proveedores')} />}
                 </ExpandedSection>
@@ -1025,9 +1097,31 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </section>
           )}
 
+          {/* ─── MÓDULO 4.5: GPSGENAI ─── */}
+          {hasAccess('gpsgenai') && (
+            <section className="relative">
+              <ParentModule
+                label={MODULES.find(m => m.key === 'gpsgenai')?.label}
+                subtitle={MODULES.find(m => m.key === 'gpsgenai')?.subtitle}
+                icon={MODULES.find(m => m.key === 'gpsgenai')?.icon || Navigation}
+                isOpen={openSections.gpsgenai}
+                onToggle={() => toggle('gpsgenai')}
+                color={MODULES.find(m => m.key === 'gpsgenai')?.color || 'indigo'}
+                tooltip={MODULES.find(m => m.key === 'gpsgenai')?.tooltip}
+                isCollapsed={isCollapsed}
+              />
+              {openSections.gpsgenai && (
+                <ExpandedSection isCollapsed={isCollapsed} color="indigo">
+                  {hasSubAccess('flota_gps') && <MenuLink path="/monitor-gps" icon={MapPin} label="GPS SIMPLE" accent="indigo" isActive={isActive('/monitor-gps')} />}
+                  {hasSubAccess('flota_gps_activos') && <MenuLink path="/gps-activos" icon={Activity} label="GPS Activos" accent="indigo" isActive={isActive('/gps-activos')} />}
+                </ExpandedSection>
+              )}
+            </section>
+          )}
+
           {/* ─── MÓDULO 5: OPERACIONES ─── */}
           {hasAccess('operaciones') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'operaciones')?.label}
                 subtitle={MODULES.find(m => m.key === 'operaciones')?.subtitle}
@@ -1039,7 +1133,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.operaciones && (
-                <ExpandedSection color="indigo">
+                <ExpandedSection isCollapsed={isCollapsed} color="indigo">
                   {/* Portal de Supervisión - Requiere Rol apto y Permiso */}
                   {hasSubAccess('op_supervision') && (
                     <MenuLink path="/operaciones/portal-supervision" icon={ShieldCheck} label="Portal Supervisión" accent="indigo" isActive={isActive('/operaciones/portal-supervision')} />
@@ -1068,7 +1162,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           {/* ─── MÓDULO 6: INDUSTRIA ─── */}
           {hasAccess('seguimiento') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'seguimiento')?.label}
                 subtitle={MODULES.find(m => m.key === 'seguimiento')?.subtitle}
@@ -1080,7 +1174,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.seguimiento && (
-                <ExpandedSection color="emerald">
+                <ExpandedSection isCollapsed={isCollapsed} color="emerald">
                   <SubModule label="Telecomunicaciones" icon={Activity} isOpen={openSections.industriaTelecom} onToggle={() => toggle('industriaTelecom')} accent="sky">
                     {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Panel Telecomunicaciones" accent="sky" isActive={isActive('/rendimiento')} />}
                     {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento/apelaciones" icon={ClipboardCheck} label="Apelaciones" accent="sky" isActive={isActive('/rendimiento/apelaciones')} />}
@@ -1163,7 +1257,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           {/* ─── MÓDULO 7: CONFIGURACIONES ─── */}
           {hasAccess('config') && (
-            <section>
+            <section className="relative">
               <ParentModule
                 label={MODULES.find(m => m.key === 'config')?.label}
                 subtitle={MODULES.find(m => m.key === 'config')?.subtitle}
@@ -1175,7 +1269,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isCollapsed={isCollapsed}
               />
               {openSections.config && (
-                <ExpandedSection color="orange">
+                <ExpandedSection isCollapsed={isCollapsed} color="orange">
                   {hasSubAccess('cfg_empresa') && <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />}
                   {hasSubAccess('cfg_personal') && <MenuLink path="/gestion-personal" icon={Users} label="Gestión de Personal" accent="orange" isActive={isActive('/gestion-personal')} />}
                   {hasSubAccess('admin_config_notificaciones') && (
@@ -1196,7 +1290,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           {/* ─── MÓDULO GENAI360 ─── */}
           {hasAccess('genai') && (
-          <section>
+          <section className="relative">
             <ParentModule
               label={MODULES.find(m => m.key === 'genai')?.label}
               subtitle={MODULES.find(m => m.key === 'genai')?.subtitle}
@@ -1207,8 +1301,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               tooltip={MODULES.find(m => m.key === 'genai')?.tooltip}
               isCollapsed={isCollapsed}
             />
-            {openSections.genai && !isCollapsed && (
-              <ExpandedSection color="violet">
+            {openSections.genai && (
+              <ExpandedSection isCollapsed={isCollapsed} color="violet">
                 {hasSubAccess('ai_asistente') && <MenuLink path="/ai/asistente" icon={Brain} label={BRAND.aiAssistantLabel} accent="violet" isActive={isActive('/ai/asistente')} />}
               </ExpandedSection>
             )}

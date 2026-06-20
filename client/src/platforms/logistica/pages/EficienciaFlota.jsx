@@ -836,7 +836,7 @@ const ConsumoCombustible = () => {
                     </div>
                     {stats && stats.chartData && (
                         <div className="h-[250px] w-full">
-                            <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                            <ResponsiveContainer width="100%" height={250}>
                                 <BarChart data={stats.chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} dy={10} />
@@ -904,7 +904,7 @@ const ConsumoCombustible = () => {
                         </div>
                     </div>
                     <div className="h-[300px] w-full mt-4">
-                        <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                        <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={stats.chartDataPatentes} margin={{ top: 30, right: 10, left: -20, bottom: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={<CustomXAxisTick />} interval={0} />
@@ -939,7 +939,7 @@ const ConsumoCombustible = () => {
                         </div>
                     </div>
                     <div className="h-[250px] w-full mt-4">
-                        <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                        <ResponsiveContainer width="100%" height={250}>
                             <BarChart data={stats.chartDataSemanas} margin={{ top: 30, right: 10, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="semana" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} dy={10} />
@@ -1004,7 +1004,7 @@ const ConsumoCombustible = () => {
             {/* VISTA 1: TABLA HISTÓRICO */}
             {viewMode === 'historial' && (
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto max-h-[500px]">
+                <div className="overflow-x-auto custom-scrollbar max-h-[500px]">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-100/80 sticky top-0 z-10 backdrop-blur-md border-b border-slate-200 shadow-sm">
                             <tr className="text-[10px] uppercase font-black text-slate-500 tracking-wider">
@@ -1089,7 +1089,7 @@ const ConsumoCombustible = () => {
             {/* VISTA 2: TABLA POR TRABAJADOR */}
             {viewMode === 'trabajadores' && (
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto max-h-[500px]">
+                <div className="overflow-x-auto custom-scrollbar max-h-[500px]">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-100/80 sticky top-0 z-10 backdrop-blur-md border-b border-slate-200 shadow-sm">
                             <tr className="text-[10px] uppercase font-black text-slate-500 tracking-wider">
@@ -1414,7 +1414,7 @@ const EficienciaFlota = () => {
     const [activeTab, setActiveTab] = useState('combustible'); // 'combustible' | 'rutas'
 
     return (
-        <div className="min-h-screen bg-slate-50/50 p-6 md:p-10">
+        <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 w-full overflow-x-hidden relative">
             {/* Header Módulo */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div className="flex items-center gap-5">
