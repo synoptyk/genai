@@ -21,6 +21,8 @@ const AsistenciaLegal = () => {
     const [modalMarcaje, setModalMarcaje] = useState(null);
     const [marcajeForm, setMarcajeForm] = useState({ estado: 'Presente', horaEntrada: '', horaSalida: '', observacionLegal: '' });
     const [savingMarcaje, setSavingMarcaje] = useState(false);
+    const [downloadingReporte, setDownloadingReporte] = useState(false);
+    const [processingId, setProcessingId] = useState(null);
     
     // Estados para Multi-select
     const [candidatosId, setCandidatosId] = useState([]);
@@ -119,6 +121,82 @@ const AsistenciaLegal = () => {
         return true;
     });
 
+    const handleDownloadLegalReport = async () => {
+        setDownloadingReporte(true);
+        try {
+            const [y, m] = mesObj.split('-');
+            const res = await asistenciaApi.getReporteLegal({ month: Number(m), year: Number(y), includeAnulados: true });
+            const filas = res.data?.filas || [];
+
+            const csvRows = [
+                ['Fecha', 'Trabajador', 'RUT', 'Cargo', 'Estado', 'Entrada', 'Salida', 'Turno', 'EstadoRegistro', 'IntegridadOK', 'HashIntegridad'],
+                ...filas.map((f) => [
+                    String(f.fecha || '').substring(0, 10),
+                    f.trabajador || '',
+                    f.rut || '',
+                    f.cargo || '',
+                    f.estado || '',
+                    f.horaEntrada || '',
+                    f.horaSalida || '',
+                    f.turno || '',
+                    f.estadoRegistro || '',
+                    f.integridadOk ? 'SI' : 'NO',
+                    f.hashIntegridad || ''
+                ])
+            ];
+
+            const csv = csvRows
+                .map((row) => row.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))
+                .join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `reporte_legal_asistencia_${mesObj}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert(err.response?.data?.message || 'No fue posible generar el reporte legal.');
+        } finally {
+            setDownloadingReporte(false);
+        }
+    };
+
+    const handleVerifyIntegrity = async (id) => {
+        setProcessingId(id);
+        try {
+            const res = await asistenciaApi.verificarIntegridad(id);
+            const data = res.data || {};
+            if (data.ok) {
+                alert(`Integridad verificada. Eventos: ${data.totalEventos}. Hash: ${data.ultimoHashCalculado}`);
+            } else {
+                alert(`Integridad con observaciones: ${(data.inconsistencias || []).join(' | ')}`);
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'No fue posible verificar la integridad');
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleAnularRegistro = async (registro) => {
+        const motivo = window.prompt('Motivo legal de anulación (obligatorio):');
+        if (!motivo || !motivo.trim()) return;
+
+        setProcessingId(registro._id);
+        try {
+            await asistenciaApi.remove(registro._id, motivo.trim());
+            setRegistros(prev => prev.map(r => r._id === registro._id ? { ...r, estadoRegistro: 'ANULADO', anulado: { motivo } } : r));
+        } catch (err) {
+            alert(err.response?.data?.message || 'No se pudo anular el registro');
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
     return (
         <div className="absolute inset-0 overflow-y-auto p-8 bg-slate-50/50">
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
@@ -128,7 +206,7 @@ const AsistenciaLegal = () => {
                         Libro de Asistencia Digital (DT)
                     </h3>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1 flex items-center gap-1">
-                        Registros inmutables y conformes al Ord. 1140/27
+                        Trazabilidad legal avanzada y cadena de integridad verificable
                         <Info size={12} className="text-indigo-400" title="Las alteraciones manuales deben justificarse obligatoriamente."/>
                     </p>
                 </div>
@@ -169,8 +247,12 @@ const AsistenciaLegal = () => {
                             onChange={(e) => setMesObj(e.target.value)}
                             className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 bg-white"
                         />
-                        <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:bg-emerald-700 transition-all">
-                            <Download size={14} /> Reporte DT
+                        <button
+                            onClick={handleDownloadLegalReport}
+                            disabled={downloadingReporte}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:bg-emerald-700 transition-all disabled:opacity-60"
+                        >
+                            {downloadingReporte ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Reporte DT/Auditoría
                         </button>
                     </div>
                 )}
@@ -272,7 +354,7 @@ const AsistenciaLegal = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredRegistros.slice(0, 50).map((reg, idx) => (
+                                filteredRegistros.map((reg, idx) => (
                                     <tr 
                                         key={reg._id || idx} 
                                         className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
@@ -287,7 +369,7 @@ const AsistenciaLegal = () => {
                                         <td className="p-4 text-indigo-600 font-black uppercase text-[10px]">
                                             {getTurnoName(reg.candidatoId)}
                                         </td>
-                                        <td className="p-4 font-bold text-slate-600">{reg.fecha}</td>
+                                        <td className="p-4 font-bold text-slate-600">{String(reg.fecha || '').substring(0, 10)}</td>
                                         <td className="p-4 text-slate-700">{reg.horaIngresoDeclarada || reg.horaEntrada || '—'}</td>
                                         <td className="p-4 text-slate-700">{reg.horaSalida || '—'}</td>
                                         <td className="p-4">
@@ -311,22 +393,48 @@ const AsistenciaLegal = () => {
                                                     <span className="text-emerald-500 flex items-center gap-1"><ShieldCheck size={12}/> {reg.auditLog.ip || 'Registrado'}</span>
                                                     {reg.auditLog.geoLat && <span className="text-[8px] text-slate-300 mt-0.5">Lat: {reg.auditLog.geoLat} Lng: {reg.auditLog.geoLng}</span>}
                                                     {reg.auditLog.nota && <span className="text-[8px] text-indigo-400 mt-0.5">{reg.auditLog.nota}</span>}
+                                                    {reg.auditLog.ultimoEventoHash && <span className="text-[8px] text-slate-300 mt-0.5">Hash: {String(reg.auditLog.ultimoEventoHash).slice(0, 12)}...</span>}
                                                 </div>
                                             ) : 'Pendiente / Operativo'}
                                         </td>
                                         {isAdmin && (
                                             <td className="p-4 text-center">
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setModalMarcaje(reg);
-                                                        setMarcajeForm({ estado: reg.estado || 'Presente', horaEntrada: reg.horaEntrada || reg.horaIngresoDeclarada || '', horaSalida: reg.horaSalida || '', observacionLegal: '' });
-                                                    }}
-                                                    className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                                                    title="Forzar Marcaje Manual (Requiere Observación Legal)"
-                                                >
-                                                    <Edit2 size={14} />
-                                                </button>
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setModalMarcaje(reg);
+                                                            setMarcajeForm({ estado: reg.estado || 'Presente', horaEntrada: reg.horaEntrada || reg.horaIngresoDeclarada || '', horaSalida: reg.horaSalida || '', observacionLegal: '' });
+                                                        }}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                                        title="Forzar Marcaje Manual (Requiere Observación Legal)"
+                                                        disabled={reg.estadoRegistro === 'ANULADO' || processingId === reg._id}
+                                                    >
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleVerifyIntegrity(reg._id);
+                                                        }}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                                        title="Verificar integridad criptográfica"
+                                                        disabled={processingId === reg._id}
+                                                    >
+                                                        {processingId === reg._id ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleAnularRegistro(reg);
+                                                        }}
+                                                        className="p-2 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                                        title="Anular registro (sin borrado físico)"
+                                                        disabled={reg.estadoRegistro === 'ANULADO' || processingId === reg._id}
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         )}
                                     </tr>

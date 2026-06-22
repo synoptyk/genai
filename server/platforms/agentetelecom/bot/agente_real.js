@@ -65,17 +65,16 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         let c = new Date(fechaInicio + 'T00:00:00Z');
         const fin = new Date(fechaFin + 'T00:00:00Z');
         while (c <= fin) { 
-            if (c.getUTCDay() !== 0) fechasAProcesar.push(c.toISOString().split('T')[0]); 
+            fechasAProcesar.push(c.toISOString().split('T')[0]); 
             c.setUTCDate(c.getUTCDate() + 1); 
         }
     } else if (fechaInicio) {
-        const c = new Date(fechaInicio + 'T00:00:00Z');
-        if (c.getUTCDay() !== 0) fechasAProcesar.push(fechaInicio);
+        fechasAProcesar.push(fechaInicio);
     } else {
         let c = new Date(Date.UTC(2026, 0, 1));
         const fin = new Date(); fin.setUTCHours(0, 0, 0, 0);
         while (c <= fin) { 
-            if (c.getUTCDay() !== 0) fechasAProcesar.push(c.toISOString().split('T')[0]); 
+            fechasAProcesar.push(c.toISOString().split('T')[0]); 
             c.setUTCDate(c.getUTCDate() + 1); 
         }
     }

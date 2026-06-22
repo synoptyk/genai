@@ -7,6 +7,62 @@ const ai = new GoogleGenAI({});
 // We use the 'flash' model as requested for lowest cost and fast performance
 const FLASH_MODEL = 'gemini-2.5-flash';
 
+function extractResponseText(response) {
+  if (!response) return '';
+  if (typeof response.text === 'string') return response.text;
+  if (typeof response.text === 'function') return response.text() || '';
+
+  const partText = response?.candidates?.[0]?.content?.parts
+    ?.map(part => part?.text)
+    .filter(Boolean)
+    .join('\n');
+
+  return partText || '';
+}
+
+function parseJsonSafely(rawText) {
+  const text = String(rawText || '').trim();
+  if (!text) return {};
+
+  // Soporta respuestas dentro de bloques markdown ```json ... ```
+  const codeBlockMatch = text.match(/```(?:json)?\n?([\s\S]*?)\n?```/i);
+  const candidate = codeBlockMatch ? codeBlockMatch[1].trim() : text;
+
+  try {
+    return JSON.parse(candidate);
+  } catch (_err) {
+    // Fallback: intenta extraer el primer objeto JSON válido entre llaves
+    const objectMatch = candidate.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      return JSON.parse(objectMatch[0]);
+    }
+    throw _err;
+  }
+}
+
+// Helper para reintentos con backoff exponencial
+async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 2000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      // Detectar si es error 503 de Gemini
+      const isUnavailable = err?.status === 503 || 
+                           err?.message?.includes('UNAVAILABLE') ||
+                           err?.error?.status === 'UNAVAILABLE';
+      const isLastAttempt = attempt === maxRetries;
+      
+      if (!isUnavailable || isLastAttempt) {
+        throw err;
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt - 1); // 2s, 4s, 8s...
+      console.warn(`⚠️ Gemini API unavailable (attempt ${attempt}/${maxRetries}). Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
 /**
  * Parses a document (image/pdf) using a strict JSON schema.
  * Useful for extracting CVs, invoices, or ID cards into structured data.
@@ -16,27 +72,36 @@ const FLASH_MODEL = 'gemini-2.5-flash';
  */
 exports.parseDocumentStructured = async (mimeAndData, schema, prompt) => {
   try {
-    const response = await ai.models.generateContent({
-      model: FLASH_MODEL,
-      contents: [
-        {
-          inlineData: {
-            mimeType: mimeAndData.mimeType,
-            data: mimeAndData.data
+    const response = await retryWithBackoff(async () => {
+      return await ai.models.generateContent({
+        model: FLASH_MODEL,
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: mimeAndData.mimeType,
+                  data: mimeAndData.data
+                }
+              },
+              {
+                text: prompt
+              }
+            ]
           }
-        },
-        prompt
-      ],
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: schema,
-        temperature: 0.1 // Low temperature for deterministic extraction
-      }
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.1 // Low temperature for deterministic extraction
+        }
+      });
     });
 
-    return JSON.parse(response.text());
+    const text = extractResponseText(response);
+    return parseJsonSafely(text);
   } catch (err) {
-    console.error('Error in parseDocumentStructured:', err);
+    console.error('Error in parseDocumentStructured after retries:', err?.message || err);
     throw err;
   }
 };
@@ -70,17 +135,17 @@ exports.analyzeImageMultimodal = async (imageUrls, prompt) => {
       return "No valid images provided for analysis.";
     }
 
-    contents.push(prompt);
+    contents.push({ text: prompt });
 
     const response = await ai.models.generateContent({
       model: FLASH_MODEL,
       contents,
-      config: {
+      generationConfig: {
         temperature: 0.3
       }
     });
 
-    return response.text();
+    return extractResponseText(response);
   } catch (err) {
     console.error('Error in analyzeImageMultimodal:', err);
     throw err;

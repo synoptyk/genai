@@ -702,10 +702,14 @@ const CapturaTalento = () => {
                     ...prev,
                     fullName: `${aiData.nombres || ''} ${aiData.apellidos || ''}`.trim() || prev.fullName,
                     rut: aiData.rut ? formatRut(aiData.rut) : prev.rut,
-                    phone: aiData.telefono || prev.phone,
+                    phone: aiData.phone || aiData.telefono || prev.phone,
                     email: aiData.email || prev.email,
-                    position: aiData.cargo_sugerido || prev.position
+                    position: aiData.position || aiData.cargo_sugerido || prev.position
                 }));
+
+                if (response.data.warning) {
+                    showToast(`⚠️ ${response.data.warning}`, 'info');
+                }
                 showToast("✅ CV Autocompletado con éxito");
             }
         } catch (error) {

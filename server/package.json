@@ -11,6 +11,9 @@
     "postinstall": "npx puppeteer browsers install chrome",
     "test": "cross-env NODE_ENV=test jest --runInBand",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
+    "asistencia:migrate-chain:dry": "node scripts/migrate_attendance_legal_chain.js --dry-run",
+    "asistencia:migrate-chain:apply": "node scripts/migrate_attendance_legal_chain.js --apply",
+    "asistencia:migrate-chain:verify": "node scripts/migrate_attendance_legal_chain.js --verify-only",
     "logs": "tail -f logs/combined-*.log",
     "logs:error": "tail -f logs/error-*.log",
     "health": "curl -s http://localhost:5003/api/health | jq"

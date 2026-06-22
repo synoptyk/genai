@@ -13,15 +13,149 @@ const { sendAttendanceNotificationEmail } = require('../../../utils/mailer');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
+const crypto = require('crypto');
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+const LEGAL_ALLOWED_FIELDS = [
+    'estado',
+    'horaEntrada',
+    'horaIngresoDeclarada',
+    'horaSalida',
+    'turnoId',
+    'observacion',
+    'tipoAusencia',
+    'descuentaDia',
+    'minutosTardanza',
+    'horasExtra',
+    'estadoHorasExtra',
+    'horasExtraAprobadas',
+    'validadoPor',
+    'estadoDia',
+    'syncFromProduccion'
+];
+
+const normalizeForHash = (value) => {
+    if (Array.isArray(value)) return value.map(normalizeForHash);
+    if (value instanceof Date) return value.toISOString();
+    if (value && typeof value === 'object') {
+        const out = {};
+        Object.keys(value).sort().forEach((k) => {
+            out[k] = normalizeForHash(value[k]);
+        });
+        return out;
+    }
+    return value;
+};
+
+const sha256Hex = (payload) => crypto.createHash('sha256').update(payload).digest('hex');
+
+const getLastEventHash = (registro) => {
+    if (!registro) return 'GENESIS';
+    if (registro.auditLog?.ultimoEventoHash) return registro.auditLog.ultimoEventoHash;
+    const events = Array.isArray(registro.eventosTimeline) ? registro.eventosTimeline : [];
+    const last = events.length ? events[events.length - 1] : null;
+    return last?.hashActual || 'GENESIS';
+};
+
+const buildSnapshot = (registro) => {
+    if (!registro) return null;
+    const src = registro.toObject ? registro.toObject() : registro;
+    const out = {};
+    LEGAL_ALLOWED_FIELDS.forEach((field) => {
+        if (src[field] !== undefined) out[field] = src[field];
+    });
+    out.estadoRegistro = src.estadoRegistro || 'ACTIVO';
+    return out;
+};
+
+const buildAuditEvent = ({ registroActual, patch, req, tipo, observacion }) => {
+    const eventTimestamp = new Date();
+    const snapshotAntes = buildSnapshot(registroActual);
+    const snapshotDespues = { ...(snapshotAntes || {}), ...(patch || {}) };
+    const hashPrevio = getLastEventHash(registroActual);
+    const hashBase = normalizeForHash({
+        hashPrevio,
+        tipo,
+        timestamp: eventTimestamp.toISOString(),
+        actor: req.user?.email || req.user?.name || 'sistema',
+        snapshotDespues
+    });
+    const hashActual = sha256Hex(JSON.stringify(hashBase));
+
+    return {
+        tipo,
+        hora: patch?.horaEntrada || patch?.horaSalida || new Date().toISOString().substring(11, 16),
+        estadoSeleccionado: patch?.estado,
+        observacion,
+        snapshotAntes,
+        snapshotDespues,
+        hashPrevio,
+        hashActual,
+        registradoPor: req.user?.nombre || req.user?.name || req.user?.email || 'sistema',
+        timestamp: eventTimestamp
+    };
+};
+
+const baseAuditLog = (req, metodo = 'Web') => ({
+    ip: req.ip || req.connection?.remoteAddress,
+    userAgent: req.get('User-Agent'),
+    timestamp: new Date(),
+    metodo
+});
+
+const verifyRegistroIntegrity = (registro) => {
+    const eventos = Array.isArray(registro.eventosTimeline) ? registro.eventosTimeline : [];
+    let prev = 'GENESIS';
+    const inconsistencias = [];
+
+    eventos.forEach((ev, idx) => {
+        const ts = ev.timestamp ? new Date(ev.timestamp) : null;
+        const timestampIso = (ts && !Number.isNaN(ts.getTime())) ? ts.toISOString() : null;
+        if (!timestampIso) {
+            inconsistencias.push(`Evento ${idx + 1}: timestamp inválido`);
+            return;
+        }
+
+        const hashBase = normalizeForHash({
+            hashPrevio: ev.hashPrevio || prev,
+            tipo: ev.tipo,
+            timestamp: timestampIso,
+            actor: ev.registradoPor || 'sistema',
+            snapshotDespues: ev.snapshotDespues || {}
+        });
+        const expected = sha256Hex(JSON.stringify(hashBase));
+        if ((ev.hashPrevio || prev) !== prev) {
+            inconsistencias.push(`Evento ${idx + 1}: hashPrevio no coincide con la cadena`);
+        }
+        if ((ev.hashActual || '') !== expected) {
+            inconsistencias.push(`Evento ${idx + 1}: hashActual inválido`);
+        }
+        prev = ev.hashActual || prev;
+    });
+
+    const ultimoHash = registro.auditLog?.ultimoEventoHash || null;
+    if (ultimoHash && prev !== ultimoHash) {
+        inconsistencias.push('ultimoEventoHash no coincide con el último evento');
+    }
+
+    return {
+        ok: inconsistencias.length === 0,
+        totalEventos: eventos.length,
+        ultimoHashCalculado: prev,
+        inconsistencias
+    };
+};
+
 // ─── GET /asistencia ─ Listado (por fecha o por mes/año) ─────────────────────
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, authorize('rrhh_asistencia:ver', 'op_colaborador:ver', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR, ROLES.OPERATIVO, ROLES.TECNICO), async (req, res) => {
     try {
-        const { fecha, candidatoId, month, year } = req.query;
+        const { fecha, candidatoId, month, year, includeAnulados } = req.query;
         const filter = { empresaRef: req.user.empresaRef };
+        if (String(includeAnulados) !== 'true') {
+            filter.estadoRegistro = { $ne: 'ANULADO' };
+        }
         if (candidatoId) filter.candidatoId = candidatoId;
         if (fecha) {
             // Usar UTC para coincidir con cómo se guardan las fechas
@@ -48,7 +182,7 @@ router.get('/', protect, async (req, res) => {
 
 // ─── GET /asistencia/resumen-periodo ─ Resumen mensual por colaborador ────────
 // Usado por NominaRRHH para sincronizar días trabajados y horas extra reales
-router.get('/resumen-periodo', protect, async (req, res) => {
+router.get('/resumen-periodo', protect, authorize('rrhh_asistencia:ver', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
         const { month, year } = req.query;
         if (!month || !year) return res.status(400).json({ message: 'month y year requeridos' });
@@ -57,6 +191,7 @@ router.get('/resumen-periodo', protect, async (req, res) => {
         const y = Number(year);
         const filter = {
             empresaRef: req.user.empresaRef,
+            estadoRegistro: { $ne: 'ANULADO' },
             fecha: {
                 $gte: new Date(Date.UTC(y, m - 1, 1)),
                 $lte: new Date(Date.UTC(y, m, 0, 23, 59, 59)),
@@ -208,7 +343,7 @@ const calcularHorasExtra = async (turnoId, horaSalidaStr) => {
 // ─── POST /asistencia ─ Crear o actualizar registro individual (upsert) ───────
 // Usa upsert para evitar E11000 cuando ya existe un registro para ese candidato/fecha.
 // Si existe → actualiza. Si no → crea. Retorna el documento poblado en ambos casos.
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, authorize('rrhh_asistencia:crear', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR), async (req, res) => {
     try {
         const { candidatoId, fecha, ...rest } = req.body;
         if (!candidatoId || !fecha) {
@@ -227,6 +362,9 @@ router.post('/', protect, async (req, res) => {
 
         // Obtener el registro existente si lo hay para calcular horas extras con turno
         const existente = await RegistroAsistencia.findOne(filter);
+        if (existente?.estadoRegistro === 'ANULADO') {
+            return res.status(409).json({ message: 'El registro está anulado. Debe rehabilitarse por flujo legal antes de modificar.' });
+        }
         const currentTurnoId = rest.turnoId || (existente && existente.turnoId);
 
         if (rest.horaSalida && currentTurnoId && rest.horasExtra === undefined) {
@@ -237,23 +375,39 @@ router.post('/', protect, async (req, res) => {
             }
         }
 
+        const legalPatch = {
+            ...rest,
+            candidatoId,
+            fecha: fechaDate,
+            empresaRef: req.user.empresaRef,
+            estadoRegistro: 'ACTIVO'
+        };
+
+        const evento = buildAuditEvent({
+            registroActual: existente,
+            patch: legalPatch,
+            req,
+            tipo: existente ? 'Actualización Operativa' : 'Creación Operativa',
+            observacion: rest.observacion || 'Registro/actualización operativa'
+        });
+
         const update = {
-            $set: {
-                ...rest,
-                candidatoId,
-                fecha: fechaDate,
-                empresaRef: req.user.empresaRef,
-            }
+            $set: legalPatch,
+            $push: { eventosTimeline: evento }
         };
 
         // Si es un marcaje manual o desde el portal, inyectar datos de auditoría
         if (req.body.horaIngresoDeclarada || req.body.horaSalida) {
             update.$set.auditLog = {
                 ...(rest.auditLog || {}),
-                ip: req.ip || req.connection.remoteAddress,
-                userAgent: req.get('User-Agent'),
-                timestamp: new Date(),
-                metodo: (rest.auditLog && rest.auditLog.metodo) ? rest.auditLog.metodo : 'Web'
+                ...baseAuditLog(req, (rest.auditLog && rest.auditLog.metodo) ? rest.auditLog.metodo : 'Web'),
+                ultimoEventoHash: evento.hashActual
+            };
+        } else {
+            update.$set.auditLog = {
+                ...(existente?.auditLog || {}),
+                ...baseAuditLog(req, 'Web'),
+                ultimoEventoHash: evento.hashActual
             };
         }
 
@@ -279,24 +433,41 @@ router.post('/', protect, async (req, res) => {
 });
 
 // ─── POST /asistencia/bulk ─ Inserción masiva ─────────────────────────────────
-router.post('/bulk', protect, async (req, res) => {
+router.post('/bulk', protect, authorize('rrhh_asistencia:crear', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
         const { registros } = req.body;
-        const con = registros.map(r => ({ ...r, empresaRef: req.user.empresaRef }));
+        const con = registros.map(r => ({
+            ...r,
+            empresaRef: req.user.empresaRef,
+            estadoRegistro: 'ACTIVO',
+            auditLog: {
+                ...(r.auditLog || {}),
+                ...baseAuditLog(req, r.auditLog?.metodo || 'Web')
+            }
+        }));
         const result = await RegistroAsistencia.insertMany(con, { ordered: false });
         res.status(201).json({ insertados: result.length });
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
 // ─── POST /asistencia/bulk-upsert ─ Inserción/actualización masiva (sin duplicar) ─
-router.post('/bulk-upsert', protect, async (req, res) => {
+router.post('/bulk-upsert', protect, authorize('rrhh_asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
         const { registros, onlyInsertNew } = req.body;
         const ops = registros.map(r => {
             // Normalizar fecha a medianoche UTC — consistente con el índice único
             const fechaDate = new Date(r.fecha);
             fechaDate.setUTCHours(0, 0, 0, 0);
-            const updateDoc = { ...r, fecha: fechaDate, empresaRef: req.user.empresaRef };
+            const updateDoc = {
+                ...r,
+                fecha: fechaDate,
+                empresaRef: req.user.empresaRef,
+                estadoRegistro: 'ACTIVO',
+                auditLog: {
+                    ...(r.auditLog || {}),
+                    ...baseAuditLog(req, r.auditLog?.metodo || 'Web')
+                }
+            };
             return {
                 updateOne: {
                     filter: {
@@ -329,7 +500,7 @@ router.post('/bulk-upsert', protect, async (req, res) => {
 });
 
 // ─── POST /asistencia/upload-respaldo ─ Subir respaldo fotográfico ────────────
-router.post('/upload-respaldo', protect, upload.single('file'), (req, res) => {
+router.post('/upload-respaldo', protect, authorize('rrhh_asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR), upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: 'No se subió ningún archivo' });
     }
@@ -349,10 +520,13 @@ router.post('/upload-respaldo', protect, upload.single('file'), (req, res) => {
 });
 
 // ─── PUT /asistencia/:id ─ Actualizar registro ────────────────────────────────
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, authorize('rrhh_asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR), async (req, res) => {
     try {
         const existente = await RegistroAsistencia.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!existente) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+        if (existente.estadoRegistro === 'ANULADO') {
+            return res.status(409).json({ message: 'No se puede editar un registro anulado.' });
+        }
 
         const currentTurnoId = req.body.turnoId || existente.turnoId;
         
@@ -364,9 +538,28 @@ router.put('/:id', protect, async (req, res) => {
             }
         }
 
+        const legalPatch = { ...req.body };
+        const evento = buildAuditEvent({
+            registroActual: existente,
+            patch: legalPatch,
+            req,
+            tipo: 'Actualización Legal',
+            observacion: req.body.observacion || 'Actualización directa de registro'
+        });
+
         const updated = await RegistroAsistencia.findOneAndUpdate(
             { _id: req.params.id, empresaRef: req.user.empresaRef },
-            req.body,
+            {
+                $set: {
+                    ...legalPatch,
+                    auditLog: {
+                        ...(existente.auditLog || {}),
+                        ...baseAuditLog(req, existente.auditLog?.metodo || 'Web'),
+                        ultimoEventoHash: evento.hashActual
+                    }
+                },
+                $push: { eventosTimeline: evento }
+            },
             { new: true }
         ).populate('candidatoId', 'fullName rut position')
          .populate('turnoId', 'nombre horaEntrada horaSalida color diasSemana horariosPorDia');
@@ -376,10 +569,8 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // ─── POST /asistencia/marcaje-legal ─ Crear Marcaje manual auditado (Admin) ──────────────
-router.post('/marcaje-legal', protect, authorize('asistencia:crear', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
+router.post('/marcaje-legal', protect, authorize('rrhh_asistencia:crear', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
-        require('fs').writeFileSync('/Users/mauro/Synoptik_Innovacion/Gen AI/debug_marcaje.json', JSON.stringify({ body: req.body, headers: req.headers }, null, 2));
-        
         console.log("POST /marcaje-legal req.body:", req.body);
         const { candidatoId, candidatosId, fecha, estado, horaEntrada, horaSalida, observacionLegal, turnoId } = req.body;
         
@@ -455,10 +646,30 @@ router.post('/marcaje-legal', protect, authorize('asistencia:crear', ROLES.SYSTE
                 fecha: fechaDate,
             };
 
+            const existente = await RegistroAsistencia.findOne(filter);
+            if (existente?.estadoRegistro === 'ANULADO') {
+                continue;
+            }
+
+            const eventoLineaTiempo = buildAuditEvent({
+                registroActual: existente,
+                patch: updateData,
+                req,
+                tipo: 'Marcaje Manual (Ord. 1140/27)',
+                observacion: observacionLegal
+            });
+
             const updated = await RegistroAsistencia.findOneAndUpdate(
                 filter,
                 { 
-                    $set: updateData,
+                    $set: {
+                        ...updateData,
+                        estadoRegistro: 'ACTIVO',
+                        auditLog: {
+                            ...auditLog,
+                            ultimoEventoHash: eventoLineaTiempo.hashActual
+                        }
+                    },
                     $push: { eventosTimeline: eventoLineaTiempo }
                 },
                 { new: true, upsert: true, setDefaultsOnInsert: true }
@@ -483,10 +694,13 @@ router.post('/marcaje-legal', protect, authorize('asistencia:crear', ROLES.SYSTE
 });
 
 // ─── PUT /asistencia/:id/marcaje-legal ─ Marcaje manual auditado (Admin) ──────────────
-router.put('/:id/marcaje-legal', protect, authorize('asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
+router.put('/:id/marcaje-legal', protect, authorize('rrhh_asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
         const existente = await RegistroAsistencia.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!existente) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+        if (existente.estadoRegistro === 'ANULADO') {
+            return res.status(409).json({ message: 'No se puede editar un registro anulado.' });
+        }
 
         const { estado, horaEntrada, horaSalida, observacionLegal } = req.body;
         
@@ -514,14 +728,21 @@ router.put('/:id/marcaje-legal', protect, authorize('asistencia:editar', ROLES.S
             metodo: 'Web'
         };
 
-        const eventoLineaTiempo = {
+        const eventoLineaTiempo = buildAuditEvent({
+            registroActual: existente,
+            patch: {
+                estado,
+                horaEntrada,
+                horaIngresoDeclarada: horaEntrada,
+                horaSalida,
+                horasExtra,
+                estadoHorasExtra,
+                observacion: observacionLegal
+            },
+            req,
             tipo: 'Marcaje Manual (Ord. 1140/27)',
-            hora: horaEntrada || horaSalida || new Date().toISOString().substring(11, 16),
-            estadoSeleccionado: estado,
-            observacion: observacionLegal,
-            registradoPor: req.user.nombre || req.user.email,
-            timestamp: new Date()
-        };
+            observacion: observacionLegal
+        });
 
         const updateData = {
             estado,
@@ -531,7 +752,10 @@ router.put('/:id/marcaje-legal', protect, authorize('asistencia:editar', ROLES.S
             horasExtra,
             estadoHorasExtra,
             observacion: observacionLegal,
-            auditLog
+            auditLog: {
+                ...auditLog,
+                ultimoEventoHash: eventoLineaTiempo.hashActual
+            }
         };
 
         const updated = await RegistroAsistencia.findOneAndUpdate(
@@ -553,16 +777,51 @@ router.put('/:id/marcaje-legal', protect, authorize('asistencia:editar', ROLES.S
 });
 
 // ─── DELETE /asistencia/:id ────────────────────────────────────────────────────
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, authorize('rrhh_asistencia:eliminar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
-        const result = await RegistroAsistencia.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
-        if (!result) return res.status(404).json({ message: 'No encontrado o sin acceso' });
-        res.json({ message: 'Registro eliminado' });
+        const { motivo } = req.body || {};
+        const existente = await RegistroAsistencia.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!existente) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+        if (existente.estadoRegistro === 'ANULADO') {
+            return res.status(409).json({ message: 'El registro ya está anulado.' });
+        }
+
+        const evento = buildAuditEvent({
+            registroActual: existente,
+            patch: { estadoRegistro: 'ANULADO' },
+            req,
+            tipo: 'Anulación Legal',
+            observacion: motivo || 'Anulación administrativa con trazabilidad legal'
+        });
+
+        const result = await RegistroAsistencia.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            {
+                $set: {
+                    estadoRegistro: 'ANULADO',
+                    anulado: {
+                        byUserId: req.user._id,
+                        by: req.user.nombre || req.user.email,
+                        motivo: motivo || 'Anulación administrativa con trazabilidad legal',
+                        timestamp: new Date()
+                    },
+                    auditLog: {
+                        ...(existente.auditLog || {}),
+                        ...baseAuditLog(req, existente.auditLog?.metodo || 'Web'),
+                        ultimoEventoHash: evento.hashActual
+                    }
+                },
+                $push: { eventosTimeline: evento }
+            },
+            { new: true }
+        );
+
+        res.json({ message: 'Registro anulado (sin borrado físico)', registro: result });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // ─── POST /asistencia/sync-toa ─ Auto-sync attendance based on TOA production ───
-router.post('/sync-toa', protect, authorize('asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
+router.post('/sync-toa', protect, authorize('rrhh_asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
     try {
         const { month, year } = req.body;
         if (!month || !year) return res.status(400).json({ message: 'month y year requeridos' });
@@ -694,7 +953,8 @@ router.post('/sync-toa', protect, authorize('asistencia:editar', ROLES.ADMIN, RO
                         filter: {
                             empresaRef: req.user.empresaRef,
                             candidatoId: c._id,
-                            fecha: dateUTC
+                            fecha: dateUTC,
+                            estadoRegistro: { $ne: 'ANULADO' }
                         },
                         update: {
                             $set: {
@@ -703,7 +963,8 @@ router.post('/sync-toa', protect, authorize('asistencia:editar', ROLES.ADMIN, RO
                                 fecha: dateUTC,
                                 estado: nuevoEstado,
                                 descuentaDia: descuenta,
-                                automaticoTOA: true
+                                automaticoTOA: true,
+                                estadoRegistro: 'ACTIVO'
                             }
                         },
                         upsert: true
@@ -737,7 +998,7 @@ router.post('/sync-toa', protect, authorize('asistencia:editar', ROLES.ADMIN, RO
 //    - Finiquitado: después de contractEndDate (si está en mes actual)
 //    - Feriado/Libre: según calendario
 //    - Presente/Ausente: según producción
-router.post('/sync-from-produccion', protect, authorize('asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
+router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
     try {
         const { month, year } = req.body;
         if (!month || !year) return res.status(400).json({ message: 'month y year requeridos' });
@@ -893,7 +1154,8 @@ router.post('/sync-from-produccion', protect, authorize('asistencia:editar', ROL
                         filter: {
                             empresaRef: req.user.empresaRef,
                             candidatoId: cId,
-                            fecha: fechaDate
+                            fecha: fechaDate,
+                            estadoRegistro: { $ne: 'ANULADO' }
                         },
                         update: {
                             $set: {
@@ -912,6 +1174,7 @@ router.post('/sync-from-produccion', protect, authorize('asistencia:editar', ROL
                                 proyectoId: proyecto._id,
                                 proyectoNombre,
                                 syncFromProduccion: true,
+                                estadoRegistro: 'ACTIVO'
                             }
                         },
                         upsert: true
@@ -943,9 +1206,90 @@ router.post('/sync-from-produccion', protect, authorize('asistencia:editar', ROL
     }
 });
 
+// ─── GET /asistencia/reporte-legal ─ Exportable para fiscalización y auditoría ─────────
+router.get('/reporte-legal', protect, authorize('rrhh_asistencia:ver', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.AUDITOR), async (req, res) => {
+    try {
+        const { month, year, candidatoId, includeAnulados } = req.query;
+        if (!month || !year) return res.status(400).json({ message: 'month y year requeridos' });
+
+        const m = Number(month);
+        const y = Number(year);
+        const filter = {
+            empresaRef: req.user.empresaRef,
+            fecha: {
+                $gte: new Date(Date.UTC(y, m - 1, 1)),
+                $lte: new Date(Date.UTC(y, m, 0, 23, 59, 59)),
+            }
+        };
+        if (candidatoId) filter.candidatoId = candidatoId;
+        if (String(includeAnulados) !== 'true') {
+            filter.estadoRegistro = { $ne: 'ANULADO' };
+        }
+
+        const registros = await RegistroAsistencia.find(filter)
+            .populate('candidatoId', 'fullName rut position cargo')
+            .populate('turnoId', 'nombre horaEntrada horaSalida')
+            .sort({ fecha: 1, 'candidatoId.fullName': 1 })
+            .lean();
+
+        const filas = registros.map((r) => {
+            const verificacion = verifyRegistroIntegrity(r);
+            return {
+                id: r._id,
+                fecha: r.fecha,
+                trabajador: r.candidatoId?.fullName || '—',
+                rut: r.candidatoId?.rut || '—',
+                cargo: r.candidatoId?.position || r.candidatoId?.cargo || '—',
+                estado: r.estado,
+                horaEntrada: r.horaIngresoDeclarada || r.horaEntrada || '—',
+                horaSalida: r.horaSalida || '—',
+                turno: r.turnoId?.nombre || '—',
+                estadoRegistro: r.estadoRegistro || 'ACTIVO',
+                hashIntegridad: r.auditLog?.ultimoEventoHash || null,
+                eventosAuditados: verificacion.totalEventos,
+                integridadOk: verificacion.ok,
+                inconsistenciasIntegridad: verificacion.inconsistencias
+            };
+        });
+
+        const resumen = {
+            totalRegistros: filas.length,
+            totalAnulados: filas.filter((f) => f.estadoRegistro === 'ANULADO').length,
+            totalConIntegridadOk: filas.filter((f) => f.integridadOk).length,
+            totalConFallaIntegridad: filas.filter((f) => !f.integridadOk).length,
+            generadoEn: new Date().toISOString(),
+            generadoPor: req.user.nombre || req.user.email
+        };
+
+        res.json({ resumen, filas });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// ─── GET /asistencia/:id/verificar-integridad ─ Diagnóstico criptográfico ───────────────
+router.get('/:id/verificar-integridad', protect, authorize('rrhh_asistencia:ver', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.AUDITOR), async (req, res) => {
+    try {
+        const registro = await RegistroAsistencia.findOne({
+            _id: req.params.id,
+            empresaRef: req.user.empresaRef
+        }).lean();
+
+        if (!registro) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+        const verificacion = verifyRegistroIntegrity(registro);
+        res.json({
+            registroId: registro._id,
+            estadoRegistro: registro.estadoRegistro || 'ACTIVO',
+            ...verificacion
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // ─── POST /asistencia/validar-contrato ─ Validar coherencia de contratos ─────────
 // Verifica que todos los registros sean >= contractStartDate
-router.post('/validar-contrato', protect, authorize('asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
+router.post('/validar-contrato', protect, authorize('rrhh_asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
     try {
         const { month, year } = req.body;
         if (!month || !year) return res.status(400).json({ message: 'month y year requeridos' });

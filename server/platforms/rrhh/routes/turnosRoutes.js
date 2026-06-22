@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Turno = require('../models/Turno');
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
+const ROLES = require('../../auth/roles');
 
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, authorize('rrhh_turnos:ver', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const turnos = await Turno.find({ activo: true, empresaRef: req.user.empresaRef })
@@ -12,7 +13,7 @@ router.get('/', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, authorize('rrhh_turnos:crear', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
         // 🔒 INYECTAR EMPRESA
         const turno = new Turno({
@@ -24,7 +25,7 @@ router.post('/', protect, async (req, res) => {
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, authorize('rrhh_turnos:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const updated = await Turno.findOneAndUpdate(
@@ -38,16 +39,21 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // Assign/unassign colaborador to turno
-router.put('/:id/asignar', protect, async (req, res) => {
+router.put('/:id/asignar', protect, authorize('rrhh_turnos:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR), async (req, res) => {
     try {
         const { candidatoId, action } = req.body;
+        if (!candidatoId || !['add', 'remove'].includes(action)) {
+            return res.status(400).json({ message: 'candidatoId y action(add/remove) son obligatorios' });
+        }
         // 🔒 FILTRO POR EMPRESA
         const turno = await Turno.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!turno) return res.status(404).json({ message: 'Turno no encontrado o sin acceso' });
+        const candidatoIdStr = String(candidatoId);
         if (action === 'add') {
-            if (!turno.colominoAsignados.includes(candidatoId)) turno.colominoAsignados.push(candidatoId);
+            const exists = turno.colominoAsignados.some(id => String(id) === candidatoIdStr);
+            if (!exists) turno.colominoAsignados.push(candidatoId);
         } else {
-            turno.colominoAsignados = turno.colominoAsignados.filter(id => id.toString() !== candidatoId);
+            turno.colominoAsignados = turno.colominoAsignados.filter(id => String(id) !== candidatoIdStr);
         }
         await turno.save();
         res.json(turno);
@@ -55,9 +61,10 @@ router.put('/:id/asignar', protect, async (req, res) => {
 });
 
 // Asignación Masiva
-router.put('/:id/asignar-bulk', protect, async (req, res) => {
+router.put('/:id/asignar-bulk', protect, authorize('rrhh_turnos:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR), async (req, res) => {
     try {
         const { candidatoIds } = req.body;
+        if (!Array.isArray(candidatoIds)) return res.status(400).json({ message: 'candidatoIds debe ser un arreglo' });
         // 🔒 FILTRO POR EMPRESA
         const turno = await Turno.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!turno) return res.status(404).json({ message: 'Turno no encontrado o sin acceso' });
@@ -74,7 +81,7 @@ router.put('/:id/asignar-bulk', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, authorize('rrhh_turnos:eliminar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const result = await Turno.findOneAndUpdate(

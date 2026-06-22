@@ -23,6 +23,10 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
         hora: String,
         estadoSeleccionado: String,
         observacion: String,
+        snapshotAntes: { type: mongoose.Schema.Types.Mixed },
+        snapshotDespues: { type: mongoose.Schema.Types.Mixed },
+        hashPrevio: String,
+        hashActual: String,
         fotoUrl: String,
         registradoPor: String,
         timestamp: { type: Date, default: Date.now }
@@ -68,7 +72,21 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
         geoLat: Number,
         geoLng: Number,
         timestamp: Date,
-        metodo: { type: String, enum: ['Web', 'Movil', 'Biometria'] }
+        metodo: { type: String, enum: ['Web', 'Movil', 'Biometria'] },
+        ultimoEventoHash: String
+    },
+
+    estadoRegistro: {
+        type: String,
+        enum: ['ACTIVO', 'ANULADO'],
+        default: 'ACTIVO',
+        index: true
+    },
+    anulado: {
+        byUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
+        by: String,
+        motivo: String,
+        timestamp: Date
     },
 
     // FINIQUITOS
@@ -84,5 +102,6 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
 
 // Índice compuesto para búsquedas rápidas por empresa + candidato + fecha
 RegistroAsistenciaSchema.index({ empresaRef: 1, candidatoId: 1, fecha: 1 }, { unique: true, sparse: true });
+RegistroAsistenciaSchema.index({ empresaRef: 1, estadoRegistro: 1, fecha: 1 });
 
 module.exports = mongoose.model('RegistroAsistencia', RegistroAsistenciaSchema);

@@ -141,14 +141,16 @@ export const turnosApi = {
 
 export const asistenciaApi = {
     getAll:            (params)    => rrhhApi.get('/asistencia', { params }),
+    getReporteLegal:   (params)    => rrhhApi.get('/asistencia/reporte-legal', { params }),
     getResumenPeriodo: (month, year) => rrhhApi.get('/asistencia/resumen-periodo', { params: { month, year } }),
     create:            (data)      => rrhhApi.post('/asistencia', data),
     bulkCreate:        (registros) => rrhhApi.post('/asistencia/bulk', { registros }),
     bulkUpsert:        (registros, onlyInsertNew = false) => rrhhApi.post('/asistencia/bulk-upsert', { registros, onlyInsertNew }),
     update:            (id, data)  => rrhhApi.put(`/asistencia/${id}`, data),
     marcajeLegal:      (id, data)  => rrhhApi.put(`/asistencia/${id}/marcaje-legal`, data),
+    verificarIntegridad: (id)      => rrhhApi.get(`/asistencia/${id}/verificar-integridad`),
     createMarcajeLegal: (data)     => rrhhApi.post('/asistencia/marcaje-legal', data),
-    remove:            (id)        => rrhhApi.delete(`/asistencia/${id}`),
+    remove:            (id, motivo) => rrhhApi.delete(`/asistencia/${id}`, { data: { motivo } }),
     syncToa:           (month, year) => rrhhApi.post('/asistencia/sync-toa', { month, year }),
 };
 
