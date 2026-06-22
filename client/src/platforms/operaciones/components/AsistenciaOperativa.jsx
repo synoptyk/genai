@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { asistenciaApi, turnosApi } from '../../rrhh/rrhhApi';
 import { getHorarioDelDia } from '../../rrhh/utils/turnoHelper';
+import API_URL from '../../../config';
 
 const AsistenciaOperativa = ({ 
     miEquipo, 
@@ -308,12 +309,19 @@ const AsistenciaOperativa = ({
                 throw new Error('Sesión inválida. Vuelve a iniciar sesión para subir el respaldo.');
             }
 
-            const res = await fetch('/api/rrhh/asistencia/upload-respaldo', {
+            const res = await fetch(`${API_URL}/api/rrhh/asistencia/upload-respaldo`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
                 body: formData
             });
-            const data = await res.json();
+            const responseType = res.headers.get('content-type') || '';
+            let data = {};
+            if (responseType.includes('application/json')) {
+                data = await res.json();
+            } else {
+                const responseText = await res.text();
+                throw new Error(responseText?.slice(0, 120) || `Error HTTP ${res.status}`);
+            }
 
             if (!res.ok) throw new Error(data.message || 'Error uploading');
 

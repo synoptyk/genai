@@ -38,6 +38,46 @@ const AsistenciaLegal = () => {
     const { user } = useAuth();
     const isAdmin = ['system_admin', 'ceo_genai', 'ceo', 'admin', 'rrhh', 'gerencia'].includes(String(user?.role || '').toLowerCase());
 
+    const toHHmm = (raw) => {
+        if (!raw) return '';
+
+        const str = String(raw).trim();
+        if (!str) return '';
+
+        let m = str.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d{1,3})?)?$/);
+        if (m) {
+            const hh = Number(m[1]);
+            const mm = Number(m[2]);
+            if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+                return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+            }
+        }
+
+        const normalized = str
+            .toLowerCase()
+            .replace(/\./g, '')
+            .replace(/\s+/g, '');
+
+        m = normalized.match(/^(\d{1,2}):(\d{2})(am|pm)$/);
+        if (m) {
+            let hh = Number(m[1]);
+            const mm = Number(m[2]);
+            const meridiem = m[3];
+            if (hh >= 1 && hh <= 12 && mm >= 0 && mm <= 59) {
+                if (meridiem === 'am' && hh === 12) hh = 0;
+                if (meridiem === 'pm' && hh !== 12) hh += 12;
+                return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+            }
+        }
+
+        const parsed = new Date(str);
+        if (!Number.isNaN(parsed.getTime())) {
+            return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+        }
+
+        return '';
+    };
+
     useEffect(() => {
         const fetchAll = async () => {
             setLoading(true);
@@ -414,7 +454,12 @@ const AsistenciaLegal = () => {
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             setModalMarcaje(reg);
-                                                            setMarcajeForm({ estado: reg.estado || 'Presente', horaEntrada: reg.horaEntrada || reg.horaIngresoDeclarada || '', horaSalida: reg.horaSalida || '', observacionLegal: '' });
+                                                            setMarcajeForm({
+                                                                estado: reg.estado || 'Presente',
+                                                                horaEntrada: toHHmm(reg.horaEntrada || reg.horaIngresoDeclarada || ''),
+                                                                horaSalida: toHHmm(reg.horaSalida || ''),
+                                                                observacionLegal: ''
+                                                            });
                                                         }}
                                                         className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                                                         title="Forzar Marcaje Manual (Requiere Observación Legal)"

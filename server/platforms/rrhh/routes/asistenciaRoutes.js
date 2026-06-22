@@ -1275,7 +1275,15 @@ router.get('/:id/verificar-integridad', protect, authorize('rrhh_asistencia:ver'
             empresaRef: req.user.empresaRef
         }).lean();
 
-        if (!registro) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+        if (!registro) {
+            return res.json({
+                registroId: req.params.id,
+                ok: false,
+                totalEventos: 0,
+                ultimoHashCalculado: null,
+                inconsistencias: ['Registro no encontrado o sin acceso']
+            });
+        }
         const verificacion = verifyRegistroIntegrity(registro);
         res.json({
             registroId: registro._id,
