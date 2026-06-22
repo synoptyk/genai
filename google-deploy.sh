@@ -51,11 +51,11 @@ cp docker/server.Dockerfile ./Dockerfile
 
 # Construir bandera de actualización de variables solo para las que existen localmente
 ENV_UPDATE=""
-[ -n "$MONGODB_URI" ] && MONGO_URI="$MONGODB_URI"
-[ -n "$MONGO_URI" ] && ENV_UPDATE="${ENV_UPDATE}MONGO_URI=${MONGO_URI},"
-[ -n "$JWT_SECRET" ] && ENV_UPDATE="${ENV_UPDATE}JWT_SECRET=${JWT_SECRET},"
-[ -n "$SMTP_PASSWORD" ] && ENV_UPDATE="${ENV_UPDATE}SMTP_PASSWORD=${SMTP_PASSWORD},"
-[ -n "$CLOUDINARY_API_SECRET" ] && ENV_UPDATE="${ENV_UPDATE}CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET},"
+[ -n "${MONGODB_URI:-}" ] && MONGO_URI="$MONGODB_URI"
+[ -n "${MONGO_URI:-}" ] && ENV_UPDATE="${ENV_UPDATE}MONGO_URI=${MONGO_URI},"
+[ -n "${JWT_SECRET:-}" ] && ENV_UPDATE="${ENV_UPDATE}JWT_SECRET=${JWT_SECRET},"
+[ -n "${SMTP_PASSWORD:-}" ] && ENV_UPDATE="${ENV_UPDATE}SMTP_PASSWORD=${SMTP_PASSWORD},"
+[ -n "${CLOUDINARY_API_SECRET:-}" ] && ENV_UPDATE="${ENV_UPDATE}CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET},"
 # Puedes agregar más variables aquí si necesitas actualizarlas desde local
 
 ENV_FLAG=""
