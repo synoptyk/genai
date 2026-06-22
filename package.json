@@ -19,7 +19,7 @@
     "gen": "npm run dev",
     "dev:all": "concurrently \"npm run server\" \"npm run client\" \"npm run mobile\"",
     "audit:permisos": "node check_permissions_sync.js",
-    "deploy": "git add . && git commit --no-verify -m 'Update: production sync' && git push",
+    "deploy": "git add . && (git diff --cached --quiet || git commit --no-verify -m 'Update: production sync') && git push",
     "deploy:msg": "git add . && git commit && git push",
     "deploy:google": "./google-deploy.sh",
     "deploy:full": "npm run deploy && npm run deploy:google",
