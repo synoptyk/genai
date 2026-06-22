@@ -357,7 +357,7 @@ function AppRoutes() {
           <Route path="/op-portales" element={<ProtectedRoute allowPermissions={['op_portales']}><AppShell><ProximamenteModule moduleName="Portales Operativos" permissionKey="op_portales" /></AppShell></ProtectedRoute>} />
           <Route path="/prev-acreditacion" element={<ProtectedRoute allowPermissions={['prev_acreditacion']}><AppShell><ProximamenteModule moduleName="Acreditación Preventiva" permissionKey="prev_acreditacion" /></AppShell></ProtectedRoute>} />
           <Route path="/rend-cierre-bonos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos']}><AppShell><ProximamenteModule moduleName="Cierre de Bonos" permissionKey="rend_cierre_bonos" /></AppShell></ProtectedRoute>} />
-          <Route path="/rrhh-contratos-anexos" element={<ProtectedRoute allowPermissions={['rrhh_contratos_anexos']}><AppShell><ProximamenteModule moduleName="Contratos y Anexos" permissionKey="rrhh_contratos_anexos" /></AppShell></ProtectedRoute>} />
+          <Route path="/rrhh-contratos-anexos" element={<ProtectedRoute allowPermissions={['rrhh_contratos_anexos']}><AppShell><ProximamenteModule moduleName="Documento Legal" permissionKey="rrhh_contratos_anexos" /></AppShell></ProtectedRoute>} />
           <Route path="/rrhh-historial" element={<ProtectedRoute allowPermissions={['rrhh_historial']}><AppShell><ProximamenteModule moduleName="Historial de RRHH" permissionKey="rrhh-historial" /></AppShell></ProtectedRoute>} />
 
     </Routes>

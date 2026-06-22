@@ -932,7 +932,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('rrhh_captura') && <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />}
 
                   {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />}
-                  {hasSubAccess('rrhh_contratos_anexos') && <MenuLink path="/rrhh/contratos-anexos" icon={PenTool} label="Contratos y Anexos" accent="violet" isActive={isActive('/rrhh/contratos-anexos')} />}
+                  {hasSubAccess('rrhh_contratos_anexos') && <MenuLink path="/rrhh/contratos-anexos" icon={PenTool} label="Documento Legal" accent="violet" isActive={isActive('/rrhh/contratos-anexos')} />}
 
                   {/* Group 2: Personal activo (remanentes sin titulo) */}
                   {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />}

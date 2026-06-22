@@ -137,6 +137,96 @@ async function refreshOAuth2Token(account) {
 
 const activeImapClients = new Map();
 const emailDetailCache = new Map();
+const mailboxListCache = new Map();
+
+const MESSAGE_LIST_TTL_MS = 15000;
+
+const heuristicCategory = (msg) => {
+    const fromStr = (msg?.from?.address || '').toLowerCase();
+    const subjStr = (msg?.subject || '').toLowerCase();
+    if (fromStr.includes('noreply') || fromStr.includes('no-reply') || fromStr.includes('notification') || fromStr.includes('alert')) {
+        return 'notificaciones';
+    }
+    if (fromStr.includes('newsletter') || subjStr.includes('oferta') || subjStr.includes('descuento') || subjStr.includes('promocion')) {
+        return 'promociones';
+    }
+    if (subjStr.includes('spam') || subjStr.includes('viagra') || subjStr.includes('casino')) {
+        return 'spam';
+    }
+    return 'prioritario';
+};
+
+const getMailboxCacheKey = ({ accountId, folder, page, limit }) => `${accountId}::${folder}::${page}::${limit}`;
+
+const getCachedMailboxList = (cacheKey) => {
+    const cached = mailboxListCache.get(cacheKey);
+    if (!cached) return null;
+    if (cached.expiresAt < Date.now()) {
+        mailboxListCache.delete(cacheKey);
+        return null;
+    }
+    return cached.payload;
+};
+
+const setCachedMailboxList = (cacheKey, payload) => {
+    mailboxListCache.set(cacheKey, {
+        payload,
+        expiresAt: Date.now() + MESSAGE_LIST_TTL_MS
+    });
+    if (mailboxListCache.size > 300) {
+        const firstKey = mailboxListCache.keys().next().value;
+        mailboxListCache.delete(firstKey);
+    }
+};
+
+const invalidateMailboxCacheForAccount = (accountId) => {
+    const prefix = `${accountId}::`;
+    for (const key of mailboxListCache.keys()) {
+        if (key.startsWith(prefix)) mailboxListCache.delete(key);
+    }
+};
+
+const classifyInBackground = async ({ userId, accountId, unclassifiedMsgs }) => {
+    if (!unclassifiedMsgs || unclassifiedMsgs.length === 0 || !groq) return;
+
+    try {
+        const promptItems = unclassifiedMsgs.map(m => ({
+            uid: m.uid,
+            from: m.from?.address || '',
+            subject: m.subject || ''
+        }));
+
+        const result = await groqChat(
+            'Eres un clasificador de correos. Responde SOLO con un array JSON válido.',
+            `Clasifica estos correos en prioritario|notificaciones|promociones|spam.\n\n${JSON.stringify(promptItems)}`
+        );
+
+        let jsonText = result.trim();
+        if (jsonText.includes('```json')) {
+            jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+        } else if (jsonText.includes('```')) {
+            jsonText = jsonText.split('```')[1].split('```')[0].trim();
+        }
+
+        const classifications = JSON.parse(jsonText);
+        const docsToInsert = [];
+        (classifications || []).forEach(c => {
+            if (!c?.uid || !c?.category) return;
+            docsToInsert.push({
+                usuarioRef: userId,
+                accountId,
+                emailUid: String(c.uid),
+                category: c.category
+            });
+        });
+
+        if (docsToInsert.length > 0) {
+            await EmailCategory.insertMany(docsToInsert, { ordered: false }).catch(() => {});
+        }
+    } catch (err) {
+        console.error('Error clasificado AI (background):', err.message || err);
+    }
+};
 
 // Limpiador de conexiones inactivas (10 minutos de inactividad)
 setInterval(() => {
@@ -365,6 +455,12 @@ router.get('/folders/:id', protect, authorize('social_webmail'), async (req, res
 router.get('/messages/:id', protect, authorize('social_webmail'), async (req, res) => {
     try {
         const { folder = 'INBOX', page = 1, limit = 30 } = req.query;
+        const cacheKey = getMailboxCacheKey({ accountId: req.params.id, folder, page, limit });
+        const cached = getCachedMailboxList(cacheKey);
+        if (cached) {
+            return res.json(cached);
+        }
+
         const account = await EmailAccount.findOne({ _id: req.params.id, usuarioRef: req.user._id });
         if (!account) return res.status(404).json({ message: 'Cuenta no encontrada' });
 
@@ -422,63 +518,19 @@ router.get('/messages/:id', protect, authorize('social_webmail'), async (req, re
         // 2. Encontrar UIDs no clasificados
         const unclassifiedMsgs = messages.filter(m => !categoryMap[m.uid]);
         if (unclassifiedMsgs.length > 0) {
-            try {
-                const promptItems = unclassifiedMsgs.map(m => ({
-                    uid: m.uid,
-                    from: m.from?.address || '',
-                    subject: m.subject || ''
-                }));
-                
-                const prompt = `Analiza estos correos y clasifícalos en una de estas categorías: 'prioritario' (correos personales, de trabajo directos, importantes), 'notificaciones' (boletines automáticos, recibos, alertas del sistema), 'promociones' (publicidad, ofertas, descuentos), o 'spam' (correos no deseados o sospechosos).
-                
-                Correos a clasificar:
-                ${JSON.stringify(promptItems)}
-                
-                Responde únicamente con un array JSON de objetos con el formato [{"uid": "...", "category": "prioritario|notificaciones|promociones|spam"}]. No incluyas markdown de bloque de código, solo el array JSON válido.`;
-                
-                const result = await groqChat(
-                    'Eres un clasificador de correos. Responde SOLO con el array JSON solicitado, sin markdown ni explicaciones.',
-                    `Analiza estos correos y clasifícalos en una de estas categorías: 'prioritario' (correos personales, de trabajo directos, importantes), 'notificaciones' (boletines automáticos, recibos, alertas del sistema), 'promociones' (publicidad, ofertas, descuentos), o 'spam' (correos no deseados o sospechosos).\n\nCorreos a clasificar:\n${JSON.stringify(promptItems)}\n\nResponde únicamente con un array JSON de objetos: [{"uid": "...", "category": "prioritario|notificaciones|promociones|spam"}]`
-                );
-                
-                let jsonText = result.trim();
-                if (jsonText.includes('```json')) {
-                    jsonText = jsonText.split('```json')[1].split('```')[0].trim();
-                } else if (jsonText.includes('```')) {
-                    jsonText = jsonText.split('```')[1].split('```')[0].trim();
-                }
-                
-                const classifications = JSON.parse(jsonText);
-                const docsToInsert = [];
-                classifications.forEach(c => {
-                    categoryMap[c.uid] = c.category;
-                    docsToInsert.push({
-                        usuarioRef: req.user._id,
-                        accountId: account._id,
-                        emailUid: c.uid,
-                        category: c.category
-                    });
-                });
-                
-                if (docsToInsert.length > 0) {
-                    await EmailCategory.insertMany(docsToInsert, { ordered: false }).catch(() => {});
-                }
-            } catch (err) {
-                console.error("Error clasificado AI:", err);
-                unclassifiedMsgs.forEach(m => {
-                    const fromStr = (m.from?.address || '').toLowerCase();
-                    const subjStr = (m.subject || '').toLowerCase();
-                    let cat = 'prioritario';
-                    if (fromStr.includes('noreply') || fromStr.includes('no-reply') || fromStr.includes('notification') || fromStr.includes('alert')) {
-                        cat = 'notificaciones';
-                    } else if (fromStr.includes('newsletter') || subjStr.includes('oferta') || subjStr.includes('descuento') || subjStr.includes('promocion')) {
-                        cat = 'promociones';
-                    } else if (subjStr.includes('spam')) {
-                        cat = 'spam';
-                    }
-                    categoryMap[m.uid] = cat;
-                });
-            }
+            // No bloqueamos la respuesta por IA: usamos heurística instantánea.
+            unclassifiedMsgs.forEach(m => {
+                categoryMap[m.uid] = heuristicCategory(m);
+            });
+
+            // Refinamiento en segundo plano para próximas lecturas.
+            setImmediate(() => {
+                classifyInBackground({
+                    userId: req.user._id,
+                    accountId: account._id,
+                    unclassifiedMsgs
+                }).catch(() => {});
+            });
         }
 
         // Asignar categorías a los mensajes
@@ -531,7 +583,9 @@ router.get('/messages/:id', protect, authorize('social_webmail'), async (req, re
             messages = messages.filter(m => !m.moved);
         }
 
-        res.json({ messages, total });
+        const payload = { messages, total };
+        setCachedMailboxList(cacheKey, payload);
+        res.json(payload);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Error conectando a IMAP', details: err.message });
@@ -629,6 +683,7 @@ router.patch('/message/:id/:uid/flag', protect, authorize('social_webmail'), asy
         try {
             if (value) await client.messageFlagsAdd(req.params.uid, [flag], { uid: true });
             else await client.messageFlagsRemove(req.params.uid, [flag], { uid: true });
+            invalidateMailboxCacheForAccount(account._id.toString());
         } finally {
             if (lock) lock.release();
         }
@@ -649,6 +704,7 @@ router.delete('/message/:id/:uid', protect, authorize('social_webmail'), async (
             // Para simplificar, añadimos flag \Deleted
             await client.messageFlagsAdd(req.params.uid, ['\\Deleted'], { uid: true });
             await client.mailboxClose(); // expunge
+            invalidateMailboxCacheForAccount(account._id.toString());
         } finally {
             if (lock) lock.release();
         }
@@ -754,6 +810,7 @@ router.post('/send/:id', protect, authorize('social_webmail'), async (req, res) 
         }
 
         await transporter.sendMail(mailOptions);
+        invalidateMailboxCacheForAccount(account._id.toString());
 
         // Opcional: Guardar en carpeta 'Sent' a través de IMAP (append)
         try {

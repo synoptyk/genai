@@ -636,7 +636,7 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                         { id: 'rrhh_asistencia', label: 'Control Asistencia' },
                                         { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
-                                        { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
+                                        { id: 'rrhh_contratos_anexos', label: 'Documento Legal' },
                                         { id: 'rrhh_finiquitos', label: 'Finiquitos' },
                                         { id: 'rrhh_historial', label: 'Historial de RRHH' }
                                     ]
@@ -1231,7 +1231,7 @@ const CeoCommandCenter = () => {
                                                 { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                                 { id: 'rrhh_asistencia', label: 'Control Asistencia' },
                                                 { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
-                                                { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
+                                                { id: 'rrhh_contratos_anexos', label: 'Documento Legal' },
                                                 { id: 'rrhh_finiquitos', label: 'Finiquitos' },
                                                 { id: 'rrhh_historial', label: 'Historial de RRHH' }
                                             ]

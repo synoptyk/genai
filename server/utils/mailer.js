@@ -1,6 +1,71 @@
 const nodemailer = require('nodemailer');
+const addressparser = require('nodemailer/lib/addressparser');
 const Empresa = require('../platforms/auth/models/Empresa');
 const { BRAND, appLink } = require('../config/brand');
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+const parseRecipientEntries = (value) => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (!item) return [];
+      if (typeof item === 'string') return addressparser(item);
+      if (typeof item === 'object' && item.address) return [item];
+      return [];
+    });
+  }
+
+  if (typeof value === 'object' && value.address) return [value];
+  return addressparser(String(value));
+};
+
+const sanitizeRecipientFields = (mailOptions = {}) => {
+  const sanitized = { ...mailOptions };
+  const fields = ['to', 'cc', 'bcc'];
+  const seen = new Set();
+
+  fields.forEach((field) => {
+    const entries = parseRecipientEntries(sanitized[field]);
+    const valid = [];
+    const invalid = [];
+
+    entries.forEach((entry) => {
+      const address = String(entry.address || '').trim();
+      if (!EMAIL_REGEX.test(address)) {
+        if (address) invalid.push(address);
+        return;
+      }
+
+      const key = address.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      valid.push(address);
+    });
+
+    if (invalid.length > 0) {
+      console.warn(`⚠️ Destinatarios inválidos omitidos (${field}):`, invalid.join(', '));
+    }
+
+    if (valid.length > 0) {
+      sanitized[field] = valid.join(', ');
+    } else {
+      delete sanitized[field];
+    }
+  });
+
+  if (!sanitized.to && !sanitized.cc && !sanitized.bcc) {
+    throw new Error('No hay destinatarios válidos para enviar el correo.');
+  }
+
+  return sanitized;
+};
+
+const sendMailSafe = async (mailOptions) => {
+  const sanitized = sanitizeRecipientFields(mailOptions);
+  return transporter.sendMail(sanitized);
+};
 
 /**
  * Helper para obtener la configuración personalizada de una empresa para un tipo de notificación
@@ -97,7 +162,7 @@ exports.sendWelcomeEmail = async (data) => {
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailSafe(mailOptions);
     console.log(`📧 Email de bienvenida enviado a: ${email} | ID: ${info.messageId}`);
     return true;
   } catch (error) {
@@ -140,7 +205,7 @@ exports.sendPasswordResetEmail = async (data) => {
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailSafe(mailOptions);
     console.log(`📧 Email de recuperación enviado a: ${email} | ID: ${info.messageId}`);
     return true;
   } catch (error) {
@@ -162,7 +227,7 @@ exports.sendCandidateValidationEmail = async (candidato, toEmails, empresaId) =>
     const finalSubject = custom.asunto || `Validación Pendiente: Nuevo Postulante ${candidato.fullName}`;
     const customImageHtml = injectCustomImage(custom.imagenCuerpo);
 
-    const info = await transporter.sendMail({
+    const info = await sendMailSafe({
       from: `"${config?.nombre || 'GENAI360 · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
@@ -217,7 +282,7 @@ exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingr
       </div>
     `;
 
-    await transporter.sendMail({
+    await sendMailSafe({
       from: `"${config?.nombre || 'GENAI360 · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
@@ -269,7 +334,7 @@ exports.sendContractApprovalEmail = async (documento, toEmails, empresaId) => {
       </div>
     `;
 
-    await transporter.sendMail({
+    await sendMailSafe({
       from: `"${config?.nombre || 'GENAI360 · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
@@ -288,7 +353,7 @@ exports.sendMeetingInvitationEmail = async (meeting, toEmails) => {
     const formattedDate = new Date(meeting.date).toLocaleDateString('es-CL');
     const meetingLink = appLink(`/video-call/${meeting.roomId}`);
     
-    const info = await transporter.sendMail({
+    const info = await sendMailSafe({
       from: `"GENAI360 · Agenda Ejecutiva" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       subject: `Invitación: ${meeting.title} - ${formattedDate}`,
@@ -429,7 +494,7 @@ exports.sendASTEmail = async (ast) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMailSafe(mailOptions);
     console.log(`📧 AST Email enviado a: ${destino} | Cert: ${certificadoId}`);
     return true;
   } catch (error) {
@@ -503,7 +568,7 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
             `
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailSafe(mailOptions);
     console.log('✅ Notificación Turno Enviada:', info.messageId);
     return true;
   } catch (error) {
@@ -592,7 +657,7 @@ exports.sendAttendanceNotificationEmail = async (registro, emailDestino, empresa
       html: html
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailSafe(mailOptions);
     console.log(`✅ Notificación de Asistencia Enviada a ${emailDestino}: ${info.messageId}`);
     return true;
   } catch (error) {
@@ -688,7 +753,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailSafe(mailOptions);
     console.log(`📧 Notificación Empresa enviada a: ${toEmails} | ID: ${info.messageId}`);
     return true;
   } catch (e) {
@@ -739,7 +804,7 @@ exports.sendExpirationWarningEmail = async (items, toEmails, empresaId) => {
       </div>
     `;
 
-    await transporter.sendMail({
+    await sendMailSafe({
       from: `"${config?.nombre || 'GENAI360 · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
@@ -806,7 +871,7 @@ exports.sendMonthlyExecutiveReport = async (data, toEmails, empresaId) => {
       </div>
     `;
 
-    await transporter.sendMail({
+    await sendMailSafe({
       from: `"${config?.nombre || 'GENAI360 · RRHH Executive'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
@@ -884,7 +949,7 @@ exports.sendUpdateNotification = async ({ email, name, changes, companyName, com
             `,
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const info = await sendMailSafe(mailOptions);
     console.log('✅ Notificación de Actualización Enviada:', info.messageId);
     return true;
   } catch (error) {
@@ -974,7 +1039,7 @@ exports.sendChecklistVehicular = async ({ checklist, vehiculo, tecnico, supervis
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMailSafe(mailOptions);
     console.log(`📧 Checklist Email enviado a: ${destino} | QR: ${qrId}`);
     return true;
   } catch (err) {
@@ -1064,7 +1129,7 @@ exports.sendAuditoriaDiscrepanciaEmail = async (auditoria, destinatarios) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMailSafe(mailOptions);
     console.log(`📧 Alerta de discrepancia enviada a: ${destinatarios.join(', ')}`);
     return true;
   } catch (error) {
@@ -1164,7 +1229,7 @@ exports.sendPurchaseNotification = async (data) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMailSafe(mailOptions);
     console.log(`📧 Email de compra enviado a: ${to} | Status: ${status}`);
     return true;
   } catch (err) {
@@ -1330,7 +1395,7 @@ exports.sendChecklistVehicular = async (data) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMailSafe(mailOptions);
     console.log(`📧 Checklist ${qrCodeId} enviado a: ${Array.isArray(to) ? to.join(', ') : to}`);
     return true;
   } catch (error) {
@@ -1583,7 +1648,7 @@ exports.sendInspeccionEmail = async (data) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMailSafe(mailOptions);
     console.log(`📧 Informe inspección enviado a: ${recipients.join(', ')}`);
     return true;
   } catch (error) {
@@ -1671,7 +1736,7 @@ exports.sendExecutiveSummaryEmail = async ({ to, companyName, companyLogo, notif
             `
         };
 
-        const info = await transporter.sendMail(mailOptions);
+        const info = await sendMailSafe(mailOptions);
         console.log(`✅ Reporte Ejecutivo ${frequency} Enviado | ID: ${info.messageId}`);
         return true;
     } catch (error) {

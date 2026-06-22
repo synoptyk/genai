@@ -16,6 +16,7 @@ import {
 import DirectoryModal from '../../../components/DirectoryModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5003';
+const MESSAGE_PAGE_SIZE = 30;
 
 // Helper para permisos granulares de IA
 const getCurrentUser = () => JSON.parse(localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user') || '{}');
@@ -23,6 +24,9 @@ const hasGenAiMailAccess = () => {
     const user = getCurrentUser();
     return user?.permisosModulos?.ai_genai_mail?.ver === true;
 };
+
+const buildMessageCacheKey = (accountId, folder, page, limit = 30) => `${accountId}::${folder}::${page}::${limit}`;
+const buildDetailCacheKey = (accountId, folder, uid) => `${accountId}::${folder}::${uid}`;
 
 
 const api = async (path, opts = {}) => {
@@ -2118,12 +2122,14 @@ const getSecurityBadge = (msg) => {
 };
 
 // ─── Message Row ──────────────────────────────────────────────────────────────
-const MessageRow = ({ msg, isSelected, isChecked, onToggleCheck, onClick }) => {
+const MessageRow = React.memo(({ msg, isSelected, isChecked, onToggleCheck, onClick, onHover, compact = false }) => {
     const fromName = msg.from?.name || msg.from?.address || 'Desconocido';
 
     return (
         <div onClick={onClick}
-            className={`w-full text-left flex items-start gap-3 p-4 mb-3 transition-all rounded-2xl group relative overflow-hidden cursor-pointer backdrop-blur-md shadow-sm border
+            onMouseEnter={() => onHover?.(msg)}
+            data-mail-uid={String(msg.uid)}
+            className={`w-full text-left flex items-start gap-3 ${compact ? 'p-2.5 mb-2 rounded-xl' : 'p-4 mb-3 rounded-2xl'} transition-all group relative overflow-hidden cursor-pointer backdrop-blur-md shadow-sm border
                 hover:scale-[1.02] hover:shadow-xl hover:shadow-indigo-500/10 active:scale-[0.98]
                 ${isSelected ? 'bg-gradient-to-br from-indigo-500/10 to-fuchsia-500/10 border-indigo-200/60 ring-1 ring-indigo-500/20' : 
                   isChecked ? 'bg-indigo-50/40 border-indigo-200/40' : 
@@ -2147,7 +2153,7 @@ const MessageRow = ({ msg, isSelected, isChecked, onToggleCheck, onClick }) => {
             <div className="flex-1 min-w-0 pt-0.5">
                 <div className="flex items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 truncate">
-                        <p className={`text-[12px] sm:text-[13px] truncate ${!msg.seen ? 'font-black text-slate-900' : 'font-bold text-slate-650'}`}>
+                            <p className={`${compact ? 'text-[11px] sm:text-[12px]' : 'text-[12px] sm:text-[13px]'} truncate ${!msg.seen ? 'font-black text-slate-900' : 'font-bold text-slate-650'}`}>
                             {fromName}
                         </p>
                         {getSecurityBadge(msg)}
@@ -2156,7 +2162,7 @@ const MessageRow = ({ msg, isSelected, isChecked, onToggleCheck, onClick }) => {
                         {new Date(msg.date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
                     </span>
                 </div>
-                <p className={`text-[11px] sm:text-[12px] truncate ${!msg.seen ? 'font-black text-slate-800' : 'font-semibold text-slate-500'}`}>
+                <p className={`${compact ? 'text-[10px] sm:text-[11px]' : 'text-[11px] sm:text-[12px]'} truncate ${!msg.seen ? 'font-black text-slate-800' : 'font-semibold text-slate-500'}`}>
                     {msg.subject}
                 </p>
             </div>
@@ -2164,7 +2170,21 @@ const MessageRow = ({ msg, isSelected, isChecked, onToggleCheck, onClick }) => {
             {msg.flagged && <Star size={13} className="text-amber-400 fill-amber-400 flex-shrink-0 mt-2" />}
         </div>
     );
-};
+});
+
+const MessageRowSkeleton = ({ compact = false }) => (
+    <div className={`w-full flex items-start gap-3 ${compact ? 'p-2.5 mb-2 rounded-xl' : 'p-4 mb-3 rounded-2xl'} bg-white/60 border border-white/60 shadow-sm animate-pulse`}>
+        <div className="w-4 h-4 rounded bg-slate-200 mt-1" />
+        <div className="w-10 h-10 rounded-full bg-slate-200" />
+        <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="h-3 bg-slate-200 rounded w-1/3" />
+                <div className="h-2.5 bg-slate-200 rounded w-12" />
+            </div>
+            <div className="h-3 bg-slate-200 rounded w-5/6" />
+        </div>
+    </div>
+);
 
 // ─── Office Document Viewer Modal ───────────────────────────────────────────
 const OfficeViewerModal = ({ filename, onClose }) => {
@@ -3038,12 +3058,17 @@ const Webmail = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showCompose, setShowCompose] = useState(false);
     const [replyTarget, setReplyTarget] = useState(null);
+    const [searchInput, setSearchInput] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [alert, setAlert] = useState(null);
     const [loadingAccounts, setLoadingAccounts] = useState(true);
     const [imapError, setImapError] = useState(null);
+    const [compactMode, setCompactMode] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [listScrollTop, setListScrollTop] = useState(0);
+    const [listViewportHeight, setListViewportHeight] = useState(600);
 
     // Responsive State
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -3075,6 +3100,30 @@ const Webmail = () => {
     const [quickSteps, setQuickSteps] = useState([]);
     const [scheduledEmails, setScheduledEmails] = useState([]);
     const [directoryContacts, setDirectoryContacts] = useState([]);
+    const listContainerRef = useRef(null);
+    const messageCacheRef = useRef(new Map());
+    const detailCacheRef = useRef(new Map());
+    const prefetchInFlightRef = useRef(new Set());
+    const keyboardDirectionRef = useRef(1);
+    const loadReqIdRef = useRef(0);
+
+    const mergeMessagesUnique = useCallback((prev, incoming) => {
+        const merged = [...prev];
+        const seen = new Set(prev.map((m) => String(m.uid)));
+        (incoming || []).forEach((msg) => {
+            const uid = String(msg.uid);
+            if (!seen.has(uid)) {
+                merged.push(msg);
+                seen.add(uid);
+            }
+        });
+        return merged;
+    }, []);
+
+    useEffect(() => {
+        const t = setTimeout(() => setSearchTerm(searchInput.trim()), 180);
+        return () => clearTimeout(t);
+    }, [searchInput]);
 
     // Responsiveness hook
     useEffect(() => {
@@ -3129,29 +3178,90 @@ const Webmail = () => {
     }, [selectedAccount]);
 
     // Load messages
-    const loadMessages = useCallback(async () => {
+    const loadMessages = useCallback(async ({ silent = false, force = false, append = false, targetPage = page } = {}) => {
         if (!selectedAccount) return;
-        setLoadingMessages(true);
-        setImapError(null);
-        setSelectedMsgMap({}); // Clear selection on reload
-        try {
-            const data = await api(`/messages/${selectedAccount._id}?folder=${encodeURIComponent(selectedFolder)}&page=${page}&limit=30`);
-            setMessages(data.messages || []);
-            setTotal(data.total || 0);
-        } catch (e) {
-            setImapError(e.message);
-            setMessages([]);
-        } finally {
-            setLoadingMessages(false);
+        const reqId = ++loadReqIdRef.current;
+        const cacheKey = buildMessageCacheKey(selectedAccount._id, selectedFolder, targetPage, MESSAGE_PAGE_SIZE);
+        const cached = !force ? messageCacheRef.current.get(cacheKey) : null;
+
+        if (cached) {
+            setMessages((prev) => append ? mergeMessagesUnique(prev, cached.messages || []) : (cached.messages || []));
+            setTotal(cached.total || 0);
+            if (append) setIsLoadingMore(false);
         }
-    }, [selectedAccount, selectedFolder, page]);
+
+        if (!silent && !cached) {
+            if (append) setIsLoadingMore(true);
+            else setLoadingMessages(true);
+        }
+
+        setImapError(null);
+        if (!silent && !append) {
+            setSelectedMsgMap({}); // Clear selection on hard reload
+        }
+        try {
+            const data = await api(`/messages/${selectedAccount._id}?folder=${encodeURIComponent(selectedFolder)}&page=${targetPage}&limit=${MESSAGE_PAGE_SIZE}`);
+            if (reqId !== loadReqIdRef.current) return;
+            setMessages((prev) => append ? mergeMessagesUnique(prev, data.messages || []) : (data.messages || []));
+            setTotal(data.total || 0);
+            messageCacheRef.current.set(cacheKey, {
+                messages: data.messages || [],
+                total: data.total || 0,
+                ts: Date.now()
+            });
+            if (messageCacheRef.current.size > 80) {
+                const firstKey = messageCacheRef.current.keys().next().value;
+                messageCacheRef.current.delete(firstKey);
+            }
+        } catch (e) {
+            if (reqId !== loadReqIdRef.current) return;
+            setImapError(e.message);
+            if (!append) setMessages([]);
+        } finally {
+            if (reqId === loadReqIdRef.current) {
+                if (append) setIsLoadingMore(false);
+                else setLoadingMessages(false);
+            }
+        }
+    }, [selectedAccount, selectedFolder, page, mergeMessagesUnique]);
 
     useEffect(() => {
-        setSelectedMsg(null);
-        setEmailDetail(null);
-        setMobileView('list');
-        loadMessages();
-    }, [loadMessages]);
+        if (!selectedAccount) return;
+        if (page === 1) {
+            setSelectedMsg(null);
+            setEmailDetail(null);
+            setMobileView('list');
+        }
+        loadMessages({ append: page > 1 });
+    }, [selectedAccount, selectedFolder, page, loadMessages]);
+
+    useEffect(() => {
+        if (!selectedAccount) return;
+        const id = setInterval(() => {
+            if (document.visibilityState === 'visible' && page === 1) {
+                loadMessages({ silent: true, targetPage: 1 });
+            }
+        }, 45000);
+        return () => clearInterval(id);
+    }, [selectedAccount, selectedFolder, page, loadMessages]);
+
+    useEffect(() => {
+        const el = listContainerRef.current;
+        if (!el) return;
+        const updateSize = () => setListViewportHeight(el.clientHeight || 600);
+        updateSize();
+        window.addEventListener('resize', updateSize);
+        return () => window.removeEventListener('resize', updateSize);
+    }, [isMobile, mobileView]);
+
+    useEffect(() => {
+        setPage(1);
+        setMessages([]);
+        setListScrollTop(0);
+        if (listContainerRef.current) {
+            listContainerRef.current.scrollTop = 0;
+        }
+    }, [selectedAccount?._id, selectedFolder]);
 
     // --- Outlook Enterprise Pro Fetch Handlers ---
     const loadTasks = useCallback(() => {
@@ -3265,24 +3375,57 @@ const Webmail = () => {
                 method: 'POST',
                 body: JSON.stringify({ quickStepId: qsId })
             });
-            loadMessages();
+            setPage(1);
+            loadMessages({ force: true, targetPage: 1 });
             showAlert("Acciones de Paso Rápido aplicadas");
         } catch (err) {
             showAlert("Error al aplicar Paso Rápido: " + err.message, "error");
         }
     };
 
+    const prefetchMessageDetail = useCallback(async (msg) => {
+        if (!selectedAccount || !msg?.uid) return;
+        const detailKey = buildDetailCacheKey(selectedAccount._id, selectedFolder, msg.uid);
+        if (detailCacheRef.current.has(detailKey) || prefetchInFlightRef.current.has(detailKey)) return;
+
+        prefetchInFlightRef.current.add(detailKey);
+        try {
+            const detail = await api(`/message/${selectedAccount._id}/${msg.uid}?folder=${encodeURIComponent(selectedFolder)}`);
+            detail.uid = msg.uid;
+            detail.folder = selectedFolder;
+            detailCacheRef.current.set(detailKey, detail);
+            if (detailCacheRef.current.size > 250) {
+                const firstKey = detailCacheRef.current.keys().next().value;
+                detailCacheRef.current.delete(firstKey);
+            }
+        } catch {
+            // Prefetch best-effort: no bloquear UX por errores transitorios
+        } finally {
+            prefetchInFlightRef.current.delete(detailKey);
+        }
+    }, [selectedAccount, selectedFolder]);
+
     const openMessage = async (msg) => {
         setSelectedMsg(msg.uid);
-        setLoadingDetail(true);
+        const detailKey = buildDetailCacheKey(selectedAccount._id, selectedFolder, msg.uid);
+        const cachedDetail = detailCacheRef.current.get(detailKey);
+        setLoadingDetail(!cachedDetail);
         if (isMobile) {
             setMobileView('detail');
+        }
+        if (cachedDetail) {
+            setEmailDetail(cachedDetail);
         }
         try {
             const detail = await api(`/message/${selectedAccount._id}/${msg.uid}?folder=${encodeURIComponent(selectedFolder)}`);
             detail.uid = msg.uid;
             detail.folder = selectedFolder;
             setEmailDetail(detail);
+            detailCacheRef.current.set(detailKey, detail);
+            if (detailCacheRef.current.size > 250) {
+                const firstKey = detailCacheRef.current.keys().next().value;
+                detailCacheRef.current.delete(firstKey);
+            }
             // mark as read locally
             setMessages(prev => prev.map(m => m.uid === msg.uid ? { ...m, seen: true } : m));
         } catch (e) {
@@ -3332,7 +3475,7 @@ const Webmail = () => {
     };
 
     // Filter Logic (Search + Quick Tabs + Priority Categories)
-    const filteredMessages = messages.filter(m => {
+    const filteredMessages = useMemo(() => messages.filter(m => {
         const matchesSearch = !searchTerm || 
             m.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             m.from?.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -3348,9 +3491,118 @@ const Webmail = () => {
         if (filterTab === 'unread') return !m.seen;
         if (filterTab === 'flagged') return m.flagged;
         return true;
-    });
+    }), [messages, searchTerm, selectedFolder, categoryTab, filterTab]);
+
+    const hasMoreMessages = messages.length < total;
+    const selectedMessageObj = useMemo(
+        () => filteredMessages.find((m) => String(m.uid) === String(selectedMsg)) || null,
+        [filteredMessages, selectedMsg]
+    );
+
+    const handleListScroll = useCallback((event) => {
+        const el = event.currentTarget;
+        const top = el.scrollTop;
+        setListScrollTop(top);
+
+        const nearBottom = el.scrollHeight - top - el.clientHeight < 220;
+        if (nearBottom && hasMoreMessages && !loadingMessages && !isLoadingMore && !searchTerm) {
+            setPage((prev) => prev + 1);
+        }
+    }, [hasMoreMessages, loadingMessages, isLoadingMore, searchTerm]);
+
+    const rowHeight = compactMode ? 76 : 94;
+    const shouldVirtualize = filteredMessages.length > 80;
+    const overscan = 8;
+    const virtualStart = shouldVirtualize ? Math.max(0, Math.floor(listScrollTop / rowHeight) - overscan) : 0;
+    const virtualVisibleCount = shouldVirtualize ? Math.ceil(listViewportHeight / rowHeight) + overscan * 2 : filteredMessages.length;
+    const virtualEnd = Math.min(filteredMessages.length, virtualStart + virtualVisibleCount);
+    const visibleMessages = shouldVirtualize ? filteredMessages.slice(virtualStart, virtualEnd) : filteredMessages;
+    const topSpacerHeight = shouldVirtualize ? virtualStart * rowHeight : 0;
+    const bottomSpacerHeight = shouldVirtualize ? (filteredMessages.length - virtualEnd) * rowHeight : 0;
+
+    useEffect(() => {
+        if (!selectedMsg || filteredMessages.length === 0) return;
+        const currentIdx = filteredMessages.findIndex((m) => String(m.uid) === String(selectedMsg));
+        if (currentIdx === -1) return;
+        const direction = keyboardDirectionRef.current >= 0 ? 1 : -1;
+        const primaryIdxs = [1, 2, 3, 4]
+            .map((step) => currentIdx + step * direction)
+            .filter((idx) => idx >= 0 && idx < filteredMessages.length);
+        const fallbackIdxs = [1, 2]
+            .map((step) => currentIdx - step * direction)
+            .filter((idx) => idx >= 0 && idx < filteredMessages.length);
+        [...primaryIdxs, ...fallbackIdxs]
+            .map((idx) => filteredMessages[idx])
+            .forEach((m) => prefetchMessageDetail(m));
+    }, [selectedMsg, filteredMessages, prefetchMessageDetail]);
+
+    const openRelativeMessage = useCallback((delta) => {
+        if (filteredMessages.length === 0) return;
+        keyboardDirectionRef.current = delta;
+        const currentIdx = filteredMessages.findIndex((m) => String(m.uid) === String(selectedMsg));
+        const nextIdx = currentIdx === -1 ? 0 : Math.max(0, Math.min(filteredMessages.length - 1, currentIdx + delta));
+        const target = filteredMessages[nextIdx];
+        if (!target) return;
+        openMessage(target);
+        if (listContainerRef.current) {
+            const row = listContainerRef.current.querySelector(`[data-mail-uid="${String(target.uid)}"]`);
+            row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }, [filteredMessages, selectedMsg, openMessage]);
+
+    useEffect(() => {
+        const onKeyDown = (event) => {
+            const tag = event.target?.tagName?.toLowerCase();
+            const isTypingContext =
+                event.target?.isContentEditable ||
+                tag === 'input' ||
+                tag === 'textarea' ||
+                tag === 'select';
+            if (isTypingContext) return;
+            if (event.metaKey || event.ctrlKey || event.altKey) return;
+            if (showCompose || showAddModal || showSettings || showAddinsStore || officeDoc) return;
+
+            const key = event.key.toLowerCase();
+            if (key === 'j') {
+                event.preventDefault();
+                openRelativeMessage(1);
+                return;
+            }
+            if (key === 'k') {
+                event.preventDefault();
+                openRelativeMessage(-1);
+                return;
+            }
+            if (key === 'r') {
+                if (!selectedMessageObj) return;
+                event.preventDefault();
+                setReplyTarget(emailDetail || selectedMessageObj);
+                setShowCompose(true);
+                return;
+            }
+            if (key === 'e') {
+                if (!selectedMessageObj) return;
+                event.preventDefault();
+                handleDelete(selectedMessageObj.uid);
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [
+        selectedMessageObj,
+        emailDetail,
+        openRelativeMessage,
+        showCompose,
+        showAddModal,
+        showSettings,
+        showAddinsStore,
+        officeDoc,
+        handleDelete
+    ]);
 
     const unread = messages.filter(m => !m.seen).length;
+    const flaggedCount = messages.filter(m => m.flagged).length;
 
     // Bulk Actions Selection Handlers
     const handleToggleCheck = (uid, e) => {
@@ -3676,7 +3928,7 @@ const Webmail = () => {
 
                             <div className="flex-1" />
                             <div className="p-4 mt-4 border-t border-slate-200/60 bg-white/20">
-                                <button onClick={loadMessages} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 hover:border-indigo-300 text-slate-600 hover:text-indigo-750 hover:bg-indigo-50/10 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest shadow-sm hover:scale-[1.02] active:scale-[0.98] hover:shadow-md">
+                                <button onClick={() => loadMessages({ force: true })} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 hover:border-indigo-300 text-slate-600 hover:text-indigo-750 hover:bg-indigo-50/10 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest shadow-sm hover:scale-[1.02] active:scale-[0.98] hover:shadow-md">
                                     <RefreshCw size={14} className={loadingMessages ? 'animate-spin text-indigo-500' : ''} />
                                     {loadingMessages ? 'Sincronizando...' : 'Sincronizar'}
                                 </button>
@@ -3749,10 +4001,25 @@ const Webmail = () => {
                                     {/* Search input */}
                                     <div className="relative group">
                                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                        <input type="text" placeholder="Buscar correos..." value={searchTerm}
-                                            onChange={e => setSearchTerm(e.target.value)}
+                                        <input type="text" placeholder="Buscar correos..." value={searchInput}
+                                            onChange={e => setSearchInput(e.target.value)}
                                             className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-[12px] sm:text-[13px] font-medium text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 focus:bg-white transition-all placeholder:text-slate-400" />
                                     </div>
+
+                                    <div className="flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 px-1">
+                                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                                            <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-500">Total {messages.length}</span>
+                                            <span className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600">No leídos {unread}</span>
+                                            <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-600">Destacados {flaggedCount}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setCompactMode((prev) => !prev)}
+                                            className={`px-2 py-1 rounded-lg border transition-all ${compactMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600'}`}
+                                        >
+                                            {compactMode ? 'Compacta' : 'Ejecutiva'}
+                                        </button>
+                                    </div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-300 px-1">Atajos: J/K navegar, R responder, E eliminar</p>
 
                                     {/* Priority Categories */}
                                     {selectedFolder === 'INBOX' && (
@@ -3799,11 +4066,12 @@ const Webmail = () => {
                             )}
 
                             {/* Message List */}
-                            <div className="flex-1 overflow-y-auto bg-transparent custom-scrollbar p-2">
+                            <div ref={listContainerRef} onScroll={handleListScroll} className="flex-1 overflow-y-auto bg-transparent custom-scrollbar p-2">
                                 {loadingMessages ? (
-                                    <div className="flex flex-col items-center justify-center h-48 gap-3">
-                                        <Loader2 className="animate-spin text-indigo-500" size={28} />
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Descargando cabeceras...</p>
+                                    <div className="flex flex-col gap-2 py-2">
+                                        {Array.from({ length: 8 }).map((_, idx) => (
+                                            <MessageRowSkeleton key={idx} compact={compactMode} />
+                                        ))}
                                     </div>
                                 ) : filteredMessages.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
@@ -3814,27 +4082,40 @@ const Webmail = () => {
                                     </div>
                                 ) : (
                                     <div className="flex flex-col divide-y divide-slate-100/50">
-                                        {filteredMessages.map(msg => (
+                                        {topSpacerHeight > 0 && <div style={{ height: `${topSpacerHeight}px` }} />}
+                                        {visibleMessages.map(msg => (
                                             <MessageRow key={msg.uid} msg={msg}
                                                 isSelected={selectedMsg === msg.uid}
                                                 isChecked={!!selectedMsgMap[msg.uid]}
                                                 onToggleCheck={handleToggleCheck}
+                                                onHover={prefetchMessageDetail}
+                                                compact={compactMode}
                                                 onClick={() => openMessage(msg)} />
                                         ))}
+                                        {bottomSpacerHeight > 0 && <div style={{ height: `${bottomSpacerHeight}px` }} />}
+                                        {isLoadingMore && (
+                                            <div className="flex items-center justify-center py-4 text-[10px] font-black uppercase tracking-widest text-indigo-500 gap-2">
+                                                <Loader2 size={14} className="animate-spin" />
+                                                Cargando más mensajes...
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
-                            {/* Pagination Footer */}
-                            {total > 30 && (
-                                <div className="p-3 border-t border-slate-100 bg-white flex items-center justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest flex-shrink-0 shadow-[0_-4px_10px_-5px_rgba(0,0,0,0.05)]">
-                                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-                                        className="px-3 py-1.5 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">Anterior</button>
-                                    <span className="bg-slate-55 px-2.5 py-1 rounded">Pág {page}</span>
-                                    <button disabled={messages.length < 30} onClick={() => setPage(p => p + 1)}
-                                        className="px-3 py-1.5 rounded-lg hover:bg-slate-55 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">Siguiente</button>
-                                </div>
-                            )}
+                            {/* Infinite Scroll Footer */}
+                            <div className="px-3 py-2 border-t border-slate-100 bg-white/90 text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center justify-between flex-shrink-0">
+                                <span>Mostrando {filteredMessages.length} de {total}</span>
+                                {hasMoreMessages && !searchTerm && (
+                                    <button
+                                        onClick={() => setPage((p) => p + 1)}
+                                        disabled={isLoadingMore || loadingMessages}
+                                        className="px-2 py-1 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-40 transition-colors"
+                                    >
+                                        Cargar más
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -3843,9 +4124,16 @@ const Webmail = () => {
                         <div className="flex-1 bg-white/60 backdrop-blur-xl flex flex-col relative h-full m-3 rounded-3xl border border-white shadow-2xl overflow-hidden z-30">
                             {loadingDetail ? (
                                 <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-150">
-                                    <div className="flex flex-col items-center gap-4 p-8 bg-white rounded-3xl shadow-2xl border border-slate-100">
-                                        <Loader2 className="animate-spin text-indigo-600" size={36} />
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Desencriptando Mensaje...</p>
+                                    <div className="w-[92%] max-w-3xl p-6 bg-white rounded-3xl shadow-2xl border border-slate-100 animate-pulse">
+                                        <div className="h-4 bg-slate-200 rounded w-2/5 mb-5" />
+                                        <div className="h-3 bg-slate-200 rounded w-1/3 mb-3" />
+                                        <div className="h-3 bg-slate-200 rounded w-1/4 mb-8" />
+                                        <div className="space-y-2">
+                                            <div className="h-3 bg-slate-200 rounded w-full" />
+                                            <div className="h-3 bg-slate-200 rounded w-11/12" />
+                                            <div className="h-3 bg-slate-200 rounded w-10/12" />
+                                            <div className="h-3 bg-slate-200 rounded w-9/12" />
+                                        </div>
                                     </div>
                                 </div>
                             ) : emailDetail ? (

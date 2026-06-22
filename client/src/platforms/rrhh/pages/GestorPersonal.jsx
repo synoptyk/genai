@@ -730,7 +730,7 @@ const GestorPersonal = () => {
                                                     { id: 'rrhh_asistencia', label: 'Control Asistencia' },
                                                     { id: 'rrhh_turnos',     label: 'Programación de Turnos' },
                                                     { id: 'rrhh_seguridad_ppe', label: 'Seguridad & PPE' },
-                                                    { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
+                                                    { id: 'rrhh_contratos_anexos', label: 'Documento Legal' },
                                                     { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' },
                                                     { id: 'rrhh_historial', label: 'Historial RRHH' }
                                                 ]

@@ -1,20 +1,42 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   FileText, PenTool, Upload, Layout, ShieldCheck, Fingerprint as FingerprintIcon,
   ChevronRight, Plus, Search, FileEdit, Trash2,
   CheckCircle2, AlertCircle, Clock, Building2,
   Image as ImageIcon, AlignLeft, AlignRight, AlignCenter, AlignJustify, Loader2,
-  Bold, Italic, Underline, List, ListOrdered, Type, ShieldAlert, MapPin, Mail, Calendar, Eye,
+    Bold, Italic, Underline, List, ListOrdered, Type, ShieldAlert, MapPin, Mail, Calendar, Eye,
   Table as TableIcon, Maximize2, Minimize2, Palette, Hash
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { plantillasApi, candidatosApi, configApi, contratosApi } from '../rrhhApi';
 import { formatRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
+import {
+        LEGAL_BLUEPRINTS,
+        CLAUSE_LIBRARY,
+        buildCandidateContext,
+    buildPreviewContext,
+        renderTemplateTokens,
+        buildTemplateFromBlueprint,
+        getBlueprintByKey,
+    getMissingCriticalData,
+    getUnresolvedTokens,
+    replaceUnresolvedTokens
+} from '../utils/legalTemplateEngine';
 
 const cleanHtmlOfLocalResources = (htmlString) => {
     if (!htmlString) return '';
     return htmlString.replace(/<img[^>]+src=["'](?:file:\/\/[^"']+|[^"']*msohtmlclip[^"']*)["'][^>]*>/gi, '');
+};
+
+const normalizeTokenMarkup = (htmlString = '') => {
+    if (!htmlString) return '';
+
+    return htmlString
+        .replace(/<span[^>]*contenteditable=["']false["'][^>]*>\s*(\{[A-Z0-9_]+\})\s*<\/span>/gi, '$1')
+        .replace(/<span[^>]*>\s*(\{[A-Z0-9_]+\})\s*<\/span>/gi, '$1')
+        .replace(/(&nbsp;)+(?=\{[A-Z0-9_]+\})/g, ' ')
+        .replace(/\{\s*([A-Z0-9_]+)\s*\}/g, '{$1}');
 };
 
 const ContratosYAnexos = () => {
@@ -31,8 +53,12 @@ const ContratosYAnexos = () => {
     const [isSigning, setIsSigning] = useState(false);
     const [signaturePayload, setSignaturePayload] = useState(null);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
+    const [previewVariant, setPreviewVariant] = useState('final');
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [user, setUser] = useState(null);
+    const [blueprintKey, setBlueprintKey] = useState('CONTRATO_INDEFINIDO');
+    const [templateTone, setTemplateTone] = useState('ejecutivo');
+    const [selectedClauseKeys, setSelectedClauseKeys] = useState([]);
     const editorRef = useRef(null);
     const savedRangeRef = useRef(null);
 
@@ -115,6 +141,31 @@ const ContratosYAnexos = () => {
         companyName: 'Portal Corporativo',
     });
 
+    const selectedCandidateData = useMemo(
+        () => candidates.find((cand) => cand._id === selectedCandidateId) || null,
+        [candidates, selectedCandidateId]
+    );
+
+    const candidateContext = useMemo(
+        () => buildCandidateContext(selectedCandidateData, companyConfig.companyName),
+        [selectedCandidateData, companyConfig.companyName]
+    );
+
+    const previewContext = useMemo(
+        () => buildPreviewContext(selectedCandidateData, companyConfig.companyName),
+        [selectedCandidateData, companyConfig.companyName]
+    );
+
+    const missingCandidateData = useMemo(
+        () => getMissingCriticalData(selectedCandidateData),
+        [selectedCandidateData]
+    );
+
+    const unresolvedTemplateTokens = useMemo(() => {
+        const content = editorRef.current ? editorRef.current.innerHTML : template.contenido;
+        return getUnresolvedTokens(normalizeTokenMarkup(content), candidateContext);
+    }, [template.contenido, candidateContext]);
+
     // ── DATA FETCHING ──
     const fetchTemplates = async () => {
         setLoading(true);
@@ -178,7 +229,8 @@ const ContratosYAnexos = () => {
     };
 
     const handleSaveTemplate = async () => {
-        const content = editorRef.current ? editorRef.current.innerHTML : template.contenido;
+        const rawContent = editorRef.current ? editorRef.current.innerHTML : template.contenido;
+        const content = normalizeTokenMarkup(cleanHtmlOfLocalResources(rawContent));
         if (!template.nombre || !content) {
             return showToast('El nombre y contenido son obligatorios', 'error');
         }
@@ -206,33 +258,60 @@ const ContratosYAnexos = () => {
         if (editorRef.current) editorRef.current.focus();
     };
 
-    const renderTemplateWithPreviewData = (html) => {
+    const renderTemplateWithPreviewData = (html, variant = 'final') => {
         if (!html) return '';
-        const previewData = {
-            'NOMBRE_COMPLETO': 'JUAN PABLO PÉREZ GONZÁLEZ',
-            'RUT': '12.345.678-9',
-            'CARGO': 'Analista Senior de Operaciones',
-            'SUELDO_BASE': '$1.500.000',
-            'FECHA_INICIO': new Date().toLocaleDateString(),
-            'EMPRESA_NOMBRE': companyConfig.companyName || 'Portal Corporativo',
-            'DIRECCION_EMPRESA': 'Av. Nueva Providencia 1881, Oficina 1620',
-            'COMUNA_EMPRESA': 'Providencia',
-            'REGION_EMPRESA': 'Región Metropolitana',
-            'FECHA_ACTUAL': new Date().toLocaleDateString()
-        };
-        
-        let rendered = html;
-        Object.keys(previewData).forEach(key => {
-            const regex = new RegExp(`{${key}}`, 'g');
-            rendered = rendered.replace(regex, `<b class="text-indigo-600 bg-indigo-50 px-1 rounded">${previewData[key]}</b>`);
-        });
+        const normalized = normalizeTokenMarkup(html);
+        const activeContext = selectedCandidateData ? candidateContext : previewContext;
+        let rendered = renderTemplateTokens(normalized, activeContext);
         
         // Simular lógica condicional simple para preview
         rendered = rendered.replace(/{#IF.*?}(.*?){#ELSE}(.*?){#ENDIF}/gs, (match, p1, p2) => {
-            return `<div class="border-l-4 border-indigo-500 pl-4 my-4 bg-indigo-50/30 py-2">${p1}</div>`;
+            return `${p1}`;
         });
-        
+
+        if (variant === 'tecnico') {
+            return replaceUnresolvedTokens(rendered, activeContext);
+        }
+
         return rendered;
+    };
+
+    const focusTokenInEditor = (tokenKey) => {
+        if (!editorRef.current || isPreviewMode) {
+            showToast('Desactiva vista previa para ubicar la variable en el editor', 'warning');
+            return;
+        }
+
+        const tokenText = `{${tokenKey}}`;
+        const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT);
+        let textNode = null;
+        let node;
+
+        while ((node = walker.nextNode())) {
+            if (node.nodeValue && node.nodeValue.includes(tokenText)) {
+                textNode = node;
+                break;
+            }
+        }
+
+        if (!textNode) {
+            showToast('Variable no encontrada en la hoja actual', 'warning');
+            return;
+        }
+
+        const start = textNode.nodeValue.indexOf(tokenText);
+        const range = document.createRange();
+        range.setStart(textNode, start);
+        range.setEnd(textNode, start + tokenText.length);
+
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        const anchor = range.startContainer?.parentElement || editorRef.current;
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        editorRef.current.focus();
+        saveSelection();
     };
 
     const insertTable = () => {
@@ -272,9 +351,9 @@ const ContratosYAnexos = () => {
         if (!restoreSelection()) {
             if (editorRef.current) editorRef.current.focus();
         }
-        
-        const variableHtml = `<span class="bg-indigo-100 text-indigo-700 font-black px-1.5 py-0.5 rounded-md mx-1 border border-indigo-200 cursor-default select-none transition-all hover:bg-indigo-200" contenteditable="false">{${val}}</span>&nbsp;`;
-        
+
+        const variableHtml = `{${val}}`;
+
         if (document.queryCommandSupported('insertHTML')) {
             document.execCommand('insertHTML', false, variableHtml);
         } else {
@@ -299,6 +378,47 @@ const ContratosYAnexos = () => {
             }
         }
         saveSelection(); // Actualizar el rango guardado tras la inserción
+    };
+
+    const toggleClause = (key) => {
+        setSelectedClauseKeys((prev) => {
+            if (prev.includes(key)) return prev.filter((item) => item !== key);
+            return [...prev, key];
+        });
+    };
+
+    const handleGenerateTemplateFromBlueprint = () => {
+        const blueprint = getBlueprintByKey(blueprintKey);
+        const generatedBody = buildTemplateFromBlueprint({
+            blueprintKey,
+            tone: templateTone,
+            includeClauseKeys: selectedClauseKeys
+        });
+
+        setTemplate((prev) => ({
+            ...prev,
+            nombre: prev.nombre || blueprint.nombre,
+            tipo: blueprint.tipo,
+            tituloDocumento: prev.tituloDocumento || blueprint.titulo,
+            contenido: normalizeTokenMarkup(generatedBody)
+        }));
+
+        if (editorRef.current) {
+            editorRef.current.innerHTML = normalizeTokenMarkup(generatedBody);
+        }
+
+        showToast('Borrador profesional generado desde plantilla inteligente');
+    };
+
+    const handleInsertClause = (clause) => {
+        if (!restoreSelection()) {
+            if (editorRef.current) editorRef.current.focus();
+        }
+        document.execCommand('insertHTML', false, `${clause.content}<p>&nbsp;</p>`);
+        if (editorRef.current) {
+            setTemplate((prev) => ({ ...prev, contenido: editorRef.current.innerHTML }));
+        }
+        saveSelection();
     };
 
     const insertCondition = (type) => {
@@ -361,34 +481,28 @@ const ContratosYAnexos = () => {
 
     const replaceVariables = (content, cand) => {
         if (!content || !cand) return content;
+        const runtimeContext = buildCandidateContext(cand, companyConfig.companyName);
         let processed = content;
-        const map = {
-            'NOMBRE_COMPLETO': cand.fullName || `${cand.nombres || ''} ${cand.apellidos || ''}`.trim(),
-            'RUT': formatRut(cand.rut || ''),
-            'EMAIL': cand.email || '',
-            'CARGO': cand.cargo || '',
-            'SUELDO_BASE': cand.sueldoBase || '0',
-            'EMPRESA_NOMBRE': companyConfig.companyName,
-            'FECHA_ACTUAL': new Date().toLocaleDateString()
-        };
-        Object.keys(map).forEach(key => {
+        Object.entries(runtimeContext).forEach(([key, value]) => {
             const regexSpan = new RegExp(`<span[^>]*>{${key}}</span>`, 'g');
             const regexPlain = new RegExp(`{${key}}`, 'g');
-            processed = processed.replace(regexSpan, map[key]).replace(regexPlain, map[key]);
+            processed = processed.replace(regexSpan, value).replace(regexPlain, value);
         });
-        return processed;
+        return renderTemplateTokens(processed, runtimeContext);
     };
 
     const handleSaveDocument = async (sendToApproval = false) => {
         if (!selectedCandidateId) return showToast('Seleccione un candidato', 'error');
-        const content = editorRef.current ? editorRef.current.innerHTML : template.contenido;
+        if (!template._id) return showToast('Guarde primero la plantilla base antes de generar documento', 'error');
+        const rawContent = editorRef.current ? editorRef.current.innerHTML : template.contenido;
+        const content = normalizeTokenMarkup(cleanHtmlOfLocalResources(rawContent));
         
         setLoading(true);
         try {
             const payload = {
                 titulo: template.tituloDocumento || template.nombre,
                 tipo: template.tipo,
-                contenido: content,
+                contenidoHtml: content,
                 candidatoRef: selectedCandidateId,
                 plantillaRef: template._id,
                 estado: 'Borrador'
@@ -456,7 +570,7 @@ const ContratosYAnexos = () => {
             <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 animate-in fade-in zoom-in duration-700">
                 <div className="text-center mb-16 relative">
                     <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 bg-indigo-500/10 blur-[100px] rounded-full -z-10" />
-                    <h1 className="text-5xl font-black text-slate-900 mb-6 tracking-tight">Gestión Contractual <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600">Inteligente</span></h1>
+                    <h1 className="text-5xl font-black text-slate-900 mb-6 tracking-tight">Documento Legal <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600">Inteligente</span></h1>
                     <p className="text-slate-400 font-black uppercase tracking-[0.4em] text-[10px]">Ecosistema Legal & Documental V2.5</p>
                     <div className="w-24 h-2 bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-500 rounded-full mx-auto mt-8 shadow-lg shadow-indigo-200" />
                 </div>
@@ -812,6 +926,87 @@ const ContratosYAnexos = () => {
                         .page-content { padding: 20mm; }
                     }
                     .print-only { display: none; }
+                    .legal-doc-page {
+                        width: 100%;
+                        max-width: 210mm;
+                        margin: 0 auto;
+                        background: #ffffff;
+                    }
+                    .editor-surface {
+                        width: 100%;
+                        max-width: 210mm;
+                        min-height: 860px;
+                        padding: clamp(14px, 4vw, 96px);
+                    }
+                    .legal-doc-body {
+                        font-family: 'Times New Roman', serif;
+                        font-size: clamp(13px, 1.45vw, 12pt);
+                        line-height: 1.65;
+                        color: #111827;
+                        text-align: justify;
+                        word-break: break-word;
+                    }
+                    .legal-doc-body h1,
+                    .legal-doc-body h2,
+                    .legal-doc-body h3,
+                    .legal-doc-body h4 {
+                        margin: 0.7rem 0 0.5rem;
+                        line-height: 1.35;
+                        text-align: left;
+                        font-weight: 700;
+                    }
+                    .legal-doc-body p {
+                        margin: 0 0 0.75rem;
+                    }
+                    .legal-doc-body ul,
+                    .legal-doc-body ol {
+                        margin: 0.4rem 0 0.8rem 1.2rem;
+                    }
+                    .legal-doc-body table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 0.7rem 0;
+                    }
+                    .legal-doc-body table td,
+                    .legal-doc-body table th {
+                        border: 1px solid #d1d5db;
+                        padding: 6px 8px;
+                        vertical-align: top;
+                    }
+                    .legal-signatures {
+                        break-inside: avoid-page;
+                        page-break-inside: avoid;
+                    }
+                    .legal-doc-body h1,
+                    .legal-doc-body h2,
+                    .legal-doc-body h3,
+                    .legal-doc-body table,
+                    .legal-doc-body ul,
+                    .legal-doc-body ol,
+                    .legal-doc-body p {
+                        break-inside: avoid;
+                    }
+                    @media (max-width: 1024px) {
+                        .editor-shell {
+                            border-radius: 1.25rem;
+                            padding: 14px;
+                        }
+                    }
+                    @media (max-width: 640px) {
+                        .editor-shell {
+                            border-radius: 1rem;
+                            padding: 10px;
+                        }
+                        .editor-surface {
+                            min-height: 640px;
+                            padding: 14px;
+                        }
+                        #signature-watermark {
+                            max-width: calc(100% - 16px);
+                            right: 8px !important;
+                            bottom: 8px !important;
+                        }
+                    }
                 `}</style>
 
                 <div className="grid grid-cols-12 gap-8">
@@ -856,6 +1051,103 @@ const ContratosYAnexos = () => {
                             </div>
                         </div>
 
+                        <div className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-xl shadow-slate-200">
+                            <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-5">Asistente de Plantillas Inteligentes</h4>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-300 uppercase block mb-2">Formato base</label>
+                                    <select
+                                        value={blueprintKey}
+                                        onChange={(e) => setBlueprintKey(e.target.value)}
+                                        className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-xs font-bold focus:outline-none focus:border-indigo-300"
+                                    >
+                                        {LEGAL_BLUEPRINTS.map((bp) => (
+                                            <option key={bp.key} value={bp.key} className="text-slate-800">
+                                                {bp.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">{getBlueprintByKey(blueprintKey)?.description}</p>
+                                </div>
+
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-300 uppercase block mb-2">Estilo editorial</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { key: 'ejecutivo', label: 'Ejecutivo' },
+                                            { key: 'formal', label: 'Formal' },
+                                            { key: 'moderno', label: 'Moderno' }
+                                        ].map((tone) => (
+                                            <button
+                                                key={tone.key}
+                                                onClick={() => setTemplateTone(tone.key)}
+                                                className={`py-2 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all ${templateTone === tone.key ? 'bg-indigo-500 border-indigo-400 text-white' : 'bg-white/5 border-white/15 text-slate-300 hover:bg-white/10'}`}
+                                            >
+                                                {tone.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-300 uppercase block mb-2">Cláusulas recomendadas</label>
+                                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                        {CLAUSE_LIBRARY.map((clause) => (
+                                            <button
+                                                key={clause.key}
+                                                onClick={() => toggleClause(clause.key)}
+                                                className={`w-full text-left px-2.5 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all ${selectedClauseKeys.includes(clause.key) ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200' : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'}`}
+                                            >
+                                                {clause.title}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={handleGenerateTemplateFromBlueprint}
+                                    className="w-full py-3 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.18em] transition-all"
+                                >
+                                    Generar borrador profesional
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Contexto de Captura de Talento</h4>
+                            {!selectedCandidateData ? (
+                                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Selecciona un colaborador para personalizar el documento</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+                                        <p className="text-xs font-black text-slate-900 uppercase">{selectedCandidateData.fullName}</p>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{formatRut(selectedCandidateData.rut)} • {selectedCandidateData.status || 'Sin estado'}</p>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Cargo: {selectedCandidateData.position || 'No definido'}</p>
+                                    </div>
+
+                                    {missingCandidateData.length > 0 ? (
+                                        <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
+                                            <p className="text-[9px] font-black text-amber-700 uppercase tracking-wider mb-1">Faltan datos para contrato preciso:</p>
+                                            <p className="text-[10px] font-bold text-amber-700 leading-relaxed">{missingCandidateData.join(' • ')}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50">
+                                            <p className="text-[9px] font-black text-emerald-700 uppercase tracking-wider">Ficha completa para autocompletado legal</p>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={() => { window.location.href = '/rrhh/captura-talento'; }}
+                                        className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 text-[10px] font-black uppercase tracking-wider"
+                                    >
+                                        Abrir Captura de Talento
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="bg-white/70 backdrop-blur-xl border border-slate-200/50 rounded-[2.5rem] p-6 shadow-xl shadow-slate-100/50">
                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
@@ -876,6 +1168,24 @@ const ContratosYAnexos = () => {
                                     <AlignLeft size={14} className="text-slate-400 group-hover:scale-125 transition-transform" />
                                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic">SINO (Else)</span>
                                 </button>
+                            </div>
+
+                            <div className="mb-8">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Cláusulas express</p>
+                                <div className="space-y-1.5">
+                                    {CLAUSE_LIBRARY.slice(0, 3).map((clause) => (
+                                        <button
+                                            key={clause.key}
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                handleInsertClause(clause);
+                                            }}
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-left text-[9px] font-black uppercase tracking-wider text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-all"
+                                        >
+                                            + {clause.title}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
@@ -972,7 +1282,21 @@ const ContratosYAnexos = () => {
                                                         <span className="text-[9px] font-black text-slate-700">{v.label}</span>
                                                         <span className="text-[7px] font-bold text-slate-400">{"{" + v.val + "}"}</span>
                                                     </div>
-                                                    <Plus size={10} className="text-slate-300 group-hover:text-indigo-500" />
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                focusTokenInEditor(v.val);
+                                                            }}
+                                                            className="p-1 rounded-md text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                                            title="Ubicar en documento"
+                                                        >
+                                                            <Search size={10} />
+                                                        </button>
+                                                        <Plus size={10} className="text-slate-300 group-hover:text-indigo-500" />
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -982,7 +1306,7 @@ const ContratosYAnexos = () => {
                         </div>
                     </div>
 
-                    <div className={`${isFullscreen ? 'col-span-12 fixed inset-0 z-[100] bg-slate-50 overflow-y-auto p-4' : 'col-span-12 lg:col-span-9'} bg-white border border-slate-200 rounded-[2.5rem] p-12 shadow-sm min-h-[800px] relative transition-all duration-500`}>
+                    <div className={`${isFullscreen ? 'col-span-12 fixed inset-0 z-[100] bg-slate-50 overflow-y-auto p-2 sm:p-4' : 'col-span-12 lg:col-span-9'} bg-white border border-slate-200 rounded-[1.2rem] sm:rounded-[2.5rem] p-3 sm:p-6 lg:p-10 shadow-sm min-h-[800px] relative transition-all duration-500 editor-shell`}>
                         <div className={`${isFullscreen ? 'max-w-[1000px]' : 'max-w-[800px]'} mx-auto`}>
                             {/* ── HEADER DEL EDITOR ── */}
                             <div className="flex justify-between items-start mb-12 border-b-2 border-slate-100 pb-8">
@@ -1049,6 +1373,23 @@ const ContratosYAnexos = () => {
                                     {isPreviewMode ? 'Volver al Editor' : 'Vista Previa'}
                                 </button>
 
+                                {isPreviewMode && (
+                                    <div className="flex items-center gap-1 bg-indigo-50 border border-indigo-100 rounded-xl p-1">
+                                        <button
+                                            onMouseDown={(e) => { e.preventDefault(); setPreviewVariant('final'); }}
+                                            className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${previewVariant === 'final' ? 'bg-indigo-600 text-white' : 'text-indigo-700 hover:bg-indigo-100'}`}
+                                        >
+                                            Preview final
+                                        </button>
+                                        <button
+                                            onMouseDown={(e) => { e.preventDefault(); setPreviewVariant('tecnico'); }}
+                                            className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${previewVariant === 'tecnico' ? 'bg-indigo-600 text-white' : 'text-indigo-700 hover:bg-indigo-100'}`}
+                                        >
+                                            Preview tecnico
+                                        </button>
+                                    </div>
+                                )}
+
                                 <button 
                                     onMouseDown={(e) => { e.preventDefault(); setIsFullscreen(!isFullscreen); }}
                                     className={`p-2.5 rounded-xl transition-all ${isFullscreen ? 'bg-amber-100 text-amber-600 shadow-inner' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
@@ -1060,9 +1401,8 @@ const ContratosYAnexos = () => {
 
                              {isPreviewMode ? (
                                  <div 
-                                     className="w-full min-h-[1050px] p-24 bg-white border border-slate-100 rounded-sm text-slate-800 text-sm font-medium leading-[1.8] shadow-2xl mx-auto overflow-y-auto"
-                                     style={{ width: '210mm' }}
-                                     dangerouslySetInnerHTML={{ __html: renderTemplateWithPreviewData(cleanHtmlOfLocalResources(template.contenido)) }}
+                                     className="editor-surface bg-white border border-slate-100 rounded-sm text-slate-800 shadow-2xl mx-auto overflow-y-auto"
+                                     dangerouslySetInnerHTML={{ __html: `<div class="legal-doc-page legal-doc-body">${renderTemplateWithPreviewData(cleanHtmlOfLocalResources(template.contenido), previewVariant)}</div>` }}
                                  />
                              ) : (
                                  <div 
@@ -1074,9 +1414,8 @@ const ContratosYAnexos = () => {
                                      onMouseUp={saveSelection}
                                      onKeyUp={saveSelection}
                                      onBlur={saveSelection}
-                                     className="w-full min-h-[1050px] p-24 bg-white border border-slate-100 rounded-sm text-slate-800 text-sm font-medium leading-[1.8] focus:outline-none focus:ring-0 transition-all shadow-2xl overflow-y-auto outline-none mx-auto"
+                                     className="editor-surface bg-white border border-slate-100 rounded-sm text-slate-800 focus:outline-none focus:ring-0 transition-all shadow-2xl overflow-y-auto outline-none mx-auto legal-doc-body legal-doc-page"
                                      style={{ 
-                                         width: '210mm', 
                                          cursor: 'text',
                                          backgroundColor: '#fff',
                                          color: '#1a1a1a'
@@ -1085,7 +1424,20 @@ const ContratosYAnexos = () => {
                                  />
                              )}
 
-                            <div className="mt-24 grid grid-cols-2 gap-24 pt-16 border-t-2 border-slate-100 max-w-[210mm] mx-auto">
+                            <div className="mt-5">
+                                <div className={`p-3 rounded-xl border ${unresolvedTemplateTokens.length > 0 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                                    {unresolvedTemplateTokens.length > 0 ? (
+                                        <>
+                                            <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-1">Variables pendientes de completar en colaborador</p>
+                                            <p className="text-[11px] font-bold text-amber-700 leading-relaxed">{unresolvedTemplateTokens.slice(0, 10).join(' • ')}</p>
+                                        </>
+                                    ) : (
+                                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Variables listas para render final</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mt-24 grid grid-cols-1 sm:grid-cols-2 gap-10 sm:gap-24 pt-16 border-t-2 border-slate-100 max-w-[210mm] mx-auto legal-signatures">
                                 <div className="text-center p-8 border border-slate-100 border-dashed rounded-3xl bg-slate-50/30">
                                     <div className="w-40 h-0.5 bg-slate-300 mx-auto mb-6" />
                                     <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Firma Colaborador</p>
@@ -1107,29 +1459,29 @@ const ContratosYAnexos = () => {
     return (
         <div className="min-h-full font-sans p-2">
             {view === 'preview' && (
-                <div className="max-w-5xl mx-auto py-8 animate-in fade-in duration-500">
-                    <div className="flex justify-between items-center mb-8 no-print">
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => setView('designer')} className="p-3 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all font-black text-[10px] uppercase">
+                <div className="max-w-5xl mx-auto py-5 sm:py-8 animate-in fade-in duration-500">
+                    <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 mb-8 no-print">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <button onClick={() => setView('designer')} className="p-2.5 sm:p-3 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all font-black text-[10px] uppercase">
                                 Volver al Editor
                             </button>
                             <div>
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Vista Previa de Firma</h2>
+                                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Vista Previa de Firma</h2>
                                 <p className="text-slate-400 font-bold uppercase text-[9px] tracking-widest">Contrato para: {selectedCandidate?.fullName}</p>
                             </div>
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                             {!isSigning ? (
                                 <button 
                                     onClick={finalizeSignature}
-                                    className="px-8 py-4 bg-black text-white rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-xl flex items-center gap-3 hover:scale-105 transition-all"
+                                    className="px-5 sm:px-8 py-3.5 sm:py-4 bg-black text-white rounded-2xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider shadow-xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all"
                                 >
                                     <FingerprintIcon size={20} className="text-emerald-400" /> Validar Identidad y Firmar
                                 </button>
                             ) : (
                                 <button 
                                     onClick={() => window.print()}
-                                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-xl flex items-center gap-3 hover:bg-indigo-700 transition-all"
+                                    className="px-5 sm:px-8 py-3.5 sm:py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider shadow-xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all"
                                 >
                                     <FileText size={20} /> Imprimir / Descargar PDF
                                 </button>
@@ -1137,7 +1489,7 @@ const ContratosYAnexos = () => {
                         </div>
                     </div>
 
-                    <div className="relative bg-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] rounded-[0.5rem] border border-slate-200 overflow-hidden min-h-[1123px] page-content mx-auto" style={{ width: '210mm' }}>
+                    <div className="relative bg-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] rounded-[0.5rem] border border-slate-200 overflow-hidden min-h-[1123px] page-content mx-auto legal-doc-page">
                         {/* ── HEADER DEL DOCUMENTO ── */}
                         <div className="flex justify-between items-start mb-12 border-b-2 border-slate-100 pb-8">
                             <div className="w-32">
@@ -1154,12 +1506,12 @@ const ContratosYAnexos = () => {
 
                         {/* ── CONTENIDO DEL CONTRATO ── */}
                         <div 
-                            className="text-slate-800 text-[13px] leading-[1.8] text-justify space-y-4"
+                            className="text-slate-800 text-[13px] leading-[1.8] text-justify space-y-4 legal-doc-body"
                             dangerouslySetInnerHTML={{ __html: cleanHtmlOfLocalResources(previewContent) }}
                         />
 
                         {/* ── SECCIÓN DE FIRMAS PREMIUM ── */}
-                        <div className="mt-24 grid grid-cols-2 gap-24 pt-16 border-t-2 border-slate-100">
+                        <div className="mt-24 grid grid-cols-1 sm:grid-cols-2 gap-10 sm:gap-24 pt-16 border-t-2 border-slate-100 legal-signatures">
                             <div className="text-center relative">
                                 {isSigning ? (
                                     <div className="mb-6 flex flex-col items-center animate-in zoom-in duration-500">
