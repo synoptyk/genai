@@ -435,7 +435,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_tarifario', 'rend_config_lpu', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'dist_historial_rutas', 'dist_rutas_guiadas', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
     logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias', 'logistica_almacenes'],
     config: ['cfg_empresa', 'cfg_personal', 'admin_config_notificaciones', 'admin_sii', 'admin_previred', 'admin_dashboard_tributario', 'cfg_baremos', 'cfg_clientes', 'social_chat', 'comunic_video'],
-    genai: ['ai_asistente']
+     genai: ['ai_asistente', 'social_webmail', 'ai_genai_mail']
   };
 
   const hasAccess = (moduleKey) => {

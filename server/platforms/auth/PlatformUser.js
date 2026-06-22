@@ -75,6 +75,8 @@ const PlatformUserSchema = new mongoose.Schema({
             flota_vehiculos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             flota_eficiencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+               flota_proveedores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+               flota_gps_activos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_conecta_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_mis_conductores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_historial_rutas: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -121,6 +123,7 @@ const PlatformUserSchema = new mongoose.Schema({
             social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             social_webmail: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+               ai_genai_mail: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
                 // Empresa 360
                 emp360_facturacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
                 emp360_tesoreria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
