@@ -35,7 +35,7 @@ const BonosFijos = () => {
         try {
             const [year, month] = period.split('-');
             const [candRes, projRes, txRes, configRes, closRes, modRes] = await Promise.all([
-                candidatosApi.getAll(),
+                candidatosApi.getAll({ status: 'Activo,Contratado,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
                 proyectosApi.getAll(),
                 descuentosApi.getTransacciones(period),
                 bonosConfigApi.getAll(),

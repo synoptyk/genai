@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Car, Save, Tag, Calendar, MapPin, UserPlus, FileText, Banknote, ShieldCheck, Activity, UploadCloud, CheckCircle2 } from 'lucide-react';
 import telecomApi from '../../telecomApi';
 import { formatRut } from '../../../../utils/rutUtils';
+import SearchableSelect from '../../../../components/SearchableSelect';
 
 const getDisplayNombre = (persona) => {
   const fromNombre = String(persona?.nombre || '').trim();
@@ -239,21 +240,21 @@ export default function SlideOverFicha({ vehiculo, tecnicos, onClose, onSuccess 
                     <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[9px]">Asignación Pendiente</span>
                   )}
                 </label>
-                <select className="w-full bg-white border border-indigo-200 rounded-lg py-3 px-4 font-bold text-slate-700 outline-none focus:border-indigo-500 text-sm"
+                <SearchableSelect
+                  options={[
+                    { value: '', label: '-- DISPONIBLE / SIN ASIGNAR --' },
+                    ...tecnicos.map(t => ({ value: t._id, label: getDisplayNombre(t) }))
+                  ]}
                   value={form.asignadoA} 
-                  onChange={e => {
-                    const newVal = e.target.value;
+                  onChange={newVal => {
                     setForm({ 
                       ...form, 
                       asignadoA: newVal, 
                       estadoAsignacion: newVal ? (form.estadoAsignacion === 'Asignación Completa' ? 'Asignación Completa' : 'Asignación Pendiente') : 'Sin Asignar' 
                     });
-                  }}>
-                  <option value="">-- DISPONIBLE / SIN ASIGNAR --</option>
-                  {tecnicos.map(t => (
-                    <option key={t._id} value={t._id}>{getDisplayNombre(t)}</option>
-                  ))}
-                </select>
+                  }}
+                  placeholder="Buscar responsable..."
+                />
                 <p className="text-[9px] text-indigo-400 mt-2 flex items-center gap-1">
                   * La asignación completa se gestiona vía Checklist formal. Esta opción permite reservas o pre-asignaciones rápidas.
                 </p>
@@ -353,10 +354,13 @@ export default function SlideOverFicha({ vehiculo, tecnicos, onClose, onSuccess 
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Proveedor / Leasing</label>
-                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-600 outline-none focus:border-purple-500 text-sm"
+                  <SearchableSelect
+                  options={[
+                    { value: '', label: 'Seleccione Proveedor...' },
+                    ...proveedores.map(p => ({ value: p._id, label: p.nombre }))
+                  ]}
                     value={form.proveedorId} 
-                    onChange={e => {
-                      const selId = e.target.value;
+                    onChange={selId => {
                       if (!selId) {
                          setForm({ ...form, proveedorId: '', proveedor: '', rutProveedor: '', valor: '', moneda: 'CLP' });
                          return;
@@ -370,12 +374,9 @@ export default function SlideOverFicha({ vehiculo, tecnicos, onClose, onSuccess 
                         moneda: sel?.valores?.monedas?.rentaBase || 'CLP',
                         valor: sel?.valores?.rentaBase || ''
                       });
-                    }}>
-                    <option value="">Seleccione Proveedor...</option>
-                    {proveedores.map(p => (
-                      <option key={p._id} value={p._id}>{p.nombre}</option>
-                    ))}
-                  </select>
+                    }}
+                    placeholder="Buscar proveedor..."
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">RUT Proveedor</label>

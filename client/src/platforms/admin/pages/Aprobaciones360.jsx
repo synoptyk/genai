@@ -274,7 +274,7 @@ const Aprobaciones360 = () => {
     setLoading(true);
     try {
       const [rrhhRes, purchaseRes, inspeccionesRes, combustibleRes, txRes] = await Promise.all([
-        candidatosApi.getAll(),
+        candidatosApi.getAll({ status: 'Activo,Contratado,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
         logisticaApi.get('/solicitudes-compra'),
         api.get('/api/prevencion/inspecciones').catch(() => ({ data: [] })),
         api.get('/api/operaciones/combustible/aprobaciones').catch(() => ({ data: [] })),

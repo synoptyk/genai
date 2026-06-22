@@ -63,7 +63,7 @@ const PrevDifusion = () => {
 
         setIsSearching(true);
         try {
-            const res = await candidatosApi.getAll();
+            const res = await candidatosApi.getAll({ status: 'Activo,Contratado,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' });
             const candidates = res.data || [];
             const found = candidates.find(c => c.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase() === cleanRut);
 

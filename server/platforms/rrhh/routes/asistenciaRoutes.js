@@ -4,9 +4,18 @@ const RegistroAsistencia = require('../models/RegistroAsistencia');
 const Candidato = require('../models/Candidato');
 const Tecnico = require('../../agentetelecom/models/Tecnico');
 const Actividad = require('../../agentetelecom/models/Actividad');
+const Turno = require('../models/Turno');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 const feriadosUtil = require('../../../utils/feriadosUtil');
+const { sendAttendanceNotificationEmail } = require('../../../utils/mailer');
+
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // ─── GET /asistencia ─ Listado (por fecha o por mes/año) ─────────────────────
 router.get('/', protect, async (req, res) => {
@@ -31,7 +40,7 @@ router.get('/', protect, async (req, res) => {
         }
         const registros = await RegistroAsistencia.find(filter)
             .populate('candidatoId', 'fullName rut position cargo profilePic projectName projectId status')
-            .populate('turnoId', 'nombre horaEntrada horaSalida color toleranciaTardanza')
+            .populate('turnoId', 'nombre horaEntrada horaSalida color toleranciaTardanza diasSemana horariosPorDia')
             .sort({ fecha: 1, 'candidatoId.fullName': 1 });
         res.json(registros);
     } catch (err) { res.status(500).json({ message: err.message }); }
@@ -56,7 +65,7 @@ router.get('/resumen-periodo', protect, async (req, res) => {
 
         const registros = await RegistroAsistencia.find(filter)
             .populate('candidatoId', 'fullName rut position cargo projectName status toaId idRecursoToa contractStartDate contractEndDate fechaFiniquito')
-            .populate('turnoId', 'nombre horasTrabajo colacionMinutos')
+            .populate('turnoId', 'nombre horasTrabajo colacionMinutos diasSemana horariosPorDia')
             .lean();
 
         // Agrupar por candidato
@@ -169,6 +178,33 @@ router.get('/resumen-periodo', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// Helper para calcular Horas Extras basado en el Turno
+const calcularHorasExtra = async (turnoId, horaSalidaStr) => {
+    if (!turnoId || !horaSalidaStr) return 0;
+    try {
+        const turno = await Turno.findById(turnoId);
+        if (!turno || !turno.horasExtraPolicy?.habilitado) return 0;
+
+        const [salidaHTurno, salidaMTurno] = turno.horaSalida.split(':').map(Number);
+        const [salidaHReal, salidaMReal] = horaSalidaStr.split(':').map(Number);
+
+        const minTurno = salidaHTurno * 60 + salidaMTurno;
+        const minReal = salidaHReal * 60 + salidaMReal;
+
+        const diffMin = minReal - minTurno;
+        if (diffMin > 0) {
+            let extras = diffMin / 60;
+            if (extras > (turno.horasExtraPolicy.maxDiarias || 2)) {
+                extras = turno.horasExtraPolicy.maxDiarias || 2;
+            }
+            return Math.round(extras * 100) / 100;
+        }
+    } catch (e) {
+        console.error("Error calculando HE:", e);
+    }
+    return 0;
+};
+
 // ─── POST /asistencia ─ Crear o actualizar registro individual (upsert) ───────
 // Usa upsert para evitar E11000 cuando ya existe un registro para ese candidato/fecha.
 // Si existe → actualiza. Si no → crea. Retorna el documento poblado en ambos casos.
@@ -189,6 +225,18 @@ router.post('/', protect, async (req, res) => {
             fecha: fechaDate,
         };
 
+        // Obtener el registro existente si lo hay para calcular horas extras con turno
+        const existente = await RegistroAsistencia.findOne(filter);
+        const currentTurnoId = rest.turnoId || (existente && existente.turnoId);
+
+        if (rest.horaSalida && currentTurnoId && rest.horasExtra === undefined) {
+            const extras = await calcularHorasExtra(currentTurnoId, rest.horaSalida);
+            if (extras > 0) {
+                rest.horasExtra = extras;
+                rest.estadoHorasExtra = 'Pendiente';
+            }
+        }
+
         const update = {
             $set: {
                 ...rest,
@@ -198,14 +246,30 @@ router.post('/', protect, async (req, res) => {
             }
         };
 
+        // Si es un marcaje manual o desde el portal, inyectar datos de auditoría
+        if (req.body.horaIngresoDeclarada || req.body.horaSalida) {
+            update.$set.auditLog = {
+                ...(rest.auditLog || {}),
+                ip: req.ip || req.connection.remoteAddress,
+                userAgent: req.get('User-Agent'),
+                timestamp: new Date(),
+                metodo: (rest.auditLog && rest.auditLog.metodo) ? rest.auditLog.metodo : 'Web'
+            };
+        }
+
         const saved = await RegistroAsistencia.findOneAndUpdate(filter, update, {
             new:    true,
             upsert: true,
             setDefaultsOnInsert: true,
             // runValidators omitido: causa errores con tipoAusencia: null en $set (Mongoose enum + runValidators)
         })
-            .populate('candidatoId', 'fullName rut position cargo projectName projectId status')
-            .populate('turnoId', 'nombre horaEntrada horaSalida color');
+            .populate('candidatoId', 'fullName rut position cargo projectName projectId status email')
+            .populate('turnoId', 'nombre horaEntrada horaSalida color diasSemana horariosPorDia');
+
+        if (saved && saved.candidatoId && saved.candidatoId.email) {
+            // No await to avoid blocking the response
+            sendAttendanceNotificationEmail(saved, saved.candidatoId.email, req.user.empresaRef, req.user.nombre || req.user.email, 'REGISTRO').catch(console.error);
+        }
 
         res.status(201).json(saved);
     } catch (err) {
@@ -246,20 +310,244 @@ router.post('/bulk-upsert', protect, async (req, res) => {
             };
         });
         const result = await RegistroAsistencia.bulkWrite(ops);
+
+        // Fetch to send emails in background
+        RegistroAsistencia.find({
+            empresaRef: req.user.empresaRef,
+            candidatoId: { $in: registros.map(r => r.candidatoId) },
+            fecha: { $in: ops.map(o => o.updateOne.filter.fecha) }
+        }).populate('candidatoId', 'email fullName').then(updatedDocs => {
+            for (const doc of updatedDocs) {
+                if (doc.candidatoId && doc.candidatoId.email) {
+                    sendAttendanceNotificationEmail(doc, doc.candidatoId.email, req.user.empresaRef, req.user.nombre || req.user.email, 'REGISTRO').catch(console.error);
+                }
+            }
+        }).catch(console.error);
+
         res.json({ upserted: result.upsertedCount, modified: result.modifiedCount });
     } catch (err) { res.status(400).json({ message: err.message }); }
+});
+
+// ─── POST /asistencia/upload-respaldo ─ Subir respaldo fotográfico ────────────
+router.post('/upload-respaldo', protect, upload.single('file'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No se subió ningún archivo' });
+    }
+
+    const cld_upload_stream = cloudinary.uploader.upload_stream(
+        { folder: 'asistencia-respaldos' },
+        (error, result) => {
+            if (error) {
+                console.error("Cloudinary error:", error);
+                return res.status(500).json({ message: 'Error subiendo imagen a Cloudinary', error });
+            }
+            res.status(200).json({ url: result.secure_url });
+        }
+    );
+
+    streamifier.createReadStream(req.file.buffer).pipe(cld_upload_stream);
 });
 
 // ─── PUT /asistencia/:id ─ Actualizar registro ────────────────────────────────
 router.put('/:id', protect, async (req, res) => {
     try {
+        const existente = await RegistroAsistencia.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!existente) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+
+        const currentTurnoId = req.body.turnoId || existente.turnoId;
+        
+        if (req.body.horaSalida && currentTurnoId && req.body.horasExtra === undefined) {
+            const extras = await calcularHorasExtra(currentTurnoId, req.body.horaSalida);
+            if (extras > 0) {
+                req.body.horasExtra = extras;
+                req.body.estadoHorasExtra = 'Pendiente';
+            }
+        }
+
         const updated = await RegistroAsistencia.findOneAndUpdate(
             { _id: req.params.id, empresaRef: req.user.empresaRef },
             req.body,
             { new: true }
         ).populate('candidatoId', 'fullName rut position')
-         .populate('turnoId', 'nombre horaEntrada horaSalida color');
-        if (!updated) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+         .populate('turnoId', 'nombre horaEntrada horaSalida color diasSemana horariosPorDia');
+         
+        res.json(updated);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ─── POST /asistencia/marcaje-legal ─ Crear Marcaje manual auditado (Admin) ──────────────
+router.post('/marcaje-legal', protect, authorize('asistencia:crear', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
+    try {
+        require('fs').writeFileSync('/Users/mauro/Synoptik_Innovacion/Gen AI/debug_marcaje.json', JSON.stringify({ body: req.body, headers: req.headers }, null, 2));
+        
+        console.log("POST /marcaje-legal req.body:", req.body);
+        const { candidatoId, candidatosId, fecha, estado, horaEntrada, horaSalida, observacionLegal, turnoId } = req.body;
+        
+        let ids = [];
+        let parsedCandidatos = candidatosId;
+        if (typeof candidatosId === 'string') {
+            try { parsedCandidatos = JSON.parse(candidatosId); } catch(e){}
+        }
+
+        if (parsedCandidatos && Array.isArray(parsedCandidatos) && parsedCandidatos.length > 0) {
+            ids = parsedCandidatos;
+        } else if (candidatoId) {
+            ids = [candidatoId];
+        }
+
+        if (ids.length === 0 || !fecha) {
+            console.log("Error: Candidato(s) y fecha obligatorios. ids:", ids, "fecha:", fecha);
+            return res.status(400).json({ message: 'Candidato(s) y fecha son obligatorios' });
+        }
+        if (!observacionLegal) {
+            return res.status(400).json({ message: 'La observación es obligatoria para marcajes manuales (Ord. 1140/27).' });
+        }
+
+        const fechaDate = new Date(fecha);
+        fechaDate.setUTCHours(0, 0, 0, 0);
+
+        let horasExtra = 0;
+        let estadoHorasExtra = 'No Aplica';
+
+        if (horaSalida && turnoId) {
+            const extras = await calcularHorasExtra(turnoId, horaSalida);
+            if (extras > 0) {
+                horasExtra = extras;
+                estadoHorasExtra = 'Pendiente';
+            }
+        }
+
+        const auditLog = {
+            ip: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('User-Agent'),
+            timestamp: new Date(),
+            metodo: 'Web',
+            nota: 'Marcaje Manual Administrativo Retroactivo'
+        };
+
+        const eventoLineaTiempo = {
+            tipo: 'Marcaje Manual (Ord. 1140/27)',
+            hora: horaEntrada || horaSalida || new Date().toISOString().substring(11, 16),
+            estadoSeleccionado: estado,
+            observacion: observacionLegal,
+            registradoPor: req.user.nombre || req.user.email,
+            timestamp: new Date()
+        };
+
+        const updateData = {
+            estado,
+            horaEntrada,
+            horaIngresoDeclarada: horaEntrada,
+            horaSalida,
+            horasExtra,
+            estadoHorasExtra,
+            observacion: observacionLegal,
+            auditLog,
+            turnoId
+        };
+
+        const updatedRecords = [];
+
+        for (const id of ids) {
+            const filter = {
+                empresaRef: req.user.empresaRef,
+                candidatoId: id,
+                fecha: fechaDate,
+            };
+
+            const updated = await RegistroAsistencia.findOneAndUpdate(
+                filter,
+                { 
+                    $set: updateData,
+                    $push: { eventosTimeline: eventoLineaTiempo }
+                },
+                { new: true, upsert: true, setDefaultsOnInsert: true }
+            ).populate('candidatoId', 'fullName rut position email')
+             .populate('turnoId', 'nombre horaEntrada horaSalida color diasSemana horariosPorDia');
+
+            if (updated) {
+                updatedRecords.push(updated);
+                if (updated.candidatoId && updated.candidatoId.email) {
+                    sendAttendanceNotificationEmail(updated, updated.candidatoId.email, req.user.empresaRef, req.user.nombre || req.user.email, 'REGISTRO_MANUAL').catch(console.error);
+                }
+            }
+        }
+         
+        // Devolvemos el array entero si fueron multiples, si no, el primero (por retrocompatibilidad si es necesario)
+        if (updatedRecords.length === 1 && !candidatosId) {
+            res.json(updatedRecords[0]);
+        } else {
+            res.json(updatedRecords);
+        }
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ─── PUT /asistencia/:id/marcaje-legal ─ Marcaje manual auditado (Admin) ──────────────
+router.put('/:id/marcaje-legal', protect, authorize('asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
+    try {
+        const existente = await RegistroAsistencia.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!existente) return res.status(404).json({ message: 'No encontrado o sin acceso' });
+
+        const { estado, horaEntrada, horaSalida, observacionLegal } = req.body;
+        
+        if (!observacionLegal) {
+            return res.status(400).json({ message: 'La observación es obligatoria para marcajes manuales (Ord. 1140/27).' });
+        }
+
+        // Determinar horas extra si corresponde
+        let horasExtra = existente.horasExtra;
+        let estadoHorasExtra = existente.estadoHorasExtra;
+        const currentTurnoId = req.body.turnoId || existente.turnoId;
+
+        if (horaSalida && currentTurnoId) {
+            const extras = await calcularHorasExtra(currentTurnoId, horaSalida);
+            if (extras > 0) {
+                horasExtra = extras;
+                estadoHorasExtra = 'Pendiente';
+            }
+        }
+
+        const auditLog = {
+            ip: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('User-Agent'),
+            timestamp: new Date(),
+            metodo: 'Web'
+        };
+
+        const eventoLineaTiempo = {
+            tipo: 'Marcaje Manual (Ord. 1140/27)',
+            hora: horaEntrada || horaSalida || new Date().toISOString().substring(11, 16),
+            estadoSeleccionado: estado,
+            observacion: observacionLegal,
+            registradoPor: req.user.nombre || req.user.email,
+            timestamp: new Date()
+        };
+
+        const updateData = {
+            estado,
+            horaEntrada,
+            horaIngresoDeclarada: horaEntrada, // Sincronizar para consistencia con operativo
+            horaSalida,
+            horasExtra,
+            estadoHorasExtra,
+            observacion: observacionLegal,
+            auditLog
+        };
+
+        const updated = await RegistroAsistencia.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            { 
+                $set: updateData,
+                $push: { eventosTimeline: eventoLineaTiempo }
+            },
+            { new: true }
+        ).populate('candidatoId', 'fullName rut position email')
+         .populate('turnoId', 'nombre horaEntrada horaSalida color diasSemana horariosPorDia');
+
+        if (updated && updated.candidatoId && updated.candidatoId.email) {
+            sendAttendanceNotificationEmail(updated, updated.candidatoId.email, req.user.empresaRef, req.user.nombre || req.user.email, 'MODIFICACION').catch(console.error);
+        }
+         
         res.json(updated);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });

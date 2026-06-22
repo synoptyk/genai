@@ -27,6 +27,7 @@ import {
 import GarantiasTab from '../../agentetelecom/components/GarantiasTab';
 import AgendaColaboradorTab from '../components/AgendaColaboradorTab';
 import NotificacionesTramites from './NotificacionesTramites';
+import { getHorarioDelDia } from '../../rrhh/utils/turnoHelper';
 
 const getLocation = () => {
     return new Promise((resolve, reject) => {
@@ -183,6 +184,8 @@ const PortalColaborador = () => {
     const [tecnico, setTecnico] = useState(null);
     const [asts, setAsts] = useState([]);
     const [produccion, setProduccion] = useState(null); // null = no cargado, objeto = cargado
+    const [miAsistencia, setMiAsistencia] = useState([]);
+    const [loadingAsistencia, setLoadingAsistencia] = useState(false);
     const [vehiculo, setVehiculo] = useState(null);
     const [loadingProduccion, setLoadingProduccion] = useState(false);
     const [garantiasMetrics, setGarantiasMetrics] = useState({ aiValue: 0, rrValue: 0, aiFails: 0, aiTotal: 0, rrFails: 0, rrTotal: 0 });
@@ -336,6 +339,27 @@ const PortalColaborador = () => {
             setProduccion({ recientes: [], resumen: { totalPuntos: 0 } });
         } finally {
             setLoadingProduccion(false);
+        }
+    };
+
+    const loadAsistencia = async (monthId, candidatoId) => {
+        if (!candidatoId) return;
+        setLoadingAsistencia(true);
+        try {
+            const year = activeYear;
+            const res = await api.get('/api/rrhh/asistencia', {
+                params: {
+                    candidatoId,
+                    month: monthId + 1,
+                    year
+                }
+            });
+            setMiAsistencia(res.data || []);
+        } catch (err) {
+            console.error("Error loading asistencia:", err);
+            setMiAsistencia([]);
+        } finally {
+            setLoadingAsistencia(false);
         }
     };
 
@@ -509,6 +533,10 @@ const PortalColaborador = () => {
                 setMisObservacionesActivas([]);
             }
 
+            if (resCandidato.data?._id) {
+                loadAsistencia(selectedMonth, resCandidato.data._id);
+            }
+
         } catch (err) {
             console.error("Error cargando datos del colaborador:", err);
             // Si es Admin/CEO, no bloqueamos con error fatal, solo informamos en consola
@@ -575,6 +603,9 @@ const PortalColaborador = () => {
         setSelectedMonth(safeMonth);
         if (tecnico?._id) {
             loadProduccion(safeMonth, tecnico._id);
+        }
+        if (perfil?._id) {
+            loadAsistencia(safeMonth, perfil._id);
         }
     };
 
@@ -843,6 +874,7 @@ const PortalColaborador = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                     <Card icon={User} title="Mi Perfil" subtitle="Tus datos y ficha de RRHH" color="bg-indigo-600" onClick={() => setActiveView('perfil')} />
+                    <Card icon={CalendarClock} title="Mi Asistencia" subtitle="Jornadas y marcajes de hora" color="bg-teal-600" onClick={() => setActiveView('asistencia')} />
                     <Card icon={Truck} title="Mis Activos" subtitle={`Vehículo: ${vehiculo?.patente || tecnico?.patente || 'No asignado'}`} color="bg-sky-500" onClick={() => setActiveView('equipamiento')} />
                     <Card icon={PenTool} title="AST Nueva" subtitle="Registra tu inicio de faena" color="bg-amber-500" next="Reportar Ahora" onClick={() => window.location.href = '/prevencion/ast'} />
                     <Card icon={Calendar} title="Solicitudes" subtitle="Vacaciones, Permisos y Licencias" color="bg-rose-500" onClick={() => setActiveView('solicitudes')} badge={perfil?.vacaciones?.filter(v => v.estado === 'Pendiente')?.length} />
@@ -852,8 +884,6 @@ const PortalColaborador = () => {
                     <Card icon={Fuel} title="Solicitud Combustible" subtitle={lastFuelRequest?.estado === 'Pendiente' ? 'Estado: Pendiente de Aprobación' : 'Registra tu carga del día'} color="bg-orange-600" onClick={() => setActiveView('combustible')} />
                     <Card icon={ClipboardList} title="Mi Inventario 360" subtitle={`Total: ${Array.from(new Set(miInventario.filter(item => ((item.cantidadNuevo || 0) + (item.cantidadUsadoBueno || 0)) > 0).map(item => item.productoRef?.categoria?.nombre || item.categoria || 'Otros'))).length} categorías asignadas`} color="bg-slate-800" onClick={() => setActiveView('inventario')} />
                     <Card icon={Archive} title="Historial Auditorías" subtitle={`Total: ${historialAuditorias.length} auditorías firmadas`} color="bg-teal-600" onClick={() => setActiveView('historial-auditorias')} />
-                    <Card icon={Wallet} title="Liquidaciones" subtitle="Historial de remuneraciones" color="bg-slate-400" isPlaceholder />
-                    <Card icon={Award} title="Certificados" subtitle="Documentación laboral 24/7" color="bg-slate-400" isPlaceholder />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -3761,7 +3791,140 @@ const PortalColaborador = () => {
     // ──────────────────────────────────────────────────────────────────────────
     // VIEW: NOTIFICACIONES
     // ──────────────────────────────────────────────────────────────────────────
-    {activeView === 'notificaciones' && <NotificacionesTramites user={user} onBack={() => setActiveView('main')} perfil={perfil} />}
+    if (activeView === 'notificaciones') {
+        return <NotificacionesTramites user={user} onBack={() => setActiveView('main')} perfil={perfil} />;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: MI ASISTENCIA
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'asistencia') {
+        return (
+            <div className="max-w-[1400px] mx-auto pb-20 px-4 pt-4 animate-in fade-in duration-500">
+                {renderHeader('Mi Asistencia', CalendarClock)}
+
+                <div className="flex gap-2 overflow-x-auto pb-4 custom-scrollbar mb-8">
+                    {availableMonths.map(m => (
+                        <button
+                            key={m.id}
+                            onClick={() => handleMonthChange(m.id)}
+                            className={`px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-sm shrink-0
+                                ${selectedMonth === m.id
+                                    ? 'bg-teal-600 text-white shadow-teal-200 shadow-md scale-105'
+                                    : 'bg-white border border-slate-100 text-slate-500 hover:bg-slate-50'
+                                }`}
+                        >
+                            {m.name} {m.year}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="bg-white border border-slate-100 rounded-[2rem] shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-100">
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Fecha</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Turno Asignado</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Ingreso</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Salida</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">H. Extras</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Estado</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Registrado Por</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loadingAsistencia ? (
+                                    <tr>
+                                        <td colSpan="6" className="py-20 text-center">
+                                            <Loader2 className="w-8 h-8 text-teal-600 animate-spin mx-auto mb-4" />
+                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">Cargando registros...</p>
+                                        </td>
+                                    </tr>
+                                ) : miAsistencia.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="py-20 text-center text-slate-400 text-sm font-bold">
+                                            No hay registros de asistencia para este mes.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    miAsistencia.map((log) => {
+                                        const d = new Date(log.fecha);
+                                        const dLocal = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
+                                        const dateStr = dLocal.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short' });
+                                        
+                                        const horario = getHorarioDelDia(log.turnoId, dLocal);
+
+                                        let displayEstado = log.estado;
+                                        let estadoColor = 'bg-slate-100 text-slate-600';
+                                        
+                                        if (log.estado === 'Presente' && !log.horaIngresoDeclarada && !log.horaSalida && (!log.eventosTimeline || log.eventosTimeline.length === 0)) {
+                                            displayEstado = 'Por Registrar';
+                                            estadoColor = 'bg-slate-100 text-slate-400 border border-slate-200';
+                                        } else {
+                                            if (log.estado === 'Presente') estadoColor = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
+                                            if (log.estado === 'Ausente') estadoColor = 'bg-rose-50 text-rose-600 border border-rose-100';
+                                            if (['Licencia', 'Permiso', 'Vacaciones'].includes(log.estado)) estadoColor = 'bg-amber-50 text-amber-600 border border-amber-100';
+                                            if (log.estado === 'Libre') estadoColor = 'bg-sky-50 text-sky-600 border border-sky-100';
+                                            if (log.estado === 'Feriado') estadoColor = 'bg-indigo-50 text-indigo-600 border border-indigo-100';
+                                        }
+                                        const ultimoEvento = log.eventosTimeline && log.eventosTimeline.length > 0 ? log.eventosTimeline[log.eventosTimeline.length - 1] : null;
+                                        const registradoPor = ultimoEvento ? ultimoEvento.registradoPor : '---';
+
+                                        return (
+                                            <tr key={log._id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <span className="text-xs font-black text-slate-700 uppercase">{dateStr}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {horario ? (
+                                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${horario.esHorarioEspecial ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-slate-100 text-slate-500'}`}>
+                                                            {horario.horaEntrada} - {horario.horaSalida}
+                                                            {horario.esHorarioEspecial && <span className="ml-1 font-black" title="Horario especial de este día">★</span>}
+                                                        </span>
+                                                    ) : <span className="text-slate-300 text-xs">—</span>}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {log.horaIngresoDeclarada ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black text-slate-800">{log.horaIngresoDeclarada}</span>
+                                                            {log.minutosTardanza > 0 && (
+                                                                <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase">+{log.minutosTardanza}m</span>
+                                                            )}
+                                                        </div>
+                                                    ) : <span className="text-slate-300 text-xs">—</span>}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {log.horaSalida ? (
+                                                        <span className="text-xs font-black text-slate-800">{log.horaSalida}</span>
+                                                    ) : <span className="text-slate-300 text-xs">—</span>}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {log.horasExtraAprobadas > 0 ? (
+                                                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg">
+                                                            {log.horasExtraAprobadas} hrs
+                                                        </span>
+                                                    ) : <span className="text-slate-300 text-xs">—</span>}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-xl uppercase tracking-widest ${estadoColor}`}>
+                                                        {displayEstado}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">{registradoPor}</span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // VIEW: MI PERFIL

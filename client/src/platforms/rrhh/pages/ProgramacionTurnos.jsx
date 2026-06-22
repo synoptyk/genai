@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react'; // Verified build v
 import {
     Calendar, Plus, Clock, Users, Edit3, Trash2, X, Loader2,
     Shield, Zap, Moon, AlertTriangle, Coffee, CheckCircle2, Info,
-    BarChart2, ChevronDown, ChevronUp, TrendingUp
+    BarChart2, ChevronDown, ChevronUp, TrendingUp, UserPlus, Search
 } from 'lucide-react';
-import { turnosApi } from '../rrhhApi';
+import { turnosApi, candidatosApi } from '../rrhhApi';
 
 const COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#3B82F6', '#EF4444', '#64748B'];
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -37,6 +37,8 @@ const DEFAULT_FORM = {
     },
     color: '#6366F1',
     activo: true,
+    colominoAsignados: [],
+    cargoSeleccionado: '',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -346,7 +348,21 @@ const ProgramacionTurnos = () => {
     const [form, setForm] = useState(DEFAULT_FORM);
     const [activeCard, setActiveCard] = useState(null);
 
-    useEffect(() => { fetchAll(); }, []);
+    // Estados para asignación masiva
+    const [candidatos, setCandidatos] = useState([]);
+
+
+    useEffect(() => { fetchAll(); fetchCandidatos(); }, []);
+
+    const fetchCandidatos = async () => {
+        try {
+            const res = await candidatosApi.getAll({ 
+                status: 'Contratado,En Terreno,Inactivo', 
+                includeInactive: true 
+            });
+            setCandidatos(res.data || []);
+        } catch (e) { console.error('Error cargando candidatos:', e); }
+    };
 
     const fetchAll = async () => {
         setLoading(true);
@@ -356,6 +372,10 @@ const ProgramacionTurnos = () => {
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
+
+
+
+    const uniqueCargos = useMemo(() => [...new Set(candidatos.map(c => c.position).filter(Boolean))], [candidatos]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -397,6 +417,8 @@ const ProgramacionTurnos = () => {
             horasExtraPolicy: { ...DEFAULT_FORM.horasExtraPolicy, ...(t.horasExtraPolicy || {}) },
             recargos: { ...DEFAULT_FORM.recargos, ...(t.recargos || {}) },
             horariosPorDia: t.horariosPorDia || [],
+            colominoAsignados: t.colominoAsignados ? t.colominoAsignados.map(c => c._id || c) : [],
+            cargoSeleccionado: '',
         });
         setEditId(t._id);
         setShowForm(true);
@@ -498,9 +520,9 @@ const ProgramacionTurnos = () => {
                                         </div>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                                             <button onClick={ev => { ev.stopPropagation(); openEdit(t); }}
-                                                className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl"><Edit3 size={14} /></button>
+                                                className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl" title="Editar"><Edit3 size={14} /></button>
                                             <button onClick={ev => { ev.stopPropagation(); handleDelete(t._id); }}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl"><Trash2 size={14} /></button>
+                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl" title="Eliminar"><Trash2 size={14} /></button>
                                         </div>
                                     </div>
 
@@ -548,18 +570,27 @@ const ProgramacionTurnos = () => {
                                         })}
                                     </div>
 
-                                    {/* Footer */}
-                                    <div className="flex items-center justify-between text-[9px] text-slate-400">
-                                        <div className="flex items-center gap-1.5">
-                                            <Users size={12} />
-                                            <span>{(t.colominoAsignados || []).length} colaboradores</span>
-                                        </div>
-                                        {t.horasExtraPolicy?.habilitado && (
-                                            <div className="flex items-center gap-1 text-indigo-500 font-bold">
-                                                <Zap size={11} />
-                                                <span>HE {t.horasExtraPolicy.maxDiarias}h/día</span>
+                                    {/* Footer & Asignación */}
+                                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold">
+                                                <Users size={12} className="text-indigo-500" />
+                                                <span>{(t.colominoAsignados || []).length} asignados</span>
                                             </div>
-                                        )}
+                                            {t.horasExtraPolicy?.habilitado && (
+                                                <div className="flex items-center gap-1 text-[9px] text-orange-500 font-bold">
+                                                    <Zap size={10} />
+                                                    <span>HE {t.horasExtraPolicy.maxDiarias}h/día</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button 
+                                            onClick={ev => { ev.stopPropagation(); openEdit(t); }}
+                                            className="px-3 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-1.5"
+                                        >
+                                            <UserPlus size={12} />
+                                            Asignar Personal
+                                        </button>
                                     </div>
 
                                     {/* Detalle expandido */}
@@ -652,6 +683,72 @@ const ProgramacionTurnos = () => {
                                             <option value="false">Inactivo</option>
                                         </select>
                                     </LabelInput>
+                                </div>
+                            </FormSection>
+
+                            {/* ── 1.5. Asignación de Personal ── */}
+                            <FormSection title="Asignación de Personal" icon={Users} color="bg-indigo-500">
+                                <div className="space-y-4">
+                                    <LabelInput label="Filtrar por Cargo (Opcional)">
+                                        <select
+                                            value={form.cargoSeleccionado || ''}
+                                            onChange={(e) => setForm({ ...form, cargoSeleccionado: e.target.value })}
+                                            className="input-rrhh"
+                                        >
+                                            <option value="">-- Todos los Cargos --</option>
+                                            {uniqueCargos.map(cargo => (
+                                                <option key={cargo} value={cargo}>{cargo}</option>
+                                            ))}
+                                        </select>
+                                    </LabelInput>
+                                    
+                                    <div className="bg-slate-50 border-2 border-slate-100 rounded-xl p-3">
+                                        <div className="flex justify-between items-center mb-2 px-1">
+                                            <span className="text-xs font-bold text-slate-500">{(form.colominoAsignados || []).length} colaborador(es) seleccionados</span>
+                                            <button type="button" onClick={() => {
+                                                const filtered = candidatos.filter(c => !form.cargoSeleccionado || c.position === form.cargoSeleccionado);
+                                                const currentIds = form.colominoAsignados || [];
+                                                const allFilteredSelected = filtered.length > 0 && filtered.every(c => currentIds.includes(c._id));
+                                                
+                                                let newSelected = [...currentIds];
+                                                if (allFilteredSelected) {
+                                                    newSelected = newSelected.filter(id => !filtered.find(c => c._id === id));
+                                                } else {
+                                                    filtered.forEach(c => {
+                                                        if (!newSelected.includes(c._id)) newSelected.push(c._id);
+                                                    });
+                                                }
+                                                setForm({ ...form, colominoAsignados: newSelected });
+                                            }} className="text-[10px] text-indigo-600 font-bold hover:underline">
+                                                Seleccionar todos / Ninguno (en filtro actual)
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="max-h-40 overflow-y-auto space-y-1">
+                                            {candidatos.filter(c => !form.cargoSeleccionado || c.position === form.cargoSeleccionado).map(c => {
+                                                const isSelected = (form.colominoAsignados || []).includes(c._id);
+                                                return (
+                                                    <div key={c._id} onClick={() => {
+                                                        let newSelected = [...(form.colominoAsignados || [])];
+                                                        if (isSelected) newSelected = newSelected.filter(id => id !== c._id);
+                                                        else newSelected.push(c._id);
+                                                        setForm({ ...form, colominoAsignados: newSelected });
+                                                    }} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-indigo-100 border border-indigo-200' : 'hover:bg-slate-200 border border-transparent'}`}>
+                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                                                            {isSelected && <CheckCircle2 size={10} className="text-white" />}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-slate-700 leading-none">{c.fullName}</p>
+                                                            <p className="text-[9px] text-slate-500 font-medium mt-1">{c.position || 'Sin cargo'}</p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {candidatos.filter(c => !form.cargoSeleccionado || c.position === form.cargoSeleccionado).length === 0 && (
+                                                <p className="text-xs text-slate-400 text-center py-4">No hay colaboradores para este filtro.</p>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </FormSection>
 
@@ -848,6 +945,7 @@ const ProgramacionTurnos = () => {
                     </div>
                 </div>
             )}
+
         </div>
     );
 };

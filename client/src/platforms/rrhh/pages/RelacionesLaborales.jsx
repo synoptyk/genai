@@ -4,6 +4,7 @@ import {
     XCircle, FileText
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 const RelacionesLaborales = () => {
     const [employees, setEmployees] = useState([]);
@@ -21,8 +22,8 @@ const RelacionesLaborales = () => {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await candidatosApi.getAll();
-            setEmployees(res.data.filter(e => e.status === 'Contratado'));
+            const res = await candidatosApi.getAll({ status: 'Contratado,Activo,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' });
+            setEmployees(res.data);
         } catch (e) {
             console.error(e);
         } finally {
@@ -161,15 +162,15 @@ const RelacionesLaborales = () => {
                         <form onSubmit={handleCreate} className="p-8 space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Colaborador</label>
-                                <select
-                                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-900 outline-none"
-                                    required
+                                <SearchableSelect
                                     value={newAction.candidateId}
-                                    onChange={e => setNewAction({ ...newAction, candidateId: e.target.value })}
-                                >
-                                    <option value="">Seleccionar...</option>
-                                    {employees.map(e => <option key={e._id} value={e._id}>{e.fullName}</option>)}
-                                </select>
+                                    onChange={val => setNewAction({ ...newAction, candidateId: val })}
+                                    placeholder="Seleccionar..."
+                                    options={[
+                                        { value: '', label: 'Seleccionar...' },
+                                        ...employees.map(e => ({ value: e._id, label: e.fullName }))
+                                    ]}
+                                />
                             </div>
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-2">

@@ -60,8 +60,9 @@ import NominaRRHH from './platforms/rrhh/pages/NominaRRHH';
 import RelacionesLaborales from './platforms/rrhh/pages/RelacionesLaborales';
 import CapturaTalento from './platforms/rrhh/pages/CapturaTalento';
 import ControlAsistencia from './platforms/rrhh/pages/ControlAsistencia';
+import ModuloAsistencia from './platforms/rrhh/pages/ModuloAsistencia';
 import HistorialRRHH from './platforms/rrhh/pages/HistorialRRHH';
-import PersonalActivo from './platforms/rrhh/pages/PersonalActivo';
+
 import ProgramacionTurnos from './platforms/rrhh/pages/ProgramacionTurnos';
 import VacacionesLicencias from './platforms/rrhh/pages/VacacionesLicencias';
 import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
@@ -255,9 +256,10 @@ function AppRoutes() {
       <Route path="/rrhh/relaciones-laborales" element={<ProtectedRoute allowPermissions={['rrhh_laborales']}><AppShell><RelacionesLaborales /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/captura-talento" element={<ProtectedRoute allowPermissions={['rrhh_captura']}><AppShell><CapturaTalento /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/remu-central" element={<ProtectedRoute allowPermissions={['rrhh_nomina']}><AppShell><RemuCentral /></AppShell></ProtectedRoute>} />
+      <Route path="/rrhh/asistencia" element={<ProtectedRoute allowPermissions={['rrhh_asistencia']}><AppShell><ModuloAsistencia /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/control-asistencia" element={<ProtectedRoute allowPermissions={['rrhh_asistencia']}><AppShell><ControlAsistencia /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/historial" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/rrhh/personal-activo" element={<ProtectedRoute allowPermissions={['rrhh_activos']}><AppShell><PersonalActivo /></AppShell></ProtectedRoute>} />
+
       <Route path="/rrhh/turnos" element={<ProtectedRoute allowPermissions={['rrhh_turnos']}><AppShell><ProgramacionTurnos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/vacaciones-licencias" element={<ProtectedRoute allowPermissions={['rrhh_vacaciones']}><AppShell><VacacionesLicencias /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/finiquitos" element={<ProtectedRoute allowPermissions={['rrhh_finiquitos']}><AppShell><Finiquitos /></AppShell></ProtectedRoute>} />

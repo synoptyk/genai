@@ -72,7 +72,7 @@ const Beneficios = () => {
         setLoading(true);
         try {
             const [candRes, projRes, tiposRes, txRes] = await Promise.all([
-                candidatosApi.getAll(),
+                candidatosApi.getAll({ status: 'Activo,Contratado,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
                 proyectosApi.getAll(),
                 beneficiosApi.getTipos(),
                 beneficiosApi.getTransacciones(period)

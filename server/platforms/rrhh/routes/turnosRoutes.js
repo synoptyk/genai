@@ -54,6 +54,26 @@ router.put('/:id/asignar', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// Asignación Masiva
+router.put('/:id/asignar-bulk', protect, async (req, res) => {
+    try {
+        const { candidatoIds } = req.body;
+        // 🔒 FILTRO POR EMPRESA
+        const turno = await Turno.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!turno) return res.status(404).json({ message: 'Turno no encontrado o sin acceso' });
+        
+        // Agregar los IDs que no estén ya en la lista
+        const currentAsignados = turno.colominoAsignados.map(id => id.toString());
+        candidatoIds.forEach(id => {
+            if (!currentAsignados.includes(id)) {
+                turno.colominoAsignados.push(id);
+            }
+        });
+        await turno.save();
+        res.json(turno);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 router.delete('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA

@@ -1,0 +1,32 @@
+{
+  "body": {
+    "candidatosId": [
+      "6a0aa28cb31b99c92efc2872"
+    ],
+    "fecha": "2026-06-21",
+    "estado": "Presente",
+    "horaEntrada": "09:00",
+    "horaSalida": "15:50",
+    "observacionLegal": "Marcacion Manual por prueba de nueva implementacion de Plataforma. ",
+    "turnoId": "6a3871e3b367c42a62290f40"
+  },
+  "headers": {
+    "host": "localhost:5003",
+    "connection": "keep-alive",
+    "content-length": "255",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YWI4YTM3ZDcyMzliMGRkMTIzODNkMyIsInZlcnNpb24iOjE1MDMsImlhdCI6MTc4MjA5MjI2NSwiZXhwIjoxNzg0Njg0MjY1fQ.cfiWHM8wFN49LVYMBddbWcYVtuluiKTOFhWKxepeCZY",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "accept": "application/json, text/plain, */*",
+    "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+    "content-type": "application/json",
+    "sec-ch-ua-mobile": "?0",
+    "origin": "http://localhost:3000",
+    "sec-fetch-site": "same-site",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+    "referer": "http://localhost:3000/",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "es-419,es;q=0.9"
+  }
+}

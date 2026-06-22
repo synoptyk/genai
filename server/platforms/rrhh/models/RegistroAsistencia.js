@@ -12,6 +12,22 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
         enum: ['Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso', 'Feriado', 'Vacaciones', 'Libre', 'NC'],
         default: 'Presente'
     },
+    // NUEVOS CAMPOS PARA ASISTENCIA OPERATIVA
+    estadoDia: {
+        type: String,
+        enum: ['Abierto', 'Cerrado'],
+        default: 'Abierto'
+    },
+    eventosTimeline: [{
+        tipo: String, // 'Apertura', 'Atraso', 'Retiro', 'Evento', 'Cierre', etc.
+        hora: String,
+        estadoSeleccionado: String,
+        observacion: String,
+        fotoUrl: String,
+        registradoPor: String,
+        timestamp: { type: Date, default: Date.now }
+    }],
+    horaIngresoDeclarada: String,
     minutosTardanza:     { type: Number, default: 0 },
     horasExtra:          { type: Number, default: 0 },           // HE registradas (declaradas)
     horasExtraAprobadas: { type: Number, default: 0 },           // HE aprobadas por supervisor
@@ -44,6 +60,16 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
     esFeriado:        { type: Boolean, default: false }, // Marcador de feriado legal
     esDomingo:        { type: Boolean, default: false }, // Marcador de domingo
     syncFromProduccion: { type: Boolean, default: false }, // true = sincronizado desde Producción, false = manual
+
+    // ASISTENCIA LEGAL (DT)
+    auditLog: {
+        ip: String,
+        userAgent: String,
+        geoLat: Number,
+        geoLng: Number,
+        timestamp: Date,
+        metodo: { type: String, enum: ['Web', 'Movil', 'Biometria'] }
+    },
 
     // FINIQUITOS
     finiquitado: { type: Boolean, default: false }, // true = empleado finiquitado en este mes

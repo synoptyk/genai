@@ -78,7 +78,7 @@ const GestionDocumental = () => {
     const fetchCandidatos = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await candidatosApi.getAll();
+            const res = await candidatosApi.getAll({ status: 'Activo,Contratado,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' });
             setCandidatos(res.data);
         } catch (e) {
             console.error(e);

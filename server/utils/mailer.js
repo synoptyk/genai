@@ -513,6 +513,95 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
 };
 
 /**
+ * Enviar Notificación de Registro de Asistencia
+ */
+exports.sendAttendanceNotificationEmail = async (registro, emailDestino, empresaId, emisorNombre, tipoAccion) => {
+  if (!emailDestino) return false;
+  try {
+    const config = await getCompanyConfig(empresaId, 'rrhh_solicitudes');
+    const custom = config?.conf || {};
+    
+    const fechaFormat = new Date(registro.fecha).toLocaleDateString('es-CL', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC'
+    });
+    
+    const estadoColors = {
+      'Presente': '#10b981', // verde
+      'Ausente': '#ef4444', // rojo
+      'Tardanza': '#f59e0b', // naranja
+      'Licencia': '#3b82f6', // azul
+      'Permiso': '#8b5cf6', // morado
+      'Vacaciones': '#ec4899', // rosa
+      'Feriado': '#64748b', // gris
+      'Libre': '#64748b',
+      'NC': '#94a3b8'
+    };
+    
+    const colorEstado = estadoColors[registro.estado] || '#0f172a';
+    const customImageHtml = injectCustomImage(custom.imagenCuerpo);
+    
+    const titulo = tipoAccion === 'MODIFICACION' ? 'Actualización de Asistencia' : 'Registro de Asistencia';
+    
+    const html = `
+      <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f1f5f9; padding: 40px 20px; text-align: center;">
+        <div style="max-width: 500px; margin: 0 auto; background: #ffffff; border-radius: 24px; padding: 40px 32px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); text-align: left;">
+          
+          <div style="margin: 0 auto 24px; text-align: center;">
+            ${config?.logo ? `<img src="${config.logo}" alt="${config.nombre}" style="max-height: 50px;">` : `<div style="background: linear-gradient(135deg, #10b981, #059669); width: 64px; height: 64px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(16, 185, 129, 0.25);"><span style="font-size: 32px; color: white;">✓</span></div>`}
+          </div>
+
+          <h1 style="color: #0f172a; font-size: 22px; font-weight: 900; margin: 0 0 8px; letter-spacing: -0.02em; text-align: center;">${titulo}</h1>
+          <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 24px; text-align: center;">
+            Se ha registrado tu asistencia para la fecha <strong>${fechaFormat}</strong>.
+          </p>
+          
+          ${customImageHtml}
+
+          <div style="background: #f8fafc; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 24px;">
+            <p style="margin: 0 0 12px 0; font-size: 13px; color: #334155;"><strong>Fecha:</strong> ${fechaFormat}</p>
+            <p style="margin: 0 0 12px 0; font-size: 13px; color: #334155;">
+              <strong>Estado:</strong> 
+              <span style="display: inline-block; padding: 4px 10px; background-color: ${colorEstado}15; color: ${colorEstado}; border-radius: 99px; font-weight: 800; font-size: 11px; text-transform: uppercase; margin-left: 8px;">
+                ${registro.estado}
+              </span>
+            </p>
+            ${registro.horaEntrada ? `<p style="margin: 0 0 12px 0; font-size: 13px; color: #334155;"><strong>Hora Ingreso:</strong> ${registro.horaEntrada}</p>` : ''}
+            ${registro.horaSalida ? `<p style="margin: 0 0 12px 0; font-size: 13px; color: #334155;"><strong>Hora Salida:</strong> ${registro.horaSalida}</p>` : ''}
+            ${registro.observacion ? `<p style="margin: 0 0 12px 0; font-size: 13px; color: #334155;"><strong>Observación:</strong> ${registro.observacion}</p>` : ''}
+          </div>
+
+          <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0 0 24px; text-align: center; font-style: italic;">
+            Acción realizada por: <strong>${emisorNombre || 'Sistema Automatizado'}</strong>
+          </p>
+
+          <div style="text-align: center;">
+            <a href="${appLink('/operaciones/portal-colaborador')}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; font-weight: 800; font-size: 13px; letter-spacing: 0.1em; padding: 14px 28px; border-radius: 12px; text-transform: uppercase;">Ver Historial de Asistencia</a>
+          </div>
+        </div>
+        
+        <p style="margin-top: 24px; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; text-align: center;">
+          ${config?.nombre || 'GENAI360'} • Control de Asistencia Auditado
+        </p>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: `"${config?.nombre || 'RRHH 360'} - Asistencia" <${process.env.SMTP_EMAIL}>`,
+      to: emailDestino,
+      subject: `${titulo} - ${registro.estado} [${new Date(registro.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' })}]`,
+      html: html
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Notificación de Asistencia Enviada a ${emailDestino}: ${info.messageId}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error en Notificación de Asistencia:', error.message);
+    return false;
+  }
+};
+
+/**
  * Enviar actualización de servicio a Empresa
  */
 exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail = null, changes = null) => {

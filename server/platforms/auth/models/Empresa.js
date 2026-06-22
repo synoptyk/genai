@@ -24,6 +24,7 @@ const empresaSchema = new mongoose.Schema({
     pais: { type: String, default: 'CL' },
     industria: String,
     logo: String,
+    tasaMutual: { type: Number, default: 0.93 }, // Tasa Básica (0.90) + Sanna (0.03) + Tasa Adicional
 
     // Representantes Legales
     representantesLegales: [{

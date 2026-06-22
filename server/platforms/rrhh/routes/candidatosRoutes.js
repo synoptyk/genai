@@ -96,6 +96,44 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
 
     try {
         console.log(`\n🔄 syncToTecnico START: RUT=${candidato.rut}, projectId=${candidato.projectId}, createIfMissing=${createIfMissing}`);
+
+        // --- NEW LOGIC FOR SUPERVISOR ---
+        let resolvedSupervisorId = undefined;
+        if (candidato.jefeDirecto) {
+            const jName = candidato.jefeDirecto.trim();
+            const PlatformUser = require('../../auth/PlatformUser');
+            
+            // 1. Exact Name Match
+            let matchedUser = await PlatformUser.findOne({
+                name: new RegExp('^' + jName + '$', 'i')
+            }).select('_id name rut').lean();
+
+            // 2. Fallback to RUT Match (if user has rut)
+            if (!matchedUser) {
+                const Candidato = require('../models/Candidato'); // already required at top but just to be safe
+                const jCand = await Candidato.findOne({ fullName: new RegExp('^' + jName + '$', 'i') }).select('rut').lean();
+                if (jCand && jCand.rut) {
+                    const r = String(jCand.rut).replace(/[^0-9kK]/g, '').toUpperCase();
+                    const allUsers = await PlatformUser.find().select('_id name rut').lean();
+                    matchedUser = allUsers.find(u => u.rut && String(u.rut).replace(/[^0-9kK]/g, '').toUpperCase() === r);
+                }
+            }
+
+            // 3. Fallback to Substring Match (e.g. JULIO SERRANO matching JULIO ENRIQUE SERRANO JIMENEZ)
+            if (!matchedUser) {
+                const allUsers = await PlatformUser.find().select('_id name').lean();
+                matchedUser = allUsers.find(u => {
+                    const uParts = String(u.name || '').toUpperCase().split(' ').filter(Boolean);
+                    const jParts = jName.toUpperCase().split(' ').filter(Boolean);
+                    if (uParts.length === 0) return false;
+                    return uParts.every(p => jParts.includes(p));
+                });
+            }
+
+            if (matchedUser) resolvedSupervisorId = matchedUser._id;
+        } else if (candidato.jefeDirecto === '' || candidato.jefeDirecto === null) {
+            resolvedSupervisorId = null;
+        }
         
         // 🔒 FILTRO POR EMPRESA
         let existe = await Tecnico.findOne({ rut: candidato.rut, empresaRef });
@@ -129,6 +167,10 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
                 tieneCargas: candidato.tieneCargas || existe.tieneCargas,
                 updatedAt: new Date()
             };
+
+            if (resolvedSupervisorId !== undefined) {
+                updateData.supervisorId = resolvedSupervisorId;
+            }
             
             console.log(`📊 Nuevos datos:`, JSON.stringify(updateData).substring(0, 200));
             
@@ -206,7 +248,8 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
             sueldoBase: candidato.sueldoBase,
             requiereLicencia: candidato.requiereLicencia,
             fechaVencimientoLicencia: candidato.fechaVencimientoLicencia,
-            idRecursoToa: candidato.idRecursoToa || ''
+            idRecursoToa: candidato.idRecursoToa || '',
+            supervisorId: resolvedSupervisorId !== undefined ? resolvedSupervisorId : null
         });
 
         const saved = await nuevoTecnico.save();
@@ -233,7 +276,8 @@ function sanitizeCandidatoData(data) {
     const fieldsToClean = [
         'contractEndDate', 'nextAddendumDate', 'fechaNacimiento', 
         'idExpiryDate', 'fechaVencimientoLicencia', 'fechaInicioContrato',
-        'fechaProximoHito', 'fechaOperativa'
+        'fechaProximoHito', 'fechaOperativa', 'contractStartDate', 
+        'operationalStartDate', 'fechaFiniquito'
     ];
     
     fieldsToClean.forEach(field => {
@@ -241,6 +285,15 @@ function sanitizeCandidatoData(data) {
             data[field] = null;
         }
     });
+
+    // Normalizar género a formato CamelCase esperado por la validación del esquema
+    if (data.gender) {
+        const g = String(data.gender).toUpperCase().trim();
+        if (g === 'MASCULINO') data.gender = 'Masculino';
+        else if (g === 'FEMENINO') data.gender = 'Femenino';
+        else if (g === 'OTRO') data.gender = 'Otro';
+        else if (g === 'NO INFORMADO') data.gender = 'No Informado';
+    }
 
     // Manejo de IDs (convertir cadena vacía a null para evitar error de casting ObjectId)
     if (data.clienteId === '') {
@@ -1324,7 +1377,7 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
         // Actualizar campos (evitando sobreescribir _id e history manualmente de forma incorrecta)
         Object.keys(cleanData).forEach(key => {
             if (key !== '_id' && key !== 'history') {
-                candidato[key] = cleanData[key];
+                candidato.set(key, cleanData[key]);
             }
         });
 
@@ -1358,6 +1411,18 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
         res.json(updated);
     } catch (err) { 
         console.error('❌ PUT /api/rrhh/candidatos/:id ERROR:', err);
+        try {
+            const fs = require('fs');
+            const logContent = JSON.stringify({
+                timestamp: new Date().toISOString(),
+                error: err.message,
+                stack: err.stack,
+                body: req.body
+            }, null, 2);
+            fs.writeFileSync('/Users/mauro/Synoptik_Innovacion/Gen AI/server/scratch/put_error.log', logContent);
+        } catch (e) {
+            console.error('Failed to write PUT error log:', e);
+        }
         res.status(500).json({ message: err.message }); 
     }
 });

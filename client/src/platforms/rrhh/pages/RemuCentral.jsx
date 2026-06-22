@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Users, RefreshCw, Search, Download, AlertCircle, Calendar, User, DollarSign,
-    TrendingUp, ShieldCheck, Activity, HeartPulse, Wallet
+    TrendingUp, ShieldCheck, Activity, HeartPulse, Wallet, Briefcase
 } from 'lucide-react';
-import { candidatosApi, proyectosApi, bonosConfigApi, bonosApi, modelosBonificacionApi, asistenciaApi, descuentosApi, beneficiosApi } from '../rrhhApi';
+import { candidatosApi, proyectosApi, bonosConfigApi, bonosApi, modelosBonificacionApi, asistenciaApi, descuentosApi, beneficiosApi, configApi } from '../rrhhApi';
 import { telecomApi } from '../../agentetelecom/telecomApi';
 import { formatRut } from '../../../utils/rutUtils';
 import * as XLSX from 'xlsx';
@@ -20,7 +20,7 @@ const AFP_RATES = {
     'MODELO': 10.58,
     'UNO': 10.46,
 };
-const TOPE_AFP_UF = 89.9;
+// Topes y tasas centralizados a través de IndicadoresContext
 
 const getWorkerActiveDays = (emp, diasMes, periodStr) => {
     // periodStr is YYYY-MM
@@ -57,8 +57,9 @@ const RemuCentral = () => {
     const [bonosConfig, setBonosConfig] = useState([]);
     const [closures, setClosures] = useState([]);
     const [modelosBono, setModelosBono] = useState([]);
+    const [empresaConfig, setEmpresaConfig] = useState(null);
     
-    const { ufValue } = useIndicadores();
+    const { ufValue, immValue, params: indicParams } = useIndicadores();
     
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -82,24 +83,41 @@ const RemuCentral = () => {
         setLoading(true);
         try {
             const [year, month] = period.split('-');
-            const [candRes, projRes, configRes, closRes, modRes, asisRes, descRes, benRes] = await Promise.all([
-                candidatosApi.getAll(),
+            const daysInMonthRaw = new Date(year, month, 0).getDate();
+            const desdeStr = `${year}-${String(month).padStart(2, '0')}-01`;
+            const hastaStr = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonthRaw).padStart(2, '0')}`;
+
+            const [candRes, finiRes, projRes, configRes, closRes, modRes, asisRes, descRes, benRes, empConfRes] = await Promise.all([
+                candidatosApi.getAll({ status: 'Activo,Contratado,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
+                candidatosApi.getFiniquitos({ desde: desdeStr, hasta: hastaStr }).catch(() => ({ data: [] })),
                 proyectosApi.getAll(),
                 bonosConfigApi.getAll(),
                 bonosApi.getClosure(year, month).catch(() => ({ data: [] })),
                 modelosBonificacionApi.getAll().catch(() => ({ data: [] })),
                 asistenciaApi.getResumenPeriodo(month, year).catch(() => ({ data: [] })),
                 descuentosApi.getTransacciones(period).catch(() => ({ data: [] })),
-                beneficiosApi.getTransacciones(period).catch(() => ({ data: [] }))
+                beneficiosApi.getTransacciones(period).catch(() => ({ data: [] })),
+                configApi.get().catch(() => ({ data: null }))
             ]);
             
-            setEmployees(candRes.data || []);
+            const uniqueEmpIds = new Set();
+            const combinedEmployees = [];
+            [...(candRes.data || []), ...(finiRes.data || [])].forEach(emp => {
+                const id = emp._id || emp.rut;
+                if (!uniqueEmpIds.has(id)) {
+                    uniqueEmpIds.add(id);
+                    combinedEmployees.push(emp);
+                }
+            });
+
+            setEmployees(combinedEmployees);
             setProyectos(projRes.data || []);
             setBonosConfig(configRes.data || []);
             setModelosBono(modRes.data || []);
             setAsistenciaData(asisRes.data || []);
             setDescuentosData(descRes.data || []);
             setBeneficiosData(benRes.data || []);
+            setEmpresaConfig(empConfRes.data || null);
 
             let fetchedClosures = closRes.data || [];
             
@@ -224,13 +242,29 @@ const RemuCentral = () => {
         const result = [];
         
         employees.forEach(emp => {
+            let isCurrentPeriodFiniquito = false;
             if (emp.status === 'Finiquitado' || emp.status === 'De Baja' || emp.status === 'Retirado') {
                 if (emp.fechaFiniquito) {
-                    const fQ = new Date(emp.fechaFiniquito);
-                    const pDate = new Date(`${period}-01T00:00:00`);
-                    if (fQ.getMonth() !== pDate.getMonth() || fQ.getFullYear() !== pDate.getFullYear()) {
+                    // Prevenir problemas de zona horaria comparando los primeros 7 caracteres del string ISO si es posible
+                    let fqMonth = '';
+                    try {
+                        const fQ = new Date(emp.fechaFiniquito);
+                        if (!isNaN(fQ.getTime())) {
+                            // Convertir fecha local simulada (ej. 2026-06-05)
+                            fqMonth = fQ.toISOString().substring(0, 7); // "YYYY-MM"
+                        }
+                    } catch(e){}
+
+                    // Fallback a regex si toISOString falla o es diferente
+                    if (!fqMonth && typeof emp.fechaFiniquito === 'string') {
+                        const match = emp.fechaFiniquito.match(/^(\d{4})-(\d{2})/);
+                        if (match) fqMonth = `${match[1]}-${match[2]}`;
+                    }
+
+                    if (fqMonth !== period) {
                         return;
                     }
+                    isCurrentPeriodFiniquito = true;
                 } else {
                     return;
                 }
@@ -250,13 +284,31 @@ const RemuCentral = () => {
             const matchesCeco = !filterCeco || ceco === filterCeco;
             
             const matchesStatus = filterStatus === 'Todos' || 
-                (filterStatus === 'Activo' && ['Contratado', 'Activo', 'ACTIVO', 'En Terreno'].includes(emp.status)) || 
+                (filterStatus === 'Activo' && (['Contratado', 'Activo', 'ACTIVO', 'En Terreno'].includes(emp.status) || isCurrentPeriodFiniquito)) || 
                 (filterStatus === 'Fis/Ret' && ['Finiquitado', 'Retirado', 'De Baja'].includes(emp.status));
 
             if (!matchesSearch || !matchesCeco || !matchesStatus) return;
 
+            const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase();
+            const cleanId = (id) => String(id || '').replace(/^0+/, '').trim();
+            const eRut = cleanRut(emp.rut);
+            const eId = cleanId(emp.idRecursoToa);
+            const eName = String(emp.fullName || '').toLowerCase().trim();
+
+            const asis = asistenciaData.find(a => {
+                const aRut = cleanRut(a.rut);
+                return (aRut && aRut === eRut) || (a.candidatoRef === emp._id) || (a.tecnicoRef === emp._id);
+            });
+            
+            const totalAsistencia = asis?.diasTrabajados ?? asis?.asistencia ?? 0;
+            const totalInasistencia = asis?.diasAusente ?? asis?.inasistencia ?? 0;
+            const hrsExtras = asis?.horasExtras ?? 0;
+            const hrsDescontadas = asis?.horasDescontadas ?? 0;
+
             const sueldoBase = Number(emp.sueldoBase) || 0;
-            const workerDays = getWorkerActiveDays(emp, diasMes, period);
+            let workerDays = getWorkerActiveDays(emp, diasMes, period);
+            workerDays = Math.max(0, workerDays - totalInasistencia); // Subtract inasistencias
+            
             const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / diasMes) * workerDays) : 0;
 
             let totalFijos = 0;
@@ -304,11 +356,7 @@ const RemuCentral = () => {
             let rrBonus = 0;
             let aiBonus = 0;
 
-            const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase();
-            const cleanId = (id) => String(id || '').replace(/^0+/, '').trim();
-            const eRut = cleanRut(emp.rut);
-            const eId = cleanId(emp.idRecursoToa);
-            const eName = String(emp.fullName || '').toLowerCase().trim();
+            // Variables ya extraidas arriba
 
             // Bonos Variables
             closures.forEach(cl => {
@@ -353,15 +401,7 @@ const RemuCentral = () => {
             const totalCostoCaja = prorrateadoSueldo + prorrateadoBonoFijo;
             const rentabilidadBruta = totalVariables - totalCostoCaja;
 
-            const asis = asistenciaData.find(a => {
-                const aRut = cleanRut(a.rut);
-                return (aRut && aRut === eRut) || (a.candidatoRef === emp._id) || (a.tecnicoRef === emp._id);
-            });
-            
-            const totalAsistencia = asis?.diasTrabajados ?? asis?.asistencia ?? 0;
-            const totalInasistencia = asis?.diasAusente ?? asis?.inasistencia ?? 0;
-            const hrsExtras = asis?.horasExtras ?? 0;
-            const hrsDescontadas = asis?.horasDescontadas ?? 0;
+            // Asistencia ya extraida arriba
 
             const desc = descuentosData.filter(d => d.candidatoRef === emp._id || (d.rut && cleanRut(d.rut) === eRut));
             const totalDescuentos = desc.reduce((sum, d) => sum + (d.monto || 0), 0);
@@ -371,16 +411,23 @@ const RemuCentral = () => {
 
             // Cálculos de Cotizaciones y Otros
             const ufHoy = ufValue || 38600; // Fallback si no hay UF disponible
-            const topeLegalCLP = TOPE_AFP_UF * ufHoy;
+            const topeAfpLocal = indicParams?.topeAfpUf || 89.9;
+            const topeAfcLocal = indicParams?.topeAfcUf || 135.1;
+            const sisRateLocal = indicParams?.sisRate || 1.54;
+
+            const topeLegalCLP = Math.round((topeAfpLocal * ufHoy / diasMes) * workerDays);
             
             // Gratificación Legal
-            const SUELDO_MINIMO = 500000;
+            const SUELDO_MINIMO = immValue || 539000;
             const topeGratifMensual = (SUELDO_MINIMO * 4.75) / 12;
             const prorrateoTopeGratif = Math.round((topeGratifMensual / diasMes) * workerDays);
             const gratificacion = Math.min(Math.round((prorrateadoSueldo + prorrateadoBonoFijo + totalVariables) * 0.25), prorrateoTopeGratif);
 
             // La base imponible ahora incluye la Gratificación
-            const baseImponible = Math.min(prorrateadoSueldo + prorrateadoBonoFijo + totalVariables + gratificacion, topeLegalCLP);
+            const totalImponible = prorrateadoSueldo + prorrateadoBonoFijo + totalVariables + gratificacion;
+            const baseImponible = Math.min(totalImponible, topeLegalCLP);
+            const topeLegalAfcCLP = Math.round((topeAfcLocal * ufHoy / diasMes) * workerDays);
+            const baseImponibleAfc = Math.min(totalImponible, topeLegalAfcCLP);
 
             // AFP
             const empAfpBase = (emp.afp || '').toUpperCase();
@@ -407,9 +454,23 @@ const RemuCentral = () => {
                 saludEntidad = minimoLegal > montoPactado ? `${emp.isapreNombre || 'ISAPRE'} (7% Legal)` : `${emp.isapreNombre || 'ISAPRE'} (${valPlan} UF)`;
             }
 
+            // AFC y Leyes Sociales Patronales
+            const contractType = (emp.tipoContrato || emp.contractType || 'INDEFINIDO').toUpperCase();
+            const esIndefinido = contractType.includes('INDEFINIDO');
+            const afcTrabajadorMonto = esIndefinido ? Math.round(baseImponibleAfc * 0.006) : 0;
+            const afcPatronalRate = esIndefinido ? 2.4 : 3.0;
+            const afcPatronalMonto = Math.round(baseImponibleAfc * (afcPatronalRate / 100));
+
+            // SIS y Mutual y Expectativa de Vida
+            const sisMonto = Math.round(baseImponible * (sisRateLocal / 100));
+            const tasaMutualReal = empresaConfig?.tasaMutual !== undefined ? empresaConfig.tasaMutual : 0.93;
+            const mutualMonto = Math.round(baseImponible * (tasaMutualReal / 100));
+            const expectativaMonto = Math.round(baseImponible * 0.005); // 0.50%
+
+            const totalAportesPatronales = sisMonto + mutualMonto + expectativaMonto + afcPatronalMonto;
+
             // Cálculo Total Líquido
-            const totalImponible = prorrateadoSueldo + prorrateadoBonoFijo + totalVariables + gratificacion;
-            const totalDescuentosLegales = afpMonto + saludMonto;
+            const totalDescuentosLegales = afpMonto + saludMonto + afcTrabajadorMonto;
             const totalLiquido = totalImponible - totalDescuentosLegales - totalDescuentos + totalBeneficios;
             
             // Distribuimos el descuento legal total sobre el 100% del ingreso imponible real
@@ -444,12 +505,18 @@ const RemuCentral = () => {
                 empAfp,
                 afpMonto,
                 saludEntidad,
-                saludMonto
+                saludMonto,
+                afcTrabajadorMonto,
+                sisMonto,
+                mutualMonto,
+                expectativaMonto,
+                afcPatronalMonto,
+                totalAportesPatronales
             });
         });
 
         return result.sort((a, b) => b.rentabilidadBruta - a.rentabilidadBruta);
-    }, [employees, proyectos, bonosConfig, closures, modelosBono, asistenciaData, descuentosData, beneficiosData, searchTerm, filterCeco, filterStatus, period, diasMes, ufValue]);
+    }, [employees, proyectos, bonosConfig, closures, modelosBono, asistenciaData, descuentosData, beneficiosData, empresaConfig, searchTerm, filterCeco, filterStatus, period, diasMes, ufValue, indicParams]);
 
     const getStatusInfo = (status) => {
         if (['Contratado', 'Activo', 'ACTIVO', 'En Terreno'].includes(status)) return { short: 'ACT', color: 'border-emerald-200 text-emerald-700 bg-emerald-50' };
@@ -480,7 +547,14 @@ const RemuCentral = () => {
             'Monto AFP': c.afpMonto,
             'Salud': c.saludEntidad,
             'Monto Salud': c.saludMonto,
-            'Líquido a Pagar': c.totalLiquido
+            'Monto AFC Trabajador': c.afcTrabajadorMonto,
+            'Total Descuentos Legales': c.totalDescuentosLegales,
+            'Líquido a Pagar': c.totalLiquido,
+            'SIS (Patronal)': c.sisMonto,
+            'Mutual (Patronal)': c.mutualMonto,
+            'Longevidad (Patronal)': c.expectativaMonto,
+            'AFC (Patronal)': c.afcPatronalMonto,
+            'Total Leyes Sociales (Patronal)': c.totalAportesPatronales
         }));
         
         const ws = XLSX.utils.json_to_sheet(data);
@@ -494,10 +568,14 @@ const RemuCentral = () => {
     const sumDescuentos = consolidado.reduce((sum, c) => sum + (c.totalDescuentos || 0), 0);
     const sumBeneficios = consolidado.reduce((sum, c) => sum + (c.totalBeneficios || 0), 0);
     const sumLiquido = consolidado.reduce((sum, c) => sum + (c.totalLiquido || 0), 0);
+    const sumAportesPatronales = consolidado.reduce((sum, c) => sum + (c.totalAportesPatronales || 0), 0);
+    const sumCostoEmpresa = sumImponible + sumAportesPatronales;
 
     const summaryCards = [
         { title: 'Sueldo Base & Bonos', val: sumImponible, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', icon: TrendingUp },
         { title: 'Cotizaciones Legales', val: sumCotizaciones, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200', icon: ShieldCheck },
+        { title: 'Leyes Sociales (Empresa)', val: sumAportesPatronales, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', icon: Users },
+        { title: 'Costo Total Empresa', val: sumCostoEmpresa, color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-300', icon: Briefcase },
         { title: 'Otros Descuentos', val: sumDescuentos, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', icon: Activity },
         { title: 'Beneficios Laborales', val: sumBeneficios, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', icon: HeartPulse },
         { title: 'Líquido a Pagar', val: sumLiquido, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: Wallet },
@@ -570,7 +648,7 @@ const RemuCentral = () => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
                 {summaryCards.map((card, idx) => {
                     const Icon = card.icon;
                     return (
@@ -631,6 +709,13 @@ const RemuCentral = () => {
                         style={{ marginBottom: activeTab === 'Beneficios Laborales' ? '-1px' : '0' }}
                     >
                         Beneficios Laborales
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('Aportes Patronales')}
+                        className={`px-6 py-4 text-[11px] font-black uppercase tracking-widest rounded-t-2xl transition-all ${activeTab === 'Aportes Patronales' ? 'bg-white text-emerald-600 border-t border-l border-r border-slate-100 shadow-[0_2px_0_0_white]' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100 border-t border-l border-r border-transparent'}`}
+                        style={{ marginBottom: activeTab === 'Aportes Patronales' ? '-1px' : '0' }}
+                    >
+                        Aportes Patronales
                     </button>
                 </div>
 
@@ -694,7 +779,18 @@ const RemuCentral = () => {
                                         <>
                                             <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">AFP</th>
                                             <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Salud</th>
-                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right rounded-tr-xl">Otros</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">AFC Trab.</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-rose-500 uppercase tracking-widest text-right rounded-tr-xl bg-rose-50">Total Legal</th>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'Aportes Patronales' && (
+                                        <>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">SIS</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Mutual</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Longevidad</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">AFC Patronal</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest text-right rounded-tr-xl bg-emerald-50">Total Aportes</th>
                                         </>
                                     )}
                                 </tr>
@@ -893,7 +989,49 @@ const RemuCentral = () => {
                                                     </div>
                                                 </td>
                                                 <td className="py-4 px-4 text-right">
-                                                    <div className="font-black text-slate-400 text-[11px]">-</div>
+                                                    <div className="font-black text-rose-500 text-[11px]">
+                                                        {c.afcTrabajadorMonto > 0 ? fmt(c.afcTrabajadorMonto) : '$0'}
+                                                    </div>
+                                                    {c.afcTrabajadorMonto === 0 && (
+                                                        <div className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase">
+                                                            No Aplica
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="py-4 px-4 text-right bg-rose-50/50">
+                                                    <div className="font-black text-rose-600 text-[12px]">
+                                                        {fmt(c.totalDescuentosLegales)}
+                                                    </div>
+                                                </td>
+                                            </>
+                                        )}
+
+                                        {activeTab === 'Aportes Patronales' && (
+                                            <>
+                                                <td className="py-4 px-4 text-right">
+                                                    <div className="font-black text-slate-600 text-[11px]">
+                                                        {c.sisMonto > 0 ? fmt(c.sisMonto) : '$0'}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-4 text-right">
+                                                    <div className="font-black text-slate-600 text-[11px]">
+                                                        {c.mutualMonto > 0 ? fmt(c.mutualMonto) : '$0'}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-4 text-right">
+                                                    <div className="font-black text-slate-600 text-[11px]">
+                                                        {c.expectativaMonto > 0 ? fmt(c.expectativaMonto) : '$0'}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-4 text-right">
+                                                    <div className="font-black text-slate-600 text-[11px]">
+                                                        {c.afcPatronalMonto > 0 ? fmt(c.afcPatronalMonto) : '$0'}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-4 text-right bg-emerald-50/50">
+                                                    <div className="font-black text-emerald-600 text-[12px]">
+                                                        {fmt(c.totalAportesPatronales)}
+                                                    </div>
                                                 </td>
                                             </>
                                         )}

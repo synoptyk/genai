@@ -11,6 +11,7 @@ import { asistenciaApi, candidatosApi, turnosApi, telecomAsistenciaApi } from '.
 import * as XLSX from 'xlsx';
 import { MapPin } from 'lucide-react';
 import { formatRut } from '../../../utils/rutUtils';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 const ESTADOS = ['Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso', 'Vacaciones', 'Feriado', 'Libre', 'Finiquitado'];
@@ -243,7 +244,7 @@ const ControlAsistencia = () => {
             // Fallback en caso de que getAll no retorne lo esperado o falle
             try {
                 const [colContraRes, colFiniqRes, turRes] = await Promise.all([
-                    candidatosApi.getAll({ status: 'Contratado' }),
+                    candidatosApi.getAll({ status: 'Contratado,Activo,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
                     candidatosApi.getAll({ status: 'Finiquitado' }),
                     turnosApi.getAll(),
                 ]);
@@ -1119,36 +1120,45 @@ const ControlAsistencia = () => {
                             {turnos.length > 0 && (
                                 <div className="relative">
                                     <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={13} />
-                                    <select value={turnoFilter} onChange={e => setTurnoFilter(e.target.value)}
-                                        className="pl-9 pr-8 py-2.5 bg-white border border-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-600 outline-none shadow-sm focus:ring-2 focus:ring-indigo-50 appearance-none min-w-[150px]">
-                                        <option value="">Todos los turnos</option>
-                                        {turnos.map(t => <option key={t._id} value={t._id}>{t.nombre}</option>)}
-                                    </select>
-                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={12} />
+                                    <SearchableSelect
+                                        value={turnoFilter} 
+                                        onChange={val => setTurnoFilter(val)}
+                                        placeholder="Todos los turnos"
+                                        options={[
+                                            { value: '', label: 'Todos los turnos' },
+                                            ...turnos.map(t => ({ value: t._id, label: t.nombre }))
+                                        ]}
+                                    />
                                 </div>
                             )}
 
                             {/* FASE 4: Filtro Cliente */}
                             {clientesYProyectos.clientes.length > 0 && (
                                 <div className="relative">
-                                    <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}
-                                        className="pl-4 pr-8 py-2.5 bg-white border border-blue-100 rounded-xl text-[10px] font-black uppercase text-blue-600 outline-none shadow-sm focus:ring-2 focus:ring-blue-50 appearance-none min-w-[140px]">
-                                        <option value="TODOS">Todos los clientes</option>
-                                        {clientesYProyectos.clientes.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-300 pointer-events-none" size={12} />
+                                    <SearchableSelect
+                                        value={filtroCliente} 
+                                        onChange={val => setFiltroCliente(val)}
+                                        placeholder="Todos los clientes"
+                                        options={[
+                                            { value: 'TODOS', label: 'Todos los clientes' },
+                                            ...clientesYProyectos.clientes.map(c => ({ value: c, label: c }))
+                                        ]}
+                                    />
                                 </div>
                             )}
 
                             {/* FASE 4: Filtro Proyecto */}
                             {clientesYProyectos.proyectos.length > 0 && (
                                 <div className="relative">
-                                    <select value={filtroProyecto} onChange={e => setFiltroProyecto(e.target.value)}
-                                        className="pl-4 pr-8 py-2.5 bg-white border border-purple-100 rounded-xl text-[10px] font-black uppercase text-purple-600 outline-none shadow-sm focus:ring-2 focus:ring-purple-50 appearance-none min-w-[140px]">
-                                        <option value="TODOS">Todos los proyectos</option>
-                                        {clientesYProyectos.proyectos.map(p => <option key={p} value={p}>{p}</option>)}
-                                    </select>
-                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-300 pointer-events-none" size={12} />
+                                    <SearchableSelect
+                                        value={filtroProyecto} 
+                                        onChange={val => setFiltroProyecto(val)}
+                                        placeholder="Todos los proyectos"
+                                        options={[
+                                            { value: 'TODOS', label: 'Todos los proyectos' },
+                                            ...clientesYProyectos.proyectos.map(p => ({ value: p, label: p }))
+                                        ]}
+                                    />
                                 </div>
                             )}
 
@@ -1758,12 +1768,13 @@ const ControlAsistencia = () => {
                             {!modalReg.col?._id && (
                                 <div>
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Colaborador *</label>
-                                    <select required value={formReg.candidatoId}
-                                        onChange={e => setFormReg(p => ({ ...p, candidatoId: e.target.value }))}
-                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20">
-                                        <option value="">— Seleccionar colaborador —</option>
-                                        {colaboradores.map(c => <option key={c._id} value={c._id}>{c.fullName} ({formatRut(c.rut)})</option>)}
-                                    </select>
+                                    <SearchableSelect
+                                        required
+                                        placeholder="— Seleccionar colaborador —"
+                                        options={colaboradores.map(c => ({ value: c._id, label: `${c.fullName} (${formatRut(c.rut)})` }))}
+                                        value={formReg.candidatoId}
+                                        onChange={val => setFormReg(p => ({ ...p, candidatoId: val }))}
+                                    />
                                 </div>
                             )}
 

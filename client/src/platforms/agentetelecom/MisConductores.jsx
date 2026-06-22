@@ -9,6 +9,7 @@ import {
   AlertTriangle, Loader2, X, Save, Link2, FolderOpen, Navigation,
   ToggleLeft, ToggleRight, Eye, UserCheck, Activity, Building2, Car
 } from 'lucide-react';
+import SearchableSelect from '../../components/SearchableSelect';
 
 // ─── API CLIENT ───────────────────────────────────────────────────────────────
 const conductoresApi = axios.create({ baseURL: `${API_URL}/api/rrhh/conductores` });
@@ -424,25 +425,27 @@ const MisConductores = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Trabajador de Captura de Talento</label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: '— Sin vincular —' },
+                        ...candidatos.map(c => ({ value: c._id, label: `${c.nombre} · ${c.rut}` }))
+                      ]}
                       value={form.candidatoRef}
-                      onChange={e => handleCandidatoSelect(e.target.value)}
-                      className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-300"
-                    >
-                      <option value="">— Sin vincular —</option>
-                      {candidatos.map(c => <option key={c._id} value={c._id}>{c.nombre} · {c.rut}</option>)}
-                    </select>
+                      onChange={val => handleCandidatoSelect(val)}
+                      placeholder="Buscar trabajador..."
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Proyecto Asignado</label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: '— Sin proyecto —' },
+                        ...proyectos.map(p => ({ value: p._id, label: `${p.nombreProyecto} ${p.centroCosto ? `(${p.centroCosto})` : ''}` }))
+                      ]}
                       value={form.proyectoRef}
-                      onChange={e => setForm(p => ({ ...p, proyectoRef: e.target.value }))}
-                      className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm text-slate-700 bg-white outline-none focus:ring-2 focus:ring-indigo-300"
-                    >
-                      <option value="">— Sin proyecto —</option>
-                      {proyectos.map(p => <option key={p._id} value={p._id}>{p.nombreProyecto} {p.centroCosto ? `(${p.centroCosto})` : ''}</option>)}
-                    </select>
+                      onChange={val => setForm(p => ({ ...p, proyectoRef: val }))}
+                      placeholder="Buscar proyecto..."
+                    />
                   </div>
                 </div>
               </div>

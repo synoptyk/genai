@@ -59,6 +59,7 @@ const ConfiguracionEmpresa = () => {
 
     // Logo & Empresa States
     const [logoUrl, setLogoUrl] = useState('');
+    const [tasaMutual, setTasaMutual] = useState(0.93);
     const [savingEmpresa, setSavingEmpresa] = useState(false);
 
     // Editing States
@@ -75,6 +76,7 @@ const ConfiguracionEmpresa = () => {
             const res = await configApi.get();
             setConfig(res.data);
             setLogoUrl(res.data.logo || '');
+            setTasaMutual(res.data.tasaMutual !== undefined ? res.data.tasaMutual : 0.93);
         } catch (e) {
             console.error("Error fetching config:", e);
         } finally {
@@ -110,8 +112,8 @@ const ConfiguracionEmpresa = () => {
     const handleUpdateEmpresa = async () => {
         setSavingEmpresa(true);
         try {
-            await configApi.update({ ...config, logo: logoUrl });
-            alert("Identidad institucional actualizada con éxito");
+            await configApi.update({ ...config, logo: logoUrl, tasaMutual });
+            alert("Identidad Institucional y Parámetros actualizados con éxito");
         } catch (e) {
             console.error(e);
             alert("Error al actualizar identidad");
@@ -391,6 +393,23 @@ const ConfiguracionEmpresa = () => {
                                             onChange={e => setLogoUrl(e.target.value)}
                                         />
                                         <p className="text-[10px] text-slate-400 mt-2 font-medium">Recomendable usar formato PNG con fondo transparente formato cuadrado o rectangular.</p>
+                                    </div>
+                                    
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-3">Parámetros de Cotización Ley 16.744</h4>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Tasa de Mutualidad (Siniestralidad Total %)</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0.93"
+                                                className="w-1/3 px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-slate-700 text-sm"
+                                                value={tasaMutual}
+                                                onChange={e => setTasaMutual(Number(e.target.value))}
+                                            />
+                                            <span className="text-slate-400 font-bold">%</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-2 font-medium">Incluye la Tasa Básica (0.90%) + Ley Sanna (0.03%) + Tasa Adicional de la empresa. El mínimo legal es 0.93%.</p>
                                     </div>
                                 </div>
                                 <button

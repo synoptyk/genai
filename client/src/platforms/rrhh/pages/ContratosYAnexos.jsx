@@ -10,6 +10,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { plantillasApi, candidatosApi, configApi, contratosApi } from '../rrhhApi';
 import { formatRut } from '../../../utils/rutUtils';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 const cleanHtmlOfLocalResources = (htmlString) => {
     if (!htmlString) return '';
@@ -130,7 +131,7 @@ const ContratosYAnexos = () => {
 
     const fetchCandidates = async () => {
         try {
-            const res = await candidatosApi.getAll();
+            const res = await candidatosApi.getAll({ status: 'Contratado,Activo,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' });
             setCandidates(res.data);
         } catch (error) {
             console.error('Error fetching candidates:', error);
@@ -830,16 +831,15 @@ const ContratosYAnexos = () => {
                                 </div>
                                 <div>
                                     <label className="text-[9px] font-black text-slate-500 uppercase block mb-2">Candidato / Colaborador</label>
-                                    <select 
+                                    <SearchableSelect 
                                         value={selectedCandidateId}
-                                        onChange={(e) => setSelectedCandidateId(e.target.value)}
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm"
-                                    >
-                                        <option value="">Seleccione...</option>
-                                        {candidates.map(c => (
-                                            <option key={c._id} value={c._id}>{c.fullName} ({formatRut(c.rut)})</option>
-                                        ))}
-                                    </select>
+                                        onChange={(val) => setSelectedCandidateId(val)}
+                                        placeholder="Seleccione..."
+                                        options={[
+                                            { value: '', label: 'Seleccione...' },
+                                            ...candidates.map(c => ({ value: c._id, label: `${c.fullName} (${formatRut(c.rut)})` }))
+                                        ]}
+                                    />
                                 </div>
                                 <div>
                                     <label className="text-[9px] font-black text-slate-500 uppercase block mb-2">Tipo de Documento</label>

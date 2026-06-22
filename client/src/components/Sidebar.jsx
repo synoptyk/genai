@@ -12,7 +12,9 @@ import {
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
   Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
   Wallet, Clock, Building, Medal, ArrowLeft, MoreVertical, Search, Plus, List, Navigation,
-  PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain, Route, TrendingDown, Gift, Mail
+  PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain, Route, TrendingDown, Gift, Mail,
+  HelpCircle, Info, UserCheck, MessageCircle, Camera,
+  Folder, BarChart, UserX, Share2, Layers, Grid, Crosshair, Archive, RotateCw
 } from 'lucide-react';
 
 
@@ -465,8 +467,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       icon: Users, color: 'violet',
       tooltip: {
         title: 'Recursos Humanos',
-        description: 'Reclutamiento, contratos, asistencia y bienestar del equipo.',
-        features: ['Captura de Talento', 'Personal Activo', 'Vacaciones & Licencias', 'Asistencia & Turnos']
+        description: 'Gestión integral del ciclo de vida del colaborador.',
+        features: ['Captura de Talento', 'Vacaciones & Licencias']
       }
     },
     {
@@ -932,21 +934,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />}
                   {hasSubAccess('rrhh_contratos_anexos') && <MenuLink path="/rrhh/contratos-anexos" icon={PenTool} label="Contratos y Anexos" accent="violet" isActive={isActive('/rrhh/contratos-anexos')} />}
 
-                  {/* Group 2: Personal activo */}
-                  {(hasSubAccess('rrhh_activos') || hasSubAccess('rrhh_nomina') || hasSubAccess('rrhh_laborales') || hasSubAccess('rrhh_vacaciones')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>}
-                  {hasSubAccess('rrhh_activos') && <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />}
+                  {/* Group 2: Personal activo (remanentes sin titulo) */}
                   {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />}
-                  {hasSubAccess('rrhh_finiquitos') && <MenuLink path="/rrhh/finiquitos" icon={FileText} label="Finiquitos" accent="violet" isActive={isActive('/rrhh/finiquitos')} />}
+                  {hasSubAccess('rrhh_finiquitos') && <MenuLink path="/rrhh/finiquitos" icon={Archive} label="Bóveda y Finiquitos" accent="violet" isActive={isActive('/rrhh/finiquitos')} />}
 
-                  {/* Group 3: Asistencia — sub-module */}
+                  {/* Group 3: Asistencia */}
                   {(hasSubAccess('rrhh_asistencia') || hasSubAccess('rrhh_turnos')) && (
-                    <>
-                      <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Asistencia</p>
-                      <SubModule label="Asistencia & Turnos" icon={CalendarCheck} isOpen={openSections.asistencia} onToggle={() => toggle('asistencia')} accent="violet">
-                        {hasSubAccess('rrhh_asistencia') && <MenuLink path="/rrhh/control-asistencia" icon={Fingerprint} label="Control Asistencia" accent="violet" isActive={isActive('/rrhh/control-asistencia')} />}
-                        {hasSubAccess('rrhh_turnos') && <MenuLink path="/rrhh/turnos" icon={CalendarClock} label="Prog. de Turnos" accent="violet" isActive={isActive('/rrhh/turnos')} />}
-                      </SubModule>
-                    </>
+                    <MenuLink path="/rrhh/asistencia" icon={CalendarClock} label="Asistencia y Turnos" accent="violet" isActive={isActive('/rrhh/asistencia') || isActive('/rrhh/control-asistencia') || isActive('/rrhh/turnos')} />
                   )}
                 </ExpandedSection>
               )}

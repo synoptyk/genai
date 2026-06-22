@@ -419,6 +419,7 @@ exports.getConfiguracionMaestra = async (req, res) => {
         
         res.json({ almacenes, categorias, productos, tecnicos, clientes, tiposCompra, cargoEquipamientos });
     } catch (e) {
+        console.error('[getConfiguracionMaestra] Error:', e);
         res.status(500).json({ message: e.message });
     }
 };

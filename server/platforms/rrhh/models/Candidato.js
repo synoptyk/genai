@@ -135,6 +135,7 @@ const CandidatoSchema = new mongoose.Schema({
     area: String,
     departamento: String,
     sede: String,
+    jefeDirecto: String,
     proyectoTipo: String,
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proyecto' },
     projectName: String,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../api/api';
 import { useAuth } from '../../auth/AuthContext';
 import { Loader2, Calendar, Send, CheckCircle2, ChevronLeft, ChevronRight, UserPlus, Trash2 } from 'lucide-react';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 const HORARIO_OPTIONS = ['07:00 a 15:00', '08:00 a 16:00', '09:00 a 17:30', '09:00 a 19:00', '12:00 a 20:00', 'LIBRE'];
 
@@ -301,13 +302,18 @@ const GestorTurnosOperaciones = () => {
             {isAdmin && (
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 border-dashed">
                     <h4 className="flex items-center gap-2 text-xs font-black uppercase text-slate-500 mb-4 tracking-widest"><UserPlus size={16} /> Asignar Supervisor a Semana</h4>
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                        <select value={supervisorSeleccionado} onChange={(e) => setSupervisorSeleccionado(e.target.value)} className="lg:col-span-2 p-3 rounded-2xl border border-slate-300 font-bold text-sm text-slate-700">
-                            <option value="">-- Seleccionar Supervisor --</option>
-                            {supervisoresActivos.map(s => (
-                                <option key={s._id} value={s._id}>{s.name} ({s.cargo || 'Supervisor'})</option>
-                            ))}
-                        </select>
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-center">
+                        <div className="lg:col-span-2">
+                            <SearchableSelect
+                                options={supervisoresActivos.map(s => ({
+                                    value: s._id,
+                                    label: `${s.name} (${s.cargo || 'Supervisor'})`
+                                }))}
+                                value={supervisorSeleccionado}
+                                onChange={(val) => setSupervisorSeleccionado(val)}
+                                placeholder="-- Seleccionar Supervisor --"
+                            />
+                        </div>
                         <select value={templateTurno} onChange={(e) => setTemplateTurno(e.target.value)} className="p-3 rounded-2xl border border-slate-300 font-bold text-sm text-slate-700">
                             <option value="estandar">Plantilla Estándar</option>
                             <option value="intensivo">Plantilla Intensiva</option>

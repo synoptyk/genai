@@ -7,7 +7,7 @@ import {
     AlertCircle, Plus, Globe, Mail, Phone, MapPin, Building,
     Heart, Landmark, CreditCard, DollarSign, Award, Truck, Shield, Activity, Shirt,
     User, Calendar, FileText, Download, Upload, Printer, Hash, Star,
-    HelpCircle, Info, ChevronRight, UserCheck, MessageCircle, Camera,
+    HelpCircle, Info, ChevronRight, UserCheck, MessageCircle, Camera, Trash2,
     Folder, BarChart, UserX, Share2, Layers, Grid, List, LogOut, Crosshair, RotateCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -43,7 +43,7 @@ const STATUS_COLORS = {
     'Licencia Médica': 'bg-yellow-50 text-yellow-600 border-yellow-200',
 };
 
-const STATUSES = ['POST', 'ENTR', 'BLOQ', 'PREOCUP', 'APROB', 'C. ONLINE', 'OTEC', 'ACRED', 'CONT', 'ACTIVO', 'INACTIVO', 'DE BAJA'];
+const STATUSES = ['POST', 'ENTR', 'BLOQ', 'PREOCUP', 'APROB', 'C. ONLINE', 'OTEC', 'ACRED', 'CONT', 'ACTIVO', 'INACTIVO'];
 
 // LISTAS DE MERCADO CHILENO
 const AFPS = ['CAPITAL', 'CUPRUM', 'HABITAT', 'MODELO', 'PLANVITAL', 'PROVIDA', 'UNO'];
@@ -84,7 +84,7 @@ const TABS = [
 
 const initialForm = {
     // Institucional
-    projectId: '', projectName: '', position: '', ceco: '', area: '', departamento: '', sede: '', 
+    projectId: '', projectName: '', position: '', ceco: '', area: '', departamento: '', sede: '', jefeDirecto: '',
     idRecursoToa: '', status: 'En Postulación', fuenteCaptacion: 'Captación Directa',
     operationalStartDate: '', 
     clienteId: '', clienteNombre: '',
@@ -170,6 +170,7 @@ const BULK_COLUMNS_MAP = {
     "Area": "area",
     "Departamento": "departamento",
     "Sede": "sede",
+    "Jefe Directo": "jefeDirecto",
     "Proyecto": "projectName",
     "Cliente": "clienteNombre",
     "Estado Proceso": "status",
@@ -234,7 +235,9 @@ const CapturaTalento = () => {
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [selectedIds, setSelectedIds] = useState([]);
+    const [bulkActionType, setBulkActionType] = useState('status');
     const [bulkStatus, setBulkStatus] = useState('');
+    const [bulkJefeDirecto, setBulkJefeDirecto] = useState('');
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
     const [toast, setToast] = useState(null);
     const [actionMenu, setActionMenu] = useState(null); // { x, y, statusId, clientTitle, type }
@@ -252,8 +255,32 @@ const CapturaTalento = () => {
     const [showColumnSelector, setShowColumnSelector] = useState(false);
     const [visibleColumns, setVisibleColumns] = useState(() => {
         const saved = localStorage.getItem('rrhh_visible_columns');
-        return saved ? JSON.parse(saved) : ['perfil', 'identificacion', 'asignacion', 'ubicacion', 'estado', 'acciones'];
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (!parsed.includes('jefatura')) {
+                // Insert 'jefatura' after 'asignacion' if it exists, otherwise at the end
+                const asigIdx = parsed.indexOf('asignacion');
+                if (asigIdx !== -1) {
+                    parsed.splice(asigIdx + 1, 0, 'jefatura');
+                } else {
+                    parsed.push('jefatura');
+                }
+            }
+            return parsed;
+        }
+        return ['perfil', 'identificacion', 'cliente', 'asignacion', 'jefatura', 'ubicacion', 'contractual', 'gestion', 'estado', 'acciones'];
     });
+
+    const possibleJefes = useMemo(() => {
+        const keywords = ['SUPERVISOR', 'ADMINISTRADOR', 'ADMINISTRADORA', 'GERENTE', 'GERENCIA', 'JEFE', 'JEFA', 'ENCARGADO', 'ENCARGADA', 'COORDINADOR', 'COORDINADORA', 'DIRECTOR', 'DIRECTORA', 'LIDER'];
+        const list = candidatos.filter(c => {
+            if (!c.position) return false;
+            const pos = c.position.toUpperCase();
+            return keywords.some(kw => pos.includes(kw));
+        }).map(c => c.fullName.toUpperCase());
+        // Deduplicate and sort
+        return [...new Set(list)].sort();
+    }, [candidatos]);
 
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [bulkParsedRows, setBulkParsedRows] = useState([]);
@@ -510,6 +537,7 @@ const CapturaTalento = () => {
         { id: 'identificacion', label: 'RUT / ID TOA' },
         { id: 'cliente', label: 'Cliente Vinculado' },
         { id: 'asignacion', label: 'Proyecto / Cargo' },
+        { id: 'jefatura', label: 'Jefe Directo' },
         { id: 'ubicacion', label: 'Sede / Comuna' },
         { id: 'contractual', label: 'Contrato / Duración' },
         { id: 'gestion', label: 'Hito / F. Operativa' },
@@ -592,6 +620,30 @@ const CapturaTalento = () => {
                 ceco: proj.centroCosto || '',
                 area: proj.area || ''
             }));
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('¿Estás seguro de que deseas eliminar este registro? Esta acción es irreversible.')) return;
+        try {
+            await candidatosApi.remove(id);
+            showToast('✅ Registro eliminado con éxito');
+            fetchCandidatos();
+        } catch (error) {
+            console.error(error);
+            showToast('❌ Error al eliminar registro', 'error');
+        }
+    };
+
+    const handleQuickJefeUpdate = async (id, newJefe) => {
+        try {
+            await candidatosApi.update(id, { jefeDirecto: newJefe });
+            showToast('✅ Jefatura actualizada con éxito');
+            // Update local state instead of fetching all for faster UI response
+            setCandidatos(prev => prev.map(c => c._id === id ? { ...c, jefeDirecto: newJefe } : c));
+        } catch (error) {
+            console.error(error);
+            showToast('❌ Error al actualizar jefatura', 'error');
         }
     };
 
@@ -686,27 +738,45 @@ const CapturaTalento = () => {
         setTimeout(() => setToast(null), 3500);
     };
 
-    const handleBulkStatusUpdate = async () => {
-        if (!bulkStatus || selectedIds.length === 0) return;
-        const newStatusFull = getOriginalStatus(bulkStatus);
+    const handleBulkAction = async () => {
+        if (selectedIds.length === 0) return;
+        
         try {
             setIsBulkUpdating(true);
-            // Optimistic update — reflect in UI immediately
-            setCandidatos(prev => prev.map(c =>
-                selectedIds.includes(c._id) ? { ...c, status: newStatusFull } : c
-            ));
-            const promises = selectedIds.map(id =>
-                candidatosApi.updateStatus(id, { status: newStatusFull })
-            );
-            await Promise.all(promises);
-            showToast(`✅ ${selectedIds.length} candidatos actualizados a ${bulkStatus}`);
+            
+            if (bulkActionType === 'status') {
+                if (!bulkStatus) return;
+                const newStatusFull = getOriginalStatus(bulkStatus);
+                // Optimistic update
+                setCandidatos(prev => prev.map(c =>
+                    selectedIds.includes(c._id) ? { ...c, status: newStatusFull } : c
+                ));
+                const promises = selectedIds.map(id =>
+                    candidatosApi.updateStatus(id, { status: newStatusFull })
+                );
+                await Promise.all(promises);
+                showToast(`✅ ${selectedIds.length} candidatos actualizados a ${bulkStatus}`);
+                setBulkStatus('');
+            } else if (bulkActionType === 'jefe') {
+                if (!bulkJefeDirecto) return;
+                // Optimistic update
+                setCandidatos(prev => prev.map(c =>
+                    selectedIds.includes(c._id) ? { ...c, jefeDirecto: bulkJefeDirecto } : c
+                ));
+                const promises = selectedIds.map(id =>
+                    candidatosApi.update(id, { jefeDirecto: bulkJefeDirecto })
+                );
+                await Promise.all(promises);
+                showToast(`✅ Jefatura asignada a ${selectedIds.length} candidatos`);
+                setBulkJefeDirecto('');
+            }
+
             setSelectedIds([]);
-            setBulkStatus('');
-            fetchCandidatos(); // background sync for accuracy
+            fetchCandidatos(); 
         } catch (err) {
             console.error("Bulk update error:", err);
             showToast('❌ Error al actualizar masivamente', 'error');
-            fetchCandidatos(); // rollback via re-fetch
+            fetchCandidatos(); 
         } finally {
             setIsBulkUpdating(false);
         }
@@ -745,6 +815,8 @@ const CapturaTalento = () => {
 
         candidatos.forEach(c => {
             const abbStatus = getAbbreviatedStatus(c.status);
+            if (abbStatus === 'DE BAJA') return;
+
             if (counts[abbStatus] !== undefined) counts[abbStatus]++;
             
             // Stats por Cargo
@@ -812,7 +884,10 @@ const CapturaTalento = () => {
                 return status;
             };
 
-            const matchesStatus = filterStatus === 'ALL' || getAbb(c.status) === filterStatus;
+            const abbStatus = getAbb(c.status);
+            if (abbStatus === 'DE BAJA') return false;
+
+            const matchesStatus = filterStatus === 'ALL' || abbStatus === filterStatus;
             let matchesProject = true;
             if (filterProject !== 'ALL') {
                 const selectedProj = proyectos.find(p => p._id === filterProject || p.nombreProyecto === filterProject);
@@ -1161,8 +1236,7 @@ const CapturaTalento = () => {
                 { id: 'ACRED',        label: 'ACRED',    tooltip: 'En Acreditación — En proceso de documentación, exámenes y EPP',            color: 'from-orange-500 to-orange-600',count: data.status['ACRED']   || 0 },
                 { id: 'CONT',         label: 'CONT',     tooltip: 'Contratado — Con contrato firmado, listos para operar',                       color: 'from-emerald-500 to-emerald-600', count: data.status['CONT'] || 0 },
                 { id: 'ACTIVO',       label: 'ACTIVO',   tooltip: 'Activo — Operando en terreno, ejecutando trabajos en campo',                  color: 'from-sky-500 to-sky-600',      count: data.status['ACTIVO']  || 0 },
-                { id: 'INACTIVO',     label: 'INACTIVO', tooltip: 'Inactivo — Suspendidos, Bloqueados, Ausentes o Licencia Médica',            color: 'from-amber-400 to-orange-500', count: data.status['INACTIVO'] || 0 },
-                { id: 'DE BAJA',      label: 'DE BAJA',  tooltip: 'De Baja — Finiquitados, retirados o rechazados',                             color: 'from-rose-500 to-rose-600',    count: data.status['DE BAJA'] || 0, isRed: true }
+                { id: 'INACTIVO',     label: 'INACTIVO', tooltip: 'Inactivo — Suspendidos, Bloqueados, Ausentes o Licencia Médica',            color: 'from-amber-400 to-orange-500', count: data.status['INACTIVO'] || 0 }
             ];
 
             const totalMetric = { id: 'total', label: 'TOTAL', tooltip: 'Total de colaboradores en la cartera', color: 'from-slate-700 to-slate-800', count: data.total };
@@ -1267,7 +1341,7 @@ const CapturaTalento = () => {
 
                         {/* FLOW SEGMENT */}
                         <div 
-                            style={{ width: '524px', minWidth: '524px', maxWidth: '524px' }}
+                            style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
                             className="flex items-center gap-1 shrink-0"
                         >
                             {hubMetrics.filter(m => !['TEC', 'SUP'].includes(m.id)).map(m => (
@@ -1468,10 +1542,12 @@ const CapturaTalento = () => {
                                             onChange={toggleSelectAll}
                                         />
                                     </th>
+                                    <th className="px-4 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5 text-center">Nº</th>
                                     {visibleColumns.includes('perfil') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Colaborador</th>}
                                     {visibleColumns.includes('identificacion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Identificación</th>}
                                     {visibleColumns.includes('cliente') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Cliente Vinculado</th>}
                                     {visibleColumns.includes('asignacion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Asignación</th>}
+                                    {visibleColumns.includes('jefatura') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Jefe Directo</th>}
                                     {visibleColumns.includes('ubicacion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Ubicación</th>}
                                     {visibleColumns.includes('contractual') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Contrato / Duración</th>}
                                     {visibleColumns.includes('gestion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Gestión / Hitos</th>}
@@ -1484,7 +1560,7 @@ const CapturaTalento = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                            {filteredCandidatos.map(c => (
+                            {filteredCandidatos.map((c, idx) => (
                                 <tr key={c._id} className={`hover:bg-slate-50/50 transition-all group ${selectedIds.includes(c._id) ? 'bg-indigo-50/30' : ''}`}>
                                     <td className="pl-10 pr-4 py-6">
                                         <input 
@@ -1499,6 +1575,9 @@ const CapturaTalento = () => {
                                                 }
                                             }}
                                         />
+                                    </td>
+                                    <td className="px-4 py-6 text-[11px] font-black text-slate-400 text-center">
+                                        {idx + 1}
                                     </td>
                                     {visibleColumns.includes('perfil') && (
                                         <td className="pl-10 pr-8 py-6">
@@ -1548,6 +1627,21 @@ const CapturaTalento = () => {
                                                 </div>
                                                 <div className="text-[11px] font-bold text-slate-600 uppercase leading-none mt-1">{c.position}</div>
                                                 <div className="text-[9px] font-black text-white uppercase tracking-widest bg-slate-800 px-2.5 py-1.5 rounded-lg w-fit mt-2 shadow-sm">{c.ceco || 'S/C'}</div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('jefatura') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-2">
+                                                <UserCheck size={12} className="text-emerald-500" />
+                                                <select
+                                                    value={c.jefeDirecto || ""}
+                                                    onChange={(e) => handleQuickJefeUpdate(c._id, e.target.value)}
+                                                    className="bg-transparent border-none text-[11px] font-black text-slate-700 uppercase outline-none cursor-pointer w-full focus:ring-0 appearance-none hover:bg-slate-100/50 rounded px-1 py-0.5 transition-colors"
+                                                >
+                                                    <option value="">SIN ASIGNAR</option>
+                                                    {possibleJefes.map(j => <option key={j} value={j}>{j}</option>)}
+                                                </select>
                                             </div>
                                         </td>
                                     )}
@@ -1692,6 +1786,7 @@ const CapturaTalento = () => {
                                             <div className="flex justify-end gap-3">
                                                 <button onClick={() => { setSelectedCandidato(c); }} className="w-12 h-12 flex items-center justify-center bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-100/20 rounded-2xl transition-all active:scale-95" title="Ver Ficha"><Eye size={20} /></button>
                                                 <button onClick={() => handleEdit(c)} className="w-12 h-12 flex items-center justify-center bg-white border border-slate-100 text-slate-400 hover:text-amber-600 hover:border-amber-100 hover:shadow-xl hover:shadow-amber-100/20 rounded-2xl transition-all active:scale-95" title="Editar"><Edit3 size={20} /></button>
+                                                <button onClick={() => handleDelete(c._id)} className="w-12 h-12 flex items-center justify-center bg-white border border-slate-100 text-slate-400 hover:text-red-600 hover:border-red-100 hover:shadow-xl hover:shadow-red-100/20 rounded-2xl transition-all active:scale-95" title="Eliminar"><Trash2 size={20} /></button>
                                             </div>
                                         </td>
                                     )}
@@ -1871,51 +1966,59 @@ const CapturaTalento = () => {
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
                                         <Briefcase size={14} className="text-indigo-500"/> Cargo Estructural
                                     </label>
-                                    <div className="relative group">
-                                        <select 
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" 
-                                            value={form.position || ""} 
-                                            onChange={e => {
-                                                const cargo = e.target.value;
-                                                const dot = selectedProj?.dotacion.find(d => d.cargo === cargo);
-                                                setForm(prev => ({
-                                                    ...prev,
-                                                    position: cargo,
-                                                    ceco: dot?.ceco || prev.ceco,
-                                                    area: dot?.area || prev.area,
-                                                    departamento: dot?.departamento || prev.departamento
-                                                }));
-                                            }}
-                                            disabled={!form.projectId}
-                                        >
-                                            <option value="">{form.projectId ? 'Seleccionar Cargo del Proyecto...' : 'Seleccione primero un proyecto'}</option>
-                                            {availableCargos.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
-                                        </select>
-                                        <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-hover:text-indigo-500 transition-colors" size={18} />
-                                    </div>
+                                    <SearchableSelect
+                                        value={form.position || ""} 
+                                        onChange={val => {
+                                            const cargo = val;
+                                            const dot = selectedProj?.dotacion.find(d => d.cargo === cargo);
+                                            setForm(prev => ({
+                                                ...prev,
+                                                position: cargo,
+                                                ceco: dot?.ceco || prev.ceco,
+                                                area: dot?.area || prev.area,
+                                                departamento: dot?.departamento || prev.departamento
+                                            }));
+                                        }}
+                                        disabled={!form.projectId}
+                                        placeholder={form.projectId ? 'Seleccionar Cargo del Proyecto...' : 'Seleccione primero un proyecto'}
+                                        options={
+                                            availableCargos.map(c => ({ value: c, label: c.toUpperCase() }))
+                                        }
+                                        className="w-full"
+                                    />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
                                         <MapPin size={14} className="text-indigo-500"/> Sede de Asignación
                                     </label>
-                                    <div className="relative group">
-                                        <select 
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" 
-                                            value={form.sede || ""} 
-                                            onChange={e => setForm({...form, sede: e.target.value})}
-                                            disabled={!form.projectId}
-                                        >
-                                            <option value="">{form.projectId ? 'Seleccionar Sede Destino...' : 'Seleccione primero un proyecto'}</option>
-                                            {availableSedes.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
-                                        </select>
-                                        <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-hover:text-indigo-500 transition-colors" size={18} />
-                                    </div>
+                                    <SearchableSelect
+                                        value={form.sede || ""} 
+                                        onChange={val => setForm({...form, sede: val})}
+                                        disabled={!form.projectId}
+                                        placeholder={form.projectId ? 'Seleccionar Sede Destino...' : 'Seleccione primero un proyecto'}
+                                        options={
+                                            availableSedes.map(s => ({ value: s, label: s.toUpperCase() }))
+                                        }
+                                        className="w-full"
+                                    />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
                                         <Layers size={14} className="text-indigo-500"/> Centro de Costo (Auto)
                                     </label>
                                     <input className="w-full bg-slate-100/50 border-2 border-slate-50 rounded-2xl px-7 py-5 text-sm font-black text-slate-400 outline-none font-mono" value={form.ceco || ""} readOnly placeholder="CECO" />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                        <UserCheck size={14} className="text-indigo-500"/> Jefe Directo
+                                    </label>
+                                    <SearchableSelect
+                                        value={form.jefeDirecto || ""} 
+                                        onChange={val => setForm({...form, jefeDirecto: val})}
+                                        placeholder="Seleccionar Jefatura..."
+                                        options={possibleJefes.map(j => ({ value: j, label: j }))}
+                                        className="w-full"
+                                    />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
@@ -1980,17 +2083,18 @@ const CapturaTalento = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Briefcase size={12} className="text-indigo-500"/> Cliente Vinculado</label>
-                                            <select 
-                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none focus:border-indigo-300" 
+                                            <SearchableSelect
                                                 value={form.clienteId || ""} 
-                                                onChange={e => {
-                                                    const cl = clientes.find(c => c._id === e.target.value);
-                                                    setForm({...form, clienteId: e.target.value, clienteNombre: cl?.nombre || ''});
+                                                onChange={val => {
+                                                    const cl = clientes.find(c => c._id === val);
+                                                    setForm({...form, clienteId: val, clienteNombre: cl?.nombre || ''});
                                                 }}
-                                            >
-                                                <option value="">Seleccione Cliente...</option>
-                                                {clientes.map(cl => <option key={cl._id} value={cl._id}>{cl.nombre?.toUpperCase()}</option>)}
-                                            </select>
+                                                placeholder="Seleccione Cliente..."
+                                                options={
+                                                    clientes.map(cl => ({ value: cl._id, label: cl.nombre?.toUpperCase() }))
+                                                }
+                                                className="w-full"
+                                            />
                                         </div>
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Calendar size={12} className="text-indigo-500"/> Inicio Contrato</label>
@@ -2087,10 +2191,10 @@ const CapturaTalento = () => {
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Users size={14} className="text-indigo-500"/> Género Registrado</label>
                                 <div className="relative">
                                     <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.gender || ""} onChange={e => setForm({...form, gender: e.target.value})}>
-                                        <option value="MASCULINO">MASCULINO</option>
-                                        <option value="FEMENINO">FEMENINO</option>
-                                        <option value="OTRO">OTRO</option>
-                                        <option value="NO INFORMADO">NO INFORMADO</option>
+                                        <option value="Masculino">MASCULINO</option>
+                                        <option value="Femenino">FEMENINO</option>
+                                        <option value="Otro">OTRO</option>
+                                        <option value="No Informado">NO INFORMADO</option>
                                     </select>
                                     <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
                                 </div>
@@ -2630,21 +2734,41 @@ const CapturaTalento = () => {
 
                         <div className="flex items-center gap-4 flex-1 max-w-lg">
                             <select 
-                                value={bulkStatus}
-                                onChange={e => setBulkStatus(e.target.value)}
-                                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black text-white uppercase tracking-wider outline-none focus:bg-white/10 transition-all appearance-none cursor-pointer"
+                                value={bulkActionType}
+                                onChange={e => setBulkActionType(e.target.value)}
+                                className="bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-[11px] font-black text-white uppercase tracking-wider outline-none focus:bg-white/10 transition-all appearance-none cursor-pointer"
                             >
-                                <option value="" className="text-slate-950">CAMBIAR ESTADO A...</option>
-                                {STATUSES.filter(s => s !== 'DE BAJA').map(s => <option key={s} value={s} className="text-slate-950">{s === 'ACTIVO' ? 'ACTIVO' : s.toUpperCase()}</option>)}
+                                <option value="status" className="text-slate-950">CAMBIAR ESTADO</option>
+                                <option value="jefe" className="text-slate-950">ASIGNAR JEFATURA</option>
                             </select>
+
+                            {bulkActionType === 'status' ? (
+                                <select 
+                                    value={bulkStatus}
+                                    onChange={e => setBulkStatus(e.target.value)}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black text-white uppercase tracking-wider outline-none focus:bg-white/10 transition-all appearance-none cursor-pointer"
+                                >
+                                    <option value="" className="text-slate-950">SELECCIONAR ESTADO...</option>
+                                    {STATUSES.filter(s => s !== 'DE BAJA').map(s => <option key={s} value={s} className="text-slate-950">{s === 'ACTIVO' ? 'ACTIVO' : s.toUpperCase()}</option>)}
+                                </select>
+                            ) : (
+                                <select 
+                                    value={bulkJefeDirecto}
+                                    onChange={e => setBulkJefeDirecto(e.target.value)}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black text-white uppercase tracking-wider outline-none focus:bg-white/10 transition-all appearance-none cursor-pointer"
+                                >
+                                    <option value="" className="text-slate-950">SELECCIONAR JEFATURA...</option>
+                                    {possibleJefes.map(j => <option key={j} value={j} className="text-slate-950">{j}</option>)}
+                                </select>
+                            )}
                             
                             <button 
-                                onClick={handleBulkStatusUpdate}
-                                disabled={!bulkStatus || isBulkUpdating}
+                                onClick={handleBulkAction}
+                                disabled={(bulkActionType === 'status' ? !bulkStatus : !bulkJefeDirecto) || isBulkUpdating}
                                 className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:grayscale"
                             >
                                 {isBulkUpdating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                                {isBulkUpdating ? 'PROCESANDO...' : 'APLICAR CAMBIO'}
+                                {isBulkUpdating ? 'PROCESANDO...' : 'APLICAR'}
                             </button>
 
                             <div className="w-px h-10 bg-white/10" />

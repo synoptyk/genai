@@ -135,6 +135,7 @@ export const turnosApi = {
     create: (data) => rrhhApi.post('/turnos', data),
     update: (id, data) => rrhhApi.put(`/turnos/${id}`, data),
     asignar: (id, data) => rrhhApi.put(`/turnos/${id}/asignar`, data),
+    asignarBulk: (id, data) => rrhhApi.put(`/turnos/${id}/asignar-bulk`, data),
     remove: (id) => rrhhApi.delete(`/turnos/${id}`),
 };
 
@@ -145,6 +146,8 @@ export const asistenciaApi = {
     bulkCreate:        (registros) => rrhhApi.post('/asistencia/bulk', { registros }),
     bulkUpsert:        (registros, onlyInsertNew = false) => rrhhApi.post('/asistencia/bulk-upsert', { registros, onlyInsertNew }),
     update:            (id, data)  => rrhhApi.put(`/asistencia/${id}`, data),
+    marcajeLegal:      (id, data)  => rrhhApi.put(`/asistencia/${id}/marcaje-legal`, data),
+    createMarcajeLegal: (data)     => rrhhApi.post('/asistencia/marcaje-legal', data),
     remove:            (id)        => rrhhApi.delete(`/asistencia/${id}`),
     syncToa:           (month, year) => rrhhApi.post('/asistencia/sync-toa', { month, year }),
 };

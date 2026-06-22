@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plane, Plus, X, CheckCircle2, XCircle, Clock, Loader2, Calendar } from 'lucide-react';
 import { candidatosApi, configApi } from '../rrhhApi';
+import { formatRut } from '../../../utils/rutUtils';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 const TIPOS = ['Vacaciones', 'Licencia Médica', 'Permiso Sin Goce', 'Permiso Con Goce'];
 const TIPO_COLORS = {
@@ -26,7 +28,7 @@ const VacacionesLicencias = () => {
         setLoading(true);
         try {
             const [candRes, configRes] = await Promise.all([
-                candidatosApi.getAll({ status: 'Contratado' }),
+                candidatosApi.getAll({ status: 'Contratado,Activo,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
                 configApi.get()
             ]);
             setCandidatos(candRes.data);
@@ -137,11 +139,15 @@ const VacacionesLicencias = () => {
                             <button onClick={() => setShowForm(false)} className="p-2 bg-white/20 rounded-xl text-white"><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div><label className="label-rrhh">Colaborador *</label>
-                                <select required className="input-rrhh" value={selectedCandidato} onChange={e => setSelectedCandidato(e.target.value)}>
-                                    <option value="">— Seleccionar —</option>
-                                    {candidatos.map(c => <option key={c._id} value={c._id}>{c.fullName} ({c.rut})</option>)}
-                                </select>
+                            <div>
+                                <SearchableSelect
+                                    label="Colaborador *"
+                                    required
+                                    options={candidatos.map(c => ({ value: c._id, label: `${c.fullName} (${formatRut(c.rut)})` }))}
+                                    value={selectedCandidato}
+                                    onChange={(val) => setSelectedCandidato(val)}
+                                    placeholder="— Seleccionar —"
+                                />
                             </div>
                             <div><label className="label-rrhh">Tipo</label>
                                 <select className="input-rrhh" value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}>
