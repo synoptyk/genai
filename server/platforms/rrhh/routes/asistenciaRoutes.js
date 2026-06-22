@@ -451,7 +451,7 @@ router.post('/bulk', protect, authorize('rrhh_asistencia:crear', ROLES.SYSTEM_AD
 });
 
 // ─── POST /asistencia/bulk-upsert ─ Inserción/actualización masiva (sin duplicar) ─
-router.post('/bulk-upsert', protect, authorize('rrhh_asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
+router.post('/bulk-upsert', protect, authorize('rrhh_asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.SUPERVISOR, ROLES.JEFATURA), async (req, res) => {
     try {
         const { registros, onlyInsertNew } = req.body;
         const ops = registros.map(r => {

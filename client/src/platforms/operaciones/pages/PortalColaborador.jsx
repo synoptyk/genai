@@ -3858,7 +3858,7 @@ const PortalColaborador = () => {
                                         let displayEstado = log.estado;
                                         let estadoColor = 'bg-slate-100 text-slate-600';
                                         
-                                        if (log.estado === 'Presente' && !log.horaIngresoDeclarada && !log.horaSalida && (!log.eventosTimeline || log.eventosTimeline.length === 0)) {
+                                        if (log.estado === 'Presente' && !log.horaIngresoDeclarada && !log.horaEntrada && !log.horaSalida && (!log.eventosTimeline || log.eventosTimeline.length === 0)) {
                                             displayEstado = 'Por Registrar';
                                             estadoColor = 'bg-slate-100 text-slate-400 border border-slate-200';
                                         } else {
@@ -3869,7 +3869,7 @@ const PortalColaborador = () => {
                                             if (log.estado === 'Feriado') estadoColor = 'bg-indigo-50 text-indigo-600 border border-indigo-100';
                                         }
                                         const ultimoEvento = log.eventosTimeline && log.eventosTimeline.length > 0 ? log.eventosTimeline[log.eventosTimeline.length - 1] : null;
-                                        const registradoPor = ultimoEvento ? ultimoEvento.registradoPor : '---';
+                                        const registradoPor = ultimoEvento?.registradoPor || log.validadoPor || log.registradoPor || '---';
 
                                         return (
                                             <tr key={log._id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -3885,9 +3885,9 @@ const PortalColaborador = () => {
                                                     ) : <span className="text-slate-300 text-xs">—</span>}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    {log.horaIngresoDeclarada ? (
+                                                    {(log.horaIngresoDeclarada || log.horaEntrada) ? (
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-black text-slate-800">{log.horaIngresoDeclarada}</span>
+                                                            <span className="text-xs font-black text-slate-800">{log.horaIngresoDeclarada || log.horaEntrada}</span>
                                                             {log.minutosTardanza > 0 && (
                                                                 <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase">+{log.minutosTardanza}m</span>
                                                             )}

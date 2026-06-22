@@ -166,9 +166,15 @@ const AsistenciaLegal = () => {
     };
 
     const handleVerifyIntegrity = async (id) => {
+        const idStr = String(id || '').trim();
+        if (!/^[a-fA-F0-9]{24}$/.test(idStr)) {
+            alert('El registro no tiene un identificador válido para verificación de integridad.');
+            return;
+        }
+
         setProcessingId(id);
         try {
-            const res = await asistenciaApi.verificarIntegridad(id);
+            const res = await asistenciaApi.verificarIntegridad(idStr);
             const data = res.data || {};
             if (data.ok) {
                 alert(`Integridad verificada. Eventos: ${data.totalEventos}. Hash: ${data.ultimoHashCalculado}`);
@@ -176,6 +182,10 @@ const AsistenciaLegal = () => {
                 alert(`Integridad con observaciones: ${(data.inconsistencias || []).join(' | ')}`);
             }
         } catch (err) {
+            if (err?.response?.status === 404) {
+                alert('No se encontró el registro para verificación de integridad. Refresca la vista y vuelve a intentar.');
+                return;
+            }
             alert(err.response?.data?.message || 'No fue posible verificar la integridad');
         } finally {
             setProcessingId(null);

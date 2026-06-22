@@ -23,6 +23,56 @@ const AsistenciaOperativa = ({
     const [showPhotoModal, setShowPhotoModal] = useState(false);
     const [photoModalData, setPhotoModalData] = useState({ candId: null, file: null, preview: null, isLoading: false, tipoEvento: null, observacion: '' });
 
+    const toHHmm = (raw) => {
+        if (!raw) return '';
+
+        if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+            const hh = String(raw.getHours()).padStart(2, '0');
+            const mm = String(raw.getMinutes()).padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+
+        const str = String(raw).trim();
+        if (!str) return '';
+
+        let m = str.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d{1,3})?)?$/);
+        if (m) {
+            const hh = Number(m[1]);
+            const mm = Number(m[2]);
+            if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+                return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+            }
+        }
+
+        const normalized = str
+            .toLowerCase()
+            .replace(/\./g, '')
+            .replace(/\s+/g, '');
+
+        m = normalized.match(/^(\d{1,2}):(\d{2})(am|pm)$/);
+        if (m) {
+            let hh = Number(m[1]);
+            const mm = Number(m[2]);
+            const meridiem = m[3];
+            if (hh >= 1 && hh <= 12 && mm >= 0 && mm <= 59) {
+                if (meridiem === 'am' && hh === 12) hh = 0;
+                if (meridiem === 'pm' && hh !== 12) hh += 12;
+                return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+            }
+        }
+
+        const parsed = new Date(str);
+        if (!Number.isNaN(parsed.getTime())) {
+            const hh = String(parsed.getHours()).padStart(2, '0');
+            const mm = String(parsed.getMinutes()).padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+
+        return '';
+    };
+
+    const getNowHHmm = () => toHHmm(new Date());
+
     const getActiveLeave = (candidateId, dateStr) => {
         const targetDate = new Date(dateStr);
         targetDate.setHours(0,0,0,0);
@@ -115,8 +165,8 @@ const AsistenciaOperativa = ({
                         isNew: false,
                         estadoDia: record.estadoDia || 'Abierto',
                         eventosTimeline: record.eventosTimeline || [],
-                        horaIngresoDeclarada: record.horaIngresoDeclarada || '',
-                        horaSalida: record.horaSalida || '',
+                        horaIngresoDeclarada: toHHmm(record.horaIngresoDeclarada),
+                        horaSalida: toHHmm(record.horaSalida),
                         isFinDia: !!record.horaSalida,
                         turno: record.turnoId || logsMap[candId].turno
                     };
@@ -150,6 +200,7 @@ const AsistenciaOperativa = ({
     const handleUpdateLog = (candId, field, val) => {
         setAsistenciaLogs(prev => {
             const current = prev[candId] || {};
+            const normalizedVal = (field === 'horaIngresoDeclarada' || field === 'horaSalida') ? toHHmm(val) : val;
             let extra = {};
             if (field === 'estado') {
                 if (val !== 'Presente') {
@@ -168,7 +219,7 @@ const AsistenciaOperativa = ({
                 if (turno) {
                     const horario = getHorarioDelDia(turno, asistenciaFecha);
                     if (horario && horario.horaEntrada) {
-                        extra.minutosTardanza = calculateTardanza(val, horario.horaEntrada, horario.toleranciaTardanza || 0);
+                        extra.minutosTardanza = calculateTardanza(normalizedVal, horario.horaEntrada, horario.toleranciaTardanza || 0);
                     }
                 }
             }
@@ -176,7 +227,7 @@ const AsistenciaOperativa = ({
                 ...prev,
                 [candId]: {
                     ...current,
-                    [field]: val,
+                    [field]: normalizedVal,
                     ...extra
                 }
             };
@@ -222,12 +273,12 @@ const AsistenciaOperativa = ({
 
     const handleCerrarDia = (candId) => {
         handleUpdateLog(candId, 'estadoDia', 'Cerrado');
-        handleAddEvento(candId, 'Cierre', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), 'Cierre Jornada', 'Jornada cerrada por supervisor');
+        handleAddEvento(candId, 'Cierre', getNowHHmm(), 'Cierre Jornada', 'Jornada cerrada por supervisor');
     };
 
     const handleReabrirDia = (candId) => {
         handleUpdateLog(candId, 'estadoDia', 'Abierto');
-        handleAddEvento(candId, 'Evento', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), 'Reapertura', 'Día reabierto por supervisor');
+        handleAddEvento(candId, 'Evento', getNowHHmm(), 'Reapertura', 'Día reabierto por supervisor');
     };
 
     const openPhotoModal = (candId, tipoEvento) => {
@@ -243,7 +294,20 @@ const AsistenciaOperativa = ({
         formData.append('file', photoModalData.file);
 
         try {
-            const token = localStorage.getItem('token');
+            const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
+            let token = null;
+            if (stored) {
+                try {
+                    token = JSON.parse(stored)?.token || null;
+                } catch (_) {
+                    token = null;
+                }
+            }
+
+            if (!token) {
+                throw new Error('Sesión inválida. Vuelve a iniciar sesión para subir el respaldo.');
+            }
+
             const res = await fetch('/api/rrhh/asistencia/upload-respaldo', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
@@ -256,11 +320,11 @@ const AsistenciaOperativa = ({
             // Apply specific logic based on what required the photo
             if (['Ausente', 'Libre', 'Permiso', 'Licencia'].includes(photoModalData.tipoEvento)) {
                 handleUpdateLog(photoModalData.candId, 'estado', photoModalData.tipoEvento);
-                handleAddEvento(photoModalData.candId, 'Ausencia/Excepción', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), photoModalData.tipoEvento, photoModalData.observacion || 'Respaldo cargado', data.url);
+                handleAddEvento(photoModalData.candId, 'Ausencia/Excepción', getNowHHmm(), photoModalData.tipoEvento, photoModalData.observacion || 'Respaldo cargado', data.url);
             } else if (photoModalData.tipoEvento === 'Retiro') {
-                handleAddEvento(photoModalData.candId, 'Retiro', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), 'Retiro Anticipado', photoModalData.observacion || 'Retiro anticipado registrado', data.url);
+                handleAddEvento(photoModalData.candId, 'Retiro', getNowHHmm(), 'Retiro Anticipado', photoModalData.observacion || 'Retiro anticipado registrado', data.url);
             } else {
-                handleAddEvento(photoModalData.candId, 'Evento', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), photoModalData.tipoEvento, photoModalData.observacion || 'Respaldo cargado', data.url);
+                handleAddEvento(photoModalData.candId, 'Evento', getNowHHmm(), photoModalData.tipoEvento, photoModalData.observacion || 'Respaldo cargado', data.url);
             }
 
             showToast('Respaldo guardado', 'success');
@@ -281,16 +345,28 @@ const AsistenciaOperativa = ({
                 const candidate = miEquipo.find(t => t.rrhh?._id === log.candidatoId);
                 const projectObj = candidate?.rrhh?.projectId;
                 const clientObj = projectObj?.cliente;
+                const turnoId = (typeof log.turno === 'object' && log.turno?._id) ? log.turno._id : (log.turno || null);
+                const horaIngreso = toHHmm(log.horaIngresoDeclarada);
+                const minutosTardanza = Number(log.minutosTardanza || 0);
+
+                let estadoFinal = log.estado;
+                if (log.estado === 'Presente' && horaIngreso && minutosTardanza > 0) {
+                    estadoFinal = 'Tardanza';
+                }
 
                 return {
                     candidatoId: log.candidatoId,
                     fecha: asistenciaFecha,
-                    estado: log.estado,
-                    minutosTardanza: log.estado === 'Presente' ? Number(log.minutosTardanza || 0) : 0,
-                    horasExtraAprobadas: log.estado === 'Presente' ? Number(log.horasExtraAprobadas || 0) : 0,
-                    estadoHorasExtra: log.estado === 'Presente' && Number(log.horasExtraAprobadas || 0) > 0 ? 'Aprobado' : 'Sin HE',
-                    tipoAusencia: log.estado !== 'Presente' ? log.tipoAusencia : null,
-                    descuentaDia: log.estado === 'Ausente' && log.tipoAusencia === 'Inasistencia Injustificada',
+                    turnoId,
+                    estado: estadoFinal,
+                    horaIngresoDeclarada: horaIngreso,
+                    horaEntrada: horaIngreso,
+                    horaSalida: toHHmm(log.horaSalida),
+                    minutosTardanza: ['Presente', 'Tardanza'].includes(estadoFinal) ? minutosTardanza : 0,
+                    horasExtraAprobadas: ['Presente', 'Tardanza'].includes(estadoFinal) ? Number(log.horasExtraAprobadas || 0) : 0,
+                    estadoHorasExtra: ['Presente', 'Tardanza'].includes(estadoFinal) && Number(log.horasExtraAprobadas || 0) > 0 ? 'Aprobado' : 'Sin HE',
+                    tipoAusencia: ['Presente', 'Tardanza'].includes(estadoFinal) ? null : log.tipoAusencia,
+                    descuentaDia: estadoFinal === 'Ausente' && log.tipoAusencia === 'Inasistencia Injustificada',
                     observacion: log.observacion || '',
                     validadoPor: supervisorName,
                     registradoPor: supervisorName,
@@ -300,8 +376,7 @@ const AsistenciaOperativa = ({
                     clienteNombre: clientObj?.nombre || candidate?.mandantePrincipal || '',
                     estadoDia: log.estadoDia,
                     eventosTimeline: log.eventosTimeline,
-                    horaIngresoDeclarada: log.horaIngresoDeclarada,
-                    horaSalida: log.horaSalida
+                    syncFromProduccion: false
                 };
             });
 
@@ -350,7 +425,7 @@ const AsistenciaOperativa = ({
                             ...(updated[candId].eventosTimeline || []),
                             {
                                 tipo: 'Cierre',
-                                hora: new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}),
+                                hora: getNowHHmm(),
                                 estadoSeleccionado: 'Cierre Jornada',
                                 observacion: 'Cierre general de jornada',
                                 registradoPor: user?.name || 'Supervisor',
@@ -385,7 +460,7 @@ const AsistenciaOperativa = ({
                             ...(log.eventosTimeline || []),
                             {
                                 tipo: 'Apertura',
-                                hora: new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}),
+                                hora: getNowHHmm(),
                                 estadoSeleccionado: 'Puntual',
                                 observacion: 'Asistencia inicial (Masiva)',
                                 registradoPor: user?.name || 'Supervisor',
@@ -561,19 +636,21 @@ const AsistenciaOperativa = ({
                                                         <div className="flex flex-wrap gap-2">
                                                             <button 
                                                                 onClick={() => {
+                                                                    const horaNow = getNowHHmm();
                                                                     handleUpdateLog(tec.rrhh._id, 'estado', 'Presente');
-                                                                    handleUpdateLog(tec.rrhh._id, 'horaIngresoDeclarada', ''); // Limpiamos para no mostrar input de atraso
-                                                                    handleAddEvento(tec.rrhh._id, 'Apertura', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), 'Puntual', 'Asistencia inicial');
+                                                                    handleUpdateLog(tec.rrhh._id, 'horaIngresoDeclarada', horaNow);
+                                                                    handleAddEvento(tec.rrhh._id, 'Apertura', horaNow, 'Puntual', 'Asistencia inicial');
                                                                 }}
-                                                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${log.estado === 'Presente' && !log.horaIngresoDeclarada ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                                                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${log.estado === 'Presente' && (log.minutosTardanza || 0) === 0 && !!log.horaIngresoDeclarada ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}
                                                             >
                                                                 Puntual
                                                             </button>
                                                             <button 
                                                                 onClick={() => {
+                                                                    const horaNow = getNowHHmm();
                                                                     handleUpdateLog(tec.rrhh._id, 'estado', 'Presente');
-                                                                    handleUpdateLog(tec.rrhh._id, 'horaIngresoDeclarada', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}));
-                                                                    handleAddEvento(tec.rrhh._id, 'Apertura', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), 'Atraso', 'Asistencia con atraso');
+                                                                    handleUpdateLog(tec.rrhh._id, 'horaIngresoDeclarada', horaNow);
+                                                                    handleAddEvento(tec.rrhh._id, 'Apertura', horaNow, 'Atraso', 'Asistencia con atraso');
                                                                 }}
                                                                 className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${log.estado === 'Presente' && log.horaIngresoDeclarada ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200'}`}
                                                             >
@@ -587,7 +664,7 @@ const AsistenciaOperativa = ({
                                                                     onClick={() => {
                                                                         if (ex === 'Libre') {
                                                                             handleUpdateLog(tec.rrhh._id, 'estado', 'Libre');
-                                                                            handleAddEvento(tec.rrhh._id, 'Ausencia/Excepción', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), 'Libre', 'Día libre asignado');
+                                                                            handleAddEvento(tec.rrhh._id, 'Ausencia/Excepción', getNowHHmm(), 'Libre', 'Día libre asignado');
                                                                         } else {
                                                                             openPhotoModal(tec.rrhh._id, ex);
                                                                         }
@@ -601,7 +678,7 @@ const AsistenciaOperativa = ({
                                                             {/* Botón de Retiro Anticipado */}
                                                             <button 
                                                                 onClick={() => {
-                                                                    handleUpdateLog(tec.rrhh._id, 'horaSalida', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}));
+                                                                    handleUpdateLog(tec.rrhh._id, 'horaSalida', getNowHHmm());
                                                                     openPhotoModal(tec.rrhh._id, 'Retiro');
                                                                 }}
                                                                 className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${log.eventosTimeline?.some(e => e.tipo === 'Retiro') ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-200'} flex items-center gap-1`}
@@ -615,9 +692,9 @@ const AsistenciaOperativa = ({
                                                                     onClick={() => {
                                                                         handleUpdateLog(tec.rrhh._id, 'isFinDia', true);
                                                                         if (!log.horaSalida) {
-                                                                            handleUpdateLog(tec.rrhh._id, 'horaSalida', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}));
+                                                                            handleUpdateLog(tec.rrhh._id, 'horaSalida', getNowHHmm());
                                                                         }
-                                                                        handleAddEvento(tec.rrhh._id, 'Salida', new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}), 'Fin Día', 'Término de jornada');
+                                                                        handleAddEvento(tec.rrhh._id, 'Salida', getNowHHmm(), 'Fin Día', 'Término de jornada');
                                                                     }}
                                                                     className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${log.isFinDia ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'} flex items-center gap-1 ml-auto`}
                                                                 >
