@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Check, X, BellOff, ExternalLink, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../platforms/auth/AuthContext';
+import API_URL from '../config';
 
 const NotificationsBell = () => {
     const { user } = useAuth();
@@ -11,8 +12,6 @@ const NotificationsBell = () => {
     const [loading, setLoading] = useState(false);
     const [vibrating, setVibrating] = useState(false);
     const menuRef = useRef(null);
-
-    const API_URL = process.env.REACT_APP_API_URL || '';
 
     useEffect(() => {
         fetchNotifications();

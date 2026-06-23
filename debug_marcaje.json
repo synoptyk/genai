@@ -1,13 +1,13 @@
 {
   "body": {
     "candidatosId": [
-      "6a0aa28cb31b99c92efc2872"
+      "6a0aa280b31b99c92efc27f4"
     ],
-    "fecha": "2026-06-21",
+    "fecha": "2026-06-19",
     "estado": "Presente",
     "horaEntrada": "09:00",
-    "horaSalida": "15:50",
-    "observacionLegal": "Marcacion Manual por prueba de nueva implementacion de Plataforma. ",
+    "horaSalida": "18:25",
+    "observacionLegal": "Marcacion Manual por implementación  de plataforma de asistencia. ",
     "turnoId": "6a3871e3b367c42a62290f40"
   },
   "headers": {
@@ -15,7 +15,7 @@
     "connection": "keep-alive",
     "content-length": "255",
     "sec-ch-ua-platform": "\"macOS\"",
-    "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YWI4YTM3ZDcyMzliMGRkMTIzODNkMyIsInZlcnNpb24iOjE1MDMsImlhdCI6MTc4MjA5MjI2NSwiZXhwIjoxNzg0Njg0MjY1fQ.cfiWHM8wFN49LVYMBddbWcYVtuluiKTOFhWKxepeCZY",
+    "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YWI4YTM3ZDcyMzliMGRkMTIzODNkMyIsInZlcnNpb24iOjE1MTksImlhdCI6MTc4MjE0MTI5MiwiZXhwIjoxNzg0NzMzMjkyfQ.oxH-5DEsfZL-s8v6uiUuiH9PSCfuIBR3ewFVH_-CzgI",
     "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
     "accept": "application/json, text/plain, */*",
     "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
