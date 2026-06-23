@@ -272,6 +272,89 @@ const AsistenciaOperativa = ({
         });
     };
 
+    const handleSetPuntual = (candId) => {
+        setAsistenciaLogs(prev => {
+            const current = prev[candId] || {};
+            const horario = current.turno ? getHorarioDelDia(current.turno, asistenciaFecha) : null;
+            const horaEntrada = horario?.horaEntrada || getNowHHmm();
+            
+            const newEvento = {
+                tipo: 'Apertura',
+                hora: horaEntrada,
+                estadoSeleccionado: 'Puntual',
+                observacion: 'Asistencia inicial',
+                registradoPor: user?.name || 'Supervisor',
+                timestamp: new Date()
+            };
+            
+            let updatedTimeline = current.eventosTimeline ? [...current.eventosTimeline] : [];
+            const existingIndex = updatedTimeline.findIndex(e => e.tipo === 'Apertura' || e.tipo === 'Ausencia/Excepción');
+            if (existingIndex >= 0) {
+                updatedTimeline[existingIndex] = newEvento;
+            } else {
+                updatedTimeline.push(newEvento);
+            }
+
+            return {
+                ...prev,
+                [candId]: {
+                    ...current,
+                    estado: 'Presente',
+                    tipoAusencia: null,
+                    horaIngresoDeclarada: horaEntrada,
+                    minutosTardanza: 0,
+                    eventosTimeline: updatedTimeline
+                }
+            };
+        });
+    };
+
+    const handleSetAtraso = (candId) => {
+        setAsistenciaLogs(prev => {
+            const current = prev[candId] || {};
+            const horaNow = getNowHHmm();
+            let tardanzaCalculated = 1; // Default to at least 1 min for Atraso
+            
+            const turno = current.turno;
+            if (turno) {
+                const horario = getHorarioDelDia(turno, asistenciaFecha);
+                if (horario && horario.horaEntrada) {
+                    const diff = calculateTardanza(horaNow, horario.horaEntrada, horario.toleranciaTardanza || 0);
+                    if (diff > 0) tardanzaCalculated = diff;
+                }
+            }
+            
+            const newEvento = {
+                tipo: 'Apertura',
+                hora: horaNow,
+                estadoSeleccionado: 'Atraso',
+                observacion: 'Asistencia con atraso',
+                registradoPor: user?.name || 'Supervisor',
+                timestamp: new Date()
+            };
+            
+            let updatedTimeline = current.eventosTimeline ? [...current.eventosTimeline] : [];
+            const existingIndex = updatedTimeline.findIndex(e => e.tipo === 'Apertura' || e.tipo === 'Ausencia/Excepción');
+            if (existingIndex >= 0) {
+                updatedTimeline[existingIndex] = newEvento;
+            } else {
+                updatedTimeline.push(newEvento);
+            }
+
+            return {
+                ...prev,
+                [candId]: {
+                    ...current,
+                    estado: 'Presente',
+                    tipoAusencia: null,
+                    horaIngresoDeclarada: horaNow,
+                    minutosTardanza: tardanzaCalculated,
+                    eventosTimeline: updatedTimeline
+                }
+            };
+        });
+    };
+
     const handleCerrarDia = (candId) => {
         handleUpdateLog(candId, 'estadoDia', 'Cerrado');
         handleAddEvento(candId, 'Cierre', getNowHHmm(), 'Cierre Jornada', 'Jornada cerrada por supervisor');
@@ -643,24 +726,14 @@ const AsistenciaOperativa = ({
                                                         <p className="text-[9px] font-black uppercase text-slate-400">Estado de la Jornada (Apertura)</p>
                                                         <div className="flex flex-wrap gap-2">
                                                             <button 
-                                                                onClick={() => {
-                                                                    const horaNow = getNowHHmm();
-                                                                    handleUpdateLog(tec.rrhh._id, 'estado', 'Presente');
-                                                                    handleUpdateLog(tec.rrhh._id, 'horaIngresoDeclarada', horaNow);
-                                                                    handleAddEvento(tec.rrhh._id, 'Apertura', horaNow, 'Puntual', 'Asistencia inicial');
-                                                                }}
-                                                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${log.estado === 'Presente' && (log.minutosTardanza || 0) === 0 && !!log.horaIngresoDeclarada ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                                                                onClick={() => handleSetPuntual(tec.rrhh._id)}
+                                                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${['Presente', 'Tardanza'].includes(log.estado) && (log.minutosTardanza || 0) === 0 && !!log.horaIngresoDeclarada ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}
                                                             >
                                                                 Puntual
                                                             </button>
                                                             <button 
-                                                                onClick={() => {
-                                                                    const horaNow = getNowHHmm();
-                                                                    handleUpdateLog(tec.rrhh._id, 'estado', 'Presente');
-                                                                    handleUpdateLog(tec.rrhh._id, 'horaIngresoDeclarada', horaNow);
-                                                                    handleAddEvento(tec.rrhh._id, 'Apertura', horaNow, 'Atraso', 'Asistencia con atraso');
-                                                                }}
-                                                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${log.estado === 'Presente' && log.horaIngresoDeclarada ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                                                                onClick={() => handleSetAtraso(tec.rrhh._id)}
+                                                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase border ${['Presente', 'Tardanza'].includes(log.estado) && (log.minutosTardanza || 0) > 0 && !!log.horaIngresoDeclarada ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200'}`}
                                                             >
                                                                 Atraso
                                                             </button>
@@ -695,7 +768,7 @@ const AsistenciaOperativa = ({
                                                             </button>
 
                                                             {/* Botón de Fin Día */}
-                                                            {log.estado === 'Presente' && (
+                                                            {['Presente', 'Tardanza'].includes(log.estado) && (
                                                                 <button 
                                                                     onClick={() => {
                                                                         handleUpdateLog(tec.rrhh._id, 'isFinDia', true);
@@ -711,26 +784,30 @@ const AsistenciaOperativa = ({
                                                             )}
                                                         </div>
 
-                                                        {/* Paneles Contextuales (Atraso y Fin Día) */}
-                                                        {log.estado === 'Presente' && log.horaIngresoDeclarada !== undefined && log.horaIngresoDeclarada !== '' && (
-                                                            <div className="flex flex-wrap items-center gap-4 mt-3 animate-in fade-in bg-amber-50 p-2.5 rounded-xl border border-amber-100 max-w-fit">
+                                                        {/* Paneles Contextuales (Ingreso y Fin Día) */}
+                                                        {['Presente', 'Tardanza'].includes(log.estado) && log.horaIngresoDeclarada !== undefined && log.horaIngresoDeclarada !== '' && (
+                                                            <div className={`flex flex-wrap items-center gap-4 mt-3 animate-in fade-in p-2.5 rounded-xl border max-w-fit ${(log.minutosTardanza || 0) > 0 ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
                                                                 
                                                                 <div className="flex items-center gap-2">
-                                                                    <label className="text-[9px] font-black uppercase text-amber-600 flex flex-col">
-                                                                        <span>Ingreso Atraso</span>
-                                                                        <span className="text-amber-500 font-bold lowercase">Tardanza: {log.minutosTardanza || 0} min</span>
+                                                                    <label className={`text-[9px] font-black uppercase flex flex-col ${(log.minutosTardanza || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                                                        <span>Hora de Ingreso</span>
+                                                                        {(log.minutosTardanza || 0) > 0 ? (
+                                                                            <span className="text-amber-500 font-bold lowercase">Tardanza: {log.minutosTardanza} min</span>
+                                                                        ) : (
+                                                                            <span className="text-emerald-500 font-bold lowercase">Puntual</span>
+                                                                        )}
                                                                     </label>
                                                                     <input 
                                                                         type="time" 
                                                                         value={log.horaIngresoDeclarada}
                                                                         onChange={(e) => handleUpdateLog(tec.rrhh._id, 'horaIngresoDeclarada', e.target.value)}
-                                                                        className="px-2 py-1.5 text-xs font-bold border border-amber-200 bg-white rounded-lg outline-none focus:ring-2 focus:ring-amber-400"
+                                                                        className={`px-2 py-1.5 text-xs font-bold border bg-white rounded-lg outline-none focus:ring-2 ${(log.minutosTardanza || 0) > 0 ? 'border-amber-200 focus:ring-amber-400' : 'border-emerald-200 focus:ring-emerald-400'}`}
                                                                     />
                                                                 </div>
                                                             </div>
                                                         )}
 
-                                                        {log.estado === 'Presente' && log.isFinDia && (
+                                                        {['Presente', 'Tardanza'].includes(log.estado) && log.isFinDia && (
                                                             <div className="flex flex-wrap items-center gap-4 mt-3 animate-in fade-in bg-indigo-50 p-2.5 rounded-xl border border-indigo-100 max-w-fit">
                                                                 <div className="flex items-center gap-2">
                                                                     <label className="text-[9px] font-black uppercase text-indigo-600 flex flex-col">

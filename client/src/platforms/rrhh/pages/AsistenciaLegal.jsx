@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Download, AlertTriangle, Filter, Search, Loader2, X, CalendarRange, Edit2, Info, Plus } from 'lucide-react';
 import { asistenciaApi, turnosApi, candidatosApi } from '../rrhhApi';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import SearchableSelect from '../../../components/SearchableSelect';
 import MultiSearchableSelect from '../../../components/MultiSearchableSelect';
 
@@ -36,7 +37,13 @@ const AsistenciaLegal = () => {
     const [historialLoading, setHistorialLoading] = useState(false);
     
     const { user } = useAuth();
+    const { hasPermission } = useCheckPermission();
+    
     const isAdmin = ['system_admin', 'ceo_genai', 'ceo', 'admin', 'rrhh', 'gerencia'].includes(String(user?.role || '').toLowerCase());
+    
+    const canCreate = isAdmin || hasPermission('rrhh_asistencia', 'crear');
+    const canEdit = isAdmin || hasPermission('rrhh_asistencia', 'editar');
+    const canDelete = isAdmin || hasPermission('rrhh_asistencia', 'eliminar');
 
     const toHHmm = (raw) => {
         if (!raw) return '';
@@ -278,7 +285,7 @@ const AsistenciaLegal = () => {
 
                 {activeTab === 'libro' && (
                     <div className="flex gap-3">
-                        {isAdmin && (
+                        {canCreate && (
                             <button 
                                 onClick={() => {
                                     setModalMarcaje({ isNew: true });
@@ -386,7 +393,7 @@ const AsistenciaLegal = () => {
                                     </div>
                                 </th>
                                 <th className="p-4 border-b border-slate-200">Trazabilidad (IP/Geo)</th>
-                                {isAdmin && <th className="p-4 border-b border-slate-200 text-center">Acciones</th>}
+                                {(canEdit || canDelete) && <th className="p-4 border-b border-slate-200 text-center">Acciones</th>}
                             </tr>
                         </thead>
                         <tbody className="text-xs">
@@ -447,26 +454,28 @@ const AsistenciaLegal = () => {
                                                 </div>
                                             ) : 'Pendiente / Operativo'}
                                         </td>
-                                        {isAdmin && (
+                                        {(canEdit || canDelete) && (
                                             <td className="p-4 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setModalMarcaje(reg);
-                                                            setMarcajeForm({
-                                                                estado: reg.estado || 'Presente',
-                                                                horaEntrada: toHHmm(reg.horaEntrada || reg.horaIngresoDeclarada || ''),
-                                                                horaSalida: toHHmm(reg.horaSalida || ''),
-                                                                observacionLegal: ''
-                                                            });
-                                                        }}
-                                                        className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                                                        title="Forzar Marcaje Manual (Requiere Observación Legal)"
-                                                        disabled={reg.estadoRegistro === 'ANULADO' || processingId === reg._id}
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
+                                                    {canEdit && (
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setModalMarcaje(reg);
+                                                                setMarcajeForm({
+                                                                    estado: reg.estado || 'Presente',
+                                                                    horaEntrada: toHHmm(reg.horaEntrada || reg.horaIngresoDeclarada || ''),
+                                                                    horaSalida: toHHmm(reg.horaSalida || ''),
+                                                                    observacionLegal: ''
+                                                                });
+                                                            }}
+                                                            className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                                            title="Forzar Marcaje Manual (Requiere Observación Legal)"
+                                                            disabled={reg.estadoRegistro === 'ANULADO' || processingId === reg._id}
+                                                        >
+                                                            <Edit2 size={14} />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -478,17 +487,19 @@ const AsistenciaLegal = () => {
                                                     >
                                                         {processingId === reg._id ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
                                                     </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleAnularRegistro(reg);
-                                                        }}
-                                                        className="p-2 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                                                        title="Anular registro (sin borrado físico)"
-                                                        disabled={reg.estadoRegistro === 'ANULADO' || processingId === reg._id}
-                                                    >
-                                                        <X size={14} />
-                                                    </button>
+                                                    {canDelete && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleAnularRegistro(reg);
+                                                            }}
+                                                            className="p-2 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                                            title="Anular registro (sin borrado físico)"
+                                                            disabled={reg.estadoRegistro === 'ANULADO' || processingId === reg._id}
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         )}

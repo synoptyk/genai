@@ -176,6 +176,8 @@ const CeoCommandCenter = () => {
         cfg_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_empresa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_personal: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        admin_empresas_activas: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        admin_gestion_usuarios: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         ai_asistente: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         ai_genai_mail: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         ai_genai_inteligencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
@@ -582,7 +584,7 @@ const CeoCommandCenter = () => {
                                         { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
                                         { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' }, { id: 'ai_genai_mail' }, { id: 'ai_genai_inteligencia' },
                                         { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
-                                        { id: 'cfg_empresa' }, { id: 'cfg_personal' }
+                                        { id: 'cfg_empresa' }, { id: 'cfg_personal' }, { id: 'admin_empresas_activas' }, { id: 'admin_gestion_usuarios' }
                                     ].map(m => m.id);
 
                                     let allSelected = true;
@@ -744,6 +746,8 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'cfg_empresa', label: 'Config. Empresa' },
                                         { id: 'cfg_personal', label: 'Gestión de Personal' },
+                                         { id: 'admin_empresas_activas', label: 'Empresas Activas' },
+                                         { id: 'admin_gestion_usuarios', label: 'Gestión Usuarios CC' },
                                         { id: 'cfg_baremos', label: 'Configuración Baremos' },
                                         { id: 'cfg_clientes', label: 'Configuración Clientes' },
                                         { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
@@ -1177,7 +1181,7 @@ const CeoCommandCenter = () => {
                                     { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
                                     { id: 'social_chat' }, { id: 'social_webmail' }, { id: 'comunic_video' }, { id: 'ai_asistente' }, { id: 'ai_genai_mail' }, { id: 'ai_genai_inteligencia' },
                                     { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
-                                    { id: 'cfg_empresa' }, { id: 'cfg_personal' }
+                                    { id: 'cfg_empresa' }, { id: 'cfg_personal' }, { id: 'admin_empresas_activas' }, { id: 'admin_gestion_usuarios' }
                                     ].map(m => m.id);
 
                                         let allSelected = true;
@@ -1339,6 +1343,8 @@ const CeoCommandCenter = () => {
                                             modules: [
                                                 { id: 'cfg_empresa', label: 'Config. Empresa' },
                                                 { id: 'cfg_personal', label: 'Gestión de Personal' },
+                                                { id: 'admin_empresas_activas', label: 'Empresas Activas' },
+                                                { id: 'admin_gestion_usuarios', label: 'Gestión Usuarios CC' },
                                                 { id: 'cfg_baremos', label: 'Configuración Baremos' },
                                                 { id: 'cfg_clientes', label: 'Configuración Clientes' },
                                                 { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },

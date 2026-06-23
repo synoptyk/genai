@@ -18,13 +18,13 @@ router.get('/configuracion-notificaciones', protect, notificationConfigControlle
 router.put('/configuracion-notificaciones', protect, authorize('system_admin', 'ceo', 'admin'), notificationConfigController.updateNotificacionConfig);
 
 // CEO/Admin Only routes
-router.get('/users', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal'), authController.getAllUsers);
-router.post('/register', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:crear'), authController.register);
-router.put('/users/:id', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar'), authController.updateUser);
-router.delete('/users/:id', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:eliminar'), authController.deleteUser);
-router.get('/stats/portales', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal'), authController.getPortalStats);
-router.get('/users/:id/history', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal'), authController.getUserHistory);
-router.post('/users/:id/resend-credentials', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar'), authController.resendCredentials);
-router.post('/users/:id/reset-pin', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar'), authController.resetPin);
+router.get('/users', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal', 'admin_gestion_usuarios'), authController.getAllUsers);
+router.post('/register', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:crear', 'admin_gestion_usuarios:crear'), authController.register);
+router.put('/users/:id', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar', 'admin_gestion_usuarios:editar'), authController.updateUser);
+router.delete('/users/:id', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:eliminar', 'admin_gestion_usuarios:eliminar'), authController.deleteUser);
+router.get('/stats/portales', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal', 'admin_gestion_usuarios'), authController.getPortalStats);
+router.get('/users/:id/history', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal', 'admin_gestion_usuarios'), authController.getUserHistory);
+router.post('/users/:id/resend-credentials', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar', 'admin_gestion_usuarios:editar'), authController.resendCredentials);
+router.post('/users/:id/reset-pin', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar', 'admin_gestion_usuarios:editar'), authController.resetPin);
 
 module.exports = router;

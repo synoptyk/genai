@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { calcularBonoImponible } from '../utils/bonoImponible';
 import { DollarSign } from 'lucide-react';
 import api from '../../../api/api';
@@ -164,6 +165,7 @@ const CATEGORY_STYLES = {
 
 const PortalColaborador = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeView, setActiveView] = useState('main'); // main, perfil, equipamiento, solicitudes, produccion, cumplimiento, configuracion-bonificacion
@@ -876,7 +878,7 @@ const PortalColaborador = () => {
                     <Card icon={User} title="Mi Perfil" subtitle="Tus datos y ficha de RRHH" color="bg-indigo-600" onClick={() => setActiveView('perfil')} />
                     <Card icon={CalendarClock} title="Mi Asistencia" subtitle="Jornadas y marcajes de hora" color="bg-teal-600" onClick={() => setActiveView('asistencia')} />
                     <Card icon={Truck} title="Mis Activos" subtitle={`Vehículo: ${vehiculo?.patente || tecnico?.patente || 'No asignado'}`} color="bg-sky-500" onClick={() => setActiveView('equipamiento')} />
-                    <Card icon={PenTool} title="AST Nueva" subtitle="Registra tu inicio de faena" color="bg-amber-500" next="Reportar Ahora" onClick={() => window.location.href = '/prevencion/ast'} />
+                    <Card icon={PenTool} title="AST Nueva" subtitle="Registra tu inicio de faena" color="bg-amber-500" next="Reportar Ahora" onClick={() => navigate('/prevencion/ast')} />
                     <Card icon={Calendar} title="Solicitudes" subtitle="Vacaciones, Permisos y Licencias" color="bg-rose-500" onClick={() => setActiveView('solicitudes')} badge={perfil?.vacaciones?.filter(v => v.estado === 'Pendiente')?.length} />
                     <Card icon={Mail} title="Bandeja & Trámites" subtitle="Firma electrónica y avisos" color="bg-pink-600" onClick={() => setActiveView('notificaciones')} badge={null} />
                     <Card icon={BarChart3} title="Mis KPI's" subtitle="Producción, tendencias y análisis de desempeño" color="bg-emerald-600" onClick={() => setActiveView('produccion')} />

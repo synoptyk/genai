@@ -187,6 +187,8 @@ const empresaSchema = new mongoose.Schema({
             cfg_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             cfg_empresa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             cfg_personal: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            admin_empresas_activas: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            admin_gestion_usuarios: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
             // 8. Logística 360
             logistica_dashboard: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },

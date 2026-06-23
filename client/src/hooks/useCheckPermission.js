@@ -22,18 +22,29 @@ export const useCheckPermission = () => {
 
         // 2. Verificación granular (incluye admins con fallback controlado)
         const indPerms = user.permisosModulos || {};
+        const empPerms = user.empresaRef?.permisosModulos || {};
+
         // Manejar tanto Map como Objeto plano (dependiendo de la serialización del estado)
-        const p = (typeof indPerms.get === 'function') 
+        const pUser = (typeof indPerms.get === 'function') 
             ? indPerms.get(moduleKey) 
             : indPerms[moduleKey];
+            
+        const pEmp = (typeof empPerms.get === 'function')
+            ? empPerms.get(moduleKey)
+            : empPerms[moduleKey];
 
         // Compatibilidad entre matrices que usan 'bloquear' y otras que usan 'suspender'.
         const normalizedAction = action === 'bloquear' ? 'suspender' : action;
         const fallbackAction = action === 'suspender' ? 'bloquear' : null;
 
-        // Si existe configuración explícita, se respeta estrictamente.
-        if (p !== undefined) {
-            return p?.[action] === true || p?.[normalizedAction] === true || (fallbackAction ? p?.[fallbackAction] === true : false);
+        // Si existe configuración explícita en el usuario, se respeta estrictamente.
+        if (pUser !== undefined) {
+            return pUser?.[action] === true || pUser?.[normalizedAction] === true || (fallbackAction ? pUser?.[fallbackAction] === true : false);
+        }
+
+        // Si no existe en el usuario, buscar en la empresa.
+        if (pEmp !== undefined) {
+            return pEmp?.[action] === true || pEmp?.[normalizedAction] === true || (fallbackAction ? pEmp?.[fallbackAction] === true : false);
         }
 
         // Fallback legacy para admin cuando no existe entrada explícita.

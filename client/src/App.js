@@ -147,9 +147,17 @@ const ProtectedRoute = ({ children, ceoOnly = false, allowRoles = null, allowPer
 
   const hasPermissionView = (permissionKey) => {
     if (!permissionKey || !user) return false;
-    if (['system_admin', 'ceo'].includes(user.role)) return true;
+    const roleStr = String(user.role || '').toLowerCase();
+    
+    if (['system_admin', 'ceo', 'ceo_genai'].includes(roleStr)) return true;
 
-    const perms = user.role === 'admin'
+    // Técnicos y Operativos tienen por defecto acceso al portal colaborador, ASTs y rendición de gastos
+    const defaultAllowedPermissions = ['op_colaborador', 'prev_ast', 'op_gastos'];
+    if (['tecnico', 'operativo'].includes(roleStr) && defaultAllowedPermissions.includes(permissionKey)) {
+      return true;
+    }
+
+    const perms = roleStr === 'admin'
       ? (user?.empresaRef?.permisosModulos || user?.permisosModulos || {})
       : (user?.permisosModulos || {});
     const grant = perms instanceof Map ? perms.get(permissionKey) : perms[permissionKey];
