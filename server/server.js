@@ -1625,7 +1625,27 @@ const invalidarCacheTarifas = _calculoEngine.invalidarCacheTarifas;
 
 // 2.1a GARANTÍAS STATS — Analiza reingresos (reparaciones dentro de 30 días de la instalación original)
 // Devuelve métricas de calidad por técnico para el módulo de Cierre de Bonos y Dashboard de Garantías
-app.get('/api/bot/garantias-stats', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
+app.get('/api/bot/garantias-stats', botLimiter, protect, async (req, res, next) => {
+  const tecnicoId = req.query.tecnicoId;
+  const userRut = req.user.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+  const isSystemAdmin = req.user.role === 'system_admin';
+  
+  if (isSystemAdmin) return next();
+  
+  // 🛡️ Bypass: El técnico ve su propia info si su RUT coincide con el del Tecnico
+  if (tecnicoId && userRut) {
+    try {
+      const tecnico = await Tecnico.findById(tecnicoId).select('rut');
+      if (tecnico && tecnico.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim() === userRut) {
+        return next();
+      }
+    } catch (e) {
+      // Ignorar error y seguir al authorize
+    }
+  }
+  
+  authorize('rend_operativo:ver', 'supervisor')(req, res, next);
+}, async (req, res) => {
   try {
     const isSystemAdmin = req.user.role === 'system_admin';
     let { desde, hasta, zonas, proyectos: proyectosFilter, tecnicos: tecnicosFilter, tecnicoId, empresaFilter } = req.query;

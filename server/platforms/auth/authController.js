@@ -340,7 +340,8 @@ exports.updateUser = async (req, res) => {
         const payload = req.body;
 
         // Actualizar campos simples
-        const simpleFields = ['name', 'email', 'corporateEmail', 'role', 'cargo', 'status', 'empresaRef'];
+        const simpleFields = ['name', 'email', 'corporateEmail', 'role', 'cargo', 'status', 'empresaRef', 'rut'];
+
         simpleFields.forEach(field => {
             if (payload[field] !== undefined && payload[field] !== '') {
                 user[field] = payload[field];

@@ -255,6 +255,7 @@ const GestorPersonal = () => {
             password: '',
             role: u.role || 'user',
             cargo: u.cargo || '',
+            rut: u.rut || '',
             status: u.status || 'Activo',
             empresaRef: u.empresaRef?._id || (typeof u.empresaRef === 'string' ? u.empresaRef : '') || '',
             permisosModulos: u.permisosModulos || defaultPermisosModulos,
@@ -262,6 +263,7 @@ const GestorPersonal = () => {
         });
         setModal('edit');
     };
+
 
     const togglePermission = (modId, capKey) => {
         setFormData(prev => {
