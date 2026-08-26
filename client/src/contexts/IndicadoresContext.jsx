@@ -94,7 +94,9 @@ export const IndicadoresProvider = ({ children }) => {
     const ipcValue = indicadores.ipc?.valor || null;
     
     // Parámetros Legales Chile 2026 (Consolidados para Payroll)
-    const immValue = 539000; // Ingreso Mínimo Mensual vigente Ley 21.751
+    // Ley N° 21.830 (D.O. 22-jun-2026) — vigente desde 1 mayo 2026
+    // IMM: $553.553 (18-65 años). Tope gratif mensual = 553.553 × 4.75 / 12 = $219.408
+    const immValue = 553553; // Ingreso Mínimo Mensual vigente Ley 21.830
     const sisRate = 1.54;    // Seguro Invalidez y Sobrevivencia 
     const topeAfpUf = 89.9;  // Tope imponible AFP en UF
     const topeAfcUf = 135.1; // Tope imponible AFC en UF

@@ -115,7 +115,7 @@ const FiniquitoModalAsistente = ({
                     promedioSueldoVariable: fd.promedioSueldoVariable || 0,
                     colacion: fd.colacion || 0,
                     movilizacion: fd.movilizacion || 0,
-                    gratificacion: fd.gratificacion ?? Math.min(Math.round((initialTarget.sueldoBase || 0) * 0.25), 197917),
+                    gratificacion: fd.gratificacion ?? Math.min(Math.round((initialTarget.sueldoBase || 0) * 0.25), 219115),
                     valorUF: fd.valorUF || currentUf,
                     diasVacacionesTomados: vacsTomadas,
                     diasVacacionesProgresivas: fd.diasVacacionesProgresivas || 0,
@@ -149,7 +149,7 @@ const FiniquitoModalAsistente = ({
                 const vacsTomadas = (c.vacaciones || [])
                     .filter(v => v.estado === 'Aprobado' && v.tipo === 'Vacaciones')
                     .reduce((sum, v) => sum + (Number(v.diasHabiles) || 0), 0);
-                const defaultGrat = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 197917);
+                const defaultGrat = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 219115);
                 setData({ ...EMPTY_DATA, sueldoBaseFijo: c.sueldoBase || 0, gratificacion: defaultGrat, valorUF: currentUf, diasVacacionesTomados: vacsTomadas });
             }
         } else {
@@ -170,7 +170,7 @@ const FiniquitoModalAsistente = ({
         const vacsTomadas = (c.vacaciones || [])
             .filter(v => v.estado === 'Aprobado' && v.tipo === 'Vacaciones')
             .reduce((sum, v) => sum + (Number(v.diasHabiles) || 0), 0);
-        const defaultGrat = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 197917);
+        const defaultGrat = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 219115);
         setData({ ...EMPTY_DATA, sueldoBaseFijo: c.sueldoBase || 0, gratificacion: defaultGrat, valorUF: currentUf, diasVacacionesTomados: vacsTomadas });
         setCalcPreview(null);
     };
@@ -325,7 +325,7 @@ const FiniquitoModalAsistente = ({
     const is161 = data.causalTermino?.includes('161');
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white w-full max-w-5xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
@@ -347,7 +347,7 @@ const FiniquitoModalAsistente = ({
                     </button>
                 </div>
 
-                <div className="flex flex-1 overflow-hidden">
+                <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
                     {/* Left: Form */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-5">
                         {/* Worker Selector */}
@@ -404,7 +404,7 @@ const FiniquitoModalAsistente = ({
                         </div>
 
                         {tab === 'datos' && (
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Field label="Fecha Egreso *">
                                     <Input type="date" value={data.fechaEgreso} onChange={set('fechaEgreso')} />
                                 </Field>
@@ -476,7 +476,7 @@ const FiniquitoModalAsistente = ({
                         )}
 
                         {tab === 'descuentos' && (
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="col-span-2 text-[9px] font-black uppercase tracking-widest text-violet-600 flex items-center gap-2 pb-1 border-b border-violet-100">
                                     ▸ Haberes Adicionales
                                 </div>
@@ -526,7 +526,7 @@ const FiniquitoModalAsistente = ({
                         )}
 
                         {tab === 'notaria' && (
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="col-span-2">
                                     <Field label="Procesado En">
                                         <div className="flex gap-2">
@@ -576,7 +576,7 @@ const FiniquitoModalAsistente = ({
                     </div>
 
                     {/* Right: Calc Preview */}
-                    <div className="w-72 xl:w-80 border-l border-slate-100 bg-slate-50/70 p-5 overflow-y-auto flex-shrink-0">
+                    <div className="w-full md:w-72 xl:w-80 border-t md:border-t-0 md:border-l border-slate-100 bg-slate-50/70 p-5 overflow-y-auto flex-shrink-0">
                         <div className="flex items-center gap-2 mb-4">
                             <Calculator size={16} className="text-violet-500" />
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Previsualización</span>

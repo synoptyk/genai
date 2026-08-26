@@ -54,8 +54,8 @@ const SearchableSelect = ({
     return (
         <div className={`relative w-full ${className}`} ref={wrapperRef}>
             {label && (
-                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                    {Icon && <Icon size={12} className="text-indigo-400" />}
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2.5 flex items-center gap-2.5">
+                    {Icon && <Icon size={14} className="text-indigo-500" />}
                     {label} {required && <span className="text-rose-500">*</span>}
                 </label>
             )}
@@ -63,17 +63,17 @@ const SearchableSelect = ({
             <div 
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 className={`
-                    flex items-center justify-between w-full px-4 py-2.5 bg-slate-50 border-2 rounded-2xl cursor-pointer transition-all
-                    ${isOpen ? 'border-indigo-400 bg-white ring-4 ring-indigo-50' : 'border-slate-200'}
+                    flex items-center justify-between w-full px-4 py-3 md:px-5 md:py-3.5 bg-slate-50 border-2 rounded-2xl cursor-pointer transition-all
+                    ${isOpen ? 'border-indigo-300 bg-white ring-4 ring-indigo-50/50 shadow-md' : 'border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]'}
                     ${error ? 'border-rose-300 bg-rose-50/30' : ''}
-                    ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-indigo-300'}
+                    ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-indigo-300 hover:bg-white'}
                 `}
             >
-                <div className="flex-1 truncate">
+                <div className="flex-1 truncate pr-2">
                     {displayValue ? (
-                        <span className="text-slate-900 text-sm font-semibold">{displayValue}</span>
+                        <span className="text-slate-700 text-xs md:text-sm font-bold uppercase">{displayValue}</span>
                     ) : (
-                        <span className="text-slate-400 text-sm font-medium">{placeholder}</span>
+                        <span className="text-slate-400 text-xs md:text-sm font-bold uppercase">{placeholder}</span>
                     )}
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">

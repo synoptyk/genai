@@ -39,6 +39,7 @@ exports.handlePortalAccess = async (candidato) => {
             role: assignedRole,
             cargo: candidato.position,
             telefono: candidato.phone,
+            empresaRef: candidato.empresaRef || undefined,
             empresa: {
                 nombre: candidato.projectName || 'GENAI360',
                 rut: candidato.ceco || '',

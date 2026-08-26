@@ -12,22 +12,13 @@ import { BRAND } from '../../branding/brand';
 import axios from 'axios';
 
 const PLATFORM_AREAS = [
-    { icon: Activity, label: 'Control Operativo', color: 'indigo' },
-    { icon: ShieldCheck, label: 'Control Preventivo', color: 'rose' },
-    { icon: TrendingUp, label: 'Control Productivo', color: 'emerald' },
-    { icon: Layers, label: 'Áreas de Soporte', color: 'amber' },
-    { icon: BrainCircuit, label: 'Asistente IA Enterprise', color: 'violet' },
-    { icon: Network, label: 'Integraciones', color: 'sky' },
+    { icon: Activity, label: 'Control Operativo', desc: 'KPIs en Tiempo Real', tag: '99.9%', colorHex: '#00bcd4', bgGradient: 'linear-gradient(135deg, #00bcd4, #0284c7)' },
+    { icon: ShieldCheck, label: 'Control Preventivo', desc: 'AST, EPP & HSE', tag: '-74%', colorHex: '#00897b', bgGradient: 'linear-gradient(135deg, #00897b, #10b981)' },
+    { icon: TrendingUp, label: 'Control Productivo', desc: 'Eficiencia por Proceso', tag: '+43%', colorHex: '#f59e0b', bgGradient: 'linear-gradient(135deg, #d97706, #f59e0b)' },
+    { icon: Layers, label: 'Áreas de Soporte', desc: 'Flota, Logística, RRHH', tag: '360°', colorHex: '#10b981', bgGradient: 'linear-gradient(135deg, #10b981, #059669)' },
+    { icon: BrainCircuit, label: 'Asistente IA Enterprise', desc: 'Inteligencia Autónoma', tag: 'AI v8', colorHex: '#00bcd4', bgGradient: 'linear-gradient(135deg, #00bcd4, #5c35d4)' },
+    { icon: Network, label: 'Integraciones Cloud', desc: 'SII, SAP & Ecosistema', tag: 'Sync', colorHex: '#f59e0b', bgGradient: 'linear-gradient(135deg, #f59e0b, #00bcd4)' },
 ];
-
-const colorMap = {
-    indigo: { bg: 'bg-indigo-50', text: 'text-indigo-700', dot: 'bg-indigo-600' },
-    rose: { bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-600' },
-    amber: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
-    violet: { bg: 'bg-violet-50', text: 'text-violet-700', dot: 'bg-violet-600' },
-    sky: { bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500' },
-};
 
 const PlatformLogin = () => {
     const navigate = useNavigate();
@@ -101,7 +92,6 @@ const PlatformLogin = () => {
     };
 
     const handleVerifyPin = async (val) => {
-        // val es el pin de 4 digitos
         setError('');
         setLoading(true);
         try {
@@ -109,7 +99,7 @@ const PlatformLogin = () => {
             handleLoginRedirect(data);
         } catch (err) {
             setError(err.response?.data?.message || 'PIN incorrecto. Intenta de nuevo.');
-            setPin(''); // Reset local pin
+            setPin('');
         } finally {
             setLoading(false);
         }
@@ -156,7 +146,6 @@ const PlatformLogin = () => {
                 cargo: regCargo,
                 empresa: { nombre: regEmpresa, rut: regRut }
             });
-            // El administrador que acaba de registrar su empresa va a su dashboard o configuraciones
             navigate('/configuracion-empresa');
         } catch (err) {
             setError(err.response?.data?.message || 'Error en el registro. Intente de nuevo.');
@@ -170,79 +159,114 @@ const PlatformLogin = () => {
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
                 body { font-family: 'Inter', sans-serif; }
-                .gradient-panel { background: linear-gradient(145deg, #e7eefc 0%, #ebe5ff 35%, #def4ff 100%); }
-                .btn-primary { background: linear-gradient(135deg, #4f46e5, #7c3aed); transition: all 0.3s ease; }
-                .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(79,70,229,0.35); }
-                .btn-white { background: white; transition: all 0.3s ease; }
-                .btn-white:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(79,70,229,0.15); }
+                .gradient-panel {
+                  background: linear-gradient(150deg, #022b3a 0%, #004d40 45%, #0b1a30 100%);
+                }
+                .btn-primary {
+                  background: linear-gradient(135deg, #00bcd4 0%, #00897b 100%);
+                  color: #ffffff;
+                  font-weight: 800;
+                  transition: all 0.3s ease;
+                }
+                .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 35px rgba(0,188,212,0.45); }
+                .btn-white { background: #f0fdfa; border: 1px solid #ccfbf1; transition: all 0.2s ease; }
+                .btn-white:hover { background: #e0f2f1; border-color: #00897b; color: #00695c; transform: translateY(-1px); }
                 .input-style { width: 100%; padding: 14px 20px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 14px; color: #0f172a; font-size: 14px; font-weight: 600; outline: none; transition: all 0.2s ease; }
                 .input-style::placeholder { color: #94a3b8; font-weight: 500; }
-                .input-style:focus { border-color: #6366f1; background: white; box-shadow: 0 0 0 4px rgba(99,102,241,0.08); }
+                .input-style:focus { border-color: #00bcd4; background: white; box-shadow: 0 0 0 4px rgba(0,188,212,0.12); }
                 .input-icon { padding-left: 48px !important; }
-                .label-style { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6366f1; margin-bottom: 8px; margin-left: 4px; }
-                .area-card { transition: all 0.2s ease; }
-                .area-card:hover { transform: translateY(-2px); }
-                .bg-mesh { background-image: radial-gradient(circle at 1px 1px, rgba(99,102,241,0.08) 1px, transparent 0); background-size: 32px 32px; }
+                .label-style { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #00838f; margin-bottom: 8px; margin-left: 4px; }
+                .area-card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+                .area-card:hover { transform: translateY(-3px); background: rgba(0,188,212,0.15) !important; border-color: #00bcd4 !important; }
+                .bg-mesh { background-image: radial-gradient(circle at 1px 1px, rgba(0,188,212,0.15) 1px, transparent 0); background-size: 32px 32px; }
             `}</style>
 
-            {/* ── LEFT: BRAND PANEL ─────────────────────────────────────── */}
-            <div className="hidden lg:flex lg:w-[48%] gradient-panel bg-mesh flex-col p-14 relative overflow-hidden">
-                {/* Decorative circles */}
-                <div className="absolute -bottom-40 -left-40 w-[500px] h-[500px] bg-indigo-200/30 rounded-full blur-3xl" />
-                <div className="absolute -top-32 -right-32 w-[400px] h-[400px] bg-violet-200/30 rounded-full blur-3xl" />
+            {/* ── LEFT: BRAND PANEL (CELESTE, VERDE, DORADO PREDOMINANTES - 100% MAX CONTRAST) ─────────────────────────────────────── */}
+            <div className="hidden lg:flex lg:w-[48%] bg-mesh flex-col p-12 xl:p-14 relative overflow-hidden justify-between"
+              style={{ background: 'linear-gradient(150deg, #061024 0%, #0a1738 50%, #040c1e 100%)' }}>
+                {/* Ambient glow spots in Celeste, Verde & Dorado */}
+                <div className="absolute -top-32 -left-32 w-[480px] h-[480px] rounded-full blur-[110px] pointer-events-none" style={{background:'rgba(0, 188, 212, 0.28)'}} />
+                <div className="absolute bottom-0 right-0 w-[420px] h-[420px] rounded-full blur-[110px] pointer-events-none" style={{background:'rgba(16, 185, 129, 0.25)'}} />
+                <div className="absolute top-1/2 left-1/3 w-[320px] h-[320px] rounded-full blur-[90px] pointer-events-none" style={{background:'rgba(245, 158, 11, 0.2)'}} />
 
-                {/* Logo */}
+                {/* Logo top bar */}
                 <div className="relative z-10">
-                    <button onClick={() => navigate('/')} className="flex items-center gap-2 sm:gap-3 group">
-                        <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-10 sm:w-11 h-10 sm:h-11 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform" />
+                    <button onClick={() => navigate('/')} className="flex items-center gap-3 group text-left">
+                        <div className="p-1 rounded-2xl bg-white/10 border border-white/20 shadow-lg group-hover:scale-105 transition-transform"
+                          style={{boxShadow:'0 0 24px rgba(0,188,212,0.5)'}}>
+                            <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-10 h-10 rounded-xl object-cover" />
+                        </div>
                         <div>
-                            <span className="text-base sm:text-lg md:text-xl font-black tracking-tight text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
-                            <p className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">{BRAND.platformLabel}</p>
+                            <span className="text-xl font-black tracking-tight text-white block leading-none">
+                                {BRAND.productName}<span style={{color:'#00e5ff'}}> by {BRAND.companyName}</span>
+                            </span>
+                            <span className="text-[9px] font-extrabold uppercase tracking-[0.25em] block mt-1" style={{color:'#00bcd4'}}>
+                                {BRAND.platformLabel}
+                            </span>
                         </div>
                     </button>
                 </div>
 
                 {/* Main copy */}
-                <div className="relative z-10 flex-1 flex flex-col justify-center">
-                    <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-white border border-indigo-100 rounded-full w-fit mb-4 sm:mb-8 shadow-sm">
-                        <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-indigo-500 rounded-full animate-pulse" />
-                        <span className="text-[8px] sm:text-[10px] font-bold text-indigo-700 uppercase tracking-widest">{BRAND.platformLabelLatam}</span>
+                <div className="relative z-10 my-auto py-6">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full w-fit mb-6"
+                      style={{background:'rgba(0,188,212,0.15)', border:'1px solid rgba(0,188,212,0.4)', backdropFilter:'blur(10px)'}}>
+                        <div className="w-2 h-2 rounded-full animate-pulse" style={{background:'#10b981', boxShadow:'0 0 10px #10b981'}} />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-cyan-200">{BRAND.platformLabelLatam}</span>
                     </div>
-                    <h2 className="text-xl sm:text-2xl md:text-4xl font-black text-slate-900 leading-[1.1] mb-3 sm:mb-6 tracking-tight">
+
+                    <h2 className="text-3xl xl:text-4xl font-black leading-[1.12] mb-4 tracking-tight text-white">
                         Todo tu mundo<br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">operativo en una sola plataforma.</span>
+                        <span style={{background:'linear-gradient(135deg, #00e5ff 0%, #10b981 50%, #ffc107 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text'}}>
+                            operativo en una sola plataforma.
+                        </span>
                     </h2>
-                    <p className="text-slate-500 text-xs sm:text-sm md:text-base leading-relaxed mb-6 sm:mb-10 max-w-sm font-medium">
+
+                    <p className="text-sm text-slate-300 leading-relaxed mb-8 max-w-md font-semibold">
                         Control Operativo · Preventivo · Productivo.<br />
                         Flota, Logística, RRHH, Empresa360 y Aprobaciones.<br />
-                        Diseñado para operaciones complejas en {countries}.
+                        Diseñado para operaciones exigentes en {countries}.
                     </p>
 
-                    {/* Platform areas grid */}
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                        {PLATFORM_AREAS.map((area, i) => {
-                            const c = colorMap[area.color];
-                            return (
-                                <div key={i} className={`area-card flex items-center gap-2 sm:gap-3 p-2 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-100 shadow-sm`}>
-                                    <div className={`w-6 sm:w-8 h-6 sm:h-8 ${c.dot} rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0`}>
-                                        <area.icon size={12} className="text-white" />
+                    {/* Platform areas grid: 6 solid dark cards for maximum text contrast */}
+                    <div className="grid grid-cols-2 gap-3">
+                        {PLATFORM_AREAS.map((area, i) => (
+                            <div key={i} className="area-card p-3 rounded-2xl flex items-center justify-between gap-2 shadow-md"
+                              style={{background:'#0c1733', border:'1px solid rgba(0,188,212,0.3)'}}>
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
+                                      style={{background: area.bgGradient}}>
+                                        <area.icon size={15} className="text-white" />
                                     </div>
-                                    <span className="text-[9px] sm:text-[11px] font-bold text-slate-700">{area.label}</span>
+                                    <div className="min-w-0">
+                                        <p className="text-[11px] font-black text-white leading-tight truncate">{area.label}</p>
+                                        <p className="text-[9px] font-bold text-slate-300 truncate mt-0.5">{area.desc}</p>
+                                    </div>
                                 </div>
-                            );
-                        })}
+                                <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider text-white flex-shrink-0"
+                                  style={{background: area.colorHex}}>
+                                    {area.tag}
+                                </span>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
-                {/* Stats bottom strip */}
-                <div className="relative z-10 mt-6 sm:mt-10 pt-4 sm:pt-8 border-t border-white/60">
-                    <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center">
-                        {[['100%', 'Módulos activos'], ['+43%', 'Eficiencia'], ['360°', 'Visibilidad']].map(([val, label]) => (
-                            <div key={label}>
-                                <p className="text-base sm:text-xl font-black text-indigo-700">{val}</p>
-                                <p className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{label}</p>
-                            </div>
-                        ))}
+                {/* Stats bottom strip: Verde, Celeste, Dorado */}
+                <div className="relative z-10 pt-6" style={{borderTop:'1px solid rgba(0,188,212,0.25)'}}>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <p className="text-2xl font-black tracking-tight" style={{color:'#10b981'}}>100%</p>
+                            <p className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-slate-300">Módulos Activos</p>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-black tracking-tight" style={{color:'#00e5ff'}}>360°</p>
+                            <p className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-slate-300">Visibilidad Total</p>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-black tracking-tight" style={{color:'#ffc107'}}>+43%</p>
+                            <p className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-slate-300">Eficiencia Operativa</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -252,12 +276,15 @@ const PlatformLogin = () => {
                 {/* Mobile logo */}
                 <div className="flex lg:hidden items-center gap-2 sm:gap-3 mb-6 sm:mb-10">
                     <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-8 sm:w-9 h-8 sm:h-9 rounded-xl" />
-                     <span className="text-sm sm:text-lg font-black text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
+                     <span className="text-sm sm:text-lg font-black" style={{color:'#0d1854'}}>{BRAND.productName}<span style={{color:'#00bcd4'}}> by {BRAND.companyName}</span></span>
                 </div>
 
                 <div className="w-full max-w-[400px] mx-auto px-2 sm:px-0">
                     {/* Back to landing */}
-                    <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] sm:text-[11px] font-bold text-slate-400 hover:text-indigo-600 uppercase tracking-wider transition-colors mb-6 sm:mb-8">
+                    <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-colors mb-6 sm:mb-8"
+                      style={{color:'#8fa3c0'}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#1565c0'}
+                      onMouseLeave={e=>e.currentTarget.style.color='#8fa3c0'}>
                         <ChevronLeft size={14} /> Volver al inicio
                     </button>
 
@@ -272,7 +299,7 @@ const PlatformLogin = () => {
                                 : 'Registra tu empresa y activa una operación 360° desde el primer día.'
                             }
                         </p>
-                        <div className="h-1 w-10 sm:w-12 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-3 sm:mt-5" />
+                        <div className="h-1 w-10 sm:w-12 rounded-full mt-3 sm:mt-5" style={{background:'linear-gradient(90deg, #1565c0, #00bcd4)'}} />
                     </div>
 
                     {/* Success alert */}
@@ -350,16 +377,17 @@ const PlatformLogin = () => {
                             <div className="flex items-center justify-between">
                                 <label className="flex items-center gap-2 sm:gap-2.5 cursor-pointer">
                                     <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
-                                        className="w-4 h-4 accent-indigo-600 rounded" />
+                                        className="w-4 h-4 rounded" style={{accentColor:'#1565c0'}} />
                                     <span className="text-[10px] sm:text-[12px] font-semibold text-slate-500">Mantener sesión</span>
                                 </label>
-                                <button type="button" onClick={() => { setMode('forgot-password'); setError(''); setSuccessMsg(''); }} className="text-[10px] sm:text-[12px] font-bold text-indigo-600 hover:text-violet-600 underline underline-offset-2">
+                                <button type="button" onClick={() => { setMode('forgot-password'); setError(''); setSuccessMsg(''); }} className="text-[10px] sm:text-[12px] font-bold underline underline-offset-2" style={{color:'#1565c0'}}>
                                     Olvidé mi contraseña
                                 </button>
                             </div>
 
                             <button type="submit" disabled={loading}
-                                className="btn-primary w-full text-white py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60">
+                                className="btn-primary w-full text-white py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 sm:gap-3 shadow-lg disabled:opacity-60"
+                                style={{boxShadow:'0 10px 25px rgba(21,101,192,0.25)'}}>
                                  {loading ? <Loader2 className="animate-spin" size={18} /> : <span className="flex items-center gap-2 sm:gap-3">Ingresar a la Plataforma <ArrowRight size={16} /></span>}
                             </button>
 
@@ -381,10 +409,11 @@ const PlatformLogin = () => {
                         /* ── PIN FORM (Keypad) ── */
                         <div className="space-y-6 sm:space-y-10">
                             <div className="text-center">
-                                <p className="text-[10px] sm:text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">Seguridad de Acceso</p>
+                                <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] mb-3 sm:mb-4" style={{color:'#1565c0'}}>Seguridad de Acceso</p>
                                 <div className="flex justify-center gap-3 sm:gap-5">
                                     {[1, 2, 3, 4].map(dot => (
-                                        <div key={dot} className={`w-3 sm:w-4 h-3 sm:h-4 rounded-full border-2 transition-all duration-300 ${pin.length >= dot ? 'bg-indigo-600 border-indigo-600 scale-125 shadow-lg shadow-indigo-200' : 'border-slate-200 bg-white'}`} />
+                                        <div key={dot} className={`w-3 sm:w-4 h-3 sm:h-4 rounded-full border-2 transition-all duration-300`}
+                                          style={pin.length >= dot ? {background:'#1565c0', borderColor:'#1565c0', transform:'scale(1.25)', boxShadow:'0 4px 12px rgba(21,101,192,0.3)'} : {borderColor:'#cbd5e1', background:'white'}} />
                                     ))}
                                 </div>
                             </div>
@@ -407,10 +436,11 @@ const PlatformLogin = () => {
                                             }
                                         }}
                                         className={`h-12 sm:h-16 rounded-2xl flex items-center justify-center text-lg sm:text-xl font-bold transition-all active:scale-95 ${
-                                            key === 'check' ? 'bg-indigo-600 text-white shadow-lg' : 
+                                            key === 'check' ? 'text-white shadow-lg' : 
                                             key === 'back' ? 'bg-slate-50 text-slate-400' : 
                                             'bg-slate-50 text-slate-700 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100'
                                         }`}
+                                        style={key === 'check' ? {background:'linear-gradient(135deg, #1565c0, #5c35d4)'} : {}}
                                     >
                                         {key === 'back' ? <ChevronLeft size={18} /> : key === 'check' ? <CheckCircle2 size={18} /> : key}
                                     </button>
@@ -527,7 +557,8 @@ const PlatformLogin = () => {
                                 {mode === 'login' ? '¿Tu empresa aún no tiene acceso?' : '¿Ya tienes una cuenta?'}
                             </p>
                             <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMsg(''); }}
-                                className="text-[11px] sm:text-[13px] font-black text-indigo-600 hover:text-violet-600 transition-colors underline underline-offset-4 decoration-indigo-200 flex items-center gap-1 sm:gap-2 mx-auto">
+                                className="text-[11px] sm:text-[13px] font-black transition-colors underline underline-offset-4 flex items-center gap-1 sm:gap-2 mx-auto"
+                                style={{color:'#1565c0', textDecorationColor:'#c5d8f5'}}>
                                 {mode === 'login' ? <span className="flex items-center gap-1 sm:gap-2"><UserPlus size={12} /> Solicitar Acceso Corporativo</span> : <span className="flex items-center gap-1 sm:gap-2"><ArrowRight size={12} /> Iniciar Sesión</span>}
                             </button>
                         </div>

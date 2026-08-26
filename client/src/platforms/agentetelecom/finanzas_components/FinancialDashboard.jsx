@@ -110,7 +110,7 @@ const getProratedSueldo = (v, limitDays, numDiasMes, filtroMes, tecnicos) => {
 };
 
 // Helper de cálculo financiero 100% alineado a legislación chilena (Feb 2026) y Mercado Financiero
-const calculateFinancials = (sueldoBase, produccionClp, bonoFijo, bonoVar, leasing, combustible, workerDays, numDiasMes, infoPrev = {}, ufHoy = 38500, immValue = 539000, sisRate = 1.54) => {
+const calculateFinancials = (sueldoBase, produccionClp, bonoFijo, bonoVar, leasing, combustible, workerDays, numDiasMes, infoPrev = {}, ufHoy = 38500, immValue = 553553, sisRate = 1.54) => {
   const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / numDiasMes) * workerDays) : 0;
   const prorrateadoBonoFijo = bonoFijo ? Math.round((bonoFijo / numDiasMes) * workerDays) : 0;
   
@@ -166,7 +166,7 @@ const calculateFinancials = (sueldoBase, produccionClp, bonoFijo, bonoVar, leasi
 };
 
 const FinancialDashboard = ({ vehiculos = [], searchTech = '', dashboardData = null, tecnicos = [], selectedMonths = [], setSelectedMonths }) => {
-  const { ufValue: ufCtx, immValue = 539000, params: indicParams } = useIndicadores();
+  const { ufValue: ufCtx, immValue = 553553, params: indicParams } = useIndicadores();
   const [selectedBreakdown, setSelectedBreakdown] = useState(null);
   const [loadingAi, setLoadingAi] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);

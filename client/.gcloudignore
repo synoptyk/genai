@@ -1,0 +1,10 @@
+.git
+.gitignore
+node_modules/
+src/
+public/
+.env*
+!build
+!build/**
+!nginx.conf
+!Dockerfile

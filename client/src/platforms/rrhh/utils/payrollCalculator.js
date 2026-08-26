@@ -6,9 +6,11 @@
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 
-// ─── VALORES LEGALES REFERENCIALES (Feb 2026) ────────────────────────────────
+// ─── VALORES LEGALES REFERENCIALES (vigentes 2026) ────────────────────────────────────────────
 export const VALORES_LEGALES = {
-    IMM: 510000,   // Ingreso Mínimo Mensual
+    // Ley N° 21.830 (D.O. 22-jun-2026) — vigente desde 1 mayo 2026
+    // Tope Gratificación mensual = 553.553 × 4.75 / 12 = $219.408
+    IMM: 553553,   // Ingreso Mínimo Mensual (18-65 años)
     UF: 38500,    // Valor UF (inyectado desde API)
     UTM: 67500,    // Valor UTM (inyectado desde API)
     TOPE_AFP: 89.9,      // Tope imponible AFP en UF

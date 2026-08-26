@@ -1179,7 +1179,7 @@ const Inventario = () => {
                                                 )}
 
                                                 {/* Indicadores de Existencias en Bodega */}
-                                                <div className="grid grid-cols-3 gap-2 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/60 mb-4 text-center">
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/60 mb-4 text-center">
                                                     <div>
                                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total</p>
                                                         <p className="text-xs font-black text-slate-800 mt-0.5">{totalStock}</p>
@@ -2038,7 +2038,7 @@ const Inventario = () => {
                         </div>
 
                         {/* Ficha Rápida del Activo */}
-                        <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                             <div>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Categoría</span>
                                 <span className="text-xs font-bold text-slate-700">{selectedAssetForDepreciation.categoria?.nombre || 'General'}</span>
@@ -2175,7 +2175,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="space-y-2 col-span-3 sm:col-span-1">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría de la Existencia</label>
                                             <select 
@@ -2210,7 +2210,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="space-y-2 col-span-3 sm:col-span-1">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unidad de Medida</label>
                                             <select 
@@ -2293,7 +2293,7 @@ const Inventario = () => {
                                 <div className="space-y-4 pt-4 border-t border-slate-100">
                                     <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">2. Contabilidad & Depreciación Real-Time</h4>
                                     
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor de Adquisición (CLP)</label>
                                             <input 
@@ -2314,7 +2314,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vida Útil (En Meses)</label>
                                             <select 
@@ -2346,7 +2346,7 @@ const Inventario = () => {
                                 <div className="space-y-4 pt-4 border-t border-slate-100">
                                     <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">3. Control Operativo & Propiedad</h4>
                                     
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Color</label>
                                             <select 
@@ -2526,7 +2526,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="space-y-2 col-span-3 sm:col-span-1">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría de la Existencia</label>
                                             <select 
@@ -2611,7 +2611,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="space-y-2 col-span-3 sm:col-span-1">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unidad de Medida</label>
                                             <select 
@@ -2642,7 +2642,7 @@ const Inventario = () => {
                                 <div className="space-y-4 pt-4 border-t border-slate-100">
                                     <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">2. Contabilidad & Depreciación Real-Time</h4>
                                     
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor de Adquisición (CLP)</label>
                                             <input 
@@ -2663,7 +2663,7 @@ const Inventario = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vida Útil (En Meses)</label>
                                             <select 
@@ -2695,7 +2695,7 @@ const Inventario = () => {
                                 <div className="space-y-4 pt-4 border-t border-slate-100">
                                     <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">3. Control Operativo & Propiedad</h4>
                                     
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Color</label>
                                             <select 
@@ -2852,7 +2852,7 @@ const Inventario = () => {
                                     </div>
 
                                     {/* Cantidad y Estado */}
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cantidad</label>
                                             <input 

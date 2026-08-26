@@ -223,7 +223,7 @@ const DashboardTributario = () => {
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-white/10">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 pt-4 border-t border-white/10">
                             <div>
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">IVA Débito (Ventas)</p>
                                 <p className="text-sm font-bold text-emerald-400 tabular-nums">+{formatCLP(resumenPeriodo.ivaDebito)}</p>

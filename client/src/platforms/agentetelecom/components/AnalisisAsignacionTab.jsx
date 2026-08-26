@@ -1415,7 +1415,7 @@ export default function AnalisisAsignacionTab({ tecnicos = [] }) {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   
                   {/* Left: KPIs Grid (7 cols) */}
-                  <div className="lg:col-span-7 grid grid-cols-2 gap-4">
+                  <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* KPI 1: Total */}
                     <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100/80 flex flex-col justify-between">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Órdenes Únicas</span>

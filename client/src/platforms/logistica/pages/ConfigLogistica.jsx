@@ -1718,7 +1718,7 @@ const ConfigLogistica = () => {
                             </div>
 
                             {/* Categorías como Tarjetas / Pestañas en Existencia (Compacto y Premium) */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-2 mb-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-2 mb-4">
                                 <div 
                                     onClick={() => setActiveProdCategoryDetail({ _id: 'all', nombre: activeTab === 'seriados' ? 'Todas las Existencias Seriadas' : 'Todas las Existencias' })}
                                     className="p-3 bg-white hover:bg-indigo-50/20 border border-slate-100 hover:border-indigo-100 rounded-2xl shadow-sm transition-all cursor-pointer flex items-center gap-3 group"
@@ -1782,7 +1782,7 @@ const ConfigLogistica = () => {
                             </div>
 
                             {/* Barra de Filtros Dinámicos de Existencias */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 bg-slate-50 rounded-3xl border border-slate-100 shadow-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 bg-slate-50 rounded-3xl border border-slate-100 shadow-sm">
                                 {/* Filtro Categoría */}
                                 <div className="flex flex-col gap-1">
                                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Categoría</label>
@@ -1933,7 +1933,7 @@ const ConfigLogistica = () => {
                             </div>
 
                             {/* Barra de Filtros Dinámicos */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 bg-slate-50 rounded-3xl border border-slate-100">
                                 {/* Filtro Proyecto */}
                                 <div className="flex flex-col gap-1">
                                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Proyecto</label>
@@ -3023,7 +3023,7 @@ const ConfigLogistica = () => {
                             {/* Información de Tallas del Técnico */}
                             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 mb-6 shadow-sm">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Tallas Registradas (Captura de Talento)</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                     <div className="p-4 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100/50">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Polera / Camisa</span>
                                         <span className="text-lg font-black text-slate-800 mt-1">{tecnicoAsignacion.shirtSize || '-'}</span>
@@ -3168,14 +3168,14 @@ const ConfigLogistica = () => {
                                 {activeTab === 'bodegas' && (
                                     <>
                                         <InputField label="Nombre de Bodega/Vehículo" value={almForm.nombre} onChange={v => setAlmForm({...almForm, nombre: v})} />
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField label="Tipo Unidad" value={almForm.tipo} onChange={v => setAlmForm({...almForm, tipo: v})} options={['Central', 'Sucursal', 'Móvil', 'Técnico', 'Sub-Bodega']} />
                                             <SelectField label="Propiedad" value={almForm.propiedad} onChange={v => setAlmForm({...almForm, propiedad: v})} options={['Propio', 'Cliente']} />
                                         </div>
                                         {almForm.propiedad === 'Cliente' && (
                                             <SelectField label="Cliente Dueño" value={almForm.clienteRef} onChange={v => setAlmForm({...almForm, clienteRef: v})} options={data?.clientes?.map(c => ({label: c.nombre, value: c._id}))} />
                                         )}
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField label="Bodega Padre (Jerarquía)" value={almForm.parentAlmacen} onChange={v => setAlmForm({...almForm, parentAlmacen: v})} options={data?.almacenes?.map(a => ({label: a.nombre, value: a._id}))} required={false} placeholder="Sin bodega padre (Raíz)" />
                                             <SelectField label="Responsable (Personal 360)" value={almForm.tecnicoRef} onChange={v => setAlmForm({...almForm, tecnicoRef: v})} options={data?.tecnicos?.map(t => ({label: `${t.nombres} ${t.apellidos} (${t.rut}) - ${t.cargo || t.role || 'Colaborador'}`, value: t._id}))} />
                                         </div>
@@ -3220,7 +3220,7 @@ const ConfigLogistica = () => {
                                             </label>
                                             {catForm.imagenUrl && <img src={catForm.imagenUrl} alt="Categoria" className="w-full h-28 object-cover rounded-2xl" />}
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField label="Valoración" value={catForm.prioridadValor} onChange={v => setCatForm({...catForm, prioridadValor: v})} options={['Bajo Valor', 'Alto Valor']} />
                                             <SelectField label="Movilidad" value={catForm.tipoRotacion} onChange={v => setCatForm({...catForm, tipoRotacion: v})} options={['Rotativo', 'Estático']} />
                                         </div>
@@ -3286,11 +3286,11 @@ const ConfigLogistica = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <InputField label="Código SKU (Vacío = Auto)" value={prodForm.sku} onChange={v => setProdForm({...prodForm, sku: v})} required={false} />
                                             <InputField label="Código EAN (Barras)" value={prodForm.ean} onChange={v => setProdForm({...prodForm, ean: v})} required={false} />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField label="Categoría" value={prodForm.categoria} onChange={v => setProdForm({...prodForm, categoria: v})} options={data?.categorias?.map(c => ({label: c.nombre, value: c._id}))} />
                                             <SelectField label="Tipo" value={prodForm.tipo} onChange={v => setProdForm({...prodForm, tipo: v})} options={['Activo', 'Suministro']} />
                                         </div>
@@ -3313,11 +3313,11 @@ const ConfigLogistica = () => {
                                             </label>
                                             {prodForm.fotoUrl && <img src={prodForm.fotoUrl} alt="Existencia" className="w-full h-28 object-cover rounded-2xl" />}
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <InputField label="Marca" value={prodForm.marca} onChange={v => setProdForm({...prodForm, marca: v})} required={false} />
                                             <InputField label="Modelo" value={prodForm.modelo} onChange={v => setProdForm({...prodForm, modelo: v})} required={false} />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField label="Unidad de Medida" value={prodForm.unidadMedida} onChange={v => setProdForm({...prodForm, unidadMedida: v})} options={['Unidad', 'Metro', 'Litro', 'Kilogramo', 'Caja', 'Pack']} />
                                             <InputField label="Descripción" value={prodForm.descripcion} onChange={v => setProdForm({...prodForm, descripcion: v})} required={false} />
                                         </div>
@@ -3330,11 +3330,11 @@ const ConfigLogistica = () => {
                                                 className="w-full mt-2 p-4 bg-white border-none rounded-2xl text-sm font-bold outline-none shadow-sm"
                                             />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField label="Color" value={prodForm.color || 'Genérico'} onChange={v => setProdForm({...prodForm, color: v})} options={COLOR_OPTIONS} />
                                             <SelectField label="Segmentación" value={prodForm.segmentacion} onChange={v => setProdForm({...prodForm, segmentacion: v})} options={['Crítico', 'Estándar', 'Consumo']} />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField label="Propiedad" value={prodForm.propiedad} onChange={v => setProdForm({...prodForm, propiedad: v})} options={['Propio', 'Cliente']} />
                                         </div>
                                     </>
@@ -3421,7 +3421,7 @@ const ConfigLogistica = () => {
                                             onChange={v => setProdForm({ ...prodForm, modelo: v })}
                                         />
 
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <InputField
                                                 label="Número de Serie (Requerido)"
                                                 value={prodForm.nroSerie}
@@ -3435,7 +3435,7 @@ const ConfigLogistica = () => {
                                             />
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <SelectField
                                                 label="Color"
                                                 value={prodForm.color || 'Genérico'}
@@ -3945,7 +3945,7 @@ const ConfigLogistica = () => {
                         {/* Contenido / Vista Principal */}
                         <div className="p-8 overflow-y-auto custom-scrollbar flex-grow bg-slate-50/50">
                             {/* Métricas / KPIs de la Categoría */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                                 <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm flex items-center justify-between">
                                     <div>
                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Artículos</span>

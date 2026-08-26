@@ -5,6 +5,7 @@ import {
     Smartphone, ShieldCheck, Info,
     User, Briefcase, MapPin, Printer
 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { candidatosApi } from '../rrhhApi';
 import { formatRut } from '../../../utils/rutUtils';
 import GuiaRequisitosPrint from './GuiaRequisitosPrint';
@@ -65,6 +66,7 @@ const MASTER_DOCUMENTS = [
 ];
 
 const GestionDocumental = () => {
+    const location = useLocation();
     const [candidatos, setCandidatos] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -74,6 +76,14 @@ const GestionDocumental = () => {
     const [copied, setCopied] = useState(false);
     const [docDates, setDocDates] = useState({ emissionDate: '', expiryDate: '' });
     const [editingDoc, setEditingDoc] = useState(null);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const id = params.get('id');
+        if (id) {
+            setSelectedId(id);
+        }
+    }, [location.search]);
 
     const fetchCandidatos = useCallback(async () => {
         setLoading(true);
@@ -428,16 +438,16 @@ const GestionDocumental = () => {
                     </div>
                 </div>
 
-                <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 self-start md:self-center">
+                <div className="flex w-full md:w-auto bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 self-start md:self-center">
                     <button
                         onClick={() => setViewMode('expedientes')}
-                        className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'expedientes' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`flex-1 px-2 sm:px-8 py-3 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'expedientes' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                         Expedientes Digitales
                     </button>
                     <button
                         onClick={() => setViewMode('requisitos')}
-                        className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'requisitos' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`flex-1 px-2 sm:px-8 py-3 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'requisitos' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                         Requisitos Oficiales
                     </button>
@@ -447,7 +457,7 @@ const GestionDocumental = () => {
             {viewMode === 'expedientes' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-in slide-in-from-left-4 duration-500">
                     {/* Search Sidebar */}
-                    <div className="lg:col-span-1 bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 flex flex-col h-[700px] overflow-hidden">
+                    <div className={`lg:col-span-1 bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 flex-col h-[700px] overflow-hidden ${selectedId ? 'hidden lg:flex' : 'flex'}`}>
                         <div className="p-6 border-b border-slate-50 bg-slate-50/30">
                             <div className="relative group">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={16} />
@@ -500,14 +510,22 @@ const GestionDocumental = () => {
                     </div>
 
                     {/* Main View Expediente */}
-                    <div className="lg:col-span-3">
+                    <div className={`lg:col-span-3 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
                         {selected ? (
                             <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
+                                {/* Botón Volver (Solo Móvil) */}
+                                <button 
+                                    onClick={() => setSelectedId(null)}
+                                    className="lg:hidden flex items-center gap-2 text-slate-500 hover:text-slate-800 font-black text-[10px] uppercase tracking-widest bg-white py-2.5 px-5 rounded-2xl shadow-sm border border-slate-100 transition-all active:scale-95 w-fit mb-2"
+                                >
+                                    ← Volver a la lista
+                                </button>
+
                                 {/* Profile Header */}
-                                <div className="bg-slate-900 p-10 rounded-[3.5rem] shadow-2xl text-white flex flex-col md:flex-row md:items-center justify-between gap-8 relative overflow-hidden">
+                                <div className="bg-slate-900 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] shadow-2xl text-white flex flex-col md:flex-row md:items-center justify-between gap-6 sm:gap-8 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
-                                    <div className="flex items-center gap-8 relative z-10">
-                                        <div className="w-24 h-24 bg-white/10 rounded-[2.5rem] flex items-center justify-center text-4xl font-black border border-white/20 shadow-inner">
+                                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-8 relative z-10 text-center sm:text-left">
+                                        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white/10 rounded-[2rem] sm:rounded-[2.5rem] flex items-center justify-center text-3xl sm:text-4xl font-black border border-white/20 shadow-inner">
                                             {selected.fullName.charAt(0)}
                                         </div>
                                         <div>
@@ -529,8 +547,8 @@ const GestionDocumental = () => {
                                 </div>
 
                                 {/* Documents Grid */}
-                                <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
-                                    <div className="flex items-center justify-between mb-10 pb-6 border-b border-slate-50">
+                                <div className="bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-slate-100">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 sm:mb-10 pb-6 border-b border-slate-50">
                                         <div>
                                             <h4 className="font-black text-slate-800 uppercase tracking-tight text-xl italic">Expediente Digital 360</h4>
                                             <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Verificación de requisitos contractuales</p>

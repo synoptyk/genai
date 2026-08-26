@@ -137,7 +137,7 @@ export default function GarantiasTab({
             <Activity size={16} className="text-indigo-500" />
             Por Tipo de Actividad
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-slate-50 rounded-2xl p-4 flex flex-col justify-between">
               <span className="text-xs font-bold text-slate-500">Altas/Rutinas</span>
               <div className="mt-2 flex items-baseline gap-2">
@@ -161,7 +161,7 @@ export default function GarantiasTab({
             <Target size={16} className="text-teal-500" />
             Por Proyecto
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {statsProyectos.length === 0 ? (
                <div className="col-span-full text-xs text-slate-400">Sin datos de proyectos...</div>
             ) : (
@@ -397,7 +397,7 @@ export default function GarantiasTab({
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Orden</p>
                         <p className="text-sm font-bold text-slate-800">{selectedGarantia.actividadInicial.orden}</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fecha</p>
                           <p className="text-xs font-bold text-slate-700">{new Date(selectedGarantia.actividadInicial.fecha).toLocaleString()}</p>
@@ -450,7 +450,7 @@ export default function GarantiasTab({
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Orden</p>
                         <p className="text-sm font-bold text-slate-800">{selectedGarantia.falla.orden}</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fecha</p>
                           <p className="text-xs font-bold text-slate-700">{new Date(selectedGarantia.falla.fecha).toLocaleString()}</p>

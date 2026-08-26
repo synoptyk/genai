@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, Loader2, Eye, Download, Upload, X, UserMinus, CheckCircle, Edit2, Calculator, AlertCircle, Calendar, Printer, Sparkles, UploadCloud, Users, Bell, Briefcase, Landmark, RefreshCw, Building2, MapPin, Archive } from 'lucide-react';
+import { FileText, Search, Loader2, Eye, Download, Upload, X, UserMinus, CheckCircle, Edit2, Calculator, AlertCircle, Calendar, Printer, Sparkles, UploadCloud, Users, Bell, Briefcase, Landmark, RefreshCw, Building2, MapPin, Archive, Clock } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../rrhhApi';
 import { useIndicadores } from '../../../contexts/IndicadoresContext';
 import BulkUploadModal from '../../../components/BulkUploadModal';
@@ -235,7 +235,7 @@ const Finiquitos = () => {
                 candidatosApi.getFiniquitos(),
                 candidatosApi.getAll({ status: 'Contratado,Activo,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
                 proyectosApi.getAll(),
-                candidatosApi.getAll({ status: 'Rechazado,Retirado,Finiquitado,Bajas/Inactivos,De Baja,DE BAJA' })
+                candidatosApi.getAll({ status: 'Rechazado,Retirado,Finiquitado,Bajas/Inactivos,De Baja,DE BAJA,Desvinculado,Por Finiquitar' })
             ]);
             setCandidatos(finiquitadosResp.data || []);
             setContratados(contratadosResp.data || []);
@@ -248,13 +248,27 @@ const Finiquitos = () => {
             
             const today = new Date();
             const bovedaProcessed = (bovedaResp.data || []).map(emp => {
-                const startRaw = emp.contractStartDate || emp.hiring?.contractStartDate;
-                const endRaw = emp.contractEndDate || emp.hiring?.contractEndDate;
+                // Parse DB Date to local DD-MM-YYYY avoiding timezone shifts
+                const parseDbDate = (isoStr) => {
+                    if (!isoStr) return null;
+                    try {
+                        const datePart = isoStr.split('T')[0];
+                        if (!datePart || !datePart.includes('-')) return null;
+                        return datePart.split('-').reverse().join('-');
+                    } catch (e) {
+                        return 'Invalid';
+                    }
+                };
+
+                const startRaw = emp.contractStartDate || emp.hiring?.contractStartDate || emp.fechaIngreso;
+                const isFiniquitado = emp.status === 'Finiquitado' || emp.estado === 'Finiquitado' || emp.status === 'Retirado' || emp.status === 'De Baja' || emp.status === 'Rechazado';
+                const endRaw = emp.fechaFiniquito || (isFiniquitado ? emp.contractEndDate || emp.hiring?.contractEndDate : null);
                 const type = emp.contractType || emp.hiring?.contractType;
+                const motivo = emp.motivoFiniquito || emp.finiquitoMotivo || emp.finiquitoDetalle?.causalTermino || null;
 
                 const expiryDate = endRaw ? new Date(endRaw) : null;
                 let daysToExpire = null, alerts = 0;
-                if (expiryDate) {
+                if (expiryDate && !isNaN(expiryDate)) {
                     daysToExpire = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
                     if (daysToExpire <= 30 && daysToExpire > 0) alerts = 1;
                     if (daysToExpire <= 0) alerts = 2; // expired!
@@ -273,9 +287,11 @@ const Finiquitos = () => {
 
                 return {
                     ...emp,
-                    formattedStart: startRaw ? new Date(startRaw + 'T12:00:00').toLocaleDateString('es-CL') : 'S/F',
-                    formattedEnd: endRaw ? new Date(endRaw + 'T12:00:00').toLocaleDateString('es-CL') : 'Indefinido',
+                    formattedStart: parseDbDate(startRaw) || 'S/F',
+                    formattedEnd: parseDbDate(endRaw) || 'Indefinido',
                     contractType: type,
+                    motivoFiniquito: motivo,
+                    fechaFiniquitoRaw: endRaw,
                     projectName, ceco, area, depto, sede,
                     daysToExpire, alerts,
                 };
@@ -445,7 +461,7 @@ const Finiquitos = () => {
             .filter(v => v.estado === 'Aprobado' && v.tipo === 'Vacaciones')
             .reduce((sum, v) => sum + (Number(v.diasHabiles) || 0), 0);
 
-        const defaultGratificacion = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 197917);
+        const defaultGratificacion = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 219115);
             
         setFiniquitoData({
             fechaEgreso: '',
@@ -507,7 +523,7 @@ const Finiquitos = () => {
             promedioSueldoVariable: fd.promedioSueldoVariable || 0,
             colacion: fd.colacion || 0,
             movilizacion: fd.movilizacion || 0,
-            gratificacion: fd.gratificacion !== undefined ? fd.gratificacion : Math.min(Math.round((c.sueldoBase || 0) * 0.25), 197917),
+            gratificacion: fd.gratificacion !== undefined ? fd.gratificacion : Math.min(Math.round((c.sueldoBase || 0) * 0.25), 219115),
             valorUF: fd.valorUF || ufValue || 38500,
             diasVacacionesTomados: fd.diasVacacionesTomados || 0,
             diasVacacionesProgresivas: fd.diasVacacionesProgresivas || 0,
@@ -1033,7 +1049,7 @@ const Finiquitos = () => {
         <div className="w-full overflow-x-hidden relative min-h-full bg-slate-50/50 p-6 pb-20">
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">
                     <div className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg shadow-slate-200">
                         <FileText size={24} />
@@ -1043,7 +1059,7 @@ const Finiquitos = () => {
                         <p className="text-slate-400 text-xs font-bold mt-1 uppercase tracking-wider">Gestión integral de desvinculaciones y legalización</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <button
                         onClick={() => setShowRenunciaModal(true)}
                         className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-colors shadow-md shadow-violet-200"
@@ -1078,6 +1094,30 @@ const Finiquitos = () => {
                     }`}
                 >
                     <Archive size={14} /> Dashboard Bóveda
+                    {bovedaEmployees.filter(e => e.status !== 'Por Finiquitar').length > 0 && (
+                        <span className={`ml-1 text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                            currentTab === 'boveda' ? 'bg-violet-100 text-violet-700' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                            {bovedaEmployees.filter(e => e.status !== 'Por Finiquitar').length}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={() => setCurrentTab('porFiniquitar')}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${
+                        currentTab === 'porFiniquitar'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                    <Clock size={14} /> Por Finiquitar
+                    {bovedaEmployees.filter(e => e.status === 'Por Finiquitar').length > 0 && (
+                        <span className={`ml-1 text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                            currentTab === 'porFiniquitar' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                            {bovedaEmployees.filter(e => e.status === 'Por Finiquitar').length}
+                        </span>
+                    )}
                 </button>
                 <button
                     onClick={() => setCurrentTab('finiquitos')}
@@ -1088,6 +1128,13 @@ const Finiquitos = () => {
                     }`}
                 >
                     <FileText size={14} /> Registro de Finiquitos
+                    {candidatos.length > 0 && (
+                        <span className={`ml-1 text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                            currentTab === 'finiquitos' ? 'bg-slate-200 text-slate-700' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                            {candidatos.length}
+                        </span>
+                    )}
                 </button>
                 <button
                     onClick={() => setCurrentTab('cartas')}
@@ -1098,6 +1145,13 @@ const Finiquitos = () => {
                     }`}
                 >
                     <Printer size={14} /> Cartas de Término
+                    {contratados.length > 0 && (
+                        <span className={`ml-1 text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                            currentTab === 'cartas' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                            {contratados.length}
+                        </span>
+                    )}
                 </button>
                 <button
                     onClick={() => setCurrentTab('renuncias')}
@@ -1113,7 +1167,18 @@ const Finiquitos = () => {
 
             {currentTab === 'boveda' && (
                 <BovedaDashboard
-                    bovedaEmployees={bovedaEmployees}
+                    bovedaEmployees={bovedaEmployees.filter(e => e.status !== 'Por Finiquitar')}
+                    bovedaLoading={bovedaLoading}
+                    projects={projects}
+                    onOpenFiniquito={(emp) => {
+                        handleAbrirEdicion(emp);
+                        setShowFiniquitoModal(true);
+                    }}
+                />
+            )}
+            {currentTab === 'porFiniquitar' && (
+                <BovedaDashboard
+                    bovedaEmployees={bovedaEmployees.filter(e => e.status === 'Por Finiquitar')}
                     bovedaLoading={bovedaLoading}
                     projects={projects}
                     onOpenFiniquito={(emp) => {

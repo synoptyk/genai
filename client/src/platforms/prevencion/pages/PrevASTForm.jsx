@@ -533,7 +533,7 @@ const PrevASTForm = () => {
                                         )}
                                         <canvas ref={canvasRef} className="hidden" />
                                     </div>
-                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                                         {form.fotos.map((img, i) => (
                                             <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-slate-100 group">
                                                 <img src={img} className="w-full h-full object-cover" alt={`Evidencia fotográfica ${i + 1}`} />

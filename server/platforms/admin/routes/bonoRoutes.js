@@ -64,6 +64,10 @@ router.post('/consolidate', protect, async (req, res) => {
       // create it. Let's find the model to use its data.
       const model = await ModeloBonificacion.findById(modeloId).populate('tipoBonoRef');
       
+      const mongoose = require('mongoose');
+      const isValidObjectId = mongoose.Types.ObjectId.isValid;
+      const getTecnicoRef = (id) => isValidObjectId(id) ? id : undefined;
+
       const transaccionesToInsert = [];
 
       for (const t of calculos) {
@@ -75,9 +79,9 @@ router.post('/consolidate', protect, async (req, res) => {
                   // Wait, BonoTransaccion requiere bonoConfigRef. Lo apuntamos al modelo aunque sea un hack temporal, o lo manejamos con legalOverride.
                   bonoConfigRef: modeloId, 
                   beneficiario: {
-                      rut: 'S/N', // Idealmente el frontend pasaria el RUT
+                      rut: t.rut || 'S/N', // Usamos el RUT enviado por el frontend
                       nombre: t.nombre,
-                      tecnicoRef: t.tecnicoId
+                      tecnicoRef: getTecnicoRef(t.tecnicoId)
                   },
                   periodo: { mes, anio },
                   monto: t.baremoBonus,
@@ -98,9 +102,9 @@ router.post('/consolidate', protect, async (req, res) => {
                   empresaRef: empresaId,
                   bonoConfigRef: modeloId,
                   beneficiario: {
-                      rut: 'S/N',
+                      rut: t.rut || 'S/N',
                       nombre: t.nombre,
-                      tecnicoRef: t.tecnicoId
+                      tecnicoRef: getTecnicoRef(t.tecnicoId)
                   },
                   periodo: { mes, anio },
                   monto: bonoCalidad,

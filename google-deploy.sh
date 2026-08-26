@@ -32,7 +32,7 @@ fi
 echo -e "${GREEN}✅ Cuenta activa de gcloud: ${YELLOW}${ACTIVE_ACCOUNT}${NC}"
 
 # 1. Configurar Proyecto
-PROJECT_ID="genai360-494015"
+PROJECT_ID="genai360-504317"
 gcloud config set project $PROJECT_ID
 REGION="us-central1"
 
@@ -48,6 +48,17 @@ if [ ! -f docker/server.Dockerfile ]; then
 fi
 # Usamos copia manual para máxima compatibilidad con tu versión de gcloud
 cp docker/server.Dockerfile ./Dockerfile
+
+# Cargar automáticamente variables de entorno desde server/.env o .env si existe
+if [ -f server/.env ]; then
+    set -a
+    source server/.env
+    set +a
+elif [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
 
 # Construir bandera de actualización de variables solo para las que existen localmente
 ENV_UPDATE=""
@@ -70,6 +81,7 @@ gcloud run deploy genai-server \
     --memory 2Gi \
     --cpu 1 \
     --port 8080 \
+    --min-instances 1 \
     $ENV_FLAG \
     --clear-base-image \
     --quiet
@@ -94,6 +106,7 @@ gcloud run deploy genai-client \
     --region $REGION \
     --allow-unauthenticated \
     --port 8080 \
+    --min-instances 1 \
     --clear-base-image \
     --quiet
 

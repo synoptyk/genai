@@ -33,6 +33,10 @@ const ConfigLPU = () => {
     const [showNueva, setShowNueva] = useState(false);
     const [cargandoPlantilla, setCargandoPlantilla] = useState(false);
     const [recalculando, setRecalculando] = useState(false);
+    const [recalculandoMes, setRecalculandoMes] = useState(false);
+    const [showRecalcPanel, setShowRecalcPanel] = useState(false);
+    const [recalcAnio, setRecalcAnio] = useState(new Date().getFullYear());
+    const [recalcMes, setRecalcMes] = useState(new Date().getMonth() + 1);
     const fileRef = useRef(null);
 
     // ── Meta de producción ──
@@ -231,6 +235,21 @@ const ConfigLPU = () => {
         } catch (e) {
             setMsg({ type: 'err', text: e?.response?.data?.error || 'Error al recalcular.' });
         } finally { setRecalculando(false); }
+    };
+
+    // ── Recalcular por MES ──
+    const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const recalcularMes = async () => {
+        const nombreMes = MESES[recalcMes - 1];
+        if (!window.confirm(`¿Recalcular las actividades de ${nombreMes} ${recalcAnio}? Solo se actualizarán los registros de ese mes.`)) return;
+        setRecalculandoMes(true); setMsg(null);
+        try {
+            const res = await api.post('/tarifa-lpu/recalculate-month', { anio: recalcAnio, mes: recalcMes });
+            setMsg({ type: 'ok', text: res.data.mensaje });
+            setShowRecalcPanel(false);
+        } catch (e) {
+            setMsg({ type: 'err', text: e?.response?.data?.error || 'Error al recalcular mes.' });
+        } finally { setRecalculandoMes(false); }
     };
 
     // ── Excel ──
@@ -475,10 +494,43 @@ const ConfigLPU = () => {
                             className="flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-xl shadow-blue-100 transition-all">
                             {cargandoPlantilla ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} Plantilla Chile
                         </button>
-                        <button onClick={recalcularTodo} disabled={recalculando}
-                            className="flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white bg-emerald-600 hover:bg-emerald-700 hover:scale-105 active:scale-95 shadow-xl shadow-emerald-100 transition-all">
-                            {recalculando ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />} Recalcular Historial
-                        </button>
+                        {/* Botón Recalcular con panel de selección de mes */}
+                        <div className="relative">
+                            <div className="flex items-center gap-1">
+                                <button onClick={recalcularTodo} disabled={recalculando || recalculandoMes}
+                                    className="flex items-center gap-2 px-4 py-3.5 rounded-l-2xl text-[11px] font-black uppercase tracking-widest text-white bg-emerald-600 hover:bg-emerald-700 hover:scale-105 active:scale-95 shadow-xl shadow-emerald-100 transition-all"
+                                    title="Recalcular TODOS los registros históricos">
+                                    {recalculando ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />} Recalcular Todo
+                                </button>
+                                <button onClick={() => setShowRecalcPanel(v => !v)} disabled={recalculando || recalculandoMes}
+                                    className="flex items-center gap-1 px-3 py-3.5 rounded-r-2xl text-[11px] font-black text-white bg-emerald-700 hover:bg-emerald-800 active:scale-95 shadow-xl shadow-emerald-100 transition-all border-l border-emerald-500"
+                                    title="Recalcular por mes">
+                                    <CalendarDays size={14} />
+                                </button>
+                            </div>
+                            {showRecalcPanel && (
+                                <div className="absolute right-0 top-14 z-50 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 w-64">
+                                    <p className="text-[11px] font-bold text-slate-600 mb-3 uppercase tracking-wider">Recalcular por mes</p>
+                                    <div className="flex gap-2 mb-3">
+                                        <select value={recalcMes} onChange={e => setRecalcMes(Number(e.target.value))}
+                                            className="flex-1 text-xs border border-slate-200 rounded-xl px-2 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                                            {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                                                <option key={i+1} value={i+1}>{m}</option>
+                                            ))}
+                                        </select>
+                                        <select value={recalcAnio} onChange={e => setRecalcAnio(Number(e.target.value))}
+                                            className="w-24 text-xs border border-slate-200 rounded-xl px-2 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                        </select>
+                                    </div>
+                                    <button onClick={recalcularMes} disabled={recalculandoMes}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-700 transition-all">
+                                        {recalculandoMes ? <Loader2 size={13} className="animate-spin" /> : <Calculator size={13} />}
+                                        {recalculandoMes ? 'Recalculando...' : 'Recalcular mes'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2">

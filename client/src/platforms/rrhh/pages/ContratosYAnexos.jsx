@@ -637,7 +637,7 @@ const ContratosYAnexos = () => {
     if (view === 'dashboard') {
         return (
             <div className="space-y-10 animate-in slide-in-from-bottom-6 duration-700">
-                <div className="flex justify-between items-end relative">
+                <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end relative gap-4">
                     <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/10 blur-[80px] rounded-full -z-10" />
                     <div>
                         <div className="flex items-center gap-2 mb-3">
@@ -803,7 +803,7 @@ const ContratosYAnexos = () => {
         if (subview === 'list') {
             return (
                 <div className="space-y-10 animate-in slide-in-from-bottom-6 duration-700">
-                    <div className="flex justify-between items-end relative">
+                    <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end relative gap-4">
                         <div className="absolute -top-10 -left-10 w-40 h-40 bg-violet-500/10 blur-[80px] rounded-full -z-10" />
                         <div>
                             <div className="flex items-center gap-2 mb-3">
@@ -872,7 +872,7 @@ const ContratosYAnexos = () => {
 
         return (
             <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
-                <div className="flex justify-between items-end">
+                <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end relative gap-4">
                     <div>
                         <div className="flex items-center gap-2 mb-2">
                             <button onClick={() => setSubview('list')} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -1072,7 +1072,7 @@ const ContratosYAnexos = () => {
 
                                 <div>
                                     <label className="text-[9px] font-black text-slate-300 uppercase block mb-2">Estilo editorial</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                         {[
                                             { key: 'ejecutivo', label: 'Ejecutivo' },
                                             { key: 'formal', label: 'Formal' },
@@ -1153,7 +1153,7 @@ const ContratosYAnexos = () => {
                                 <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
                                 Lógica & Condiciones
                             </h4>
-                            <div className="grid grid-cols-2 gap-3 mb-8">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
                                 <button 
                                     onMouseDown={(e) => { e.preventDefault(); insertCondition('IF'); }}
                                     className="p-3 bg-amber-50 border border-amber-100 rounded-[1.2rem] flex flex-col items-center gap-1 hover:bg-amber-100 transition-all active:scale-95 group"

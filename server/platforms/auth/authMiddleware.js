@@ -82,7 +82,11 @@ exports.authorize = (...roles) => (req, res, next) => {
             ROLES.CEO, 
             ROLES.CEO_GENAI, // Legacy support
             ROLES.GERENCIA, 
-            ROLES.ADMIN
+            ROLES.ADMIN,
+            'administrador maestro',
+            'administrador',
+            'director',
+            'coordinador'
         ].includes(currentRole);
 
         if (isHighLevel) return next();

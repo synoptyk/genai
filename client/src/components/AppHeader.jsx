@@ -84,42 +84,53 @@ const AppHeader = ({ onMenuClick }) => {
 
     return (
         <>
-            <div className="bg-white border-b border-slate-100 px-2.5 md:px-6 py-2.5 md:py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40 gap-2 md:gap-3">
+            <div className="bg-white px-2.5 md:px-6 py-2.5 md:py-3.5 flex items-center justify-between flex-shrink-0 print:hidden relative z-40 gap-2 md:gap-3"
+              style={{borderBottom:'2px solid #e8eef8', boxShadow:'0 2px 12px rgba(13,24,84,0.06)'}}>
                 {/* Left: back + breadcrumb */}
                 <div className="flex items-center gap-1 sm:gap-3 flex-1 min-w-0">
                     {/* Mobile Menu Toggle */}
                     <button
                         onClick={onMenuClick}
-                        className="md:hidden flex-shrink-0 flex items-center justify-center p-2 rounded-lg text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        className="md:hidden flex-shrink-0 flex items-center justify-center p-2 rounded-lg transition-colors"
+                        style={{color:'#1565c0', background:'#e3f2fd'}}
                     >
                         <Menu size={18} />
                     </button>
 
                     <button
                         onClick={() => navigate('/dashboard')}
-                        className="hidden sm:flex flex-shrink-0 items-center gap-2 px-2 py-1.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all"
+                        className="hidden sm:flex flex-shrink-0 items-center gap-2 px-2 py-1.5 rounded-xl border transition-all"
+                        style={{borderColor:'#e8eef8', background:'#fafbff'}}
+                        onMouseEnter={e=>{e.currentTarget.style.borderColor='#c5d8f5';e.currentTarget.style.background='#e3f2fd';}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor='#e8eef8';e.currentTarget.style.background='#fafbff';}}
                         title={BRAND.fullName}
                     >
                         <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-6 h-6 rounded-lg" />
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">{BRAND.shortName}</span>
+                        <span className="text-[9px] font-black uppercase tracking-wider" style={{color:'#0d1854'}}>{BRAND.shortName}</span>
                     </button>
 
                     {!isHome && (
                         <button
                             onClick={() => navigate(-1)}
-                            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-lg text-[10px] sm:text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all border border-transparent hover:border-indigo-100 uppercase tracking-wide"
+                            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] sm:text-[11px] font-black transition-all border uppercase tracking-wide"
+                            style={{color:'#8fa3c0', borderColor:'#e8eef8', background:'transparent'}}
+                            onMouseEnter={e=>{e.currentTarget.style.background='#e3f2fd';e.currentTarget.style.color='#1565c0';e.currentTarget.style.borderColor='#c5d8f5';}}
+                            onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#8fa3c0';e.currentTarget.style.borderColor='#e8eef8';}}
                         >
                             <ChevronLeft size={15} /> <span className="hidden sm:inline">Volver</span>
                         </button>
                     )}
                     <button
                         onClick={() => navigate('/prevencion/dashboard')}
-                        className="flex-shrink-0 flex items-center gap-2 text-[10px] sm:text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-colors px-1"
+                        className="flex-shrink-0 flex items-center gap-2 text-[10px] sm:text-[11px] font-black transition-colors px-1"
+                        style={{color:'#b0c0d8'}}
+                        onMouseEnter={e=>e.currentTarget.style.color='#1565c0'}
+                        onMouseLeave={e=>e.currentTarget.style.color='#b0c0d8'}
                     >
                         <Home size={13} />
                     </button>
-                    <span className="text-slate-300 text-xs flex-shrink-0">/</span>
-                    <span className="text-[10px] sm:text-[12px] font-black text-slate-700 uppercase tracking-wide truncate max-w-[96px] sm:max-w-none">{pageLabel}</span>
+                    <span className="text-xs flex-shrink-0" style={{color:'#d0e0f0'}}>/</span>
+                    <span className="text-[10px] sm:text-[12px] font-black uppercase tracking-wide truncate max-w-[120px] sm:max-w-none" style={{color:'#0d1854'}}>{pageLabel}</span>
                 </div>
 
                 {/* Right: user info + logout */}
@@ -128,9 +139,9 @@ const AppHeader = ({ onMenuClick }) => {
                         <div className="flex items-center gap-2 md:gap-4">
                             <div className="hidden md:flex items-center gap-3">
                                 <div className="text-right">
-                                    <p className="text-[11px] font-black text-slate-700">{user.name}</p>
-                                    <p className={`text-[9px] font-bold uppercase tracking-wider ${auditCompany ? 'text-amber-600' : 'text-slate-400'}`}>
-                                        {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.empresa?.nombre || 'Portal Corporativo')}
+                                    <p className="text-[11px] font-black" style={{color:'#0d1854'}}>{user.name}</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-wider" style={{color: auditCompany ? '#f59e0b' : '#00897b'}}>
+                                        {auditCompany ? `⚠️ Auditando: ${auditCompany.nombre}` : (user.empresa?.nombre || 'Portal Corporativo')}
                                     </p>
                                 </div>
                             </div>
@@ -138,23 +149,30 @@ const AppHeader = ({ onMenuClick }) => {
 
                             <button 
                                 onClick={() => setShowSecurity(true)}
-                                className="group relative w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-slate-50 hover:bg-indigo-600 rounded-lg md:rounded-xl transition-all shadow-sm border border-slate-100 hover:border-indigo-500 hover:shadow-indigo-100"
+                                className="group relative w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-lg md:rounded-xl transition-all border"
+                                style={{background:'#f0f4ff', borderColor:'#d0e4f7'}}
                                 title="Configurar Seguridad PIN"
+                                onMouseEnter={e=>{e.currentTarget.style.background='#e3f2fd';e.currentTarget.style.borderColor='#1565c0';}}
+                                onMouseLeave={e=>{e.currentTarget.style.background='#f0f4ff';e.currentTarget.style.borderColor='#d0e4f7';}}
                             >
-                                <Shield size={15} className="text-slate-400 group-hover:text-white group-hover:scale-110 transition-all" />
+                                <Shield size={15} style={{color:'#1565c0'}} className="group-hover:scale-110 transition-transform" />
                                 {!user.loginPin && (
                                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 border-2 border-white rounded-full animate-pulse" />
                                 )}
                             </button>
 
-                            <div className="hidden sm:flex w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl items-center justify-center text-white font-black text-sm shadow-lg">
+                            <div className="hidden sm:flex w-9 h-9 rounded-xl items-center justify-center text-white font-black text-sm shadow-lg"
+                              style={{background:'linear-gradient(135deg, #1565c0, #5c35d4)'}}>
                                 {user.name?.charAt(0)?.toUpperCase() || 'U'}
                             </div>
                         </div>
                     )}
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-1.5 px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-[11px] font-black text-red-500 hover:bg-red-50 hover:text-red-700 transition-all border border-transparent hover:border-red-100 uppercase tracking-wide"
+                        className="flex items-center gap-1.5 px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-[11px] font-black transition-all uppercase tracking-wide"
+                        style={{color:'#ef4444', borderColor:'#fecaca', border:'1px solid #fecaca', background:'#fff5f5'}}
+                        onMouseEnter={e=>{e.currentTarget.style.background='#fee2e2';e.currentTarget.style.boxShadow='0 4px 12px rgba(239,68,68,0.15)';}}
+                        onMouseLeave={e=>{e.currentTarget.style.background='#fff5f5';e.currentTarget.style.boxShadow='';} }
                     >
                         <LogOut size={14} /> <span className="hidden sm:inline">Salir</span>
                     </button>

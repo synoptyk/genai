@@ -259,7 +259,7 @@ export default function NotificacionesTramites({ user, onBack, perfil }) {
             {selectedNotif && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="bg-slate-50 w-full max-w-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="bg-indigo-600 p-6 flex justify-between items-center text-white shrink-0">
+                        <div className="bg-indigo-600 p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-white shrink-0">
                             <h3 className="font-black uppercase tracking-widest italic text-lg flex items-center gap-2">
                                 <ShieldCheck size={20} /> Autorización Electrónica Avanzada
                             </h3>

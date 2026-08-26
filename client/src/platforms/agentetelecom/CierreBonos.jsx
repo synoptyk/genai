@@ -127,12 +127,8 @@ const CierreBonos = () => {
                         return currentPts >= limitMin && currentPts <= limitMax;
                     });
                     multiplier  = tier ? parseFloat(tier.valor) : 0;
-                    
-                    // 🧪 Nueva Lógica: Descontar puntos excluidos (primer tramo)
-                    const ptsExcluidos = activeModel.puntosExcluidos || 0;
-                    const calculablePts = Math.max(0, (parseFloat(pts) || 0) - ptsExcluidos);
-                    
-                    baremoBonus = calculablePts * multiplier;
+                    const currentPts = parseFloat(pts) || 0;
+                    baremoBonus = currentPts * multiplier;
 
                     if (tier) {
                         const limitVisual = String(tier.hasta).trim().toLowerCase() === 'más' || String(tier.hasta).trim().toLowerCase() === 'mas' ? '∞' : tier.hasta;
@@ -153,16 +149,12 @@ const CierreBonos = () => {
                 const aiFails       = garantiasTec.fallasAltas || 0;
                 const aiOrdersCount = garantiasTec.evaluadasAltas || 0;
 
-                if (activeModel && t.orders > 0) {
-                    const ptsExcluidos = activeModel.puntosExcluidos || 0;
-                    const calculablePts = Math.max(0, (parseFloat(pts) || 0) - ptsExcluidos);
-                    if (calculablePts > 0) {
-                        rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
-                        aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
-                    } else {
-                        rrBonus = 0;
-                        aiBonus = 0;
-                    }
+                if (activeModel && (t.orders > 0 || (parseFloat(pts) || 0) > 0)) {
+                    rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
+                    aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
+                } else {
+                    rrBonus = 0;
+                    aiBonus = 0;
                 }
 
                 const techRut = rutMap[idRecursoRaw] || rutMap[techName.toLowerCase().trim()] || '';

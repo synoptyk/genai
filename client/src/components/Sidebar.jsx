@@ -27,123 +27,75 @@ import { BRAND } from '../branding/brand';
 ═══════════════════════════════════════════════════════════════ */
 const THEME = {
   indigo: {
-    bg: 'bg-indigo-600',
-    bgLight: 'bg-indigo-50',
-    bgSection: 'bg-indigo-50/60',
-    border: 'border-indigo-400',
-    borderLeft: 'border-l-indigo-400',
-    text: 'text-indigo-700',
-    textLight: 'text-indigo-500',
-    iconBg: 'bg-indigo-600',
-    hoverBg: 'hover:bg-indigo-50',
-    active: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-    activePill: 'bg-indigo-100 text-indigo-700',
-    ring: 'ring-indigo-200',
-    gradient: 'from-indigo-500 to-indigo-700',
-    badge: 'bg-indigo-600 text-white',
+    bg: 'bg-indigo-600', bgLight: 'bg-indigo-50', bgSection: 'bg-indigo-50/60',
+    border: 'border-indigo-400', borderLeft: 'border-l-indigo-400',
+    text: 'text-indigo-700', textLight: 'text-indigo-500', iconBg: 'bg-indigo-600',
+    hoverBg: 'hover:bg-indigo-50', active: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
+    activePill: 'bg-indigo-100 text-indigo-700', ring: 'ring-indigo-200',
+    gradient: 'from-indigo-500 to-indigo-700', badge: 'bg-indigo-600 text-white',
     tooltip: 'from-indigo-600 to-indigo-800',
+    // White sidebar brand tokens
+    accentHex: '#1565c0', activeBg: '#e3f2fd', activeColor: '#1565c0',
   },
   violet: {
-    bg: 'bg-violet-600',
-    bgLight: 'bg-violet-50',
-    bgSection: 'bg-violet-50/60',
-    border: 'border-violet-400',
-    borderLeft: 'border-l-violet-400',
-    text: 'text-violet-700',
-    textLight: 'text-violet-500',
-    iconBg: 'bg-violet-600',
-    hoverBg: 'hover:bg-violet-50',
-    active: 'bg-violet-600 text-white shadow-md shadow-violet-200',
-    activePill: 'bg-violet-100 text-violet-700',
-    ring: 'ring-violet-200',
-    gradient: 'from-violet-500 to-violet-700',
-    badge: 'bg-violet-600 text-white',
+    bg: 'bg-violet-600', bgLight: 'bg-violet-50', bgSection: 'bg-violet-50/60',
+    border: 'border-violet-400', borderLeft: 'border-l-violet-400',
+    text: 'text-violet-700', textLight: 'text-violet-500', iconBg: 'bg-violet-600',
+    hoverBg: 'hover:bg-violet-50', active: 'bg-violet-600 text-white shadow-md shadow-violet-200',
+    activePill: 'bg-violet-100 text-violet-700', ring: 'ring-violet-200',
+    gradient: 'from-violet-500 to-violet-700', badge: 'bg-violet-600 text-white',
     tooltip: 'from-violet-600 to-violet-800',
+    accentHex: '#5c35d4', activeBg: '#ede9fe', activeColor: '#5c35d4',
   },
   rose: {
-    bg: 'bg-rose-600',
-    bgLight: 'bg-rose-50',
-    bgSection: 'bg-rose-50/60',
-    border: 'border-rose-400',
-    borderLeft: 'border-l-rose-400',
-    text: 'text-rose-700',
-    textLight: 'text-rose-500',
-    iconBg: 'bg-rose-600',
-    hoverBg: 'hover:bg-rose-50',
-    active: 'bg-rose-600 text-white shadow-md shadow-rose-200',
-    activePill: 'bg-rose-100 text-rose-700',
-    ring: 'ring-rose-200',
-    gradient: 'from-rose-500 to-rose-700',
-    badge: 'bg-rose-600 text-white',
+    bg: 'bg-rose-600', bgLight: 'bg-rose-50', bgSection: 'bg-rose-50/60',
+    border: 'border-rose-400', borderLeft: 'border-l-rose-400',
+    text: 'text-rose-700', textLight: 'text-rose-500', iconBg: 'bg-rose-600',
+    hoverBg: 'hover:bg-rose-50', active: 'bg-rose-600 text-white shadow-md shadow-rose-200',
+    activePill: 'bg-rose-100 text-rose-700', ring: 'ring-rose-200',
+    gradient: 'from-rose-500 to-rose-700', badge: 'bg-rose-600 text-white',
     tooltip: 'from-rose-600 to-rose-800',
+    accentHex: '#e11d48', activeBg: '#fff1f2', activeColor: '#be123c',
   },
   sky: {
-    bg: 'bg-sky-600',
-    bgLight: 'bg-sky-50',
-    bgSection: 'bg-sky-50/60',
-    border: 'border-sky-400',
-    borderLeft: 'border-l-sky-400',
-    text: 'text-sky-700',
-    textLight: 'text-sky-500',
-    iconBg: 'bg-sky-600',
-    hoverBg: 'hover:bg-sky-50',
-    active: 'bg-sky-600 text-white shadow-md shadow-sky-200',
-    activePill: 'bg-sky-100 text-sky-700',
-    ring: 'ring-sky-200',
-    gradient: 'from-sky-500 to-sky-700',
-    badge: 'bg-sky-600 text-white',
+    bg: 'bg-sky-600', bgLight: 'bg-sky-50', bgSection: 'bg-sky-50/60',
+    border: 'border-sky-400', borderLeft: 'border-l-sky-400',
+    text: 'text-sky-700', textLight: 'text-sky-500', iconBg: 'bg-sky-600',
+    hoverBg: 'hover:bg-sky-50', active: 'bg-sky-600 text-white shadow-md shadow-sky-200',
+    activePill: 'bg-sky-100 text-sky-700', ring: 'ring-sky-200',
+    gradient: 'from-sky-500 to-sky-700', badge: 'bg-sky-600 text-white',
     tooltip: 'from-sky-600 to-sky-800',
+    accentHex: '#00bcd4', activeBg: '#e0f7fa', activeColor: '#00838f',
   },
   emerald: {
-    bg: 'bg-emerald-600',
-    bgLight: 'bg-emerald-50',
-    bgSection: 'bg-emerald-50/60',
-    border: 'border-emerald-400',
-    borderLeft: 'border-l-emerald-400',
-    text: 'text-emerald-700',
-    textLight: 'text-emerald-500',
-    iconBg: 'bg-emerald-600',
-    hoverBg: 'hover:bg-emerald-50',
-    active: 'bg-emerald-600 text-white shadow-md shadow-emerald-200',
-    activePill: 'bg-emerald-100 text-emerald-700',
-    ring: 'ring-emerald-200',
-    gradient: 'from-emerald-500 to-emerald-700',
-    badge: 'bg-emerald-600 text-white',
+    bg: 'bg-emerald-600', bgLight: 'bg-emerald-50', bgSection: 'bg-emerald-50/60',
+    border: 'border-emerald-400', borderLeft: 'border-l-emerald-400',
+    text: 'text-emerald-700', textLight: 'text-emerald-500', iconBg: 'bg-emerald-600',
+    hoverBg: 'hover:bg-emerald-50', active: 'bg-emerald-600 text-white shadow-md shadow-emerald-200',
+    activePill: 'bg-emerald-100 text-emerald-700', ring: 'ring-emerald-200',
+    gradient: 'from-emerald-500 to-emerald-700', badge: 'bg-emerald-600 text-white',
     tooltip: 'from-emerald-600 to-emerald-800',
+    accentHex: '#00897b', activeBg: '#e0f2f1', activeColor: '#00695c',
   },
   orange: {
-    bg: 'bg-orange-500',
-    bgLight: 'bg-orange-50',
-    bgSection: 'bg-orange-50/60',
-    border: 'border-orange-400',
-    borderLeft: 'border-l-orange-400',
-    text: 'text-orange-700',
-    textLight: 'text-orange-500',
-    iconBg: 'bg-orange-500',
-    hoverBg: 'hover:bg-orange-50',
-    active: 'bg-orange-600 text-white shadow-md shadow-orange-200',
-    activePill: 'bg-orange-100 text-orange-700',
-    ring: 'ring-orange-200',
-    gradient: 'from-orange-500 to-orange-700',
-    badge: 'bg-orange-500 text-white',
+    bg: 'bg-orange-500', bgLight: 'bg-orange-50', bgSection: 'bg-orange-50/60',
+    border: 'border-orange-400', borderLeft: 'border-l-orange-400',
+    text: 'text-orange-700', textLight: 'text-orange-500', iconBg: 'bg-orange-500',
+    hoverBg: 'hover:bg-orange-50', active: 'bg-orange-600 text-white shadow-md shadow-orange-200',
+    activePill: 'bg-orange-100 text-orange-700', ring: 'ring-orange-200',
+    gradient: 'from-orange-500 to-orange-700', badge: 'bg-orange-500 text-white',
     tooltip: 'from-orange-500 to-orange-700',
+    accentHex: '#f97316', activeBg: '#fff7ed', activeColor: '#c2410c',
   },
   amber: {
-    bg: 'bg-amber-500',
-    bgLight: 'bg-amber-50',
-    bgSection: 'bg-amber-50/60',
-    border: 'border-amber-400',
-    borderLeft: 'border-l-amber-400',
-    text: 'text-amber-700',
-    textLight: 'text-amber-500',
-    iconBg: 'bg-amber-500',
-    hoverBg: 'hover:bg-amber-50',
-    active: 'bg-amber-500 text-white shadow-md shadow-amber-200',
-    activePill: 'bg-amber-100 text-amber-700',
-    ring: 'ring-amber-200',
-    gradient: 'from-amber-400 to-amber-600',
-    badge: 'bg-amber-500 text-white',
+    bg: 'bg-amber-500', bgLight: 'bg-amber-50', bgSection: 'bg-amber-50/60',
+    border: 'border-amber-400', borderLeft: 'border-l-amber-400',
+    text: 'text-amber-700', textLight: 'text-amber-500', iconBg: 'bg-amber-500',
+    hoverBg: 'hover:bg-amber-50', active: 'bg-amber-500 text-white shadow-md shadow-amber-200',
+    activePill: 'bg-amber-100 text-amber-700', ring: 'ring-amber-200',
+    gradient: 'from-amber-400 to-amber-600', badge: 'bg-amber-500 text-white',
     tooltip: 'from-amber-500 to-amber-700',
+    accentHex: '#f59e0b', activeBg: '#fef3c7', activeColor: '#b45309',
   },
 };
 
@@ -185,26 +137,26 @@ const ParentModule = ({ label, subtitle, icon: Icon, isOpen, onToggle, color = '
     <div className="relative group/parent">
       <button
         onClick={onToggle}
-        className={`w-full flex items-center ${isCollapsed ? 'justify-center px-1' : 'justify-between px-3'} py-3.5 rounded-2xl transition-all duration-300 group
-          ${isOpen && !isCollapsed
-            ? `${t.bgLight} border-l-4 ${t.borderLeft} shadow-sm`
-            : isCollapsed && isOpen
-            ? `${t.bgLight} shadow-sm`
-            : 'bg-white hover:bg-slate-50 border border-slate-100 hover:border-slate-200 hover:shadow-md'
-          }`}
+        className={`w-full flex items-center ${isCollapsed ? 'justify-center px-1' : 'justify-between px-3'} py-3 rounded-2xl transition-all duration-200 group`}
+        style={{
+          background: isOpen ? '#f0f4ff' : 'white',
+          border: isOpen ? '1px solid #c5d8f5' : '1px solid #e8eef8',
+          borderLeft: isOpen ? `3px solid ${t.accentHex || '#1565c0'}` : '1px solid #e8eef8',
+        }}
+        onMouseEnter={e => { if (!isOpen) { e.currentTarget.style.background='#fafbff'; e.currentTarget.style.borderColor='#d0e4f7'; }}}
+        onMouseLeave={e => { if (!isOpen) { e.currentTarget.style.background='white'; e.currentTarget.style.borderColor='#e8eef8'; e.currentTarget.style.borderLeft='1px solid #e8eef8'; }}}
         title={isCollapsed ? label : undefined}
       >
         <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'gap-3'}`}>
-          {/* Colored icon circle */}
           <div className={`${t.bg} p-2 rounded-xl shadow-sm transition-transform duration-200 group-hover:scale-110 flex-shrink-0`}>
-            <Icon size={16} className="text-white" />
+            <Icon size={15} className="text-white" />
           </div>
           {!isCollapsed && (
             <div className="text-left min-w-0">
-              <span className={`block text-[11px] font-black uppercase tracking-widest ${isOpen ? t.text : 'text-slate-700'}`}>
+              <span className="block text-[11px] font-black uppercase tracking-widest" style={{color: isOpen ? '#0d1854' : '#374151'}}>
                 {label}
               </span>
-              <span className={`block text-[9px] font-bold mt-0.5 ${isOpen ? t.textLight : 'text-slate-400'}`}>
+              <span className="block text-[9px] font-semibold mt-0.5" style={{color: isOpen ? '#1565c0' : '#8fa3c0'}}>
                 {subtitle}
               </span>
             </div>
@@ -212,19 +164,13 @@ const ParentModule = ({ label, subtitle, icon: Icon, isOpen, onToggle, color = '
         </div>
         {!isCollapsed && (
           <div className={`transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}>
-            <ChevronDown size={14} className={isOpen ? t.text : 'text-slate-400'} />
+            <ChevronDown size={13} style={{color: isOpen ? '#1565c0' : '#b0c0d8'}} />
           </div>
         )}
       </button>
 
-      {/* Tooltip card (only when collapsed, or explicitly when Sidebar is collapsed) */}
       {(!isOpen || isCollapsed) && tooltip && (
-        <TooltipCard
-          title={tooltip.title}
-          description={tooltip.description}
-          features={tooltip.features}
-          color={color}
-        />
+        <TooltipCard title={tooltip.title} description={tooltip.description} features={tooltip.features} color={color} />
       )}
     </div>
   );
@@ -235,31 +181,35 @@ const ParentModule = ({ label, subtitle, icon: Icon, isOpen, onToggle, color = '
 ═══════════════════════════════════════════════════════════════ */
 const MenuLink = ({ path, icon: Icon, label, accent = 'indigo', isActive, badgeLabel = '', badgeTone = 'slate' }) => {
   const t = THEME[accent] || THEME.indigo;
-  const badgeStyles = {
-    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    rose: 'bg-rose-50 text-rose-600 border-rose-100',
-    sky: 'bg-sky-50 text-sky-600 border-sky-100',
-    slate: 'bg-slate-50 text-slate-500 border-slate-100',
+  const badgeColors = {
+    emerald: { bg:'#e0f2f1', color:'#00695c', border:'#b2dfdb' },
+    amber:   { bg:'#fef3c7', color:'#b45309', border:'#fde68a' },
+    rose:    { bg:'#fee2e2', color:'#b91c1c', border:'#fecaca' },
+    sky:     { bg:'#e0f7fa', color:'#0277bd', border:'#b2ebf2' },
+    slate:   { bg:'#f0f4ff', color:'#6b7280', border:'#d1d5db' },
   };
+  const badge = badgeColors[badgeTone] || badgeColors.slate;
   return (
     <Link
       to={path}
-      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 group relative
-        ${isActive
-          ? `${t.active}`
-          : `text-slate-500 ${t.hoverBg} hover:${t.text}`
-        }`}
+      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wide transition-all duration-150 group relative`}
+      style={isActive
+        ? { background: t.activeBg || '#e3f2fd', color: t.activeColor || '#1565c0',
+            borderLeft: `3px solid ${t.accentHex || '#1565c0'}`, fontWeight: 800 }
+        : { color:'#475569', background:'transparent' }}
+      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background='#f0f4ff'; e.currentTarget.style.color='#1565c0'; }}}
+      onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#475569'; }}}
     >
-      <Icon size={13} className={`flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
+      <Icon size={13} className="flex-shrink-0" style={{color: isActive ? t.accentHex || '#1565c0' : '#8fa3c0'}} />
       <span className="leading-tight">{label}</span>
       {badgeLabel && !isActive && (
-        <span className={`ml-auto px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-widest ${badgeStyles[badgeTone] || badgeStyles.slate}`}>
+        <span className="ml-auto px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-widest"
+          style={{background: badge.bg, color: badge.color, borderColor: badge.border}}>
           {badgeLabel}
         </span>
       )}
       {isActive && (
-        <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
+        <div className="absolute right-3 w-1.5 h-1.5 rounded-full animate-pulse" style={{background: t.accentHex || '#1565c0'}} />
       )}
     </Link>
   );
@@ -274,11 +224,12 @@ const SubModule = ({ label, icon: Icon, isOpen, onToggle, children, accent = 'in
     <div className="mb-1">
       <button
         onClick={onToggle}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-200
-          ${isOpen
-            ? `${t.activePill} border border-current/10`
-            : `text-slate-400 hover:text-slate-700 hover:bg-slate-50`
-          }`}
+        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-150"
+        style={isOpen
+          ? { background: t.activeBg || '#e3f2fd', color: t.activeColor || '#1565c0' }
+          : { color:'#8fa3c0' }}
+        onMouseEnter={e => { if (!isOpen) { e.currentTarget.style.background='#f0f4ff'; e.currentTarget.style.color='#1565c0'; }}}
+        onMouseLeave={e => { if (!isOpen) { e.currentTarget.style.background=''; e.currentTarget.style.color='#8fa3c0'; }}}
       >
         <div className="flex items-center gap-2">
           <Icon size={12} />
@@ -287,7 +238,7 @@ const SubModule = ({ label, icon: Icon, isOpen, onToggle, children, accent = 'in
         <ChevronRight size={10} className={`transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
       </button>
       {isOpen && (
-        <div className="mt-1 ml-1 pl-3 border-l-2 border-dashed border-slate-200 space-y-0.5 py-1">
+        <div className="mt-1 ml-1 pl-3 border-l-2 border-dashed space-y-0.5 py-1" style={{borderColor: t.accentHex ? `${t.accentHex}40` : '#c5d8f5'}}>
           {children}
         </div>
       )}
@@ -712,35 +663,39 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       {/* ── Mobile Backdrop ── */}
       {isMobileOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[40] md:hidden transition-opacity"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9990] md:hidden transition-opacity"
           onClick={() => setIsMobileOpen?.(false)}
         />
       )}
 
       {/* ── Sidebar Container ── */}
-      <div className={`fixed inset-y-0 left-0 z-[50] flex-shrink-0 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-[18.5rem] md:w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-[9999] flex-shrink-0 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-[18.5rem] md:w-72'} bg-white h-full flex flex-col font-sans print:hidden ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ borderRight: '1px solid #e8eef8', boxShadow: '4px 0 24px rgba(13,24,84,0.07)' }}>
 
         {/* ── HEADER ── */}
-        <div className="p-4 md:p-6 pb-3 md:pb-4 border-b border-slate-100 relative">
+        <div className="p-4 md:p-5 pb-3 border-b relative" style={{borderColor:'#e8eef8'}}>
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`absolute top-6 ${isCollapsed ? 'right-5' : 'right-4'} p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors z-[100] hidden md:block bg-white shadow-sm border border-slate-100`}
+            className={`absolute top-5 ${isCollapsed ? 'right-4' : 'right-3'} p-1.5 rounded-lg transition-colors z-[100] hidden md:block`}
+            style={{color:'#8fa3c0', background:'#f0f4ff', border:'1px solid #e8eef8'}}
+            onMouseEnter={e=>{e.currentTarget.style.color='#1565c0';e.currentTarget.style.background='#e3f2fd';}}
+            onMouseLeave={e=>{e.currentTarget.style.color='#8fa3c0';e.currentTarget.style.background='#f0f4ff';}}
             title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
           >
             {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
 
-          <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center mt-8 gap-2 mb-2' : 'gap-3 mb-4 md:mb-5'}`}>
-            <div className="rounded-2xl shadow-lg shadow-indigo-600/20 flex-shrink-0 p-0.5">
-              <img src={BRAND.logoPath} alt={BRAND.fullName} className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl object-cover`} />
+          <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center mt-8 gap-2 mb-2' : 'gap-3 mb-3'}`}>
+            <div className="rounded-2xl flex-shrink-0 p-0.5" style={{boxShadow:'0 4px 12px rgba(21,101,192,0.2)'}}>
+              <img src={BRAND.logoPath} alt={BRAND.fullName} className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl object-cover bg-white`} />
             </div>
             {!isCollapsed && (
-              <div className="min-w-0 pr-6">
-                <h1 className="text-lg md:text-xl font-black text-slate-900 tracking-tighter leading-none truncate w-full">
+              <div className="min-w-0 pr-8">
+                <h1 className="text-base font-black tracking-tight leading-none truncate" style={{color:'#0d1854'}}>
                   {auditCompany?.nombre || user?.empresa?.nombre || 'PORTAL'}
-                  {!auditCompany && !user?.empresa?.nombre && <span className="text-indigo-600"> CORPORATIVO</span>}
+                  {!auditCompany && !user?.empresa?.nombre && <span style={{color:'#1565c0'}}> CORP</span>}
                 </h1>
-                <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase truncate">
+                <p className="text-[8px] font-black tracking-[0.25em] mt-0.5 uppercase truncate" style={{color:'#8fa3c0'}}>
                   {auditCompany ? 'Panel de Auditoría' : 'Plataforma Corporativa'}
                 </p>
               </div>
@@ -748,14 +703,14 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           </div>
 
           {user && !isCollapsed && (
-            <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-xl md:rounded-2xl px-3 py-2 flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+            <div className="rounded-xl px-3 py-2 flex items-center gap-3" style={{background:'linear-gradient(135deg,#f0f4ff,#e8f4fd)', border:'1px solid #c5d8f5'}}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0" style={{background:'linear-gradient(135deg, #1565c0, #5c35d4)'}}>
                 {user.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-black text-slate-800 truncate">{user.name}</p>
-                <p className={`text-[9px] font-bold uppercase tracking-wider truncate ${auditCompany ? 'text-amber-600' : 'text-indigo-500'}`}>
-                  {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.cargo || user.empresa?.nombre || 'Portal Corporativo')}
+                <p className="text-[11px] font-black truncate" style={{color:'#0d1854'}}>{user.name}</p>
+                <p className="text-[9px] font-bold uppercase tracking-wider truncate" style={{color: auditCompany ? '#f59e0b' : '#1565c0'}}>
+                  {auditCompany ? `⚠️ Auditando: ${auditCompany.nombre}` : (user.cargo || user.empresa?.nombre || 'Portal Corporativo')}
                 </p>
               </div>
             </div>
@@ -763,11 +718,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── NAV ── */}
-        <div className={`sidebar-nav flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 md:px-3 py-2.5 md:py-3 pb-4 space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+        <div 
+          onClick={(e) => { if (e.target.closest('a')) setIsMobileOpen?.(false); }}
+          className={`sidebar-nav flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 md:px-3 py-2.5 md:py-3 pb-4 space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}
+        >
 
           <div className={`flex flex-col gap-1.5 mb-3 ${isCollapsed ? 'w-full' : ''}`}>
-            <Link to="/" title={isCollapsed ? "Inicio" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100 ${isCollapsed ? 'px-1' : 'px-2.5'}`}>
-              <Home size={16} /> {!isCollapsed && "Inicio"}
+            <Link to="/" title={isCollapsed ? "Inicio" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${isCollapsed ? 'px-1' : 'px-2.5'}`}
+              style={{color:'#8fa3c0', border:'1px solid #e8eef8', background:'#fafbff'}}
+              onMouseEnter={e=>{e.currentTarget.style.color='#1565c0';e.currentTarget.style.background='#e3f2fd';e.currentTarget.style.borderColor='#c5d8f5';}}
+              onMouseLeave={e=>{e.currentTarget.style.color='#8fa3c0';e.currentTarget.style.background='#fafbff';e.currentTarget.style.borderColor='#e8eef8';}}>
+              <Home size={15} className="flex-shrink-0" /> {!isCollapsed && "Inicio"}
             </Link>
           </div>
 
@@ -1306,9 +1267,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── FOOTER ── */}
-        <div className={`border-t border-slate-100 bg-gradient-to-t from-slate-50 to-white flex-shrink-0 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        <div className={`flex-shrink-0 ${isCollapsed ? 'p-2' : 'p-4'}`}
+          style={{borderTop:'1px solid #e8eef8', background:'#fafbff'}}>
           {user && !isCollapsed && (
-            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center mb-3 truncate px-2">
+            <p className="text-[8px] font-bold uppercase tracking-widest text-center mb-3 truncate px-2" style={{color:'#b0c0d8'}}>
               {user.email}
             </p>
           )}
@@ -1316,23 +1278,26 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             <Link
               to="/chat"
               title={isCollapsed ? 'Chat Social 360' : ''}
-              className={`w-full flex items-center justify-center gap-2.5 mb-2 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
-                ${isActive('/chat')
-                  ? 'bg-indigo-600 text-white shadow-indigo-200'
-                  : 'bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50'}`}
+              className={`w-full flex items-center justify-center gap-2.5 mb-2 py-2.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest`}
+              style={isActive('/chat')
+                ? {background:'linear-gradient(135deg,#1565c0,#5c35d4)', color:'white', boxShadow:'0 4px 16px rgba(21,101,192,0.3)'}
+                : {border:'1px solid #c5d8f5', color:'#1565c0', background:'#f0f4ff'}}
             >
-              <MessageSquare size={15} className="flex-shrink-0" />
+              <MessageSquare size={14} className="flex-shrink-0" />
               {!isCollapsed && <span>Chat Social 360</span>}
-              {!isCollapsed && !isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />}
+              {!isCollapsed && !isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{background:'#00897b'}} />}
             </Link>
           )}
 
           <button
             onClick={handleLogout}
             title={isCollapsed ? 'Cerrar Sesión' : ''}
-            className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"
+            className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest"
+            style={{border:'1px solid #fecaca', color:'#ef4444', background:'#fff5f5'}}
+            onMouseEnter={e=>{e.currentTarget.style.background='#fee2e2';e.currentTarget.style.color='#dc2626';e.currentTarget.style.boxShadow='0 4px 12px rgba(239,68,68,0.2)';}}
+            onMouseLeave={e=>{e.currentTarget.style.background='#fff5f5';e.currentTarget.style.color='#ef4444';e.currentTarget.style.boxShadow='';} }
           >
-            <LogOut size={15} className="flex-shrink-0" />
+            <LogOut size={14} className="flex-shrink-0" />
             {!isCollapsed && <span>Cerrar Sesión</span>}
           </button>
         </div>

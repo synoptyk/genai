@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Loader2, Eye, Users } from 'lucide-react';
+import { Search, Loader2, Eye, Users, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import SearchableSelect from '../../../../../components/SearchableSelect';
 
 const FiniquitosTable = ({ candidatos = [], projects = [], loading = false, onOpenDetail, formatDateUTC }) => {
@@ -23,6 +24,24 @@ const FiniquitosTable = ({ candidatos = [], projects = [], loading = false, onOp
         }
         return true;
     }), [candidatos, searchTerm, filterProject, filterDateFrom, filterDateTo]);
+
+    const exportToExcel = () => {
+        const dataToExport = filtered.map(c => ({
+            'RUT': c.rut || 'N/D',
+            'Nombre Completo': c.fullName || '',
+            'Proyecto': c.projectName || c.projectId?.nombreProyecto || 'N/A',
+            'Estado': c.status || '',
+            'Fecha Finiquito': c.fechaFiniquito ? formatDateUTC(c.fechaFiniquito) : 'Sin fecha',
+            'Motivo': c.finiquitoMotivo || 'No informado',
+            'Procesado En': c.finiquitoDetalle?.procesadoEn || 'Módulo',
+            'Estado Notaría': c.finiquitoDetalle?.notariaEstado || 'Pendiente'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Finiquitos_Historico');
+        XLSX.writeFile(wb, `Registro_Finiquitos_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
 
     return (
         <div className="space-y-4">
@@ -65,6 +84,14 @@ const FiniquitosTable = ({ candidatos = [], projects = [], loading = false, onOp
                         onChange={e => setFilterDateTo(e.target.value)}
                         className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
                     />
+                </div>
+                <div className="md:col-span-5 flex justify-end">
+                    <button
+                        onClick={exportToExcel}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-sm"
+                    >
+                        <Download size={14} /> Exportar Excel
+                    </button>
                 </div>
             </div>
 
@@ -133,12 +160,26 @@ const FiniquitosTable = ({ candidatos = [], projects = [], loading = false, onOp
                                             {c.finiquitoMotivo || 'No informado'}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center justify-end">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/captura-talento?id=${c._id}`, '_blank')}}
+                                                    className="h-8 px-3 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-[10px] uppercase font-black tracking-wider flex items-center justify-center transition-all shadow-sm"
+                                                    title="Ficha Registro Talento"
+                                                >
+                                                    Ficha
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/gestion-documental?id=${c._id}`, '_blank')}}
+                                                    className="h-8 px-3 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-[10px] uppercase font-black tracking-wider flex items-center justify-center transition-all shadow-sm"
+                                                    title="Expediente Legal"
+                                                >
+                                                    Docs
+                                                </button>
                                                 <button
                                                     onClick={() => onOpenDetail && onOpenDetail(c)}
                                                     className="h-8 px-4 rounded-xl bg-slate-900 text-white text-[10px] uppercase font-black tracking-wider flex items-center justify-center gap-1.5 hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm"
                                                 >
-                                                    <Eye size={14} /> Detalle / Editar
+                                                    <Eye size={14} /> Detalle
                                                 </button>
                                             </div>
                                         </td>

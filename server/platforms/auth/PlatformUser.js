@@ -185,4 +185,4 @@ PlatformUserSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('PlatformUser', PlatformUserSchema);
+module.exports = mongoose.model('PlatformUser', PlatformUserSchema, 'usergenais');

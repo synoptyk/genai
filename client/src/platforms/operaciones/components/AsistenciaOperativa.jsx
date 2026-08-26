@@ -210,6 +210,7 @@ const AsistenciaOperativa = ({
                     else if (val === 'Permiso') extra.tipoAusencia = 'Permiso con Goce de Sueldo';
                     else if (val === 'Licencia') extra.tipoAusencia = 'Licencia Médica';
                     else if (val === 'Vacaciones') extra.tipoAusencia = 'Vacaciones';
+                    else if (val === 'Desvinculado') extra.tipoAusencia = 'Desvinculado';
                     else extra.tipoAusencia = null;
                 } else {
                     extra = { tipoAusencia: null };
@@ -409,7 +410,7 @@ const AsistenciaOperativa = ({
             if (!res.ok) throw new Error(data.message || 'Error uploading');
 
             // Apply specific logic based on what required the photo
-            if (['Ausente', 'Libre', 'Permiso', 'Licencia'].includes(photoModalData.tipoEvento)) {
+            if (['Ausente', 'Libre', 'Permiso', 'Licencia', 'Desvinculado'].includes(photoModalData.tipoEvento)) {
                 handleUpdateLog(photoModalData.candId, 'estado', photoModalData.tipoEvento);
                 handleAddEvento(photoModalData.candId, 'Ausencia/Excepción', getNowHHmm(), photoModalData.tipoEvento, photoModalData.observacion || 'Respaldo cargado', data.url);
             } else if (photoModalData.tipoEvento === 'Retiro') {
@@ -739,13 +740,16 @@ const AsistenciaOperativa = ({
                                                             </button>
 
                                                             {/* Estados de Excepción con Foto Obligatoria */}
-                                                            {['Ausente', 'Libre', 'Permiso', 'Licencia'].map(ex => (
+                                                            {['Ausente', 'Libre', 'Permiso', 'Licencia', 'Desvinculado'].map(ex => (
                                                                 <button 
                                                                     key={ex}
                                                                     onClick={() => {
                                                                         if (ex === 'Libre') {
                                                                             handleUpdateLog(tec.rrhh._id, 'estado', 'Libre');
                                                                             handleAddEvento(tec.rrhh._id, 'Ausencia/Excepción', getNowHHmm(), 'Libre', 'Día libre asignado');
+                                                                        } else if (ex === 'Desvinculado') {
+                                                                            handleUpdateLog(tec.rrhh._id, 'estado', 'Desvinculado');
+                                                                            handleAddEvento(tec.rrhh._id, 'Ausencia/Excepción', getNowHHmm(), 'Desvinculado', 'Colaborador desvinculado');
                                                                         } else {
                                                                             openPhotoModal(tec.rrhh._id, ex);
                                                                         }
@@ -807,39 +811,97 @@ const AsistenciaOperativa = ({
                                                             </div>
                                                         )}
 
-                                                        {['Presente', 'Tardanza'].includes(log.estado) && log.isFinDia && (
-                                                            <div className="flex flex-wrap items-center gap-4 mt-3 animate-in fade-in bg-indigo-50 p-2.5 rounded-xl border border-indigo-100 max-w-fit">
-                                                                <div className="flex items-center gap-2">
-                                                                    <label className="text-[9px] font-black uppercase text-indigo-600 flex flex-col">
-                                                                        <span>Salida</span>
-                                                                        <span className="text-indigo-400 font-bold lowercase">Término jornada</span>
-                                                                    </label>
-                                                                    <input 
-                                                                        type="time" 
-                                                                        value={log.horaSalida || ''}
-                                                                        onChange={(e) => handleUpdateLog(tec.rrhh._id, 'horaSalida', e.target.value)}
-                                                                        className="px-2 py-1.5 text-xs font-bold border border-indigo-200 bg-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-400"
-                                                                    />
-                                                                </div>
+                                                        {['Presente', 'Tardanza'].includes(log.estado) && log.isFinDia && (() => {
+                                                            // Cálculo de balance de horas en tiempo real
+                                                            const horarioFin = log.turno ? getHorarioDelDia(log.turno, asistenciaFecha) : null;
+                                                            let turnH = 0;
+                                                            if (horarioFin?.horaEntrada && horarioFin?.horaSalida) {
+                                                                const [teH, teM] = horarioFin.horaEntrada.split(':').map(Number);
+                                                                const [tsH, tsM] = horarioFin.horaSalida.split(':').map(Number);
+                                                                turnH = (tsH + (tsM||0)/60) - (teH + (teM||0)/60);
+                                                                if (turnH < 0) turnH += 24;
+                                                            }
+                                                            let trabH = 0;
+                                                            const hrEnt = log.horaIngresoDeclarada;
+                                                            if (hrEnt && log.horaSalida) {
+                                                                const [ieH, ieM] = hrEnt.split(':').map(Number);
+                                                                const [isH, isM] = log.horaSalida.split(':').map(Number);
+                                                                trabH = (isH + (isM||0)/60) - (ieH + (ieM||0)/60);
+                                                                if (trabH < 0) trabH += 24;
+                                                            }
+                                                            const noTrabH = turnH > 0 ? Math.max(0, turnH - trabH) : 0;
+                                                            const hrsExtra = Number(log.horasExtraAprobadas || 0);
+                                                            const balance = hrsExtra - noTrabH;
+                                                            const hasData = trabH > 0 || noTrabH > 0;
 
-                                                                <div className="w-px h-8 bg-indigo-200 hidden sm:block"></div>
+                                                            return (
+                                                                <div className="flex flex-wrap items-start gap-4 mt-3 animate-in fade-in">
+                                                                    {/* Panel Salida + H. Extras */}
+                                                                    <div className="flex flex-wrap items-center gap-4 bg-indigo-50 p-2.5 rounded-xl border border-indigo-100">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <label className="text-[9px] font-black uppercase text-indigo-600 flex flex-col">
+                                                                                <span>Salida</span>
+                                                                                <span className="text-indigo-400 font-bold lowercase">Término jornada</span>
+                                                                            </label>
+                                                                            <input 
+                                                                                type="time" 
+                                                                                value={log.horaSalida || ''}
+                                                                                onChange={(e) => handleUpdateLog(tec.rrhh._id, 'horaSalida', e.target.value)}
+                                                                                className="px-2 py-1.5 text-xs font-bold border border-indigo-200 bg-white rounded-lg outline-none focus:ring-2 focus:ring-indigo-400"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="w-px h-8 bg-indigo-200 hidden sm:block"></div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <label className="text-[9px] font-black uppercase text-emerald-600 flex flex-col">
+                                                                                <span>H. Extras</span>
+                                                                                <span className="text-emerald-500 font-bold lowercase">Aprobadas</span>
+                                                                            </label>
+                                                                            <input 
+                                                                                type="number" 
+                                                                                step="0.5"
+                                                                                min="0"
+                                                                                value={log.horasExtraAprobadas || 0}
+                                                                                onChange={(e) => handleUpdateLog(tec.rrhh._id, 'horasExtraAprobadas', e.target.value)}
+                                                                                className="w-16 px-2 py-1.5 text-xs font-bold border border-emerald-200 bg-white rounded-lg outline-none focus:ring-2 focus:ring-emerald-400"
+                                                                            />
+                                                                        </div>
+                                                                    </div>
 
-                                                                <div className="flex items-center gap-2">
-                                                                    <label className="text-[9px] font-black uppercase text-emerald-600 flex flex-col">
-                                                                        <span>H. Extras</span>
-                                                                        <span className="text-emerald-500 font-bold lowercase">Aprobadas</span>
-                                                                    </label>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        step="0.5"
-                                                                        min="0"
-                                                                        value={log.horasExtraAprobadas || 0}
-                                                                        onChange={(e) => handleUpdateLog(tec.rrhh._id, 'horasExtraAprobadas', e.target.value)}
-                                                                        className="w-16 px-2 py-1.5 text-xs font-bold border border-emerald-200 bg-white rounded-lg outline-none focus:ring-2 focus:ring-emerald-400"
-                                                                    />
+                                                                    {/* Panel Balance de Horas (se muestra cuando hay datos de salida) */}
+                                                                    {hasData && (
+                                                                        <div className={`flex items-center gap-3 px-3 py-2 rounded-xl border text-[10px] font-black ${balance >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                                                                            {turnH > 0 && (
+                                                                                <div className="flex flex-col items-center">
+                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Turno</span>
+                                                                                    <span className="text-slate-600 tabular-nums">{turnH.toFixed(2)}h</span>
+                                                                                </div>
+                                                                            )}
+                                                                            {turnH > 0 && <div className="w-px h-6 bg-slate-200"/>}
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Trabajadas</span>
+                                                                                <span className="text-slate-700 tabular-nums">{trabH.toFixed(2)}h</span>
+                                                                            </div>
+                                                                            {noTrabH > 0 && (
+                                                                                <>
+                                                                                    <div className="w-px h-6 bg-slate-200"/>
+                                                                                    <div className="flex flex-col items-center">
+                                                                                        <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest">No Trab.</span>
+                                                                                        <span className="text-rose-600 tabular-nums">-{noTrabH.toFixed(2)}h</span>
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+                                                                            <div className="w-px h-6 bg-slate-200"/>
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span className={`text-[8px] font-black uppercase tracking-widest ${balance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>Balance</span>
+                                                                                <span className={`tabular-nums font-black ${balance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                                                    {balance >= 0 ? '+' : ''}{balance.toFixed(2)}h
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            </div>
-                                                        )}
+                                                            );
+                                                        })()}
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-3 text-slate-500">

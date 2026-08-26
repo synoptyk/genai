@@ -7,10 +7,11 @@ exports.registrarLatido = async (req, res) => {
         const { segundosIncremental } = req.body;
         const user = req.user;
 
-        // Solo aplica para ciertos roles, pero el frontend puede manejar el filtro principal. 
-        // Backend también valida para consistencia.
-        if (user.role !== 'administrativo' && user.role !== 'admin') {
-            return res.status(403).json({ error: 'Rol no autorizado para trackeo de tiempo' });
+        // Trackeo activo solo para roles operativos/administrativos. Para otros roles responder OK sin error.
+        const role = String(user.role || '').toLowerCase().trim();
+        const allowedRoles = ['administrativo', 'admin', 'gerencia', 'system_admin', 'administrador maestro', 'operativo'];
+        if (!allowedRoles.includes(role)) {
+            return res.json({ success: true, trackingSkipped: true });
         }
 
         const hoy = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD" local/UTC

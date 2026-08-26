@@ -199,7 +199,7 @@ const ProduccionAgenda = ({
             <div className="p-2 bg-fuchsia-500/10 rounded-lg text-fuchsia-400 font-black text-xs">TOP</div>
             <div className="text-[12px] font-black uppercase tracking-widest text-fuchsia-400">Ranking Promedios</div>
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 relative z-10 bg-slate-950/50 p-3 rounded-xl border border-white/5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 relative z-10 bg-slate-950/50 p-3 rounded-xl border border-white/5">
             <div className="flex flex-col">
               <div className="text-[8px] text-slate-500 uppercase font-black mb-1">Mejor Inicio</div>
               <div className="text-[11px] font-black text-slate-200 truncate">{rankedByEarlyStart[0]?.name || '—'}</div>

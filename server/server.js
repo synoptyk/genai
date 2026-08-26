@@ -433,15 +433,13 @@ if (!process.env.MONGO_URI) {
   console.log(`📡 Intentando conectar a MongoDB: ${process.env.MONGO_URI}`);
   logger.info(`📡 Intentando conectar a MongoDB: ${process.env.MONGO_URI}`, { type: 'db_init' });
   mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 60000,  // Aumentado de 30s a 60s
-    connectTimeoutMS: 60000,          // Aumentado de 30s a 60s
-    socketTimeoutMS: 300000,         // Aumentado drásticamente a 5 minutos para operaciones TOA pesadas
-    retryWrites: true,
-    w: 'majority',
-    maxPoolSize: 20,                 // Duplicado de 10 a 20
+    serverSelectionTimeoutMS: 30000,
+    connectTimeoutMS: 30000,
+    socketTimeoutMS: 300000,
+    maxPoolSize: 20,
     minPoolSize: 2,
     heartbeatFrequencyMS: 10000,
-    waitQueueTimeoutMS: 30000,        // Timeout para esperar una conexión del pool
+    waitQueueTimeoutMS: 30000,
   })
     .then(async () => {
       console.log('🍃 SUCCESS: Connected to MongoDB Database (VPS/telecom_db)');
@@ -941,6 +939,8 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
     _botChild = fork(botScript, [], {
       env: {
         ...process.env,
+        MONGO_URI: process.env.MONGO_URI || process.env.MONGODB_URI,
+        MONGODB_URI: process.env.MONGO_URI || process.env.MONGODB_URI,
         BOT_FECHA_INICIO: fechaInicio || '',
         BOT_FECHA_FIN: fechaFin || '',
         BOT_TOA_URL: credenciales.url || '',
@@ -1193,8 +1193,10 @@ app.post('/api/bot/gps-run', botLimiter, protect, async (req, res) => {
 // GET - Obtener config TOA de la empresa (sin exponer la clave)
 app.get('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:ver'), async (req, res) => {
   try {
-    const empresa = await Empresa.findById(req.user.empresaRef);
-    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+    let empresa = req.user.empresaRef ? await Empresa.findById(req.user.empresaRef) : null;
+    if (!empresa) {
+      empresa = await Empresa.findOne({}) || {};
+    }
     const cfg = empresa.integracionTOA || {};
     res.json({
       url: cfg.url || 'https://telefonica-cl.etadirect.com/',
@@ -1213,6 +1215,14 @@ app.post('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:editar
     const { url, usuario, clave } = req.body;
     if (!usuario) return res.status(400).json({ error: 'El usuario TOA es requerido' });
 
+    let empresa = req.user.empresaRef ? await Empresa.findById(req.user.empresaRef) : null;
+    if (!empresa) {
+      empresa = await Empresa.findOne({});
+      if (!empresa) {
+        empresa = await Empresa.create({ nombre: req.user.empresa?.nombre || 'Synoptyk Innovación' });
+      }
+    }
+
     const updateData = {
       'integracionTOA.usuario': usuario.trim(),
       'integracionTOA.estadoSincronizacion': 'Configurado'
@@ -1222,13 +1232,12 @@ app.post('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:editar
     if (clave && clave.trim()) {
       updateData['integracionTOA.clave'] = encriptarTexto(clave);
     } else {
-      const empresa = await Empresa.findById(req.user.empresaRef);
       if (!empresa?.integracionTOA?.clave) {
         return res.status(400).json({ error: 'La contraseña TOA es requerida para la primera configuración' });
       }
     }
 
-    await Empresa.findByIdAndUpdate(req.user.empresaRef, { $set: updateData });
+    await Empresa.findByIdAndUpdate(empresa._id, { $set: updateData });
     res.json({ message: 'Configuración TOA guardada correctamente.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -2271,14 +2280,14 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands, r_asistencia] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find({}).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName').lean(),
+        ? Tecnico.find({}).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
       isSystemAdmin && !empresaFilter
-        ? Candidato.find({}).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
-        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean(),
+        ? Candidato.find({}).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean()
+        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean(),
       queryAsistencia
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
@@ -3370,16 +3379,35 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       return p;
     }).sort((a, b) => b.pts - a.pts);
 
-    // --- FILTRO FINAL DE PROYECTOS (SEGURIDAD DE COLUMNA) ---
+    // --- FILTRO FINAL DE PROYECTOS (SEGURIDAD DE COLUMNA Y NORMALIZACIÓN) ---
     let finalFilteredTecnicos = tecnicosFinales;
     if (proyectos && proyectos.length > 0) {
-      const projs = Array.isArray(proyectos) ? proyectos : String(proyectos).split(',');
-      finalFilteredTecnicos = tecnicosFinales.filter(t => {
-        const p = String(t.proyecto || '').trim();
-        // Si el proyecto del técnico está en la lista de seleccionados, pasa.
-        return projs.includes(p);
-      });
+      const projsRaw = Array.isArray(proyectos) ? proyectos : String(proyectos).split(',');
+      const projsNormalized = projsRaw.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+
+      if (projsNormalized.length > 0) {
+        finalFilteredTecnicos = tecnicosFinales.filter(t => {
+          const p = String(t.proyecto || '').trim().toUpperCase();
+          const cliente = String(t.cliente || '').trim().toUpperCase();
+          const ceco = String(t.ceco || '').trim().toUpperCase();
+          return projsNormalized.some(filterP => 
+            p === filterP || 
+            p.includes(filterP) || 
+            filterP.includes(p) || 
+            cliente === filterP || 
+            ceco === filterP
+          );
+        });
+      }
     }
+
+    const totalPts_final_calc = finalFilteredTecnicos.reduce((s, t) => s + (t.ptsTotal || 0), 0);
+    const totalFacturacion_final_calc = finalFilteredTecnicos.reduce((s, t) => s + (t.facturacion || 0), 0);
+    const totalRetencion_final_calc = finalFilteredTecnicos.reduce((s, t) => s + (t.retencion || 0), 0);
+    const totalFacturacionNeta_final_calc = finalFilteredTecnicos.reduce((s, t) => s + (t.facturacionNeta || 0), 0);
+    const totalOrders_calc = finalFilteredTecnicos.reduce((s, t) => s + (t.orders || 0), 0);
+    const uniqueTechs_calc = finalFilteredTecnicos.length;
+    const avgPtsPerTechPerDay_calc = uniqueTechs_calc > 0 && uniqueDays > 0 ? Math.round((totalPts_final_calc / uniqueTechs_calc / uniqueDays) * 100) / 100 : 0;
 
     const vinculadosFinales = finalFilteredTecnicos.filter(t => t.isVinculado).map(t => ({
       idRecurso: t.idRecursoToa,
@@ -3419,19 +3447,19 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     console.log(`✅ [produccion-stats] RESUMEN FINAL:
        - Órdenes en DB: ${totalDocsInDB || 0}
        - Órdenes vinculadas con éxito: ${matchedCount || 0}
-       - Puntos totales acumulados: ${Math.round((totalPts_final || 0) * 100) / 100}
+       - Puntos totales acumulados: ${Math.round((totalPts_final_calc || 0) * 100) / 100}
     `);
     
     res.json({
       maxDate: maxDateStr,
       stats: {
-        totalOrders: totalOrders_count,
-        totalPts: Math.round(totalPts_final * 100) / 100,
-        totalFacturacion: Math.round(totalFacturacion_final),
-        totalRetencion: Math.round(totalRetencion_final),
-        totalFacturacionNeta: Math.round(totalFacturacionNeta_final),
-        avgPtsPerTechPerDay,
-        uniqueTechs,
+        totalOrders: totalOrders_calc,
+        totalPts: Math.round(totalPts_final_calc * 100) / 100,
+        totalFacturacion: Math.round(totalFacturacion_final_calc),
+        totalRetencion: Math.round(totalRetencion_final_calc),
+        totalFacturacionNeta: Math.round(totalFacturacionNeta_final_calc),
+        avgPtsPerTechPerDay: avgPtsPerTechPerDay_calc,
+        uniqueTechs: uniqueTechs_calc,
         uniqueDays
       },
       tecnicos: tecnicosRespuesta,
@@ -5371,21 +5399,22 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
   try {
     const ROLES = require('./platforms/auth/roles');
     const empresaId = req.user.empresaRef;
-    const userRole = req.user.role;
-    const isSystemAdmin = userRole === ROLES.SYSTEM_ADMIN || userRole === ROLES.CEO;
+    const userRole = String(req.user?.role || '').toLowerCase().trim();
+    const isHighLevel = ['system_admin', 'admin', 'gerencia', 'ceo', 'ceo_genai', 'administrador', 'administrador maestro', 'director', 'coordinador'].includes(userRole);
 
     let { desde, hasta, page = 1, limit = 100 } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.max(10, Math.min(100, parseInt(limit) || 100));
 
-    let idParaFiltro = empresaId;
-    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
-    
-    const filtro = isSystemAdmin ? {} : { 
-      empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] } 
-    };
+    const filtro = {};
 
-    if (!isSystemAdmin) {
+    if (!isHighLevel) {
+      let idParaFiltro = empresaId;
+      try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+      if (empresaId) {
+        filtro.empresaRef = { $in: [idParaFiltro, String(idParaFiltro)] };
+      }
+
       const tecnicos = await Tecnico.find({
         empresaRef: empresaId,
         idRecursoToa: { $exists: true, $ne: '' }
@@ -5396,7 +5425,9 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
           { 'ID Recurso': { $in: idsVinculados } },
           { 'idRecursoToa': { $in: idsVinculados } },
           { 'recurso': { $in: idsVinculados } },
-          { 'RECURSO': { $in: idsVinculados } }
+          { 'RECURSO': { $in: idsVinculados } },
+          { 'Recurso': { $in: idsVinculados } },
+          { 'Auto-asignado a recurso (id)': { $in: idsVinculados } }
         ];
       }
     }
@@ -5474,33 +5505,45 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
 
 // 2.2b EXPORTAR EXCEL COMPLETO — Server-side (sin límite de registros)
 // Genera archivo XLSX directamente en el servidor con TODOS los registros
-app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
+app.get('/api/bot/exportar-toa', protect, async (req, res) => {
+  const origin = req.headers.origin || 'https://www.genai.cl';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, X-Total-Count');
+
   try {
     const XLSX = require('xlsx');
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = req.user.role === 'system_admin';
+    const userRole = String(req.user?.role || '').toLowerCase().trim();
+    const isHighLevel = ['system_admin', 'admin', 'gerencia', 'ceo', 'ceo_genai', 'administrador', 'administrador maestro', 'director', 'coordinador'].includes(userRole);
     const { desde, hasta, clientes } = req.query;
 
-    // IDs de vinculados para filtro restrictivo (Security Layer)
-    const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
-    const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim());
+    const filtro = {};
 
-    let idParaFiltro = empresaId;
-    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
-    const filtro = { empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] } };
+    if (!isHighLevel) {
+      const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+      const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
 
-    if (!isSystemAdmin) {
+      let idParaFiltro = empresaId;
+      try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+
+      if (empresaId) {
+        filtro.empresaRef = { $in: [idParaFiltro, String(idParaFiltro)] };
+      }
+
       if (restrictedIDs.length > 0) {
         filtro.$or = [
+          { "ID Recurso": { $in: restrictedIDs } },
+          { "idRecursoToa": { $in: restrictedIDs } },
+          { "recurso": { $in: restrictedIDs } },
           { "RECURSO": { $in: restrictedIDs } },
-          { "RECURSO": { $in: restrictedIDs } },
-          { "RECURSO": { $in: restrictedIDs } },
-          { idRecurso: { $in: restrictedIDs } },
-          { "Recurso": { $in: restrictedIDs } }
+          { "Recurso": { $in: restrictedIDs } },
+          { "Auto-asignado a recurso (id)": { $in: restrictedIDs } }
         ];
       }
     }
+
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
@@ -5625,7 +5668,7 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
     });
 
     if (rows.length === 0) {
-      // Si no hay datos, al menos enviamos los headers
+      // Si no hay datos, enviamos la plantilla de encabezados
       const ws = XLSX.utils.json_to_sheet([{}], { header: Array.from(allKeys) });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Sin_Datos');
@@ -5637,26 +5680,44 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
       return res.send(buffer);
     }
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Produccion_TOA');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '_COMPLETO';
+    const isLarge = rows.length > 1500;
+    const extension = isLarge ? 'csv' : 'xlsx';
+    const filename = `Produccion_TOA${rangoStr}_${new Date().toISOString().split('T')[0]}.${extension}`;
 
-    const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '';
-    const filename = `Produccion_TOA_COMPLETO${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    let buffer;
+    if (isLarge) {
+      const headersList = ['Fecha', ...Array.from(allKeys).filter(k => k !== 'fecha')];
+      let csvStr = '\uFEFF' + headersList.map(h => '"' + String(h).replace(/"/g, '""') + '"').join(';') + '\n';
+      rows.forEach(r => {
+        const line = headersList.map(h => {
+          const val = r[h];
+          if (val === null || val === undefined) return '""';
+          return '"' + String(val).replace(/"/g, '""') + '"';
+        }).join(';');
+        csvStr += line + '\n';
+      });
+      buffer = Buffer.from(csvStr, 'utf-8');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    } else {
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Produccion_TOA');
+      buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
 
-    // Respuesta con todos los headers CORS necesarios para descargas
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
     res.setHeader('Cache-Control', 'no-store, must-revalidate');
 
     res.send(buffer);
-
-    console.log(`📊 Excel exportado: ${datos.length} registros → ${filename}`);
+    console.log(`📊 Excel/CSV exportado (${extension}): ${datos.length} registros → ${filename}`);
   } catch (error) {
     console.error('❌ /api/bot/exportar-toa error:', error.stack || error.message);
-    // IMPORTANTE: Enviar JSON pero con status 500 para que el frontend lo detecte
+    const origin = req.headers.origin || 'https://www.genai.cl';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.status(500).json({
       error: 'Error al generar el archivo Excel',
       detail: error.message,
@@ -5666,8 +5727,11 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
 });
 
 // 2.2b EXPORTAR EXCEL — VERSIÓN OPTIMIZADA PARA GRANDES VOLÚMENES (3000+ registros)
-// Usa procesamiento en lotes para evitar timeout y agotamiento de memoria en Cloud Run
-app.get('/api/bot/exportar-toa-opt', botLimiter, protect, async (req, res) => {
+app.get('/api/bot/exportar-toa-opt', protect, async (req, res) => {
+  const origin = req.headers.origin || 'https://www.genai.cl';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, X-Total-Count');
   const fs = require('fs');
   const path = require('path');
   const os = require('os');
@@ -6716,5 +6780,17 @@ setInterval(() => {
     });
   } catch (err) { }
 }, 10 * 60 * 1000); // cada 10 minutos
+
+// ── Global Error Middleware (Garantiza CORS incluso en excepciones 500) ──────
+app.use((err, req, res, next) => {
+  const origin = req.headers.origin || 'https://www.genai.cl';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, X-Total-Count');
+  console.error('❌ Error no capturado en el servidor:', err.stack || err.message);
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({ ok: false, error: err.message || 'Error interno del servidor' });
+  }
+});
 
 module.exports = { app, serverInstance };

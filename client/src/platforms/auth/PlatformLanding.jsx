@@ -36,10 +36,10 @@ const MODULES = [
 
 const INTEGRATIONS = ['SAP', 'Oracle', 'Salesforce', 'Microsoft 365', 'Google Workspace', 'Slack', 'TOA Field Service', 'Power BI'];
 const STATS = [
-    { value: '100%', label: 'Módulos Operativos', icon: Layers },
-    { value: '360°', label: 'Visibilidad Total', icon: Globe },
-    { value: '+40%', label: 'Eficiencia Operativa', icon: TrendingUp },
-    { value: '-74%', label: 'Incidentes Preventibles', icon: ShieldCheck },
+    { value: '100%', label: 'Módulos Operativos', icon: Layers, color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.3)' },
+    { value: '360°', label: 'Visibilidad Total', icon: Globe, color: '#00bcd4', bg: 'rgba(0,188,212,0.15)', border: 'rgba(0,188,212,0.3)' },
+    { value: '+43%', label: 'Eficiencia Operativa', icon: TrendingUp, color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
+    { value: '-74%', label: 'Incidentes Preventibles', icon: ShieldCheck, color: '#f43f5e', bg: 'rgba(244,63,94,0.15)', border: 'rgba(244,63,94,0.3)' },
 ];
 
 const DownloadsDropdown = () => {
@@ -70,11 +70,11 @@ const DownloadsDropdown = () => {
                 <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: '#020617', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 16, overflow: 'hidden', minWidth: 260, zIndex: 100, boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Desktop IDE</div>
                     <a href="https://storage.googleapis.com/genai360-downloads/GENAI360-Mac.dmg" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Laptop size={16} color="#06b6d4" /> Apple Mac (DMG)</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Laptop size={16} color="#00bcd4" /> Apple Mac (DMG)</div>
                         <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
                     </a>
                     <a href="https://storage.googleapis.com/genai360-downloads/GENAI360-Win.exe" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', color: '#e2e8f0', textDecoration: 'none', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Monitor size={16} color="#06b6d4" /> Windows (x64)</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}><Monitor size={16} color="#00bcd4" /> Windows (x64)</div>
                         <Download size={14} color="#64748b" style={{ pointerEvents: 'none' }} />
                     </a>
                     
@@ -131,16 +131,16 @@ const PlatformLanding = () => {
     const CSS = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         * { font-family: 'Inter', sans-serif; }
-        .gt { background: linear-gradient(135deg, #4f46e5, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .gt-cyan { background: linear-gradient(135deg, #06b6d4, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .shimmer { background: linear-gradient(90deg, #06b6d4, #6366f1, #8b5cf6, #06b6d4); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: sh 4s linear infinite; }
+        .gt { background: linear-gradient(135deg, #00bcd4, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .gt-cyan { background: linear-gradient(135deg, #00bcd4, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .shimmer { background: linear-gradient(90deg, #00bcd4, #10b981, #f59e0b, #00bcd4); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: sh 4s linear infinite; }
         @keyframes sh { to { background-position: 200% center; } }
         .card-hover { transition: all 0.3s ease; }
-        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 50px rgba(79,70,229,0.13); }
-        .btn-p { background: linear-gradient(135deg, #4f46e5, #7c3aed); transition: all 0.3s ease; }
-        .btn-p:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(79,70,229,0.4); }
-        .btn-cyan { background: linear-gradient(135deg, #06b6d4, #4f46e5); transition: all 0.3s ease; }
-        .btn-cyan:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(6,182,212,0.35); }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 50px rgba(0,188,212,0.2); }
+        .btn-p { background: linear-gradient(135deg, #00bcd4, #00897b); color: #fff; font-weight: 800; transition: all 0.3s ease; }
+        .btn-p:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,188,212,0.45); }
+        .btn-cyan { background: linear-gradient(135deg, #00bcd4, #f59e0b); color: #fff; font-weight: 800; transition: all 0.3s ease; }
+        .btn-cyan:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,188,212,0.45); }
         .fade { opacity: 0; transform: translateY(35px); transition: all 0.7s ease; }
         .fade.vis { opacity: 1; transform: translateY(0); }
 
@@ -160,64 +160,65 @@ const PlatformLanding = () => {
         @keyframes fl { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
         .marq { display: flex; animation: mq 22s linear infinite; white-space: nowrap; }
         @keyframes mq { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .logo-glow { filter: drop-shadow(0 0 16px rgba(6,182,212,0.5)); }
-        .photo-ring { box-shadow: 0 0 0 4px rgba(6,182,212,0.4), 0 0 40px rgba(6,182,212,0.2), 0 20px 60px rgba(0,0,0,0.4); }
-        .pillar-active { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; box-shadow: 0 8px 28px rgba(79,70,229,0.3); }
+        .logo-glow { filter: drop-shadow(0 0 16px rgba(0,188,212,0.6)); }
+        .photo-ring { box-shadow: 0 0 0 4px rgba(0,188,212,0.5), 0 0 40px rgba(0,188,212,0.3), 0 20px 60px rgba(0,0,0,0.4); }
+        .pillar-active { background: linear-gradient(135deg, #00bcd4, #00897b); color: white; box-shadow: 0 8px 28px rgba(0,188,212,0.35); }
     `;
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#fff', color: '#0f172a', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' }}>
             <style>{CSS}</style>
 
-            <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>{BRAND.tagline}</div>
+            <div style={{ background: '#061024', color: '#00e5ff', fontSize: 12, padding: '9px 0', textAlign: 'center', fontWeight: 800, letterSpacing: '0.05em', borderBottom: '1px solid rgba(0,229,255,0.15)' }}>{BRAND.tagline}</div>
 
             {/* NAVBAR */}
-            <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 || isMobile ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 || isMobile ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 || isMobile ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 || isMobile ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
-                <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '10px 14px' : '14px 24px', display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'space-between', gap: isMobile ? 10 : 0 }}>
+            <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 || isMobile ? 'rgba(6,16,36,0.96)' : 'transparent', backdropFilter: scrollY > 20 || isMobile ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 || isMobile ? '1px solid rgba(0,229,255,0.2)' : 'none', boxShadow: scrollY > 20 || isMobile ? '0 4px 30px rgba(0,0,0,0.5)' : 'none' }}>
+                <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '10px 14px' : '14px 24px', display: 'flex', itemsAlign: 'center', justifyContent: isMobile ? 'space-between' : 'space-between', gap: isMobile ? 10 : 0 }}>
                     <img src={BRAND.logoPath} alt={BRAND.fullName} style={{ height: isMobile ? 34 : 40, borderRadius: 10, flexShrink: 0 }} className="logo-glow" />
                     {!isMobile && <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
                         {[['#pilares','Plataforma'],['#modulos','Módulos'],['#integraciones','Integraciones'],['#nosotros','Empresa']].map(([h,l]) => (
-                            <a key={h} href={h} style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textDecoration: 'none' }} onMouseEnter={e=>e.target.style.color='#4f46e5'} onMouseLeave={e=>e.target.style.color='#64748b'}>{l}</a>
+                            <a key={h} href={h} style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', textDecoration: 'none' }} onMouseEnter={e=>e.target.style.color='#00e5ff'} onMouseLeave={e=>e.target.style.color='#e2e8f0'}>{l}</a>
                         ))}
                     </div>}
                     <div style={{ display: 'flex', gap: 12, flex: isMobile ? 1 : 'initial', justifyContent: isMobile ? 'center' : 'flex-end' }}>
                         {user ? (
-                            <button onClick={() => navigate('/prevencion/dashboard')} className="btn-p" style={{ color: '#fff', padding: '12px 24px', borderRadius: 14, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <button onClick={() => navigate('/prevencion/dashboard')} className="btn-p" style={{ color: '#fff', padding: '12px 24px', borderRadius: 14, fontWeight: 800, fontSize: 13, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 Ir a la Plataforma <ArrowRight size={15} />
                             </button>
                         ) : (<>
-                            {!isMobile && <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', fontWeight: 600, fontSize: 13, color: '#475569', cursor: 'pointer', padding: '12px 16px' }}>Iniciar Sesión</button>}
+                            {!isMobile && <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', fontWeight: 700, fontSize: 13, color: '#00e5ff', cursor: 'pointer', padding: '12px 16px' }}>Iniciar Sesión</button>}
                             <button onClick={() => navigate('/login')} className="btn-p" style={{ color: '#fff', padding: isMobile ? '11px 18px' : '12px 24px', borderRadius: 14, fontWeight: 800, fontSize: isMobile ? 12 : 13, border: 'none', cursor: 'pointer', minWidth: isMobile ? 170 : 'auto', whiteSpace: 'nowrap' }}>{isMobile ? 'Iniciar sesión' : 'Acceso Corporativo'}</button>
                         </>)}
                     </div>
                 </div>
             </nav>
 
-            {/* HERO — dark, inline styles to ensure rendering */}
-            <section className="snap-section" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #020617 0%, #0f172a 60%, #0c1a3a 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? '112px 0 56px' : '136px 0 100px', position: 'relative', overflow: 'hidden' }}>
-                {/* ambient blobs */}
-                <div style={{ position: 'absolute', top: '20%', left: '-10%', width: 500, height: 500, background: 'radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
-                <div style={{ position: 'absolute', bottom: '10%', right: '-10%', width: 500, height: 500, background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+            {/* HERO — Exact dark navy background from Login */}
+            <section className="snap-section" style={{ minHeight: '100vh', background: 'linear-gradient(150deg, #061024 0%, #0a1738 50%, #040c1e 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? '112px 0 56px' : '136px 0 100px', position: 'relative', overflow: 'hidden' }}>
+                {/* ambient blobs in Celeste, Verde & Dorado */}
+                <div style={{ position: 'absolute', top: '20%', left: '-10%', width: 550, height: 550, background: 'radial-gradient(circle, rgba(0,229,255,0.25) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', bottom: '10%', right: '-10%', width: 550, height: 550, background: 'radial-gradient(circle, rgba(16,185,129,0.22) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', top: '40%', right: '20%', width: 350, height: 350, background: 'radial-gradient(circle, rgba(255,193,7,0.18) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
                 {/* grid pattern */}
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(6,182,212,0.07) 1px, transparent 0)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,229,255,0.08) 1px, transparent 0)', backgroundSize: '40px 40px', pointerEvents: 'none' }} />
 
                 {/* Floating cards */}
-                <div className="float" style={{ position: 'absolute', top: 160, right: 80, background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(20px)', border: '1px solid rgba(6,182,212,0.25)', borderRadius: 20, padding: '20px', width: 220, display: 'none' }} id="fcard1">
+                <div className="float" style={{ position: 'absolute', top: 160, right: 80, background: '#0c1733', backdropFilter: 'blur(20px)', border: '1px solid rgba(0,229,255,0.3)', borderRadius: 20, padding: '20px', width: 220, display: 'none' }} id="fcard1">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                        <div style={{ width: 36, height: 36, background: 'rgba(5,150,105,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <TrendingUp size={16} color="#34d399" />
+                        <div style={{ width: 36, height: 36, background: 'rgba(16,185,129,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <TrendingUp size={16} color="#10b981" />
                         </div>
-                        <div><p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', margin: 0 }}>Eficiencia</p><p style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: 0 }}>+43.2%</p></div>
+                        <div><p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', margin: 0 }}>Eficiencia</p><p style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: 0 }}>+43.2%</p></div>
                     </div>
-                    <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 10 }}><div style={{ height: '100%', width: '73%', background: 'linear-gradient(90deg,#34d399,#06b6d4)', borderRadius: 10 }} /></div>
-                    <p style={{ fontSize: 11, color: '#34d399', fontWeight: 700, marginTop: 4 }}>↑ 12.3% respecto al mes pasado</p>
+                    <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 10 }}><div style={{ height: '100%', width: '73%', background: 'linear-gradient(90deg,#10b981,#00e5ff)', borderRadius: 10 }} /></div>
+                    <p style={{ fontSize: 11, color: '#10b981', fontWeight: 700, marginTop: 4 }}>↑ 12.3% respecto al mes pasado</p>
                 </div>
 
                 <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '0 20px' : '0 40px', position: 'relative', zIndex: 2, width: '100%' }}>
                     <div style={{ maxWidth: isMobile ? '100%' : 980 }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 999, padding: '8px 16px', marginBottom: 20 }}>
-                            <div style={{ width: 8, height: 8, background: '#06b6d4', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>{BRAND.productName} Operating System · v8.0</span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(0,229,255,0.15)', border: '1px solid rgba(0,229,255,0.4)', borderRadius: 999, padding: '8px 16px', marginBottom: 20 }}>
+                            <div style={{ width: 8, height: 8, background: '#10b981', borderRadius: '50%', boxShadow:'0 0 10px #10b981', animation: 'pulse 2s infinite' }} />
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#00e5ff', textTransform: 'uppercase', letterSpacing: '0.2em' }}>{BRAND.productName} Operating System · v8.0</span>
                         </div>
 
                         <div style={{ marginBottom: 16 }}>
@@ -235,29 +236,29 @@ const PlatformLanding = () => {
                             de operaciones 360°
                         </h1>
 
-                                 <p style={{ fontSize: isMobile ? 14 : 18, color: '#94a3b8', lineHeight: 1.65, marginBottom: 24, maxWidth: isMobile ? '100%' : 820 }}>
-                                     100% de los módulos ya operativos: Control Operativo, Preventivo, Productivo, RRHH, Logística, Empresa360, Comunicaciones y Aprobaciones. <strong style={{ color: '#e2e8f0' }}>Una arquitectura diseñada para ejecutar más rápido, con menos fricción y más margen.</strong>
+                                 <p style={{ fontSize: isMobile ? 14 : 18, color: '#cbd5e1', lineHeight: 1.65, marginBottom: 24, maxWidth: isMobile ? '100%' : 820 }}>
+                                     100% de los módulos ya operativos: Control Operativo, Preventivo, Productivo, RRHH, Logística, Empresa360, Comunicaciones y Aprobaciones. <strong style={{ color: '#ffffff' }}>Una arquitectura diseñada para ejecutar más rápido, con menos fricción y más margen.</strong>
                         </p>
 
                         <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', width: '100%' }}>
-                            <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 800, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 Solicitar demo ejecutiva <ArrowRight size={17} />
                             </button>
                             <DownloadsDropdown />
-                            <a href="#pilares" style={{ color: '#94a3b8', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.3s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-                                Ver impacto por área <Play size={15} color="#06b6d4" />
+                            <a href="#pilares" style={{ color: '#00e5ff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, background: '#0c1733', border: '1px solid rgba(0,229,255,0.3)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.3s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,229,255,0.15)'; }} onMouseLeave={e => { e.currentTarget.style.background = '#0c1733'; }}>
+                                Ver impacto por área <Play size={15} color="#00e5ff" />
                             </a>
                         </div>
 
-                        <div style={{ display: 'flex', gap: isMobile ? 18 : 40, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: isMobile ? 18 : 36, flexWrap: 'wrap' }}>
                             {STATS.map((s,i) => (
                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div style={{ width: 44, height: 44, background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <s.icon size={18} color="#06b6d4" />
+                                    <div style={{ width: 46, height: 46, background: '#0c1733', border: `1px solid ${s.border}`, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow:`0 4px 16px ${s.bg}` }}>
+                                        <s.icon size={20} color={s.color} />
                                     </div>
                                     <div>
-                                        <p style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0, lineHeight: 1 }}>{s.value}</p>
-                                        <p style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, marginTop: 3 }}>{s.label}</p>
+                                        <p style={{ fontSize: 20, fontWeight: 900, color: s.color, margin: 0, lineHeight: 1 }}>{s.value}</p>
+                                        <p style={{ fontSize: 10, color: '#cbd5e1', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, marginTop: 4 }}>{s.label}</p>
                                     </div>
                                 </div>
                             ))}

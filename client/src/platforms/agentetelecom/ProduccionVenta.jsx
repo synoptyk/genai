@@ -204,13 +204,13 @@ export default function ProduccionVenta() {
     <div className="min-h-screen bg-slate-50">
       {/* ── HEADER ── */}
       <div className="bg-slate-900 text-white border-b border-slate-700 shadow-xl">
-        <div className="max-w-full px-4 py-2 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg border border-white/10">
+        <div className="max-w-full px-4 py-3 grid grid-cols-2 sm:flex sm:items-center gap-2 sm:flex-wrap">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg border border-white/10">
             <DollarSign size={10} className="animate-pulse" />
             PRODUCCIÓN FINANCIERA
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-600/50 px-3 py-1.5 rounded-xl text-[10px] text-slate-300 w-full max-w-[220px]">
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-2 bg-slate-800/80 border border-slate-600/50 px-3 py-1.5 rounded-xl text-[10px] text-slate-300 w-full sm:max-w-[220px]">
             <Search size={11} className="text-slate-500" />
             <input
               type="text"
@@ -237,7 +237,7 @@ export default function ProduccionVenta() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px]">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px]">
             <Calendar size={11} className="text-emerald-400" />
             <select value={selectedMonths[0] || ''} onChange={e => setSelectedMonths(e.target.value ? [e.target.value] : [])} className="bg-transparent outline-none text-white font-bold">
               <option value="">Mes: Actual</option>
@@ -245,13 +245,13 @@ export default function ProduccionVenta() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px]">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px]">
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-transparent outline-none text-white font-bold [color-scheme:dark] w-28" />
             <span className="text-slate-500">→</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-transparent outline-none text-white font-bold [color-scheme:dark] w-28" />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="col-span-2 sm:col-span-1 ml-auto flex flex-wrap items-center justify-between sm:justify-end gap-2 w-full sm:w-auto mt-2 sm:mt-0">
             <button onClick={handleExportExcel} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">
               <FileSpreadsheet size={11} className="text-emerald-400" />
               Auditoría

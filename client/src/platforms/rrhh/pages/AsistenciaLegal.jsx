@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Download, AlertTriangle, Filter, Search, Loader2, X, CalendarRange, Edit2, Info, Plus } from 'lucide-react';
+import { ShieldCheck, Download, AlertTriangle, Filter, Search, Loader2, X, CalendarRange, Edit2, Info, Plus, Zap } from 'lucide-react';
 import { asistenciaApi, turnosApi, candidatosApi } from '../rrhhApi';
 import { useAuth } from '../../auth/AuthContext';
 import { useCheckPermission } from '../../../hooks/useCheckPermission';
@@ -23,7 +23,31 @@ const AsistenciaLegal = () => {
     const [marcajeForm, setMarcajeForm] = useState({ estado: 'Presente', horaEntrada: '', horaSalida: '', observacionLegal: '' });
     const [savingMarcaje, setSavingMarcaje] = useState(false);
     const [downloadingReporte, setDownloadingReporte] = useState(false);
+    const [syncing, setSyncing] = useState(false);
     const [processingId, setProcessingId] = useState(null);
+
+    const handleSyncEstados = async () => {
+        if (!window.confirm("¿Deseas sincronizar el estado contractual (Nuevas Contrataciones y Finiquitos) para este mes?")) {
+            return;
+        }
+        setSyncing(true);
+        try {
+            const [y, m] = mesObj.split('-');
+            const res = await asistenciaApi.syncEstadosContractuales(Number(m), Number(y));
+            alert(res.data?.mensaje || `Sincronización completada exitosamente.`);
+            
+            // Recargar registros del mes
+            setLoading(true);
+            const resAsist = await asistenciaApi.getAll({ year: parseInt(y), month: parseInt(m) });
+            setRegistros(resAsist.data || []);
+        } catch (err) {
+            console.error("Error al sincronizar estados:", err);
+            alert(err.response?.data?.message || 'Error al sincronizar estados contractuales.');
+        } finally {
+            setSyncing(false);
+            setLoading(false);
+        }
+    };
     
     // Estados para Multi-select
     const [candidatosId, setCandidatosId] = useState([]);
@@ -304,6 +328,14 @@ const AsistenciaLegal = () => {
                             onChange={(e) => setMesObj(e.target.value)}
                             className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 bg-white"
                         />
+                        <button 
+                            onClick={handleSyncEstados} 
+                            disabled={syncing || loading}
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-[11px] font-black tracking-widest uppercase shadow-lg shadow-indigo-100 transition-all disabled:opacity-50"
+                        >
+                            <Zap size={14} className={syncing ? 'animate-pulse text-indigo-300' : 'text-indigo-200'} />
+                            {syncing ? 'Sincronizando...' : 'Sincronizar Estados'}
+                        </button>
                         <button
                             onClick={handleDownloadLegalReport}
                             disabled={downloadingReporte}
@@ -354,6 +386,10 @@ const AsistenciaLegal = () => {
                                 <option value="Ausente">Ausente</option>
                                 <option value="Licencia">Licencia</option>
                                 <option value="Vacaciones">Vacaciones</option>
+                                <option value="Feriado">Feriado</option>
+                                <option value="Permiso">Permiso</option>
+                                <option value="Libre">Libre</option>
+                                <option value="Desvinculado">Desvinculado</option>
                             </select>
                         </div>
                         <label className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
@@ -808,6 +844,8 @@ const AsistenciaLegal = () => {
                                     <option value="Vacaciones">Vacaciones</option>
                                     <option value="Feriado">Feriado</option>
                                     <option value="Permiso">Permiso</option>
+                                    <option value="Libre">Libre</option>
+                                    <option value="Desvinculado">Desvinculado</option>
                                 </select>
                             </div>
                             

@@ -5,7 +5,7 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' 
 
-PROJECT_ID="genai360-494015"
+PROJECT_ID="genai360-504317"
 gcloud config set project $PROJECT_ID
 REGION="us-central1"
 

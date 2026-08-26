@@ -375,7 +375,9 @@ const ProgramacionTurnos = () => {
 
 
 
-    const uniqueCargos = useMemo(() => [...new Set(candidatos.map(c => c.position).filter(Boolean))], [candidatos]);
+    const uniqueCargos     = useMemo(() => [...new Set(candidatos.map(c => c.position).filter(Boolean))].sort(), [candidatos]);
+    const uniqueProyectos  = useMemo(() => [...new Set(candidatos.map(c => c.projectName).filter(Boolean))].sort(), [candidatos]);
+    const uniqueClientes   = useMemo(() => [...new Set(candidatos.map(c => c.clienteNombre).filter(Boolean))].sort(), [candidatos]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -419,6 +421,9 @@ const ProgramacionTurnos = () => {
             horariosPorDia: t.horariosPorDia || [],
             colominoAsignados: t.colominoAsignados ? t.colominoAsignados.map(c => c._id || c) : [],
             cargoSeleccionado: '',
+            proyectoSeleccionado: '',
+            clienteSeleccionado: '',
+            searchColaborador: '',
         });
         setEditId(t._id);
         setShowForm(true);
@@ -688,66 +693,135 @@ const ProgramacionTurnos = () => {
 
                             {/* ── 1.5. Asignación de Personal ── */}
                             <FormSection title="Asignación de Personal" icon={Users} color="bg-indigo-500">
-                                <div className="space-y-4">
-                                    <LabelInput label="Filtrar por Cargo (Opcional)">
-                                        <select
-                                            value={form.cargoSeleccionado || ''}
-                                            onChange={(e) => setForm({ ...form, cargoSeleccionado: e.target.value })}
-                                            className="input-rrhh"
-                                        >
-                                            <option value="">-- Todos los Cargos --</option>
-                                            {uniqueCargos.map(cargo => (
-                                                <option key={cargo} value={cargo}>{cargo}</option>
-                                            ))}
-                                        </select>
-                                    </LabelInput>
-                                    
-                                    <div className="bg-slate-50 border-2 border-slate-100 rounded-xl p-3">
-                                        <div className="flex justify-between items-center mb-2 px-1">
-                                            <span className="text-xs font-bold text-slate-500">{(form.colominoAsignados || []).length} colaborador(es) seleccionados</span>
-                                            <button type="button" onClick={() => {
-                                                const filtered = candidatos.filter(c => !form.cargoSeleccionado || c.position === form.cargoSeleccionado);
-                                                const currentIds = form.colominoAsignados || [];
-                                                const allFilteredSelected = filtered.length > 0 && filtered.every(c => currentIds.includes(c._id));
-                                                
-                                                let newSelected = [...currentIds];
-                                                if (allFilteredSelected) {
-                                                    newSelected = newSelected.filter(id => !filtered.find(c => c._id === id));
-                                                } else {
-                                                    filtered.forEach(c => {
-                                                        if (!newSelected.includes(c._id)) newSelected.push(c._id);
-                                                    });
+                                <div className="space-y-3">
+
+                                    {/* Filtros en grilla */}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <LabelInput label="Proyecto">
+                                            <select
+                                                value={form.proyectoSeleccionado || ''}
+                                                onChange={(e) => setForm({ ...form, proyectoSeleccionado: e.target.value, clienteSeleccionado: '' })}
+                                                className="input-rrhh"
+                                            >
+                                                <option value="">-- Todos --</option>
+                                                {uniqueProyectos.map(p => (
+                                                    <option key={p} value={p}>{p}</option>
+                                                ))}
+                                            </select>
+                                        </LabelInput>
+
+                                        <LabelInput label="Cliente">
+                                            <select
+                                                value={form.clienteSeleccionado || ''}
+                                                onChange={(e) => setForm({ ...form, clienteSeleccionado: e.target.value })}
+                                                className="input-rrhh"
+                                            >
+                                                <option value="">-- Todos --</option>
+                                                {uniqueClientes
+                                                    .filter(cl => !form.proyectoSeleccionado || candidatos.some(c => c.clienteNombre === cl && c.projectName === form.proyectoSeleccionado))
+                                                    .map(cl => (
+                                                        <option key={cl} value={cl}>{cl}</option>
+                                                    ))
                                                 }
-                                                setForm({ ...form, colominoAsignados: newSelected });
-                                            }} className="text-[10px] text-indigo-600 font-bold hover:underline">
-                                                Seleccionar todos / Ninguno (en filtro actual)
-                                            </button>
-                                        </div>
-                                        
-                                        <div className="max-h-40 overflow-y-auto space-y-1">
-                                            {candidatos.filter(c => !form.cargoSeleccionado || c.position === form.cargoSeleccionado).map(c => {
-                                                const isSelected = (form.colominoAsignados || []).includes(c._id);
-                                                return (
-                                                    <div key={c._id} onClick={() => {
-                                                        let newSelected = [...(form.colominoAsignados || [])];
-                                                        if (isSelected) newSelected = newSelected.filter(id => id !== c._id);
-                                                        else newSelected.push(c._id);
-                                                        setForm({ ...form, colominoAsignados: newSelected });
-                                                    }} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-indigo-100 border border-indigo-200' : 'hover:bg-slate-200 border border-transparent'}`}>
-                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
-                                                            {isSelected && <CheckCircle2 size={10} className="text-white" />}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs font-bold text-slate-700 leading-none">{c.fullName}</p>
-                                                            <p className="text-[9px] text-slate-500 font-medium mt-1">{c.position || 'Sin cargo'}</p>
-                                                        </div>
+                                            </select>
+                                        </LabelInput>
+
+                                        <LabelInput label="Cargo">
+                                            <select
+                                                value={form.cargoSeleccionado || ''}
+                                                onChange={(e) => setForm({ ...form, cargoSeleccionado: e.target.value })}
+                                                className="input-rrhh"
+                                            >
+                                                <option value="">-- Todos --</option>
+                                                {uniqueCargos.map(cargo => (
+                                                    <option key={cargo} value={cargo}>{cargo}</option>
+                                                ))}
+                                            </select>
+                                        </LabelInput>
+                                    </div>
+
+                                    {/* Buscador por nombre */}
+                                    <div className="relative">
+                                        <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar por nombre o RUT..."
+                                            value={form.searchColaborador || ''}
+                                            onChange={(e) => setForm({ ...form, searchColaborador: e.target.value })}
+                                            className="input-rrhh pl-8 text-xs"
+                                        />
+                                    </div>
+
+                                    {/* Lista */}
+                                    <div className="bg-slate-50 border-2 border-slate-100 rounded-xl p-3">
+                                        {(() => {
+                                            const sq = (form.searchColaborador || '').toLowerCase();
+                                            const filtered = candidatos.filter(c => {
+                                                if (form.cargoSeleccionado     && c.position      !== form.cargoSeleccionado)    return false;
+                                                if (form.proyectoSeleccionado  && c.projectName   !== form.proyectoSeleccionado) return false;
+                                                if (form.clienteSeleccionado   && c.clienteNombre !== form.clienteSeleccionado)  return false;
+                                                if (sq && !(c.fullName || '').toLowerCase().includes(sq) && !(c.rut || '').includes(sq)) return false;
+                                                return true;
+                                            });
+                                            const currentIds = form.colominoAsignados || [];
+                                            const allFilteredSelected = filtered.length > 0 && filtered.every(c => currentIds.includes(c._id));
+
+                                            return (
+                                                <>
+                                                    <div className="flex justify-between items-center mb-2 px-1">
+                                                        <span className="text-xs font-bold text-slate-500">
+                                                            {currentIds.length} seleccionados
+                                                            {filtered.length !== candidatos.length && (
+                                                                <span className="text-indigo-500 ml-1">· {filtered.length} en vista</span>
+                                                            )}
+                                                        </span>
+                                                        <button type="button" onClick={() => {
+                                                            let newSelected = [...currentIds];
+                                                            if (allFilteredSelected) {
+                                                                newSelected = newSelected.filter(id => !filtered.find(c => c._id === id));
+                                                            } else {
+                                                                filtered.forEach(c => {
+                                                                    if (!newSelected.includes(c._id)) newSelected.push(c._id);
+                                                                });
+                                                            }
+                                                            setForm({ ...form, colominoAsignados: newSelected });
+                                                        }} className="text-[10px] text-indigo-600 font-bold hover:underline">
+                                                            {allFilteredSelected ? 'Deseleccionar vista' : 'Seleccionar vista'}
+                                                        </button>
                                                     </div>
-                                                );
-                                            })}
-                                            {candidatos.filter(c => !form.cargoSeleccionado || c.position === form.cargoSeleccionado).length === 0 && (
-                                                <p className="text-xs text-slate-400 text-center py-4">No hay colaboradores para este filtro.</p>
-                                            )}
-                                        </div>
+
+                                                    <div className="max-h-52 overflow-y-auto space-y-1">
+                                                        {filtered.map(c => {
+                                                            const isSelected = currentIds.includes(c._id);
+                                                            return (
+                                                                <div key={c._id} onClick={() => {
+                                                                    let newSelected = [...currentIds];
+                                                                    if (isSelected) newSelected = newSelected.filter(id => id !== c._id);
+                                                                    else newSelected.push(c._id);
+                                                                    setForm({ ...form, colominoAsignados: newSelected });
+                                                                }} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-indigo-100 border border-indigo-200' : 'hover:bg-slate-100 border border-transparent'}`}>
+                                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                                                                        {isSelected && <CheckCircle2 size={10} className="text-white" />}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-xs font-bold text-slate-700 leading-none truncate">{c.fullName}</p>
+                                                                        <div className="flex gap-2 mt-1 flex-wrap">
+                                                                            {c.position    && <span className="text-[8px] text-slate-500 font-medium">{c.position}</span>}
+                                                                            {c.projectName && <span className="text-[8px] font-bold text-indigo-500 bg-indigo-50 px-1 rounded">📋 {c.projectName}</span>}
+                                                                            {c.clienteNombre && <span className="text-[8px] font-bold text-teal-600 bg-teal-50 px-1 rounded">🏢 {c.clienteNombre}</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                    {c.rut && <span className="text-[8px] text-slate-400 font-mono shrink-0">{c.rut}</span>}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {filtered.length === 0 && (
+                                                            <p className="text-xs text-slate-400 text-center py-6">No hay colaboradores para estos filtros.</p>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </FormSection>

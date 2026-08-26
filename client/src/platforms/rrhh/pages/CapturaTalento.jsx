@@ -17,6 +17,19 @@ import { formatRut, validateRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
 import FichaIngresoPremium from '../../../components/FichaIngresoPremium';
 
+const LATAM_COUNTRIES = [
+    'Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Costa Rica', 'Cuba',
+    'Ecuador', 'El Salvador', 'Guatemala', 'Honduras', 'México', 'Nicaragua',
+    'Panamá', 'Paraguay', 'Perú', 'Puerto Rico', 'República Dominicana', 'Uruguay', 'Venezuela',
+    'Otra'
+];
+
+const CHILE_REGIONS = [
+    'Arica y Parinacota', 'Tarapacá', 'Antofagasta', 'Atacama', 'Coquimbo', 'Valparaíso',
+    'Metropolitana', 'O\'Higgins', 'Maule', 'Ñuble', 'Biobío', 'La Araucanía',
+    'Los Ríos', 'Los Lagos', 'Aysén', 'Magallanes', 'Extranjero'
+];
+
 const STATUS_COLORS = {
     'En Postulación': 'bg-indigo-50 text-indigo-600 border-indigo-200',
     'Postulando': 'bg-indigo-50 text-indigo-600 border-indigo-200',
@@ -93,7 +106,7 @@ const initialForm = {
     nextAddendumDate: '',
     nextAddendumDescription: '',
     contractType: 'PLAZO FIJO',
-    contractStep: '1ER CONTRATO',
+    contractStep: 'CONTRATO INICIAL',
 
     // Personal
     fullName: '', rut: '', email: '', phone: '', fechaNacimiento: '', nacionalidad: 'Chilena', gender: 'No Informado',
@@ -127,6 +140,9 @@ const initialForm = {
     
     // Fechas Operativas y Salida
     fechaFiniquito: '',
+    tipoTermino: '',
+    tipoDocumentoTermino: '',
+    otroDocumentoTermino: '',
     motivoFiniquito: '',
     
     // Multimedia
@@ -222,6 +238,7 @@ const BULK_COLUMNS_MAP = {
 
 const CapturaTalento = () => {
     const { user: currentUser } = useAuth();
+    const tabsContainerRef = useRef(null);
     const { hasPermission } = useCheckPermission();
     const [candidatos, setCandidatos] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -247,7 +264,7 @@ const CapturaTalento = () => {
     const [coverageData, setCoverageData] = useState(null);
     const [coverageMode, setCoverageMode] = useState('cargo'); // 'cargo' or 'project'
     const [selectedCandidato, setSelectedCandidato] = useState(null);
-    const [activeTab, setActiveTab] = useState('institucional');
+    const [activeTab, setActiveTab] = useState('personal');
     const [viewMode, setViewMode] = useState('list');
     const [proyectos, setProyectos] = useState([]);
     const [clientes, setClientes] = useState([]);
@@ -666,6 +683,7 @@ const CapturaTalento = () => {
         };
         setForm(mappedData);
         setEditId(c._id);
+        setActiveTab('personal');
         setShowForm(true);
     };
 
@@ -1118,37 +1136,35 @@ const CapturaTalento = () => {
     };
 
     const renderHeader = () => (
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10">
-            <div className="flex items-center gap-5">
-                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white p-4 rounded-[1.8rem] shadow-2xl">
-                    <UserPlus size={28} />
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-6 mb-8">
+            <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white p-3 rounded-2xl shadow-lg">
+                    <UserPlus size={24} />
                 </div>
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800">Captura de <span className="text-indigo-600">Talento</span></h1>
-                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Gestión Estratégica de Capital Humano</p>
+                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">Captura de <span className="text-indigo-600">Talento</span></h1>
+                    <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-0.5">Gestión Estratégica de Capital Humano</p>
                 </div>
             </div>
-            <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 w-full lg:w-auto">
-                <div className="hidden lg:flex items-center gap-3 bg-white/50 backdrop-blur-md px-6 py-4 rounded-2xl border border-slate-200 shadow-sm">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resultados:</span>
-                    <span className="text-lg font-black text-indigo-700">{filteredCandidatos.length}</span>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full lg:w-auto pb-1 scroll-smooth shrink-0">
+                <div className="hidden lg:flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resultados:</span>
+                    <span className="text-xs font-black text-indigo-600">{filteredCandidatos.length}</span>
                 </div>
 
                 <button 
                     onClick={handleDownloadExcel}
-                    className="flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white px-7 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all shadow-xl shadow-emerald-100/20"
+                    className="flex justify-center items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 shrink-0 whitespace-nowrap"
                 >
-                    <Download size={16} />
+                    <Download size={13} />
                     Exportar
                 </button>
 
-                <div className="h-10 w-px bg-slate-200 mx-2 hidden md:block" />
-
                 <button 
                     onClick={handleSyncBase} 
-                    className="px-6 py-4 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 shadow-sm transition-all text-slate-700"
+                    className="flex justify-center items-center gap-1.5 bg-sky-500 hover:bg-sky-600 text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 shrink-0 whitespace-nowrap"
                 >
-                    <RotateCw size={16} className={`text-indigo-500 ${loading ? 'animate-spin' : ''}`} /> Sincronizar
+                    <RotateCw size={13} className={`${loading ? 'animate-spin' : ''}`} /> Sincronizar
                 </button>
                 <button 
                     onClick={() => {
@@ -1157,12 +1173,12 @@ const CapturaTalento = () => {
                         setBulkResults(null);
                         setShowBulkModal(true);
                     }} 
-                    className="px-6 py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 shadow-sm transition-all"
+                    className="flex justify-center items-center gap-1.5 bg-violet-500 hover:bg-violet-600 text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 shrink-0 whitespace-nowrap"
                 >
-                    <Upload size={16} /> Carga Masiva
+                    <Upload size={13} /> C. Masiva
                 </button>
-                <button onClick={() => { setForm(initialForm); setEditId(null); setShowForm(true); }} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl hover:-translate-y-1 transition-all flex items-center gap-2">
-                    <Plus size={16} /> Registrar
+                <button onClick={() => { setForm(initialForm); setEditId(null); setActiveTab('personal'); setShowForm(true); }} className="flex justify-center items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 shrink-0 whitespace-nowrap">
+                    <Plus size={13} /> Registrar
                 </button>
             </div>
         </div>
@@ -1394,21 +1410,30 @@ const CapturaTalento = () => {
 
         return (
             <React.Fragment>
-                <div className="space-y-8 mb-16" id="stats-root-container">
-                    <div className="flex flex-col items-center gap-4 px-4">
+                <div className="mb-6 md:mb-16" id="stats-root-container">
+                    {/* Contenedor con scroll horizontal en móvil */}
+                    <div className="flex flex-row md:flex-col items-stretch md:items-center gap-4 px-4 overflow-x-auto no-scrollbar snap-x snap-mandatory py-4">
                         {/* Summary Header: Dinámico por Empresa */}
-                        <div className="w-full max-w-6xl">
-                            {renderLedgerItem(`TOTALES ${companyName}`, ramTotals, <Activity />, 'client')}
+                        <div className="w-[85vw] md:w-full md:max-w-6xl min-w-[320px] md:min-w-0 shrink-0 snap-center">
+                            <div className="overflow-x-auto no-scrollbar rounded-[1.5rem] shadow-md">
+                                <div className="min-w-[800px] md:min-w-0">
+                                    {renderLedgerItem(`TOTALES ${companyName}`, ramTotals, <Activity />, 'client')}
+                                </div>
+                            </div>
                         </div>
                         
-                        <div className="h-px bg-slate-200 w-full max-w-5xl my-2 opacity-50" />
+                        <div className="hidden md:block h-px bg-slate-200 w-full max-w-5xl my-2 opacity-50 shrink-0" />
 
                         {/* Client Bars - Slim Version */}
                         {Object.entries(stats.clientPipeline)
                             .sort((a,b) => b[1].total - a[1].total)
                             .map(([client, data]) => (
-                                <div key={client} className="w-full max-w-6xl">
-                                    {renderLedgerItem(client, data, <Building />, 'client')}
+                                <div key={client} className="w-[85vw] md:w-full md:max-w-6xl min-w-[320px] md:min-w-0 shrink-0 snap-center">
+                                    <div className="overflow-x-auto no-scrollbar rounded-[1.5rem] shadow-md">
+                                        <div className="min-w-[800px] md:min-w-0">
+                                            {renderLedgerItem(client, data, <Building />, 'client')}
+                                        </div>
+                                    </div>
                                 </div>
                             ))
                         }
@@ -1420,31 +1445,31 @@ const CapturaTalento = () => {
 
     const renderFilters = () => (
         <div className="space-y-4">
-            <div className="bg-white p-3 rounded-[2rem] border-2 border-slate-100 shadow-xl shadow-indigo-100/30 relative">
-                <div className="flex flex-col lg:flex-row items-center gap-3 relative z-10">
+            <div className="bg-white p-3 md:rounded-[2rem] rounded-[1.5rem] border border-slate-200 md:border-2 md:border-slate-100 shadow-xl shadow-indigo-100/20 relative">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 relative z-10">
                     <div className="relative flex-1 w-full group">
-                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-500 group-focus-within:scale-110 transition-transform">
-                            <Search size={20} />
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500 group-focus-within:scale-110 transition-transform">
+                            <Search size={16} />
                         </div>
                         <input 
                             type="text"
                             placeholder="BUSCAR COLABORADOR, RUT O CARGO..."
-                            className="w-full pl-14 pr-6 py-3.5 bg-slate-50 rounded-[1.5rem] text-[12px] font-black text-slate-950 placeholder:text-slate-300 outline-none ring-4 ring-transparent focus:ring-indigo-50/50 transition-all border-2 border-transparent focus:border-indigo-100 uppercase"
+                            className="w-full pl-10 pr-4 py-3 md:py-3 bg-slate-50 rounded-xl text-[10px] font-black text-slate-950 placeholder:text-slate-400 outline-none ring-2 ring-transparent focus:ring-indigo-100 transition-all border border-slate-200 focus:border-indigo-400 uppercase shadow-inner"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full lg:w-auto pb-1 lg:pb-0 scroll-smooth snap-x">
                         {[
                             { value: filterProject, setter: setFilterProject, icon: <Folder size={14} />, label: 'PROYECTO', options: proyectos.map(p => ({ label: p.nombreProyecto, value: p._id })), color: 'emerald', isIdFilter: true },
                             { value: filterClient, setter: setFilterClient, icon: <Building size={14} />, label: 'CLIENTE', options: Object.keys(stats.clientPipeline).sort(), color: 'indigo' },
                             { value: filterCargo, setter: setFilterCargo, icon: <Briefcase size={14} />, label: 'CARGO', options: Object.keys(stats.cargoPipeline).sort(), color: 'violet' },
                             { value: filterStatus, setter: setFilterStatus, icon: <Activity size={14} />, label: 'ESTADO', options: STATUSES, color: 'amber' }
                         ].map((f, i) => (
-                            <div key={i} className="relative group min-w-[130px] flex-1 md:flex-none">
+                            <div key={i} className="relative group shrink-0 min-w-[140px] md:min-w-[130px] snap-center">
                                 <select 
-                                    className={`w-full pl-10 pr-8 py-3.5 bg-slate-50 rounded-[1.2rem] text-[10px] font-black uppercase tracking-tight text-slate-700 outline-none border-2 border-transparent focus:border-${f.color}-100 ring-4 ring-transparent focus:ring-${f.color}-50/50 appearance-none cursor-pointer transition-all`}
+                                    className={`w-full pl-9 pr-8 py-3 bg-slate-50 md:rounded-[1.2rem] rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-tight text-slate-700 outline-none border md:border-2 border-transparent focus:border-${f.color}-200 md:focus:border-${f.color}-100 ring-2 md:ring-4 ring-transparent md:focus:ring-${f.color}-50/50 appearance-none cursor-pointer transition-all shadow-sm md:shadow-none`}
                                     value={f.isIdFilter ? getSelectValue(f.value, true, f.options) : (f.value || "")}
                                     onChange={e => f.setter(e.target.value)}
                                 >
@@ -1455,19 +1480,19 @@ const CapturaTalento = () => {
                                         return <option key={val} value={val}>{String(label).toUpperCase()}</option>;
                                     })}
                                 </select>
-                                <div className={`absolute left-4 top-1/2 -translate-y-1/2 text-${f.color}-500 pointer-events-none`}>
+                                <div className={`absolute left-3 top-1/2 -translate-y-1/2 text-${f.color}-500 pointer-events-none`}>
                                     {f.icon}
                                 </div>
                                 <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 text-${f.color}-300 pointer-events-none`} size={14} />
                             </div>
                         ))}
 
-                    <div className="relative min-w-[130px] flex-1 md:flex-none">
+                    <div className="relative shrink-0 min-w-[130px] snap-center hidden md:block">
                         <button 
                             onClick={() => setShowColumnSelector(!showColumnSelector)}
-                            className="w-full pl-10 pr-8 py-3.5 bg-slate-50 rounded-[1.2rem] text-[10px] font-black uppercase tracking-tight text-slate-700 flex items-center gap-2 cursor-pointer hover:bg-slate-100 transition-all border-2 border-transparent hover:border-slate-200 shadow-sm relative"
+                            className="w-full pl-9 pr-8 py-3 bg-slate-50 md:rounded-[1.2rem] rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-tight text-slate-700 flex items-center gap-2 cursor-pointer hover:bg-slate-100 transition-all border md:border-2 border-transparent hover:border-slate-200 shadow-sm relative"
                         >
-                            <Layers size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" />
+                            <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500" />
                             Columnas
                             <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 transition-transform ${showColumnSelector ? 'rotate-180' : ''}`} size={14} />
                         </button>
@@ -1507,10 +1532,10 @@ const CapturaTalento = () => {
             </div>
 
             {(filterStatus !== 'ALL' || filterProject !== 'ALL' || filterCargo !== 'ALL' || filterClient !== 'ALL' || searchTerm !== '') && (
-                <div className="flex justify-start mt-4">
+                <div className="flex justify-start md:mt-4">
                     <button 
                         onClick={() => { setFilterStatus('ALL'); setFilterProject('ALL'); setFilterCargo('ALL'); setFilterClient('ALL'); setSearchTerm(''); }}
-                        className="flex items-center gap-3 text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] bg-white hover:bg-rose-50 px-5 py-2.5 rounded-full transition-all group border-2 border-rose-100 shadow-sm"
+                        className="flex items-center justify-center w-full md:w-auto gap-3 text-[10px] md:text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] bg-white hover:bg-rose-50 px-5 py-3 md:py-2.5 md:rounded-full rounded-2xl transition-all group border-2 border-rose-100 shadow-sm"
                     >
                         <X size={14} className="group-hover:rotate-90 transition-transform" />
                         Limpiar Filtros
@@ -1534,9 +1559,86 @@ const CapturaTalento = () => {
                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Sincronizando Capital Humano...</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-slate-900 text-white border-b-4 border-slate-800">
+                    <>
+                        {/* Vista Celular: Tarjetas Dinámicas */}
+                        <div className="md:hidden flex flex-col gap-4 p-4 bg-slate-50">
+                            {filteredCandidatos.map((c, idx) => (
+                                <div key={c._id} className={`bg-white rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col gap-4 transition-all border ${selectedIds.includes(c._id) ? 'border-indigo-400 ring-2 ring-indigo-100 shadow-md' : 'border-slate-200'}`}>
+                                    {/* Cabecera de la Tarjeta */}
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center font-black text-sm text-slate-500 uppercase shadow-inner border border-slate-200 shrink-0">
+                                                {c.profilePic ? <img src={c.profilePic} alt="" className="w-full h-full object-cover rounded-xl" /> : c.fullName?.substring(0, 2)}
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-[13px] font-black text-slate-800 tracking-tight leading-tight line-clamp-2">{c.fullName}</span>
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase mt-0.5 font-mono">RUT: {formatRut(c.rut)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="shrink-0 pt-1">
+                                            <input 
+                                                type="checkbox" 
+                                                className="w-5 h-5 rounded-lg accent-indigo-600 cursor-pointer"
+                                                checked={selectedIds.includes(c._id)}
+                                                onChange={() => {
+                                                    if (selectedIds.includes(c._id)) {
+                                                        setSelectedIds(selectedIds.filter(id => id !== c._id));
+                                                    } else {
+                                                        setSelectedIds([...selectedIds, c._id]);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Grid de Datos Rápidos */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                                        <div className="flex flex-col bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Cliente</span>
+                                            <span className="text-[10px] font-bold text-slate-700 truncate">{c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'S/C'}</span>
+                                        </div>
+                                        <div className="flex flex-col bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Proyecto</span>
+                                            <span className="text-[10px] font-bold text-slate-700 truncate">{c.projectId?.nombreProyecto || c.projectName || 'S/P'}</span>
+                                        </div>
+                                        <div className="flex flex-col bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Cargo</span>
+                                            <span className="text-[10px] font-bold text-slate-700 truncate">{c.position || 'S/C'}</span>
+                                        </div>
+                                        <div className="flex flex-col bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100">
+                                            <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-0.5">Estado</span>
+                                            <span className="text-[10px] font-black text-emerald-700 truncate">{c.status || 'S/E'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Acciones */}
+                                    <div className="flex items-center gap-2 mt-2 pt-3 border-t border-slate-100">
+                                        <button 
+                                            onClick={() => { setEditId(c._id); setShowForm(true); }} 
+                                            className="flex-1 flex justify-center items-center gap-2 py-3 bg-indigo-50 text-indigo-600 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-100 transition-colors"
+                                        >
+                                            <Edit3 size={14} /> Editar
+                                        </button>
+                                        <button 
+                                            onClick={() => { setSelectedCandidato(c); }} 
+                                            className="flex-1 flex justify-center items-center gap-2 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-slate-800 shadow-md transition-colors"
+                                        >
+                                            <FileText size={14} /> Expediente
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {filteredCandidatos.length === 0 && (
+                                <div className="text-center py-10 bg-white rounded-2xl border border-slate-200">
+                                    <span className="text-slate-400 font-bold text-xs uppercase tracking-widest">No hay colaboradores</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Vista PC: Tabla Completa */}
+                        <div className="hidden md:block overflow-x-auto custom-scrollbar bg-white rounded-b-[2.8rem]">
+                            <table className="w-full text-left border-collapse min-w-[1200px]">
+                                <thead className="bg-slate-900 text-white border-b-4 border-slate-800 sticky top-0 z-20 shadow-md">
                                 <tr>
                                     <th className="pl-10 pr-4 py-6 w-10">
                                         <input 
@@ -1563,9 +1665,9 @@ const CapturaTalento = () => {
                                     {visibleColumns.includes('acciones') && <th className="px-10 py-6 text-[11px] font-black uppercase tracking-[0.2em] text-center">Acciones</th>}
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50">
+                            <tbody className="divide-y divide-slate-100">
                             {filteredCandidatos.map((c, idx) => (
-                                <tr key={c._id} className={`hover:bg-slate-50/50 transition-all group ${selectedIds.includes(c._id) ? 'bg-indigo-50/30' : ''}`}>
+                                <tr key={c._id} className={`hover:bg-slate-50/80 transition-all group ${selectedIds.includes(c._id) ? 'bg-indigo-50/40' : 'even:bg-slate-50/30'}`}>
                                     <td className="pl-10 pr-4 py-6">
                                         <input 
                                             type="checkbox" 
@@ -1711,7 +1813,7 @@ const CapturaTalento = () => {
                                     )}
                                     {visibleColumns.includes('tallas') && (
                                         <td className="px-8 py-6">
-                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                                                 <div className="flex items-center justify-between gap-2 border-b border-slate-50 pb-1">
                                                     <span className="text-[8px] font-black text-slate-300 uppercase">Polera</span>
                                                     <span className="text-[10px] font-black text-slate-700">{c.shirtSize || '—'}</span>
@@ -1799,6 +1901,7 @@ const CapturaTalento = () => {
                         </tbody>
                     </table>
                 </div>
+                </>
                 )}
                 {!loading && filteredCandidatos.length === 0 && (
                     <div className="py-32 flex flex-col items-center text-slate-300 gap-4">
@@ -1816,7 +1919,7 @@ const CapturaTalento = () => {
                 <div key={c._id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all group">
                     <div className="h-2 w-full" style={{ backgroundColor: STATUS_COLORS[c.status]?.includes('text-') ? 'currentColor' : '#f1f5f9' }} />
                     <div className="p-8">
-                        <div className="flex justify-between items-start mb-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                             <div className="w-20 h-20 rounded-3xl bg-slate-50 flex items-center justify-center text-slate-300 border-2 border-slate-100 shadow-inner overflow-hidden">
                                 {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="" /> : <User size={32} />}
                             </div>
@@ -1874,62 +1977,97 @@ const CapturaTalento = () => {
 
     const renderForm = () => (
         <>
-        <div className="bg-white rounded-[3.5rem] shadow-[0_32px_80px_rgba(15,23,42,0.15)] border border-slate-100 overflow-hidden flex flex-col h-[94vh] animate-in fade-in zoom-in-95 duration-500">
+        <div className="bg-white rounded-none md:rounded-[2.5rem] shadow-none md:shadow-[0_32px_80px_rgba(15,23,42,0.15)] border-0 md:border md:border-slate-100 overflow-hidden flex flex-col h-[100dvh] md:h-[90vh] w-full animate-in fade-in zoom-in-95 duration-500">
             {/* Header del Formulario */}
-            <div className="px-12 py-10 bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
-                <div className="flex items-center gap-7">
-                    <button 
-                        onClick={() => { setShowForm(false); setEditId(null); }} 
-                        className="w-14 h-14 bg-white shadow-sm rounded-2xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:shadow-md transition-all active:scale-95"
-                    >
-                        <ChevronLeft size={24} />
-                    </button>
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">{editId ? 'Configuración de Perfil' : 'Apertura de Expediente (V3)'}</h2>
-                            {editId && <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">ID: {editId.substring(0,8)}</span>}
+            <div className="px-5 py-4 md:px-8 md:py-5 bg-gradient-to-b from-slate-50 to-white border-b border-slate-200/80 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.05)] flex flex-col gap-4 md:gap-5 relative z-10">
+                {/* Top Row: Info & Autocomplete */}
+                <div className="flex flex-row items-center justify-between gap-4">
+                    {/* Left Side: Back & Info */}
+                    <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                        <button 
+                            onClick={() => { setShowForm(false); setEditId(null); }} 
+                            className="w-10 h-10 md:w-12 md:h-12 shrink-0 bg-white border border-slate-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-xl flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:shadow-md transition-all active:scale-95"
+                        >
+                            <ChevronLeft size={20} className="md:w-6 md:h-6" />
+                        </button>
+                        
+                        <div className="flex flex-col min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h2 className="text-base md:text-xl font-black text-slate-800 uppercase tracking-tight leading-tight truncate">{editId ? 'Configuración de Perfil' : 'Apertura de Expediente'}</h2>
+                                {editId && <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest shrink-0 shadow-sm">ID: {editId.substring(0,8)}</span>}
+                            </div>
+                            
+                            {(form.fullName || form.rut) && (
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 overflow-hidden">
+                                    <span className="text-[11px] md:text-sm font-black text-indigo-600 uppercase tracking-tight truncate">{form.fullName || 'NUEVO CANDIDATO'}</span>
+                                    {form.rut && (
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-slate-300 hidden md:inline">•</span>
+                                            <span className="text-[9px] md:text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-sm">{formatRut(form.rut)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
-                            <Shield size={12} className="text-emerald-500" /> Registro seguro y validado en sistema central
-                        </p>
+                    </div>
+
+                    {/* Right Side: Autocompletar CV */}
+                    <div className="shrink-0 flex items-center">
+                        <input 
+                            type="file" 
+                            ref={cvInputRef} 
+                            onChange={handleParseCV} 
+                            className="hidden" 
+                            accept=".pdf,.doc,.docx,image/*" 
+                        />
+                        <button 
+                            onClick={() => cvInputRef.current?.click()}
+                            disabled={isAiLoading}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 md:px-4 md:py-2 bg-white border border-indigo-200 text-indigo-600 rounded-xl shadow-[0_2px_10px_-4px_rgba(99,102,241,0.2)] hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-md active:scale-95 transition-all disabled:opacity-50 group"
+                            title="Autocompletar CV con Inteligencia Artificial"
+                        >
+                            {isAiLoading ? <Loader2 className="animate-spin text-indigo-500" size={14} /> : <Star size={14} className="text-yellow-400 fill-yellow-400 group-hover:scale-110 transition-transform" />}
+                            <span className="hidden md:inline text-[10px] font-black uppercase tracking-widest">{isAiLoading ? 'Analizando...' : 'Auto CV'}</span>
+                            <span className="md:hidden text-[9px] font-black uppercase tracking-widest">{isAiLoading ? '...' : 'CV'}</span>
+                        </button>
                     </div>
                 </div>
                 
-                <div className="flex items-center gap-4">
-                    <input 
-                        type="file" 
-                        ref={cvInputRef} 
-                        onChange={handleParseCV} 
-                        className="hidden" 
-                        accept=".pdf,.doc,.docx,image/*" 
-                    />
-                    <button 
-                        onClick={() => cvInputRef.current?.click()}
-                        disabled={isAiLoading}
-                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
-                    >
-                        {isAiLoading ? <Loader2 className="animate-spin" size={16} /> : <Star size={16} className="text-yellow-300 fill-yellow-300" />}
-                        {isAiLoading ? 'Analizando...' : 'Autocompletar CV'}
-                    </button>
-                </div>
-                
-                {/* Tabs Flotantes */}
-                <div className="flex p-1.5 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-x-auto no-scrollbar max-w-full">
-                    {TABS.map(tab => (
-                        <button 
-                            key={tab.id} 
-                            onClick={() => setActiveTab(tab.id)} 
-                            className={`px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center gap-3 whitespace-nowrap ${activeTab === tab.id ? `bg-indigo-600 text-white shadow-lg shadow-indigo-200` : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-                        >
-                            <tab.icon size={16} />
-                            {tab.label}
-                        </button>
-                    ))}
+                {/* Bottom Row: Tabs Flotantes */}
+                <div className="flex items-center gap-2 p-1.5 bg-slate-50/80 border border-slate-200/60 shadow-inner rounded-xl md:rounded-2xl overflow-x-auto no-scrollbar w-full">
+                    <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); const idx = TABS.findIndex(t => t.id === activeTab); if(idx > 0) { const newId = TABS[idx-1].id; setActiveTab(newId); document.getElementById(`tab-btn-${newId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } }}
+                        disabled={TABS.findIndex(t => t.id === activeTab) === 0}
+                        className="p-2 md:p-3 bg-white shadow-sm border border-slate-200/60 text-indigo-600 rounded-lg md:rounded-xl hover:bg-indigo-50 disabled:opacity-30 disabled:shadow-none transition-all shrink-0"
+                    ><ChevronLeft size={16} /></button>
+                    
+                    <div ref={tabsContainerRef} className="flex gap-1.5 md:gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-1">
+                        {TABS.map(tab => (
+                            <button 
+                                key={tab.id} 
+                                id={`tab-btn-${tab.id}`}
+                                type="button"
+                                onClick={() => { setActiveTab(tab.id); document.getElementById(`tab-btn-${tab.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }} 
+                                className={`min-w-[120px] md:min-w-[160px] justify-center px-3 py-2.5 md:px-5 md:py-3.5 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center gap-1.5 md:gap-2 whitespace-nowrap shrink-0 border ${activeTab === tab.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200' : 'bg-white border-slate-200/60 text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                            >
+                                <tab.icon size={14} className="md:w-4 md:h-4" />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); const idx = TABS.findIndex(t => t.id === activeTab); if(idx < TABS.length - 1) { const newId = TABS[idx+1].id; setActiveTab(newId); document.getElementById(`tab-btn-${newId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } }}
+                        disabled={TABS.findIndex(t => t.id === activeTab) === TABS.length - 1}
+                        className="p-2 md:p-3 bg-white shadow-sm border border-slate-200/60 text-indigo-600 rounded-lg md:rounded-xl hover:bg-indigo-50 disabled:opacity-30 disabled:shadow-none transition-all shrink-0"
+                    ><ChevronRight size={16} /></button>
                 </div>
             </div>
             
             {/* Cuerpo del Formulario */}
-            <div className="flex-1 overflow-y-auto p-14 bg-white">
+            <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-white">
                 <div className="max-w-5xl mx-auto pb-10">
                     <>
                     {activeTab === 'institucional' && (() => {
@@ -1960,7 +2098,7 @@ const CapturaTalento = () => {
                                         <Activity size={14} className="text-indigo-500"/> Identificador TOA (Obligatorio Técnicos)
                                     </label>
                                     <input 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-black text-indigo-600 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono placeholder:text-slate-300" 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-indigo-600 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono placeholder:text-slate-300" 
                                         value={form.idRecursoToa || ""} 
                                         onChange={e => setForm({...form, idRecursoToa: e.target.value})} 
                                         placeholder="Ej: 19169" 
@@ -2010,7 +2148,7 @@ const CapturaTalento = () => {
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
                                         <Layers size={14} className="text-indigo-500"/> Centro de Costo (Auto)
                                     </label>
-                                    <input className="w-full bg-slate-100/50 border-2 border-slate-50 rounded-2xl px-7 py-5 text-sm font-black text-slate-400 outline-none font-mono" value={form.ceco || ""} readOnly placeholder="CECO" />
+                                    <input className="w-full bg-slate-100/50 border-2 border-slate-50 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-slate-400 outline-none font-mono" value={form.ceco || ""} readOnly placeholder="CECO" />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
@@ -2029,7 +2167,7 @@ const CapturaTalento = () => {
                                         <CheckCircle size={14} className="text-emerald-500"/> Etapa de Gestión
                                     </label>
                                     <div className="relative group">
-                                        <select className="w-full bg-emerald-50/20 border-2 border-emerald-100 rounded-2xl px-7 py-5 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed" 
+                                        <select className="w-full bg-emerald-50/20 border-2 border-emerald-100 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed" 
                                             value={(() => {
                                                 const s = form.status || '';
                                                 if (['En Postulación','Postulando'].includes(s)) return 'POST';
@@ -2070,13 +2208,13 @@ const CapturaTalento = () => {
                                             </div>
                                             <div className="flex bg-slate-100 p-1.5 rounded-2xl shadow-inner border border-slate-200">
                                                 <button 
-                                                    onClick={() => setForm({...form, contractType: 'PLAZO FIJO', contractStep: '1ER CONTRATO', contractDurationDays: 30})}
+                                                    onClick={() => setForm({...form, contractType: 'PLAZO FIJO', contractStep: 'CONTRATO INICIAL', contractDurationDays: 30})}
                                                     className={`px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${form.contractType === 'PLAZO FIJO' ? 'bg-white text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                                                 >
                                                     {form.contractType === 'PLAZO FIJO' && <Check size={12} />} Plazo Fijo
                                                 </button>
                                                 <button 
-                                                    onClick={() => setForm({...form, contractType: 'INDEFINIDO', contractStep: 'INDEFINIDO', contractDurationDays: 0})}
+                                                    onClick={() => setForm({...form, contractType: 'INDEFINIDO', contractStep: 'CONTRATO INDEFINIDO', contractDurationDays: 0})}
                                                     className={`px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${form.contractType === 'INDEFINIDO' ? 'bg-white text-emerald-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                                                 >
                                                     {form.contractType === 'INDEFINIDO' && <Check size={12} />} Indefinido
@@ -2102,7 +2240,7 @@ const CapturaTalento = () => {
                                         </div>
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Calendar size={12} className="text-indigo-500"/> Inicio Contrato</label>
-                                            <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none focus:border-indigo-300" value={form.contractStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, contractStartDate: e.target.value})} />
+                                            <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none focus:border-indigo-300" value={form.contractStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, contractStartDate: e.target.value})} />
                                         </div>
                                         
                                         <div className="space-y-3">
@@ -2119,7 +2257,7 @@ const CapturaTalento = () => {
                                             <input 
                                                 type="number" 
                                                 disabled={form.contractType === 'INDEFINIDO'}
-                                                className={`w-full border-2 rounded-2xl px-6 py-4 text-xs font-bold outline-none transition-all ${form.contractType === 'INDEFINIDO' ? 'bg-slate-100 border-slate-50 text-slate-400' : 'bg-slate-50 border-slate-100 text-slate-600 focus:border-indigo-300'}`} 
+                                                className={`w-full border-2 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold outline-none transition-all ${form.contractType === 'INDEFINIDO' ? 'bg-slate-100 border-slate-50 text-slate-400' : 'bg-slate-50 border-slate-100 text-slate-600 focus:border-indigo-300'}`} 
                                                 value={form.contractDurationDays} 
                                                 onChange={e => setForm({...form, contractDurationDays: e.target.value})} 
                                                 placeholder={form.contractType === 'INDEFINIDO' ? "N/A" : "Ej: 30"} 
@@ -2133,29 +2271,32 @@ const CapturaTalento = () => {
                                             </label>
                                             <input 
                                                 type="date" 
-                                                className={`w-full border-2 rounded-2xl px-6 py-4 text-xs font-black outline-none ${form.contractType === 'INDEFINIDO' ? 'bg-emerald-50/30 border-emerald-100 text-emerald-700' : 'bg-amber-50/30 border-amber-100 text-amber-700'}`} 
+                                                className={`w-full border-2 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black outline-none ${form.contractType === 'INDEFINIDO' ? 'bg-emerald-50/30 border-emerald-100 text-emerald-700' : 'bg-amber-50/30 border-amber-100 text-amber-700'}`} 
                                                 value={form.nextAddendumDate?.split('T')[0] || ""} 
                                                 readOnly 
                                             />
                                         </div>
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Clock size={12} className="text-cyan-500"/> Fecha Operativa</label>
-                                            <input type="date" className="w-full bg-cyan-50/20 border-2 border-cyan-100 rounded-2xl px-6 py-4 text-xs font-bold text-cyan-700 outline-none focus:border-cyan-300" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
+                                            <input type="date" className="w-full bg-cyan-50/20 border-2 border-cyan-100 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-cyan-700 outline-none focus:border-cyan-300" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
                                         </div>
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Paso Contrato</label>
                                             <select 
-                                                className={`w-full border-2 rounded-2xl px-6 py-4 text-xs font-bold outline-none ${form.contractType === 'INDEFINIDO' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-600'}`} 
+                                                className={`w-full border-2 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold outline-none ${form.contractType === 'INDEFINIDO' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-600'}`} 
                                                 value={form.contractStep || ""} 
                                                 onChange={e => setForm({...form, contractStep: e.target.value})}
                                             >
                                                 {form.contractType === 'PLAZO FIJO' ? (
                                                     <>
-                                                        <option value="1ER CONTRATO">1ER CONTRATO</option>
-                                                        <option value="2DO CONTRATO">2DO CONTRATO</option>
+                                                        <option value="CONTRATO INICIAL">CONTRATO INICIAL</option>
+                                                        <option value="ANEXO PLAZO FIJO">ANEXO PLAZO FIJO</option>
                                                     </>
                                                 ) : (
-                                                    <option value="INDEFINIDO">INDEFINIDO</option>
+                                                    <>
+                                                        <option value="CONTRATO INDEFINIDO">CONTRATO INDEFINIDO</option>
+                                                        <option value="ANEXO INDEFINIDO">ANEXO INDEFINIDO</option>
+                                                    </>
                                                 )}
                                             </select>
                                         </div>
@@ -2169,61 +2310,67 @@ const CapturaTalento = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <div className="md:col-span-2 space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><User size={14} className="text-indigo-500"/> Nombre Completo (Como figura en Cédula)</label>
-                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.fullName || ""} onChange={e => setForm({...form, fullName: e.target.value.toUpperCase()})} placeholder="EJ: JUAN IGNACIO PÉREZ SOTO" />
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.fullName || ""} onChange={e => setForm({...form, fullName: e.target.value.toUpperCase()})} placeholder="EJ: JUAN IGNACIO PÉREZ SOTO" />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Hash size={14} className="text-indigo-500"/> RUT / Identificador Fiscal</label>
-                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-black text-indigo-600 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono" value={form.rut || ""} onChange={e => setForm({...form, rut: formatRut(e.target.value)})} placeholder="12.345.678-9" />
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-indigo-600 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono" value={form.rut || ""} onChange={e => setForm({...form, rut: formatRut(e.target.value)})} placeholder="12.345.678-9" />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Mail size={14} className="text-indigo-500"/> Correo Electrónico</label>
-                                <input type="email" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.email || ""} onChange={e => setForm({...form, email: e.target.value.toLowerCase()})} placeholder="ejemplo@correo.com" />
+                                <input type="email" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.email || ""} onChange={e => setForm({...form, email: e.target.value.toLowerCase()})} placeholder="ejemplo@correo.com" />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Phone size={14} className="text-indigo-500"/> Teléfono Móvil</label>
-                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+56 9 1234 5678" />
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+56 9 1234 5678" />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Calendar size={14} className="text-indigo-500"/> Fecha de Nacimiento</label>
-                                <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.fechaNacimiento?.split('T')[0] || ""} onChange={e => setForm({...form, fechaNacimiento: e.target.value})} />
+                                <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.fechaNacimiento?.split('T')[0] || ""} onChange={e => setForm({...form, fechaNacimiento: e.target.value})} />
                             </div>
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Globe size={14} className="text-indigo-500"/> Nacionalidad</label>
-                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.nacionalidad || ""} onChange={e => setForm({...form, nacionalidad: e.target.value})} />
+                                <SearchableSelect
+                                    label="Nacionalidad"
+                                    icon={Globe}
+                                    options={LATAM_COUNTRIES}
+                                    value={form.nacionalidad}
+                                    onChange={(val) => setForm({...form, nacionalidad: val})}
+                                    placeholder="SELECCIONAR PAÍS..."
+                                />
                             </div>
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Users size={14} className="text-indigo-500"/> Género Registrado</label>
-                                <div className="relative">
-                                    <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.gender || ""} onChange={e => setForm({...form, gender: e.target.value})}>
-                                        <option value="Masculino">MASCULINO</option>
-                                        <option value="Femenino">FEMENINO</option>
-                                        <option value="Otro">OTRO</option>
-                                        <option value="No Informado">NO INFORMADO</option>
-                                    </select>
-                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
-                                </div>
+                                <SearchableSelect
+                                    label="Género Registrado"
+                                    icon={Users}
+                                    options={['MASCULINO', 'FEMENINO', 'OTRO', 'NO INFORMADO']}
+                                    value={form.gender?.toUpperCase()}
+                                    onChange={(val) => setForm({...form, gender: val})}
+                                    placeholder="SELECCIONAR..."
+                                />
                             </div>
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Heart size={14} className="text-rose-500"/> Estado Civil</label>
-                                <div className="relative">
-                                    <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.estadoCivil || ""} onChange={e => setForm({...form, estadoCivil: e.target.value})}>
-                                        <option value="">SELECCIONAR...</option>
-                                        <option value="SOLTERO/A">SOLTERO/A</option>
-                                        <option value="CASADO/A">CASADO/A</option>
-                                        <option value="DIVORCIADO/A">DIVORCIADO/A</option>
-                                        <option value="VIUDO/A">VIUDO/A</option>
-                                        <option value="UNIÓN CIVIL">UNIÓN CIVIL</option>
-                                    </select>
-                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
-                                </div>
+                                <SearchableSelect
+                                    label="Estado Civil"
+                                    icon={Heart}
+                                    options={['SOLTERO/A', 'CASADO/A', 'DIVORCIADO/A', 'VIUDO/A', 'UNIÓN CIVIL']}
+                                    value={form.estadoCivil?.toUpperCase()}
+                                    onChange={(val) => setForm({...form, estadoCivil: val})}
+                                    placeholder="SELECCIONAR..."
+                                />
                             </div>
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Lugar de Nacimiento</label>
-                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.birthPlace || ""} onChange={e => setForm({...form, birthPlace: e.target.value.toUpperCase()})} placeholder="EJ: SANTIAGO, CHILE" />
+                                <SearchableSelect
+                                    label="Lugar de Nacimiento"
+                                    icon={MapPin}
+                                    options={CHILE_REGIONS}
+                                    value={form.birthPlace}
+                                    onChange={(val) => setForm({...form, birthPlace: val})}
+                                    placeholder="SELECCIONAR REGIÓN..."
+                                />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Vencimiento Cédula</label>
-                                <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.idExpiryDate?.split('T')[0] || ""} onChange={e => setForm({...form, idExpiryDate: e.target.value})} />
+                                <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.idExpiryDate?.split('T')[0] || ""} onChange={e => setForm({...form, idExpiryDate: e.target.value})} />
                             </div>
                         </div>
                     )}
@@ -2232,27 +2379,27 @@ const CapturaTalento = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <div className="md:col-span-2 space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><MapPin size={14} className="text-indigo-500"/> Dirección Completa (Referencia)</label>
-                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="Ej: Av. Nueva Providencia 1234, Depto 102" />
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="Ej: Av. Nueva Providencia 1234, Depto 102" />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Calle / Pasaje</label>
-                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.calle || ""} onChange={e => setForm({...form, calle: e.target.value.toUpperCase()})} placeholder="EJ: AV. LAS REJAS" />
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.calle || ""} onChange={e => setForm({...form, calle: e.target.value.toUpperCase()})} placeholder="EJ: AV. LAS REJAS" />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Número</label>
-                                    <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.numero || ""} onChange={e => setForm({...form, numero: e.target.value})} placeholder="1234" />
+                                    <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.numero || ""} onChange={e => setForm({...form, numero: e.target.value})} placeholder="1234" />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Depto/Block</label>
-                                    <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.deptoBlock || ""} onChange={e => setForm({...form, deptoBlock: e.target.value.toUpperCase()})} placeholder="101-A" />
+                                    <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.deptoBlock || ""} onChange={e => setForm({...form, deptoBlock: e.target.value.toUpperCase()})} placeholder="101-A" />
                                 </div>
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Región Administrativa</label>
                                 <div className="relative">
                                     <select 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
                                         value={form.region || ""} 
                                         onChange={e => setForm({...form, region: e.target.value, comuna: ''})}
                                     >
@@ -2266,7 +2413,7 @@ const CapturaTalento = () => {
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Comuna / Distrito</label>
                                 <div className="relative">
                                     <select 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
                                         value={form.comuna || ""} 
                                         onChange={e => setForm({...form, comuna: e.target.value})}
                                         disabled={!form.region}
@@ -2291,15 +2438,15 @@ const CapturaTalento = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><User size={14}/> Nombre Completo</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.emergencyContact || ""} onChange={e => setForm({...form, emergencyContact: e.target.value.toUpperCase()})} />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.emergencyContact || ""} onChange={e => setForm({...form, emergencyContact: e.target.value.toUpperCase()})} />
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Phone size={14}/> Teléfono Prioritario</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.emergencyPhone || ""} onChange={e => setForm({...form, emergencyPhone: e.target.value})} />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.emergencyPhone || ""} onChange={e => setForm({...form, emergencyPhone: e.target.value})} />
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Mail size={14}/> Email Emergencia</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 transition-all" value={form.emergencyEmail || ""} onChange={e => setForm({...form, emergencyEmail: e.target.value.toLowerCase()})} placeholder="ejemplo@emergencia.com" />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 transition-all" value={form.emergencyEmail || ""} onChange={e => setForm({...form, emergencyEmail: e.target.value.toLowerCase()})} placeholder="ejemplo@emergencia.com" />
                                     </div>
                                 </div>
                             </div>
@@ -2312,7 +2459,7 @@ const CapturaTalento = () => {
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Shield size={14} className="text-emerald-500"/> Sistema de Salud</label>
                                     <div className="relative">
-                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.previsionSalud || ""} onChange={e => setForm({...form, previsionSalud: e.target.value})}>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.previsionSalud || ""} onChange={e => setForm({...form, previsionSalud: e.target.value})}>
                                         <option value="FONASA">FONASA</option>
                                         <option value="ISAPRE">ISAPRE</option>
                                     </select>
@@ -2362,7 +2509,7 @@ const CapturaTalento = () => {
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Award size={14} className="text-indigo-500"/> Fondo de Pensiones (AFP)</label>
                                 <div className="relative">
                                     <select 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
                                         value={form.afp || ""} 
                                         onChange={e => setForm({...form, afp: e.target.value})}
                                     >
@@ -2374,11 +2521,11 @@ const CapturaTalento = () => {
                             </div>
                              <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><DollarSign size={14} className="text-emerald-500"/> Sueldo Base Legislado</label>
-                                <input type="number" className="w-full bg-emerald-50/10 border-2 border-emerald-100 rounded-2xl px-7 py-5 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all font-mono" value={form.sueldoBase || ""} onChange={e => setForm({...form, sueldoBase: e.target.value})} placeholder="0" />
+                                <input type="number" className="w-full bg-emerald-50/10 border-2 border-emerald-100 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all font-mono" value={form.sueldoBase || ""} onChange={e => setForm({...form, sueldoBase: e.target.value})} placeholder="0" />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Bonos Extra Permanente</label>
-                                <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.cantidadBonosExtraPermanentes || ""} onChange={e => setForm({...form, cantidadBonosExtraPermanentes: e.target.value})} />
+                                <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.cantidadBonosExtraPermanentes || ""} onChange={e => setForm({...form, cantidadBonosExtraPermanentes: e.target.value})} />
                             </div>
 
                             <div className="md:col-span-2 pt-10 border-t border-slate-100">
@@ -2386,37 +2533,37 @@ const CapturaTalento = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Grupo Sanguíneo</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.bloodType || ""} onChange={e => setForm({...form, bloodType: e.target.value.toUpperCase()})} placeholder="Ej: O+" />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.bloodType || ""} onChange={e => setForm({...form, bloodType: e.target.value.toUpperCase()})} placeholder="Ej: O+" />
                                     </div>
                                     <div className="md:col-span-3 space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Alergias Conocidas</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.allergies || ""} onChange={e => setForm({...form, allergies: e.target.value.toUpperCase()})} placeholder="Ej: Penicilina, Polvo..." />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.allergies || ""} onChange={e => setForm({...form, allergies: e.target.value.toUpperCase()})} placeholder="Ej: Penicilina, Polvo..." />
                                     </div>
                                     <div className="md:col-span-4 space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Enfermedades Crónicas / Medicación</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.chronicDiseases || ""} onChange={e => setForm({...form, chronicDiseases: e.target.value.toUpperCase()})} placeholder="Ej: Diabetes Tipo 2..." />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.chronicDiseases || ""} onChange={e => setForm({...form, chronicDiseases: e.target.value.toUpperCase()})} placeholder="Ej: Diabetes Tipo 2..." />
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Tiene Cargas</label>
-                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.tieneCargas || ""} onChange={e => setForm({...form, tieneCargas: e.target.value})}>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.tieneCargas || ""} onChange={e => setForm({...form, tieneCargas: e.target.value})}>
                                             <option value="NO">NO</option>
                                             <option value="SÍ">SÍ</option>
                                         </select>
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Cant. Cargas</label>
-                                        <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.cantidadCargasLimitadas || ""} onChange={e => setForm({...form, cantidadCargasLimitadas: e.target.value})} />
+                                        <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.cantidadCargasLimitadas || ""} onChange={e => setForm({...form, cantidadCargasLimitadas: e.target.value})} />
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Pensionado</label>
-                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.pensionado || ""} onChange={e => setForm({...form, pensionado: e.target.value})}>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.pensionado || ""} onChange={e => setForm({...form, pensionado: e.target.value})}>
                                             <option value="NO">NO</option>
                                             <option value="SÍ">SÍ</option>
                                         </select>
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Discapacidad</label>
-                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.tieneDiscapacidad || ""} onChange={e => setForm({...form, tieneDiscapacidad: e.target.value})}>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.tieneDiscapacidad || ""} onChange={e => setForm({...form, tieneDiscapacidad: e.target.value})}>
                                             <option value="NO">NO</option>
                                             <option value="SÍ">SÍ</option>
                                         </select>
@@ -2439,7 +2586,7 @@ const CapturaTalento = () => {
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Banco</label>
                                         <div className="relative">
                                             <select 
-                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                                className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
                                                 value={form.banco || ""} 
                                                 onChange={e => setForm({...form, banco: e.target.value})}
                                             >
@@ -2452,7 +2599,7 @@ const CapturaTalento = () => {
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Tipo Cuenta</label>
                                         <select 
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300" 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none focus:border-indigo-300" 
                                             value={form.tipoCuenta || ""} 
                                             onChange={e => setForm({...form, tipoCuenta: e.target.value})}
                                         >
@@ -2465,7 +2612,7 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">N° Cuenta</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-black text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono" value={form.numeroCuenta || ""} onChange={e => setForm({...form, numeroCuenta: e.target.value})} placeholder="0000000000" />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono" value={form.numeroCuenta || ""} onChange={e => setForm({...form, numeroCuenta: e.target.value})} placeholder="0000000000" />
                                     </div>
                                 </div>
                             </div>
@@ -2490,7 +2637,7 @@ const CapturaTalento = () => {
                                             <t.icon size={12} className="text-orange-500"/> {t.label}
                                         </label>
                                         <input 
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-xs font-black text-slate-700 outline-none focus:border-orange-300 focus:bg-white transition-all text-center" 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-5 py-4 text-xs font-black text-slate-700 outline-none focus:border-orange-300 focus:bg-white transition-all text-center" 
                                             value={form[t.field] || ""} 
                                             onChange={e => setForm({...form, [t.field]: e.target.value.toUpperCase()})} 
                                             placeholder={t.placeholder} 
@@ -2504,18 +2651,18 @@ const CapturaTalento = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Requiere Licencia</label>
-                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.requiresLicence || ""} onChange={e => setForm({...form, requiresLicence: e.target.value})}>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.requiresLicence || ""} onChange={e => setForm({...form, requiresLicence: e.target.value})}>
                                             <option value="NO">NO</option>
                                             <option value="SÍ">SÍ</option>
                                         </select>
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Vencimiento Licencia</label>
-                                        <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.licenceExpiryDate?.split('T')[0] || ""} onChange={e => setForm({...form, licenceExpiryDate: e.target.value})} />
+                                        <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.licenceExpiryDate?.split('T')[0] || ""} onChange={e => setForm({...form, licenceExpiryDate: e.target.value})} />
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Nivel Educacional</label>
-                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.educationLevel || ""} onChange={e => setForm({...form, educationLevel: e.target.value.toUpperCase()})} placeholder="Ej: UNIVERSITARIO, TÉCNICO..." />
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.educationLevel || ""} onChange={e => setForm({...form, educationLevel: e.target.value.toUpperCase()})} placeholder="Ej: UNIVERSITARIO, TÉCNICO..." />
                                     </div>
                                 </div>
                             </div>
@@ -2600,7 +2747,7 @@ const CapturaTalento = () => {
                                 <div className="md:col-span-2 space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Situación Laboral en Entrevista</label>
                                     <textarea 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-rose-300 transition-all min-h-[100px]" 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-rose-300 transition-all min-h-[100px]" 
                                         value={form.situacionLaboralEntrevista || ""} 
                                         onChange={e => setForm({...form, situacionLaboralEntrevista: e.target.value})}
                                         placeholder="Detalle la situación actual del candidato al momento de la entrevista..."
@@ -2608,14 +2755,10 @@ const CapturaTalento = () => {
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Declara Conflicto de Interés</label>
-                                    <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none" value={form.declaraConflictoInteres || ""} onChange={e => setForm({...form, declaraConflictoInteres: e.target.value})}>
+                                    <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.declaraConflictoInteres || ""} onChange={e => setForm({...form, declaraConflictoInteres: e.target.value})}>
                                         <option value="NO">NO DECLARA CONFLICTOS</option>
                                         <option value="SÍ">SÍ DECLARA CONFLICTOS</option>
                                     </select>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Fecha Efectiva de Inicio</label>
-                                    <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
                                 </div>
 
                                 <div className="md:col-span-2 pt-12 border-t border-slate-100 mt-10">
@@ -2630,28 +2773,44 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                         <div className="space-y-3">
-                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Fecha Finiquito</label>
-                                            <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none" value={form.fechaFiniquito?.split('T')[0] || ""} onChange={e => setForm({...form, fechaFiniquito: e.target.value})} />
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Tipo de Término</label>
+                                            <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none" value={form.tipoTermino || ""} onChange={e => {
+                                                const val = e.target.value;
+                                                setForm(prev => {
+                                                    const updated = {...prev, tipoTermino: val};
+                                                    if (val && !['Finiquitado', 'Retirado', 'Por Finiquitar'].includes(prev.status)) {
+                                                        updated.status = 'Por Finiquitar';
+                                                    }
+                                                    return updated;
+                                                });
+                                            }}>
+                                                <option value="">SELECCIONE TIPO</option>
+                                                <option value="Renuncia voluntaria (Art. 159 N°2)">Renuncia voluntaria (Art. 159 N°2)</option>
+                                                <option value="Mutuo acuerdo (Art. 159 N°1)">Mutuo acuerdo (Art. 159 N°1)</option>
+                                                <option value="Vencimiento del plazo (Art. 159 N°4)">Vencimiento del plazo (Art. 159 N°4)</option>
+                                                <option value="Necesidades de la empresa (Art. 161)">Necesidades de la empresa (Art. 161)</option>
+                                                <option value="Caso fortuito o fuerza mayor (Art. 159 N°6)">Caso fortuito o fuerza mayor (Art. 159 N°6)</option>
+                                                <option value="Falta de probidad (Art. 160)">Falta de probidad (Art. 160)</option>
+                                                <option value="Abandono del trabajo (Art. 160 N°4)">Abandono del trabajo (Art. 160 N°4)</option>
+                                                <option value="Otro">Otro</option>
+                                            </select>
                                         </div>
                                         <div className="space-y-3">
-                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Motivo Finiquito</label>
-                                            <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none" value={form.motivoFiniquito || ""} onChange={e => setForm({...form, motivoFiniquito: e.target.value.toUpperCase()})} placeholder="EJ: RENUNCIA VOLUNTARIA, TÉRMINO DE OBRA..." />
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Tipo de Documento</label>
+                                            <select className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none" value={form.tipoDocumentoTermino || ""} onChange={e => setForm({...form, tipoDocumentoTermino: e.target.value})}>
+                                                <option value="">SELECCIONE DOCUMENTO</option>
+                                                <option value="Carta de Término">Carta de Término</option>
+                                                <option value="Carta de Renuncia">Carta de Renuncia</option>
+                                                <option value="Otro">Otro</option>
+                                            </select>
                                         </div>
-                                        <div className="md:col-span-2 pt-8 border-t border-slate-50 mt-4">
-                                            <div className="flex items-center gap-4 mb-4">
-                                                <div className="w-10 h-10 bg-cyan-50 text-cyan-500 rounded-xl flex items-center justify-center">
-                                                    <Calendar size={20} />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Hito Operativo Final</h3>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Fecha en que el recurso comienza a producir</p>
-                                                </div>
+                                        {form.tipoDocumentoTermino === 'Otro' && (
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Especifique Tipo de Documento</label>
+                                                <input type="text" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none" value={form.otroDocumentoTermino || ""} onChange={e => setForm({...form, otroDocumentoTermino: e.target.value})} placeholder="Ej: Anexo de salida..." />
                                             </div>
-                                                <div className="space-y-3">
-                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><CheckCircle size={12} className="text-cyan-500"/> Fecha Operativa de Activación</label>
-                                                    <input type="date" className="w-full bg-cyan-50/20 border-2 border-cyan-100 rounded-2xl px-7 py-5 text-sm font-black text-cyan-700 outline-none focus:border-cyan-300" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
-                                                </div>
-                                        </div>
+                                        )}
+
                                     </div>
                                 </div>
                         </div>
@@ -2662,7 +2821,7 @@ const CapturaTalento = () => {
             </div>
 
             {/* Footer de Acciones */}
-            <div className="px-12 py-10 border-t border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md">
+            <div className="px-6 md:px-12 py-6 md:py-10 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between bg-white/80 backdrop-blur-md gap-4">
                 <div className="hidden md:flex items-center gap-3 text-slate-400">
                     <div className={`w-2.5 h-2.5 rounded-full ${saving ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
                     <span className="text-[10px] font-black uppercase tracking-widest">{saving ? 'Escribiendo en MongoDB...' : 'Sistema Listo'}</span>
@@ -2670,14 +2829,14 @@ const CapturaTalento = () => {
                 <div className="flex gap-4 w-full md:w-auto">
                     <button 
                         onClick={() => { setShowForm(false); setEditId(null); }} 
-                        className="flex-1 md:flex-none px-12 py-5 bg-slate-100 text-slate-500 rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+                        className="flex-1 md:flex-none px-6 py-3.5 md:px-10 md:py-4 bg-slate-100 text-slate-500 rounded-xl md:rounded-[1.5rem] font-black text-[10px] md:text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
                     >
                         Cancelar
                     </button>
                     <button 
                         onClick={handleSubmit} 
                         disabled={saving} 
-                        className="flex-1 md:flex-none px-16 py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest shadow-2xl shadow-indigo-200 hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
+                        className="flex-1 md:flex-none px-8 py-3.5 md:px-14 md:py-4 bg-indigo-600 text-white rounded-xl md:rounded-[1.5rem] font-black text-[10px] md:text-[11px] uppercase tracking-widest shadow-2xl shadow-indigo-200 hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
                     >
                         {saving ? <Loader2 className="animate-spin" size={18} /> : editId ? 'Actualizar Expediente' : 'Finalizar Registro'}
                     </button>
@@ -2692,30 +2851,39 @@ const CapturaTalento = () => {
             {!showForm ? (
                 <div className="max-w-[1600px] mx-auto animate-in fade-in duration-700 w-full">
                     {renderHeader()}
-                    <div className="sticky top-0 z-[100] bg-[#F8FAFC]/90 backdrop-blur-md -mx-4 md:-mx-10 px-4 md:px-10 pt-4">
+                    <div className="sticky top-0 z-20 bg-[#F8FAFC]/90 backdrop-blur-md -mx-4 md:-mx-10 px-4 md:px-10 pt-4">
                         {renderFilters()}
                     </div>
                     {renderStats()}
                     {viewMode === 'grid' ? renderGrid() : renderTable()}
                 </div>
             ) : (
-                <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-4">
-                    <div className="w-full max-w-[1100px] max-h-[90vh] overflow-y-auto custom-scrollbar bg-white rounded-3xl">
+                <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-0 md:p-4">
+                    <div className="w-full max-w-[1100px] max-h-[100dvh] md:max-h-[90vh] overflow-hidden bg-transparent rounded-none md:rounded-3xl flex flex-col">
                         {renderForm()}
                     </div>
                 </div>
             )}
 
             {selectedCandidato && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-2xl flex items-center justify-center z-[200] p-4 animate-in fade-in duration-300" onClick={() => setSelectedCandidato(null)}>
-                    <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.3)] w-full max-w-6xl h-[92vh] overflow-hidden relative" onClick={e => e.stopPropagation()}>
-                        <button 
-                            onClick={() => setSelectedCandidato(null)}
-                            className="absolute top-10 right-10 w-14 h-14 bg-slate-50 text-slate-400 hover:text-slate-800 rounded-2xl flex items-center justify-center z-10 transition-all active:scale-90"
-                        >
-                            <X size={24} />
-                        </button>
-                        <div className="h-full overflow-y-auto p-12 md:p-16 custom-scrollbar">
+                <div className="print-modal-wrapper fixed inset-0 bg-slate-900/80 backdrop-blur-2xl flex items-center justify-center z-[200] p-4 animate-in fade-in duration-300" onClick={() => setSelectedCandidato(null)}>
+                    <div className="print-modal-content bg-white w-full max-w-5xl h-[90vh] rounded-[2rem] shadow-2xl flex flex-col relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="print-hide flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><User size={24} /></div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Vista Previa</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedCandidato.rut}</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedCandidato(null)}
+                                className="w-12 h-12 flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 rounded-2xl hover:shadow-lg transition-all"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="print-modal-body flex-1 overflow-y-auto bg-slate-50 relative p-12 md:p-16 custom-scrollbar">
                             <FichaIngresoPremium data={selectedCandidato} />
                         </div>
                     </div>
@@ -2831,7 +2999,7 @@ const CapturaTalento = () => {
                     <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowCoverageModal(false)} />
                     <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200 flex flex-col max-h-[85vh]">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-8 flex items-center justify-between shadow-lg relative overflow-hidden">
+                        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between shadow-lg relative overflow-hidden gap-4">
                             <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
                                 <Crosshair size={120} className="text-white" />
                             </div>
@@ -2952,7 +3120,7 @@ const CapturaTalento = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-slate-50 p-6 border-t border-slate-200 flex justify-between items-center px-10">
+                        <div className="bg-slate-50 p-4 md:p-6 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center px-6 md:px-10 gap-4">
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sincronizado con Módulo Proyectos</span>
@@ -2968,7 +3136,7 @@ const CapturaTalento = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md overflow-hidden animate-fade-in">
                     <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 flex flex-col w-full max-w-5xl h-[85vh] overflow-hidden animate-scale-up">
                         {/* Header del Modal */}
-                        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-8 flex items-center justify-between shadow-lg relative overflow-hidden">
+                        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between shadow-lg relative overflow-hidden gap-4">
                             <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
                                 <Upload size={120} className="text-white" />
                             </div>
@@ -3169,7 +3337,7 @@ const CapturaTalento = () => {
                                     </div>
 
                                     {/* Métrica de resultados */}
-                                    <div className="grid grid-cols-2 gap-4 w-full bg-white border border-slate-200 p-6 rounded-3xl shadow-sm">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full bg-white border border-slate-200 p-6 rounded-3xl shadow-sm">
                                         <div className="text-center p-4 bg-slate-50 rounded-2xl">
                                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nuevos Creados</span>
                                             <span className="text-2xl font-black text-indigo-600">{bulkResults.creados}</span>
@@ -3197,7 +3365,7 @@ const CapturaTalento = () => {
 
                         {/* Footer del Modal */}
                         {!bulkResults && (
-                            <div className="bg-slate-50 p-6 border-t border-slate-200 flex justify-between items-center px-10">
+                            <div className="bg-slate-50 p-4 md:p-6 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center px-6 md:px-10 gap-4">
                                 <button 
                                     onClick={() => setShowBulkModal(false)}
                                     className="px-8 py-4 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm transition-all"

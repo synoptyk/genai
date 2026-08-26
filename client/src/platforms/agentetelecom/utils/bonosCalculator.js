@@ -177,9 +177,7 @@ export const getBonusForMonth = async (yearStr, monthStr) => {
           return pts >= limitMin && pts <= limitMax;
         });
         const multiplier = tier ? parseFloat(tier.valor) : 0;
-        const ptsExcluidos = activeModel.puntosExcluidos || 0;
-        const calculablePts = Math.max(0, pts - ptsExcluidos);
-        baremoBonus = calculablePts * multiplier;
+        baremoBonus = pts * multiplier;
       }
 
       const idRecursoRaw = String(t.idRecursoToa || t.idRecurso || t._id || '').replace(/^0+/, '').trim();
@@ -187,13 +185,9 @@ export const getBonusForMonth = async (yearStr, monthStr) => {
       const rrValue = Math.round((garantiasTec.rrValue || 0) * 100) / 100;
       const aiValue = Math.round((garantiasTec.aiValue || 0) * 100) / 100;
 
-      if (activeModel && t.orders > 0) {
-        const ptsExcluidos = activeModel.puntosExcluidos || 0;
-        const calculablePts = Math.max(0, pts - ptsExcluidos);
-        if (calculablePts > 0) {
-          rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
-          aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
-        }
+      if (activeModel && (t.orders > 0 || pts > 0)) {
+        rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
+        aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
       }
 
       const totalBonus = baremoBonus + rrBonus + aiBonus;

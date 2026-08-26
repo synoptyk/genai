@@ -240,92 +240,149 @@ router.post('/cargar-plantilla-chile', protect, authorize('rend_config_lpu:crear
   }
 });
 
-// POST /api/tarifa-lpu/recalculate-all — Recalcula todos los campos de todas las actividades de la empresa
+// Helper para ejecutar recalculación en background sin bloquear la respuesta HTTP
+async function ejecutarRecalculacion({ empresaId, userEmail, userRole, queryAct, label }) {
+  const Actividad = require('../models/Actividad');
+  const { obtenerTarifasEmpresa, calcularBaremos, valorizarBaremos, construirMapaValorizacion } = require('../utils/calculoEngine');
+
+  let tarifas = await obtenerTarifasEmpresa(empresaId);
+  if (!tarifas || tarifas.length === 0) {
+    const TarifaLPU = require('../models/TarifaLPU');
+    tarifas = await TarifaLPU.find({}).lean();
+  }
+  const mapaValor = await construirMapaValorizacion(empresaId);
+  console.log(`📋 [${label}] Tarifas: ${tarifas.length} | Mapa: ${Object.keys(mapaValor).length}`);
+
+  const cursor = Actividad.find(queryAct).cursor({ batchSize: 500 });
+  let total = 0, actualizados = 0, batch = [];
+
+  for (let act = await cursor.next(); act != null; act = await cursor.next()) {
+    total++;
+    const baremo = calcularBaremos(act, tarifas);
+    const docParaValorizar = {
+      ...act.toObject(), ...baremo,
+      ID_Recurso: act.idRecursoToa || act.RECURSO || act.idRecurso,
+      Pts_Total_Baremo: baremo.Pts_Total_Baremo
+    };
+    const val = valorizarBaremos(docParaValorizar, mapaValor);
+    batch.push({
+      updateOne: {
+        filter: { _id: act._id },
+        update: {
+          $set: {
+            ...baremo, ...val,
+            ptsTotalBaremo: baremo.ptsTotalBaremo,
+            PTS_TOTAL_BAREMO: baremo.ptsTotalBaremo,
+            Total_Puntos_Baremo: baremo.ptsTotalBaremo,
+            ultimaActualizacion: new Date()
+          }
+        }
+      }
+    });
+    if (batch.length >= 500) {
+      await Actividad.bulkWrite(batch);
+      actualizados += batch.length;
+      batch = [];
+      console.log(`   [${label}] ... ${actualizados} procesados`);
+    }
+  }
+  if (batch.length > 0) { await Actividad.bulkWrite(batch); actualizados += batch.length; }
+  console.log(`✅ [${label}] COMPLETADO: ${actualizados}/${total} actividades recalculadas.`);
+  return { total, actualizados };
+}
+
+// POST /api/tarifa-lpu/recalculate-all — Responde inmediatamente y procesa en background
 router.post('/recalculate-all', protect, authorize('rend_config_lpu:editar'), async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const Actividad = require('../models/Actividad');
-    const { 
-      obtenerTarifasEmpresa, 
-      calcularBaremos, 
-      valorizarBaremos, 
-      construirMapaValorizacion 
-    } = require('../utils/calculoEngine');
+    const userRole = String(req.user?.role || '').toLowerCase().trim();
+    const isHighLevel = ['system_admin', 'admin', 'gerencia', 'ceo', 'ceo_genai', 'administrador', 'administrador maestro', 'director', 'coordinador'].includes(userRole);
 
-    console.log(`🚀 RECALCULANDO TODO para empresa: ${empresaId}`);
+    let queryAct = isHighLevel ? {} : { empresaRef: empresaId };
+    if (!isHighLevel) {
+      const countEmp = await Actividad.countDocuments(queryAct);
+      if (countEmp === 0) queryAct = {};
+    }
 
-    // 1. Obtener recursos necesarios (LPU y Mapa de Precios)
-    const [tarifas, mapaValor] = await Promise.all([
-      obtenerTarifasEmpresa(empresaId),
-      construirMapaValorizacion(empresaId)
-    ]);
+    const totalEstimado = await Actividad.countDocuments(queryAct);
+    console.log(`🚀 [recalculate-all] Background job para ${req.user.email} — ${totalEstimado} actividades`);
 
-    // 2. Buscar todas las actividades de la empresa
-    // Usamos cursor para no saturar la memoria si hay miles
-    const cursor = Actividad.find({ empresaRef: empresaId }).cursor({ batchSize: 500 });
-    
-    let total = 0;
-    let actualizados = 0;
-    let batch = [];
+    // ✅ Responder INMEDIATAMENTE (evita timeout de 60s del cliente Axios)
+    res.json({
+      ok: true,
+      mensaje: `Recalculación iniciada. Se procesarán ~${totalEstimado.toLocaleString()} actividades en background. Los cambios se reflejarán en producción en unos minutos.`,
+      totalEstimado,
+      background: true
+    });
 
-    for (let act = await cursor.next(); act != null; act = await cursor.next()) {
-      total++;
-      
-      // Recalcular baremos
-      const baremo = calcularBaremos(act, tarifas);
-      
-      // Combinar los baremos nuevos en el doc para que valorizarBaremos los use
-      const docParaValorizar = { 
-        ...act.toObject(), 
-        ...baremo,
-        // Asegurar campos que valorizarBaremos usa específicamente
-        ID_Recurso: act.idRecursoToa || act.RECURSO || act.idRecurso,
-        Pts_Total_Baremo: baremo.Pts_Total_Baremo
-      };
-      
-      // Recalcular valorización
-      const val = valorizarBaremos(docParaValorizar, mapaValor);
-
-      // Preparar update (Combinando campos canon y legacy para máxima compatibilidad)
-      batch.push({
-        updateOne: {
-          filter: { _id: act._id },
-          update: {
-            $set: {
-              ...baremo,
-              ...val,
-              ptsTotalBaremo: baremo.ptsTotalBaremo,
-              PTS_TOTAL_BAREMO: baremo.ptsTotalBaremo,
-              Total_Puntos_Baremo: baremo.ptsTotalBaremo,
-              ultimaActualizacion: new Date()
-            }
-          }
-        }
-      });
-
-      if (batch.length >= 500) {
-        await Actividad.bulkWrite(batch);
-        actualizados += batch.length;
-        batch = [];
-        console.log(`... procesados ${actualizados} registros`);
+    // Procesar en background después de enviar respuesta
+    setImmediate(async () => {
+      try {
+        await ejecutarRecalculacion({ empresaId, userEmail: req.user.email, userRole, queryAct, label: 'ALL' });
+      } catch (bgErr) {
+        console.error('❌ [recalculate-all background]:', bgErr.message);
       }
-    }
-
-    if (batch.length > 0) {
-      await Actividad.bulkWrite(batch);
-      actualizados += batch.length;
-    }
-
-    console.log(`✅ RECALCULACIÓN COMPLETADA: ${actualizados} registros actualizados de ${total}.`);
-
-    res.json({ 
-      ok: true, 
-      total,
-      actualizados,
-      mensaje: `Se han recalculado ${actualizados} actividades exitosamente.`
     });
   } catch (error) {
     console.error('❌ POST /api/tarifa-lpu/recalculate-all:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/tarifa-lpu/recalculate-month — Responde inmediatamente y procesa en background
+router.post('/recalculate-month', protect, authorize('rend_config_lpu:editar'), async (req, res) => {
+  try {
+    const { anio, mes } = req.body;
+    if (!anio || !mes) return res.status(400).json({ error: 'Se requiere anio y mes.' });
+
+    const empresaId = req.user.empresaRef;
+    const Actividad = require('../models/Actividad');
+    const userRole = String(req.user?.role || '').toLowerCase().trim();
+    const isHighLevel = ['system_admin', 'admin', 'gerencia', 'ceo', 'ceo_genai', 'administrador', 'administrador maestro', 'director', 'coordinador'].includes(userRole);
+
+    const desde = new Date(Number(anio), Number(mes) - 1, 1);
+    const hasta = new Date(Number(anio), Number(mes), 1);
+
+    const filtroFecha = {
+      $or: [
+        { Fecha_Actividad: { $gte: desde, $lt: hasta } },
+        { fechaActividad: { $gte: desde, $lt: hasta } },
+        { FechaActividad: { $gte: desde, $lt: hasta } },
+        { fecha: { $gte: desde, $lt: hasta } },
+      ]
+    };
+    const queryAct = isHighLevel ? filtroFecha : { ...filtroFecha, empresaRef: empresaId };
+
+    const totalEstimado = await Actividad.countDocuments(queryAct);
+    const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const nombreMes = MESES[Number(mes) - 1];
+
+    console.log(`📅 [recalculate-month] ${nombreMes} ${anio} — ${totalEstimado} actividades para ${req.user.email}`);
+
+    // ✅ Responder INMEDIATAMENTE (evita timeout de 60s del cliente Axios)
+    res.json({
+      ok: true,
+      mensaje: `Recalculación de ${nombreMes} ${anio} iniciada. Se procesarán ~${totalEstimado.toLocaleString()} actividades en background. Los cambios se reflejarán en producción en unos minutos.`,
+      totalEstimado,
+      mes,
+      anio,
+      background: true
+    });
+
+    // Procesar en background después de enviar respuesta
+    setImmediate(async () => {
+      try {
+        await ejecutarRecalculacion({
+          empresaId, userEmail: req.user.email, userRole, queryAct,
+          label: `MES-${nombreMes}-${anio}`
+        });
+      } catch (bgErr) {
+        console.error(`❌ [recalculate-month ${nombreMes}/${anio}]:`, bgErr.message);
+      }
+    });
+  } catch (error) {
+    console.error('❌ POST /api/tarifa-lpu/recalculate-month:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

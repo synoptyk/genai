@@ -33,8 +33,8 @@ const FiniquitoDetailModal = ({
                 </div>
 
                 {/* Stepper Workflow */}
-                <div className="px-6 py-5 border-b border-slate-100 flex justify-center bg-white">
-                    <div className="flex items-center justify-between w-full max-w-3xl relative">
+                <div className="px-6 py-5 border-b border-slate-100 bg-white overflow-x-auto custom-scrollbar">
+                    <div className="flex items-center justify-between min-w-[500px] max-w-3xl mx-auto relative px-4">
                         {/* 1. Registro */}
                         <div className="flex flex-col items-center z-10 w-24">
                             <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm shadow-md shadow-emerald-100">
@@ -241,8 +241,20 @@ const FiniquitoDetailModal = ({
                             download={`finiquito-${show.rut || show._id}.json`}
                             className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
                         >
-                            <Download size={14} /> Exportar JSON
+                            <Download size={14} /> Exportar
                         </a>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/captura-talento?id=${show._id}`, '_blank')}}
+                            className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all"
+                        >
+                            Ficha
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/gestion-documental?id=${show._id}`, '_blank')}}
+                            className="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all"
+                        >
+                            Expediente
+                        </button>
                     </div>
 
                     {/* Upload legal file area */}

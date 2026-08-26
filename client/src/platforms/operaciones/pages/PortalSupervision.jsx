@@ -756,7 +756,7 @@ const PortalSupervision = () => {
                                         </div>
                                     </div>
                                     {/* Fila detalles */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-50 border-t border-slate-50 bg-slate-50/50">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 divide-x divide-slate-50 border-t border-slate-50 bg-slate-50/50">
                                         <div className="px-4 py-2.5">
                                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Cargo</p>
                                             <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5">{tec.cargo || '—'}</p>
@@ -783,7 +783,7 @@ const PortalSupervision = () => {
                                     </div>
 
                                     {/* Nueva Fila: Tallas y Contacto Rápido (Opcional/Colapsable si fuera muy grande, pero aquí va directo) */}
-                                    <div className="grid grid-cols-3 divide-x divide-slate-50 border-t border-slate-50 bg-white group-hover:bg-indigo-50/20 transition-all">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 divide-x divide-slate-50 border-t border-slate-50 bg-white group-hover:bg-indigo-50/20 transition-all">
                                         <div className="px-4 py-2">
                                             <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">Contacto</p>
                                             <p className="text-[10px] font-bold text-slate-500">{tec.telefono || tec.email || '—'}</p>
@@ -843,7 +843,7 @@ const PortalSupervision = () => {
                     </div>
 
                     {/* KPIs */}
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4">
                         <div onClick={() => setFilterCardFlota(null)} className={`bg-white p-5 rounded-2xl border ${filterCardFlota === null ? 'border-slate-400 ring-2 ring-slate-200' : 'border-slate-100'} shadow-sm flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition-all`}>
                             <span className="text-3xl font-black text-slate-800">{kpisFlota.total}</span>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total Flotilla</span>
@@ -995,7 +995,7 @@ const PortalSupervision = () => {
             {currentView === 'ast' && (
                 <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
                     {/* Resumen rápido */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {[
                             { label: 'Completaron AST', val: miEquipo.filter(t => asts.some(a => (a.createdAt || a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador === t.rut)).length, color: 'bg-emerald-500' },
                             { label: 'Pendientes Hoy', val: miEquipo.filter(t => !asts.some(a => (a.createdAt || a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador === t.rut)).length, color: 'bg-rose-500' },
@@ -1724,7 +1724,7 @@ const PortalSupervision = () => {
                                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
                                             <Phone size={12} /> Contacto de Emergencia
                                         </h3>
-                                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 grid grid-cols-2 gap-3">
+                                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             {fichaData.candidato?.emergencyContact && (
                                                 <div>
                                                     <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest italic">Contacto</p>
@@ -1747,7 +1747,7 @@ const PortalSupervision = () => {
                                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
                                             <FileText size={12} /> Contrato
                                         </h3>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                             {[
                                                 { label: 'Tipo Contrato', value: fichaData.candidato?.contractType },
                                                 { label: 'Inicio', value: fichaData.candidato?.contractStartDate ? new Date(fichaData.candidato.contractStartDate).toLocaleDateString('es-CL') : null },
@@ -1767,7 +1767,7 @@ const PortalSupervision = () => {
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
                                         <Shirt size={12} /> Dotación y Tallas (HR)
                                     </h3>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                                         {[
                                             { label: 'Talla Camisa', value: fichaData.candidato?.tallaCamisa || fichaData.tecnico?.tallaCamisa },
                                             { label: 'Talla Pantalón', value: fichaData.candidato?.tallaPantalon || fichaData.tecnico?.tallaPantalon },

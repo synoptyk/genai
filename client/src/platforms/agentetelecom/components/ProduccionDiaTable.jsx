@@ -198,7 +198,7 @@ const ProduccionDiaTable = ({
 
     return (
       <div className="w-full mb-10">
-        <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border border-slate-800 rounded-t-xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 bg-slate-900 border border-slate-800 rounded-t-xl">
           <div className="flex items-center gap-3">
             <div className={`w-1.5 h-5 ${mainBg} rounded-full`} />
             <h3 className={`text-[11px] font-black uppercase tracking-widest ${mainColor}`}>{title}</h3>

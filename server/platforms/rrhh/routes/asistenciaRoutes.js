@@ -5,6 +5,7 @@ const Candidato = require('../models/Candidato');
 const Tecnico = require('../../agentetelecom/models/Tecnico');
 const Actividad = require('../../agentetelecom/models/Actividad');
 const Turno = require('../models/Turno');
+const ValidacionAsistencia = require('../models/ValidacionAsistencia');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 const feriadosUtil = require('../../../utils/feriadosUtil');
@@ -180,15 +181,55 @@ router.get('/', protect, authorize('rrhh_asistencia:ver', 'op_colaborador:ver', 
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// ─── GET /asistencia/resumen-periodo ─ Resumen mensual por colaborador ────────
-// Usado por NominaRRHH para sincronizar días trabajados y horas extra reales
-router.get('/resumen-periodo', protect, authorize('rrhh_asistencia:ver', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA), async (req, res) => {
+router.get('/resumen-periodo', protect, authorize('rrhh_asistencia:ver', 'op_colaborador:ver', 'op_colaborador', ROLES.SYSTEM_ADMIN, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.CEO, ROLES.RRHH, ROLES.GERENCIA, ROLES.TECNICO, ROLES.COLABORADOR), async (req, res) => {
     try {
         const { month, year } = req.query;
         if (!month || !year) return res.status(400).json({ message: 'month y year requeridos' });
 
         const m = Number(month);
         const y = Number(year);
+        const daysInMonth = new Date(y, m, 0).getDate();
+        const today = new Date();
+
+        const FERIADOS_CHILE = {
+            '2026-00-01': 'Año Nuevo', '2026-03-03': 'Viernes Santo', '2026-03-04': 'Sábado Santo',
+            '2026-04-01': 'Día del Trabajo', '2026-04-21': 'Día de las Glorias Navales',
+            '2026-05-07': 'San Pedro y San Pablo', '2026-05-29': 'Día de los Pueblos Indígenas',
+            '2026-06-16': 'Día de la Virgen del Carmen', '2026-07-15': 'Asunción de la Virgen',
+            '2026-08-18': 'Fiestas Patrias', '2026-08-19': 'Día de las Glorias del Ejército',
+            '2026-09-12': 'Encuentro de Dos Mundos', '2026-09-31': 'Día de las Iglesias Evangélicas',
+            '2026-10-01': 'Día de Todos los Santos', '2026-11-08': 'Inmaculada Concepción',
+            '2026-11-25': 'Navidad'
+        };
+
+        const isFeCheck = (yearVal, monthVal, dayVal) => {
+            const mm = String(monthVal - 1).padStart(2, '0');
+            const dd = String(dayVal).padStart(2, '0');
+            return !!FERIADOS_CHILE[`${yearVal}-${mm}-${dd}`];
+        };
+
+        const MAPA_DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+        const normStr = str => String(str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        const minutesDiff = (e, s) => {
+            if (!e || !s) return 0;
+            const [eH, eM] = e.split(':').map(Number);
+            const [sH, sM] = s.split(':').map(Number);
+            let diff = (sH * 60 + sM) - (eH * 60 + eM);
+            if (diff < 0) diff += 1440;
+            return diff;
+        };
+
+        const getHorarioDia = (turno, diaNombre) => {
+            if (!turno) return null;
+            const override = (turno.horariosPorDia || []).find(h => normStr(h.dia) === normStr(diaNombre));
+            return {
+                horaEntrada: override?.horaEntrada ?? turno.horaEntrada ?? null,
+                horaSalida: override?.horaSalida ?? turno.horaSalida ?? null,
+                colacionMinutos: override?.colacionMinutos ?? turno.colacionMinutos ?? 60,
+            };
+        };
+
         const filter = {
             empresaRef: req.user.empresaRef,
             estadoRegistro: { $ne: 'ANULADO' },
@@ -203,114 +244,242 @@ router.get('/resumen-periodo', protect, authorize('rrhh_asistencia:ver', ROLES.S
             .populate('turnoId', 'nombre horasTrabajo colacionMinutos diasSemana horariosPorDia')
             .lean();
 
-        // Agrupar por candidato
-        const porCandidato = {};
-        registros.forEach(r => {
-            const cId = r.candidatoId?._id?.toString() || r.candidatoId?.toString();
-            if (!cId) return;
-
-            // Validar que el registro no sea anterior a la fecha de contrato si existe
-            const startDate = r.candidatoId?.contractStartDate ? new Date(r.candidatoId.contractStartDate) : null;
-            if (startDate) {
-                // Eliminar horas del registro para comparar solo fecha
-                const rDate = new Date(r.fecha);
-                const sDate = new Date(startDate);
-                sDate.setHours(0,0,0,0);
-                rDate.setHours(0,0,0,0);
-                if (rDate < sDate) return; // Ignorar registros previos al contrato
-            }
-
-            if (!porCandidato[cId]) {
-                porCandidato[cId] = {
-                    candidatoId: cId,
-                    nombre: r.candidatoId?.fullName || '—',
-                    rut: r.candidatoId?.rut || '',
-                    cargo: r.candidatoId?.position || r.candidatoId?.cargo || '',
-                    contractStartDate: r.candidatoId?.contractStartDate,
-                    datosCandidato: r.candidatoId, // Persistimos los datos para cálculos de proporcionalidad
-                    diasPresente:    0,
-                    diasTardanza:    0,
-                    diasAusente:     0,
-                    diasLicencia:    0,
-                    diasPermiso:     0,
-                    diasVacaciones:  0,
-                    diasFeriado:     0,
-                    diasDomingo:     0,
-                    diasNC:          0,
-                    diasDescontados: 0,
-                    minutosTardanzaTotal: 0,
-                    horasExtraDeclaradas: 0,
-                    horasExtraAprobadas:  0,
-                    horasNormalesTrabajadas: 0
-                };
-            }
-            const c = porCandidato[cId];
-            switch (r.estado) {
-                case 'Presente':    c.diasPresente++;   break;
-                case 'Tardanza':    c.diasTardanza++;   break;
-                case 'Ausente':     c.diasAusente++;    break;
-                case 'Licencia':    c.diasLicencia++;   break;
-                case 'Permiso':     c.diasPermiso++;    break;
-                case 'Vacaciones':  c.diasVacaciones++; break;
-                case 'Feriado':     c.diasFeriado++;    break;
-                case 'Libre':       c.diasDomingo++;    break;
-                case 'NC':          c.diasNC++;         break;
-            }
-            if (r.descuentaDia) c.diasDescontados++;
-            if (r.estado === 'Presente' || r.estado === 'Tardanza') {
-                c.horasNormalesTrabajadas += r.turnoId?.horasTrabajo || 0;
-                c.horasNormalesTrabajadas += (r.turnoId?.colacionMinutos / 60) || 0;
-            }
-            c.minutosTardanzaTotal += r.minutosTardanza || 0;
-            c.horasExtraDeclaradas += r.horasExtra || 0;
-            c.horasExtraAprobadas  += r.horasExtraAprobadas || 0;
+        const turnosList = await Turno.find({}).lean();
+        const turnoByWorkerMap = {};
+        turnosList.forEach(t => {
+            const arr = t.colaboradoresAsignados || t.candidatosAsignados || t.colominoAsignados || [];
+            arr.forEach(cid => {
+                const idStr = cid?._id ? cid._id.toString() : cid?.toString();
+                if (idStr) turnoByWorkerMap[idStr] = t;
+            });
         });
 
-        // Calcular días trabajados para nómina considerando proporcionalidad de contratación/despacho
-        const resumen = Object.values(porCandidato).map(c => {
-            let diasBasePeriodo = 30; // Estándar mensual
+        const allCandidatos = await Candidato.find({ 
+            empresaRef: req.user.empresaRef, 
+            status: { $ne: 'RECHAZADO' },
+            rut: { $not: /INACTIVO/i }
+        }).lean();
+        const periodoKey = `${y}-${String(m).padStart(2, '0')}`;
+        const validacionesList = await ValidacionAsistencia.find({ empresaRef: req.user.empresaRef, periodo: periodoKey }).lean();
+        const validacionesMap = {};
+        validacionesList.forEach(v => {
+            if (v.candidatoId) validacionesMap[v.candidatoId.toString()] = v;
+        });
 
-            // Si el trabajador entró o salió en este periodo, ajustamos la base
-            // (Misma lógica que la calculadora de nómina para consistencia total)
-            const first = new Date(Date.UTC(y, m - 1, 1));
-            const last  = new Date(Date.UTC(y, m, 0, 23, 59, 59));
+        // Indexar registros por candidato y día (1..31)
+        const regsByWorker = {};
+        const candidatosMap = {};
 
-            const cStart = c.datosCandidato?.contractStartDate ? new Date(c.datosCandidato.contractStartDate) : null;
-            const cEnd   = (c.datosCandidato?.contractEndDate || c.datosCandidato?.fechaFiniquito) ? new Date(c.datosCandidato.contractEndDate || c.datosCandidato.fechaFiniquito) : null;
+        allCandidatos.forEach(c => {
+            candidatosMap[c._id.toString()] = c;
+        });
 
-            // Ajuste Inicio
-            if (cStart && cStart > first && cStart <= last) {
-                const startDay = cStart.getDate();
-                diasBasePeriodo = Math.max(0, 30 - startDay + 1);
+        registros.forEach(r => {
+            const cId = r.candidatoId?._id?.toString() || r.candidatoId?.toString();
+            if (cId && !candidatosMap[cId]) {
+                candidatosMap[cId] = r.candidatoId;
             }
+            if (cId) {
+                if (!regsByWorker[cId]) regsByWorker[cId] = {};
+                const day = new Date(r.fecha).getUTCDate();
+                regsByWorker[cId][day] = r;
+            }
+        });
 
-            // Ajuste Término
-            if (cEnd && cEnd >= first && cEnd < last) {
-                const endDay = cEnd.getDate();
-                if (cStart && cStart > first) {
-                    const startDay = cStart.getDate();
-                    diasBasePeriodo = Math.max(0, endDay - startDay + 1);
-                } else {
-                    diasBasePeriodo = Math.min(diasBasePeriodo, endDay);
+        const porCandidato = {};
+
+        // Recorrer cada candidato y calcular los 31 días igual que en CalendarioAsistencia.jsx
+        Object.keys(candidatosMap).forEach(cId => {
+            const candInfo = candidatosMap[cId];
+            const userRegs = regsByWorker[cId] || {};
+            const turno = turnoByWorkerMap[cId] || turnosList[0];
+
+            let totalTurnoMin = 0;
+            let totalTrabajadoMin = 0;
+            let totalExtraMin = 0;
+            let totalNoTrabajadoMin = 0;
+            let totalLibresMin = 0;
+            let presentes = 0, ausentes = 0, tardanzas = 0, licencias = 0, permisos = 0, vacaciones = 0, feriados = 0, domingos = 0;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const reg = userRegs[day];
+                const date = new Date(y, m - 1, day);
+                const diaNombre = MAPA_DIAS[date.getDay()];
+                const esLaboral = turno ? (turno.diasSemana || []).map(normStr).includes(normStr(diaNombre)) : false;
+                const esFe = isFeCheck(y, m, day);
+
+                const estadoReal = reg?.estado || (esLaboral ? (date <= today ? 'Ausente' : 'default') : 'Libre');
+                const esAusenciaJustificada = estadoReal === 'Libre' || estadoReal === 'Permiso';
+                const isIgnorado = ['NC', 'Finiquitado', 'Licencia Médica', 'Vacaciones', 'Suspendido'].includes(estadoReal);
+
+                switch (estadoReal) {
+                    case 'Presente': presentes++; break;
+                    case 'Tardanza': tardanzas++; break;
+                    case 'Ausente': ausentes++; break;
+                    case 'Licencia Médica':
+                    case 'Licencia': licencias++; break;
+                    case 'Permiso': permisos++; break;
+                    case 'Vacaciones': vacaciones++; break;
+                    case 'Feriado': feriados++; break;
+                    case 'Libre': domingos++; break;
+                }
+
+                let expectedMin = 0;
+                if (esLaboral && !esFe && turno && !isIgnorado) {
+                    const h = getHorarioDia(turno, diaNombre);
+                    if (h?.horaEntrada && h?.horaSalida) {
+                        const reqMin = Math.max(0, minutesDiff(h.horaEntrada, h.horaSalida) - (h.colacionMinutos || 0));
+                        expectedMin = reqMin;
+                        totalTurnoMin += expectedMin;
+                        if (esAusenciaJustificada) {
+                            totalLibresMin += reqMin;
+                        }
+                    }
+                }
+
+                let workedMin = 0;
+                if (reg && reg.horaEntrada && reg.horaSalida && estadoReal !== 'NC' && estadoReal !== 'Finiquitado') {
+                    const h = getHorarioDia(turno, diaNombre);
+                    const col = h?.colacionMinutos ?? 60;
+                    workedMin = Math.max(0, minutesDiff(reg.horaEntrada, reg.horaSalida) - col);
+                    totalTrabajadoMin += workedMin;
+                }
+
+                if (esLaboral && !esFe && expectedMin > 0 && date <= today) {
+                    if (workedMin > expectedMin) {
+                        totalExtraMin += (workedMin - expectedMin);
+                    } else if (workedMin < expectedMin && estadoReal !== 'Licencia Médica' && estadoReal !== 'Vacaciones' && !esAusenciaJustificada) {
+                        totalNoTrabajadoMin += (expectedMin - workedMin);
+                    }
+                } else if (!esLaboral || esFe || esAusenciaJustificada) {
+                    if (workedMin > 0) totalExtraMin += workedMin;
                 }
             }
 
-            // Cálculo: días trabajados = días computable - ausencias (excluye NC, feriado, domingo)
-            const diasComputable = diasBasePeriodo - c.diasNC - c.diasFeriado - c.diasDomingo;
-            const diasTrabajadosCalculados = Math.max(0, diasComputable - c.diasAusente - c.diasLicencia);
+            const hrsTurno = totalTurnoMin / 60;
+            const hrsTrab = totalTrabajadoMin / 60;
+            const hrsNoTrab = totalNoTrabajadoMin / 60;
+            const hrsLibres = totalLibresMin / 60;
+            const hrsExtras = totalExtraMin / 60;
+            const balanceOriginal = hrsExtras - hrsNoTrab - hrsLibres;
 
-            return {
-                ...c,
-                diasTrabajados: diasTrabajadosCalculados,
-                diasBasePeriodo,
-                diasComputable,
-                diasEfectivos: c.diasPresente + c.diasTardanza,
-                calificaBono:  c.diasAusente === 0 && c.diasTardanza === 0,
+            const valRecord = validacionesMap[cId] || null;
+            let balanceFinal = balanceOriginal;
+            if (valRecord) {
+                if (valRecord.estadoValidacion === 'COMPENSADO_ZERO') {
+                    balanceFinal = 0;
+                } else if (valRecord.estadoValidacion === 'AJUSTE_MANUAL') {
+                    balanceFinal = valRecord.balanceAprobadoFinal;
+                } else if (valRecord.estadoValidacion === 'APROBADO_ORIGINAL') {
+                    balanceFinal = balanceOriginal;
+                }
+            }
+
+            const startOfMonth = new Date(y, m - 1, 1);
+            const endOfMonth = new Date(y, m, 0);
+            const ingresoDate = candInfo?.contractStartDate ? new Date(candInfo.contractStartDate) : null;
+            const finiquitoDate = candInfo?.fechaFiniquito ? new Date(candInfo.fechaFiniquito) : null;
+            
+            let baseDiasMes = 30; // Norma legal chilena 30 días mes completo
+            if (ingresoDate && !isNaN(ingresoDate.getTime())) {
+                if (ingresoDate > endOfMonth) {
+                    baseDiasMes = 0;
+                } else if (ingresoDate > startOfMonth) {
+                    const startDay = ingresoDate.getUTCDate();
+                    let endDay = daysInMonth;
+                    if (finiquitoDate && !isNaN(finiquitoDate.getTime()) && finiquitoDate <= endOfMonth) {
+                        endDay = finiquitoDate.getUTCDate();
+                    }
+                    baseDiasMes = Math.min(30, Math.max(0, endDay - startDay + 1));
+                }
+            }
+            if (finiquitoDate && !isNaN(finiquitoDate.getTime()) && finiquitoDate <= endOfMonth && (!ingresoDate || ingresoDate <= startOfMonth)) {
+                baseDiasMes = Math.min(30, Math.max(0, finiquitoDate.getUTCDate()));
+            }
+
+            const diasInasistencia = ausentes;
+            const diasPermisos = permisos + licencias + vacaciones;
+            const diasAPago = Math.max(0, baseDiasMes - diasInasistencia);
+
+            porCandidato[cId] = {
+                candidatoId: cId,
+                nombre: candInfo?.fullName || '—',
+                rut: candInfo?.rut || '',
+                cargo: candInfo?.position || candInfo?.cargo || '',
+                contractStartDate: candInfo?.contractStartDate,
+                datosCandidato: candInfo,
+                diasPresente: presentes,
+                diasTardanza: tardanzas,
+                diasAusente: ausentes,
+                diasInasistencia: ausentes,
+                diasLicencia: licencias,
+                diasPermiso: permisos,
+                diasVacaciones: vacaciones,
+                diasPermisos: permisos + licencias + vacaciones,
+                diasFeriado: feriados,
+                diasDomingo: domingos,
+                diasEfectivos: presentes + tardanzas,
+                diasBaseMes: baseDiasMes,
+                diasAPago: diasAPago,
+                horasTurnoTotales: Math.round(hrsTurno * 100) / 100,
+                horasEfectivasTrabajadas: Math.round(hrsTrab * 100) / 100,
+                horasNoTrabajadas: Math.round(hrsNoTrab * 100) / 100,
+                horasLibres: Math.round(hrsLibres * 100) / 100,
+                horasExtraAprobadas: Math.round(hrsExtras * 100) / 100,
+                horasExtraDeclaradas: Math.round(hrsExtras * 100) / 100,
+                balanceOriginal: Math.round(balanceOriginal * 100) / 100,
+                balanceHoras: Math.round(balanceFinal * 100) / 100,
+                calificaBono: ausentes === 0 && tardanzas === 0,
+                validacion: valRecord ? {
+                    _id: valRecord._id,
+                    estadoValidacion: valRecord.estadoValidacion,
+                    balanceAprobadoFinal: valRecord.balanceAprobadoFinal,
+                    observacionSupervisor: valRecord.observacionSupervisor,
+                    validadoPor: valRecord.validadoPor,
+                    validadoPorEmail: valRecord.validadoPorEmail,
+                    fechaValidacion: valRecord.fechaValidacion
+                } : null
             };
         });
 
+        const resumen = Object.values(porCandidato);
+
         res.json(resumen);
     } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ─── POST /asistencia/validar-balance ─ Validación y Compensación de Horas ────
+router.post('/validar-balance', protect, authorize('rrhh_asistencia:editar', ROLES.SYSTEM_ADMIN, ROLES.ADMIN, ROLES.RRHH, ROLES.GERENCIA, ROLES.CEO_GENAI, ROLES.CEO), async (req, res) => {
+    try {
+        const { candidatoId, periodo, estadoValidacion, balanceAprobadoFinal, observacionSupervisor, metricsSnapshot } = req.body;
+        if (!candidatoId || !periodo || !estadoValidacion) {
+            return res.status(400).json({ message: 'candidatoId, periodo y estadoValidacion son requeridos' });
+        }
+
+        const validacion = await ValidacionAsistencia.findOneAndUpdate(
+            { empresaRef: req.user.empresaRef, periodo, candidatoId },
+            {
+                rut: metricsSnapshot?.rut,
+                balanceOriginal: metricsSnapshot?.balanceOriginal || 0,
+                horasTurnoTotales: metricsSnapshot?.horasTurnoTotales || 0,
+                horasEfectivasTrabajadas: metricsSnapshot?.horasEfectivasTrabajadas || 0,
+                horasNoTrabajadas: metricsSnapshot?.horasNoTrabajadas || 0,
+                horasLibres: metricsSnapshot?.horasLibres || 0,
+                horasExtraAprobadas: metricsSnapshot?.horasExtraAprobadas || 0,
+                estadoValidacion,
+                balanceAprobadoFinal: Number(balanceAprobadoFinal || 0),
+                observacionSupervisor: observacionSupervisor || '',
+                validadoPor: req.user.fullName || req.user.nombre || 'Supervisor RRHH',
+                validadoPorEmail: req.user.email || '',
+                fechaValidacion: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        res.json({ ok: true, data: validacion });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
 });
 
 // Helper para calcular Horas Extras basado en el Turno
@@ -998,7 +1167,7 @@ router.post('/sync-toa', protect, authorize('rrhh_asistencia:editar', ROLES.ADMI
 //    - Finiquitado: después de contractEndDate (si está en mes actual)
 //    - Feriado/Libre: según calendario
 //    - Presente/Ausente: según producción
-router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
+router.post('/sync-estados', protect, authorize('rrhh_asistencia:editar', ROLES.ADMIN, ROLES.CEO, ROLES.RRHH), async (req, res) => {
     try {
         const { month, year } = req.body;
         if (!month || !year) return res.status(400).json({ message: 'month y year requeridos' });
@@ -1011,81 +1180,40 @@ router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar'
         // 1. Obtener días del mes
         const diasMes = feriadosUtil.getDiasDelMes(y, m);
 
-        // 2. FILTRO CRÍTICO: Candidatos NO finiquitados antes de este mes
+        // 2. FILTRO CRÍTICO: Candidatos activos o finiquitados desde este mes en adelante
         const candidatos = await Candidato.find({
             empresaRef: req.user.empresaRef,
             $or: [
-                { contractEndDate: { $exists: false } },
-                { contractEndDate: { $gt: firstDay } }  // Excluir finiquitados en mes anterior
+                { isActive: true },
+                { contractEndDate: { $gte: firstDay } },
+                { fechaFiniquito: { $gte: firstDay } }
             ]
         }).populate('projectId', 'cliente nombreProyecto').lean();
 
-        // 3. Obtener Técnicos para mapeos fallback
-        const tecnicos = await Tecnico.find({
-            empresaRef: req.user.empresaRef,
-        }).lean();
-
-        // MAPEOS FALLBACK: idRecursoToa → RUT → nombre fuzzy
-        const tecnicosPorIdToa = {};
-        const tecnicosPorRut = {};
-        const cleanRut = (r) => (r || '').replace(/[^0-9kK]/g, '').toUpperCase();
-
-        tecnicos.forEach(t => {
-            if (t.idRecursoToa) tecnicosPorIdToa[t.idRecursoToa] = t;
-            if (t.rut) tecnicosPorRut[cleanRut(t.rut)] = t;
-        });
-
-        // 4. Obtener Actividades (producción)
-        const actividades = await Actividad.find({
+        // 3. Obtener Registros Existentes (para preservar marcas e hitos manuales)
+        const registrosExistentes = await RegistroAsistencia.find({
             empresaRef: req.user.empresaRef,
             fecha: { $gte: firstDay, $lte: lastDay }
         }).lean();
 
-        // Mapeo: { fechaStr: { idRecursoToa: totalPuntos } }
-        const prodPorFecha = {};
-        actividades.forEach(a => {
-            const dateStr = feriadosUtil.toDateString(new Date(a.fecha));
-            if (!prodPorFecha[dateStr]) prodPorFecha[dateStr] = {};
-            const pts = parseFloat(a.Pts_Total_Baremo) || parseFloat(a.puntos) || 0;
-            if (pts > 0) {
-                if (!prodPorFecha[dateStr][a.Recurso]) prodPorFecha[dateStr][a.Recurso] = 0;
-                prodPorFecha[dateStr][a.Recurso] += pts;
-            }
+        const regMap = {};
+        registrosExistentes.forEach(r => {
+             const dStr = feriadosUtil.toDateString(new Date(r.fecha));
+             const cIdStr = r.candidatoId.toString();
+             if (!regMap[cIdStr]) regMap[cIdStr] = {};
+             regMap[cIdStr][dStr] = r;
         });
 
-        // 5. Generar operaciones con lógica mejorada
+        // 4. Generar operaciones con lógica de estados contractuales y marcas manuales
         const operaciones = [];
         let candidatosProcessados = 0;
 
         for (const candidato of candidatos) {
             const cId = candidato._id;
             const contractStart = candidato.contractStartDate ? new Date(candidato.contractStartDate) : null;
-            const contractEnd = candidato.contractEndDate ? new Date(candidato.contractEndDate) : candidato.fechaFiniquito ? new Date(candidato.fechaFiniquito) : null;
-
-            // MAPEO FALLBACK CANDIDATO → TECNICO
-            let tecnicoAsociado = null;
-            const idsProduccion = [];
-
-            // Primario: idRecursoToa del candidato
-            if (candidato.idRecursoToa) {
-                tecnicoAsociado = tecnicosPorIdToa[candidato.idRecursoToa];
-                idsProduccion.push(candidato.idRecursoToa);
-            }
-
-            // Secundario: RUT (si no encontrado)
-            if (!tecnicoAsociado && candidato.rut) {
-                tecnicoAsociado = tecnicosPorRut[cleanRut(candidato.rut)];
-            }
-
-            // Terciario: nombre fuzzy (último recurso)
-            if (!tecnicoAsociado && candidato.fullName && tecnicos.length > 0) {
-                tecnicoAsociado = tecnicos.find(t => t.nombre && candidato.fullName.includes(t.nombre));
-            }
-
-            // Agregar idRecursoToa del técnico encontrado
-            if (tecnicoAsociado && tecnicoAsociado.idRecursoToa) {
-                idsProduccion.push(tecnicoAsociado.idRecursoToa);
-            }
+            const isReallyFiniquitado = candidato.status === 'Finiquitado' || candidato.estado === 'Finiquitado' || candidato.status === 'Retirado' || candidato.status === 'De Baja' || candidato.status === 'Rechazado';
+            const contractEndRaw = candidato.fechaFiniquito || (isReallyFiniquitado ? candidato.contractEndDate : null);
+            const contractEnd = contractEndRaw ? new Date(contractEndRaw) : null;
 
             // Enriquecer con datos de cliente/proyecto
             const proyecto = candidato.projectId || {};
@@ -1096,7 +1224,15 @@ router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar'
             // Procesar cada día del mes
             for (const dia of diasMes) {
                 const fechaStr = dia.fecha;
-                const fechaDate = new Date(fechaStr + 'T12:00:00Z');
+                const fechaDate = new Date(fechaStr + 'T00:00:00.000Z');
+
+                const regExist = regMap[cId.toString()] && regMap[cId.toString()][fechaStr];
+                const estadoManual = regExist ? regExist.estado : null;
+                // CRÍTICO: usar los nombres correctos del schema
+                const tieneMarcas = regExist && (regExist.horaEntrada || regExist.horaSalida);
+                // Un registro manual Presente sin marcas también debe ser respetado
+                const esManualPresente = regExist && estadoManual === 'Presente' && !regExist.syncContractual && !regExist.syncFromProduccion;
+                const isSpecialState = estadoManual && ['Licencia Médica', 'Licencia Maternal/Paternal', 'Accidente del Trabajo', 'Vacaciones', 'Permiso con Goce', 'Permiso sin Goce', 'Suspendido', 'Licencia', 'Permiso'].includes(estadoManual);
 
                 let estado = 'Presente';
                 let descuenta = false;
@@ -1107,8 +1243,19 @@ router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar'
                 let fechaFiniquito = null;
 
                 // LÓGICA DE ESTADO (orden de evaluación es crítico)
+                
+                // 0. ESTADOS MANUALES ESPECIALES (licencias, vacaciones, etc.)
+                if (isSpecialState) {
+                    estado = estadoManual;
+                    descuenta = regExist.descuentaDia || false;
+                }
+                // 0b. REGISTRO MANUAL PRESENTE (marcas de reloj o ingreso manual no-sync)
+                else if (tieneMarcas || esManualPresente) {
+                    estado = 'Presente';
+                    descuenta = false;
+                }
                 // 1. NC: ANTES de contractStartDate
-                if (contractStart && fechaDate < contractStart) {
+                else if (contractStart && fechaDate < contractStart) {
                     estado = 'NC';
                     isBeforeContract = true;
                 }
@@ -1129,39 +1276,30 @@ router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar'
                     estado = 'Libre';
                     esDomingo = true;
                 }
-                // 5. PRODUCCIÓN (si está contratado y no es feriado/domingo)
+                // 5. AUSENTE (día laboral sin marcas)
                 else {
-                    let tieneProd = false;
-                    for (const idProd of idsProduccion) {
-                        if (prodPorFecha[fechaStr] && prodPorFecha[fechaStr][idProd] > 0) {
-                            tieneProd = true;
-                            break;
-                        }
-                    }
-
-                    if (tieneProd) {
-                        estado = 'Presente';
-                        descuenta = false;
-                    } else {
-                        estado = 'Ausente';
-                        descuenta = true;
-                    }
+                    estado = 'Ausente';
+                    descuenta = true;
                 }
 
                 // Crear operación de upsert
+                const filterQuery = regExist 
+                    ? { _id: regExist._id } 
+                    : {
+                        empresaRef: req.user.empresaRef,
+                        candidatoId: cId,
+                        fecha: fechaDate,
+                        estadoRegistro: { $ne: 'ANULADO' }
+                    };
+
                 operaciones.push({
                     updateOne: {
-                        filter: {
-                            empresaRef: req.user.empresaRef,
-                            candidatoId: cId,
-                            fecha: fechaDate,
-                            estadoRegistro: { $ne: 'ANULADO' }
-                        },
+                        filter: filterQuery,
                         update: {
                             $set: {
                                 candidatoId: cId,
                                 empresaRef: req.user.empresaRef,
-                                fecha: fechaDate,
+                                fecha: regExist ? regExist.fecha : fechaDate,
                                 estado,
                                 descuentaDia: descuenta,
                                 isBeforeContract,
@@ -1173,7 +1311,7 @@ router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar'
                                 clienteNombre,
                                 proyectoId: proyecto._id,
                                 proyectoNombre,
-                                syncFromProduccion: true,
+                                syncContractual: true,
                                 estadoRegistro: 'ACTIVO'
                             }
                         },
@@ -1198,10 +1336,10 @@ router.post('/sync-from-produccion', protect, authorize('rrhh_asistencia:editar'
             upserted,
             modified,
             total: upserted + modified,
-            mensaje: `✓ Sincronización FASE 4 (Finiquitos + Cliente + Fallback Técnicos): ${candidatosProcessados} candidatos, ${upserted + modified} registros procesados`
+            mensaje: `✓ Sincronización Estados: ${candidatosProcessados} candidatos, ${upserted + modified} registros procesados`
         });
     } catch (err) {
-        console.error('Error en sync-from-produccion:', err);
+        console.error('Error en sync-estados:', err);
         res.status(500).json({ message: err.message });
     }
 });

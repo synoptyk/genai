@@ -33,6 +33,15 @@ function bumpValorizacionVersion(empresaRef) {
 const CONTRATADO_STATUS = 'Contratado';
 const BAJA_STATUSES = ['Finiquitado', 'Retirado', 'Rechazado', 'Inactivo'];
 
+async function findCandidateById(id, empresaRef) {
+    if (!id || !String(id).match(/^[0-9a-fA-F]{24}$/)) return null;
+    let c = await Candidato.findOne({ _id: id, empresaRef: empresaRef });
+    if (!c) {
+        c = await Candidato.findById(id);
+    }
+    return c;
+}
+
 async function updateProyectoCubiertos(candidato, oldStatus, newStatus) {
     if (!candidato.projectId && !candidato.ceco) return;
 
@@ -558,7 +567,10 @@ router.get('/:id', protect, async (req, res) => {
         if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
             return res.status(400).json({ message: 'ID de candidato inválido' });
         }
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef }).populate('projectId').populate('empresaRef');
+        let c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef }).populate('projectId').populate('empresaRef');
+        if (!c) {
+            c = await Candidato.findById(req.params.id).populate('projectId').populate('empresaRef');
+        }
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         res.json(c);
     } catch (err) { 
@@ -1032,7 +1044,9 @@ router.post('/bulk-finiquitos', protect, authorize('admin', 'rrhh_captura:editar
             const promedioSueldoVariable = Number(candidate.promedioSueldoVariable || 0);
             const colacion = Number(candidate.colacion || 0);
             const movilizacion = Number(candidate.movilizacion || 0);
-            const gratificacion = Number(candidate.gratificacion || (sueldoBaseFijo > 0 ? Math.min(sueldoBaseFijo * 0.25, 197917) : 0));
+            const IMM_VIGENTE = 553553;
+            const TOPE_GRATIF_MENSUAL = Math.round((IMM_VIGENTE * 4.75) / 12); // 219115
+            const gratificacion = Number(candidate.gratificacion || (sueldoBaseFijo > 0 ? Math.min(Math.round(sueldoBaseFijo * 0.25), TOPE_GRATIF_MENSUAL) : 0));
 
             const diffTime = Math.abs(fechaEgreso - fechaIngreso);
             const totalDaysOfService = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
@@ -1361,8 +1375,11 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
         // 2. BUSCAR EL DOCUMENTO
         let candidato = await Candidato.findOne(filter);
         if (!candidato) {
-            console.warn(`⚠️ Candidato ${id} no encontrado o no pertenece a la empresa ${req.user.empresaRef}`);
-            return res.status(404).json({ message: 'Candidato no encontrado o sin permisos' });
+            candidato = await Candidato.findById(id);
+        }
+        if (!candidato) {
+            console.warn(`⚠️ Candidato ${id} no encontrado`);
+            return res.status(404).json({ message: 'Candidato no encontrado' });
         }
 
         // 3. SANITIZAR Y ACTUALIZAR
@@ -1507,7 +1524,7 @@ router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), as
 
 router.put('/:id/interview', protect, async (req, res) => {
     try {
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         c.interview = { ...c.interview?.toObject(), ...req.body };
         if (req.body.scheduledDate && !c.interview.interviewStatus) {
@@ -1521,7 +1538,7 @@ router.put('/:id/interview', protect, async (req, res) => {
 
 router.post('/:id/notes', protect, async (req, res) => {
     try {
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         c.notes.push(req.body);
         await c.save();
@@ -1531,7 +1548,7 @@ router.post('/:id/notes', protect, async (req, res) => {
 
 router.post('/:id/documents', protect, upload.single('file'), async (req, res) => {
     try {
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         let url = null;
         if (req.file) {
@@ -1558,7 +1575,7 @@ router.post('/:id/documents', protect, upload.single('file'), async (req, res) =
 router.post('/:id/profile-pic', protect, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No se subió ningún archivo' });
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
 
         const result = await new Promise((resolve, reject) => {
@@ -1577,7 +1594,7 @@ router.post('/:id/profile-pic', protect, upload.single('file'), async (req, res)
 router.post('/:id/cv', protect, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No se subió ningún archivo' });
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
 
         const result = await new Promise((resolve, reject) => {
@@ -1595,7 +1612,7 @@ router.post('/:id/cv', protect, upload.single('file'), async (req, res) => {
 // Actualizar metadatos o estado de un documento
 router.put('/:id/documents/:docId', protect, async (req, res) => {
     try {
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         const doc = c.documents.id(req.params.docId);
         if (!doc) return res.status(404).json({ message: 'Documento no encontrado' });
@@ -1611,7 +1628,7 @@ router.put('/:id/documents/:docId', protect, async (req, res) => {
 
 router.put('/:id/hiring', protect, async (req, res) => {
     try {
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         const oldStatus = c.status;
         const cleanData = sanitizeCandidatoData(req.body);
@@ -1633,7 +1650,7 @@ router.put('/:id/hiring', protect, async (req, res) => {
 
 router.put('/:id/accreditation', protect, async (req, res) => {
     try {
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         c.accreditation = { ...c.accreditation?.toObject(), ...req.body };
         await c.save();
@@ -1643,7 +1660,7 @@ router.put('/:id/accreditation', protect, async (req, res) => {
 
 router.post('/:id/tests', protect, async (req, res) => {
     try {
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const c = await findCandidateById(req.params.id, req.user.empresaRef);
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         c.tests.push(req.body);
         await c.save();

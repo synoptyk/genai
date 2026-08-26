@@ -248,16 +248,16 @@ export default function Produccion() {
     <div className="min-h-screen bg-slate-50">
       {/* ── HEADER BAR ──────────────────────────────────────────────── */}
       <div className="bg-slate-900 text-white border-b border-slate-700 shadow-xl">
-        <div className="max-w-full px-4 py-2 flex items-center gap-3 flex-wrap">
+        <div className="max-w-full px-4 py-3 grid grid-cols-2 sm:flex sm:items-center gap-2 sm:flex-wrap">
 
           {/* Badge Telecom Premium */}
-          <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg border border-white/10">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg border border-white/10">
             <Activity size={10} className="animate-pulse" />
             TELECOM PREMIUM
           </div>
 
           {/* Buscador Global en Franja */}
-          <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-600/50 px-3 py-1.5 rounded-xl text-[10px] text-slate-300 w-full max-w-[220px] focus-within:border-indigo-500/50 focus-within:ring-1 focus-within:ring-indigo-500/20 transition-all">
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-2 bg-slate-800/80 border border-slate-600/50 px-3 py-1.5 rounded-xl text-[10px] text-slate-300 w-full sm:max-w-[220px] focus-within:border-indigo-500/50 focus-within:ring-1 focus-within:ring-indigo-500/20 transition-all">
             <Search size={11} className="text-slate-500" />
             <input
               type="text"
@@ -278,7 +278,23 @@ export default function Produccion() {
             </span>
             <ChevronDown size={11} className="text-slate-400" />
             {showFilters && availableProyectos.length > 0 && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[200px] p-2">
+              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl z-50 min-w-[220px] max-h-60 overflow-y-auto p-2" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-3 py-1 mb-1 border-b border-slate-700">
+                  <button 
+                    type="button" 
+                    onClick={() => setSelectedProyectos(availableProyectos)} 
+                    className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider"
+                  >
+                    Todos
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setSelectedProyectos([])} 
+                    className="text-[9px] font-bold text-slate-400 hover:text-slate-200 uppercase tracking-wider"
+                  >
+                    Limpiar
+                  </button>
+                </div>
                 {availableProyectos.map(p => (
                   <label key={p} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-lg cursor-pointer text-[10px] text-slate-200">
                     <input
@@ -444,7 +460,7 @@ export default function Produccion() {
           </div>
 
           {/* Rango de fechas */}
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 bg-slate-800 border border-slate-600 px-3 py-1.5 rounded-lg text-[10px] text-slate-300">
             <input
               type="date"
               value={dateFrom}
@@ -460,7 +476,7 @@ export default function Produccion() {
             />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="col-span-2 sm:col-span-1 flex flex-wrap items-center justify-between sm:justify-start gap-2 w-full sm:w-auto mt-2 sm:mt-0 sm:ml-auto">
             {/* Base Auditoría */}
             <button
               onClick={handleExportExcel}
@@ -511,12 +527,12 @@ export default function Produccion() {
         </div>
 
         {/* ── TABS ──────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-1 px-4 pb-0 border-t border-slate-700/50">
+        <div className="flex items-center gap-1 px-4 pb-0 border-t border-slate-700/50 overflow-x-auto custom-scrollbar">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 text-[9px] font-black uppercase tracking-widest transition-all border-b-2 -mb-px ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-[9px] font-black uppercase tracking-widest transition-all border-b-2 -mb-px shrink-0 whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'border-indigo-400 text-indigo-300 bg-indigo-500/10'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800'

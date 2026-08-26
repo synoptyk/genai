@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Users, FileText, AlertCircle, Building2, Search, Loader2, Bell, Landmark, Briefcase, MapPin } from 'lucide-react';
+import { Users, FileText, AlertCircle, Building2, Search, Loader2, Bell, Landmark, Briefcase, MapPin, LayoutGrid, List, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import SearchableSelect from '../../../../../components/SearchableSelect';
 import { formatRut } from '../../../../../utils/rutUtils';
 
@@ -7,8 +8,17 @@ const BovedaDashboard = ({ bovedaEmployees = [], bovedaLoading = false, projects
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCeco, setFilterCeco] = useState('');
     const [filterProj, setFilterProj] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
+    const [filterContractType, setFilterContractType] = useState('');
+    const [filterArea, setFilterArea] = useState('');
+    const [filterSede, setFilterSede] = useState('');
+    const [viewMode, setViewMode] = useState('grid');
 
     const cecos = useMemo(() => [...new Set(bovedaEmployees.map(e => e.ceco).filter(Boolean))], [bovedaEmployees]);
+    const statuses = useMemo(() => [...new Set(bovedaEmployees.map(e => e.status?.toUpperCase()).filter(Boolean))], [bovedaEmployees]);
+    const contractTypes = useMemo(() => [...new Set(bovedaEmployees.map(e => e.contractType).filter(Boolean))], [bovedaEmployees]);
+    const areas = useMemo(() => [...new Set(bovedaEmployees.map(e => e.area).filter(Boolean))], [bovedaEmployees]);
+    const sedes = useMemo(() => [...new Set(bovedaEmployees.map(e => e.sede).filter(Boolean))], [bovedaEmployees]);
 
     const filtered = useMemo(() => bovedaEmployees.filter(e => {
         const term = searchTerm.toLowerCase();
@@ -22,8 +32,35 @@ const BovedaDashboard = ({ bovedaEmployees = [], bovedaLoading = false, projects
         const matchProj = !filterProj ||
             e.projectName === filterProj ||
             (e.projectId?.toString() === filterProj);
-        return matchSearch && matchCeco && matchProj;
-    }), [bovedaEmployees, searchTerm, filterCeco, filterProj]);
+        const matchStatus = !filterStatus || e.status?.toUpperCase() === filterStatus;
+        const matchContractType = !filterContractType || e.contractType === filterContractType;
+        const matchArea = !filterArea || e.area === filterArea;
+        const matchSede = !filterSede || e.sede === filterSede;
+        return matchSearch && matchCeco && matchProj && matchStatus && matchContractType && matchArea && matchSede;
+    }), [bovedaEmployees, searchTerm, filterCeco, filterProj, filterStatus, filterContractType, filterArea, filterSede]);
+
+    const exportToExcel = () => {
+        const dataToExport = filtered.map(emp => ({
+            'RUT': emp.rut ? formatRut(emp.rut) : 'N/D',
+            'Nombre Completo': emp.fullName || '',
+            'Estado Baja': emp.status?.toUpperCase() || 'N/D',
+            'Cargo': emp.position || '',
+            'Tipo de Contrato': emp.contractType || '',
+            'Fecha de Inicio': emp.formattedStart || '',
+            'Fecha de Término': emp.formattedEnd || '',
+            'CECO': emp.ceco || '',
+            'Proyecto': emp.projectName || '',
+            'Área': emp.area || '',
+            'Departamento': emp.depto || '',
+            'Sede': emp.sede || '',
+            'Motivo Finiquito': emp.finiquitoMotivo || ''
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Boveda');
+        XLSX.writeFile(wb, `Boveda_Colaboradores_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
 
     const stats = [
         {
@@ -65,41 +102,91 @@ const BovedaDashboard = ({ bovedaEmployees = [], bovedaLoading = false, projects
             </div>
 
             {/* Filters */}
-            <div className="filter-bar bg-white border border-slate-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-wrap gap-2 sm:gap-3 shadow-sm">
-                <div className="relative flex-1 min-w-full sm:min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                    <input
-                        type="text"
-                        placeholder="Buscar por nombre, RUT, cargo..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                    />
+            <div className="filter-bar bg-white border border-slate-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col gap-3 shadow-sm">
+                <div className="flex flex-wrap gap-2 sm:gap-3 items-center justify-between">
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <button 
+                            onClick={() => setViewMode('grid')} 
+                            className={`p-2 rounded-xl transition-colors ${viewMode === 'grid' ? 'bg-violet-100 text-violet-700' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                            title="Vista Tarjetas"
+                        >
+                            <LayoutGrid size={16} />
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('list')} 
+                            className={`p-2 rounded-xl transition-colors ${viewMode === 'list' ? 'bg-violet-100 text-violet-700' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                            title="Vista Lista"
+                        >
+                            <List size={16} />
+                        </button>
+                    </div>
+                    
+                    <button 
+                        onClick={exportToExcel}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 rounded-xl text-xs font-black uppercase tracking-widest transition-colors w-full sm:w-auto"
+                    >
+                        <Download size={14} /> Exportar Excel
+                    </button>
                 </div>
-                <div className="flex-1 sm:flex-none w-full sm:w-[200px] z-50">
-                    <SearchableSelect
-                        value={filterCeco}
-                        onChange={val => setFilterCeco(val)}
-                        placeholder="CECOs"
-                        options={[
-                            { value: '', label: 'Todos los CECOs' },
-                            ...cecos.map(c => ({ value: c, label: c }))
-                        ]}
-                    />
-                </div>
-                <div className="flex-1 sm:flex-none w-full sm:w-[200px] z-50">
-                    <SearchableSelect
-                        value={filterProj}
-                        onChange={val => setFilterProj(val)}
-                        placeholder="Proyectos"
-                        options={[
-                            { value: '', label: 'Todos los proyectos' },
-                            ...projects.map(p => ({ value: p.id, label: p.name }))
-                        ]}
-                    />
-                </div>
-                <div className="flex items-center justify-center gap-2 bg-slate-100 rounded-xl px-3 py-2.5 text-[10px] font-black text-slate-500">
-                    <Users size={12} /> {filtered.length} mostrando
+                
+                <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
+                    <div className="relative flex-1 min-w-[200px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre, RUT, cargo..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 sm:py-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-200 font-medium"
+                        />
+                    </div>
+                    <div className="flex-none w-[140px] z-[55]">
+                        <SearchableSelect
+                            value={filterStatus}
+                            onChange={val => setFilterStatus(val)}
+                            placeholder="Estado"
+                            options={[
+                                { value: '', label: 'Todos los estados' },
+                                ...statuses.map(s => ({ value: s, label: s }))
+                            ]}
+                        />
+                    </div>
+                    <div className="flex-none w-[140px] z-[54]">
+                        <SearchableSelect
+                            value={filterCeco}
+                            onChange={val => setFilterCeco(val)}
+                            placeholder="CECOs"
+                            options={[
+                                { value: '', label: 'Todos los CECOs' },
+                                ...cecos.map(c => ({ value: c, label: c }))
+                            ]}
+                        />
+                    </div>
+                    <div className="flex-none w-[140px] z-[53]">
+                        <SearchableSelect
+                            value={filterProj}
+                            onChange={val => setFilterProj(val)}
+                            placeholder="Proyectos"
+                            options={[
+                                { value: '', label: 'Todos los proyectos' },
+                                ...projects.map(p => ({ value: p.id, label: p.name }))
+                            ]}
+                        />
+                    </div>
+                    <div className="flex-none w-[140px] z-[52]">
+                        <SearchableSelect
+                            value={filterArea}
+                            onChange={val => setFilterArea(val)}
+                            placeholder="Áreas"
+                            options={[
+                                { value: '', label: 'Todas las áreas' },
+                                ...areas.map(a => ({ value: a, label: a }))
+                            ]}
+                        />
+                    </div>
+                    <div className="flex items-center justify-center gap-2 bg-slate-100 rounded-xl px-4 py-2 text-[10px] font-black text-slate-500 whitespace-nowrap">
+                        <Users size={12} /> {filtered.length} reg.
+                    </div>
                 </div>
             </div>
 
@@ -116,7 +203,7 @@ const BovedaDashboard = ({ bovedaEmployees = [], bovedaLoading = false, projects
                         <p className="text-slate-500 font-bold">No hay personal que coincida con los filtros</p>
                         <p className="text-xs text-slate-400 mt-2">Los candidatos dados de baja aparecerán aquí</p>
                     </div>
-                ) : (
+                ) : viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {filtered.map(emp => (
                             <div
@@ -202,6 +289,29 @@ const BovedaDashboard = ({ bovedaEmployees = [], bovedaLoading = false, projects
                                         <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Estado Baja</span>
                                         <span className="text-rose-500 font-bold text-[9px] uppercase tracking-wider">{emp.status || '—'}</span>
                                     </div>
+                                    {emp.motivoFiniquito && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Motivo</span>
+                                            <span className="text-slate-700 font-bold text-[9px] uppercase tracking-wider text-right max-w-[120px] truncate" title={emp.motivoFiniquito}>
+                                                {emp.motivoFiniquito}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="mt-3 flex gap-2">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/captura-talento?id=${emp._id}`, '_blank')}}
+                                        className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                    >
+                                        Ficha
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/gestion-documental?id=${emp._id}`, '_blank')}}
+                                        className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                    >
+                                        Expediente
+                                    </button>
                                 </div>
 
                                 {/* Alert Banner */}
@@ -219,6 +329,82 @@ const BovedaDashboard = ({ bovedaEmployees = [], bovedaLoading = false, projects
                                 )}
                             </div>
                         ))}
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-wider text-[9px]">
+                                <tr>
+                                    <th className="p-3 font-semibold rounded-tl-xl">Colaborador</th>
+                                    <th className="p-3 font-semibold">Proyecto</th>
+                                    <th className="p-3 font-semibold">Cargo</th>
+                                    <th className="p-3 font-semibold">Inicio</th>
+                                    <th className="p-3 font-semibold">Término</th>
+                                    <th className="p-3 font-semibold">Motivo</th>
+                                    <th className="p-3 font-semibold">Estado</th>
+                                    <th className="p-3 font-semibold text-right rounded-tr-xl">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-xs">
+                                {filtered.map(emp => (
+                                    <tr 
+                                        key={emp._id} 
+                                        onClick={() => onOpenFiniquito && onOpenFiniquito(emp)}
+                                        className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
+                                    >
+                                        <td className="p-3 font-bold text-slate-800">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center font-bold text-[10px]">
+                                                    {emp.fullName?.charAt(0)}
+                                                </div>
+                                                {emp.fullName}
+                                            </div>
+                                        </td>
+                                        <td className="p-3">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="text-slate-600 font-medium">{emp.projectName || '—'}</span>
+                                                {emp.ceco && <span className="text-[10px] font-bold text-indigo-500">{emp.ceco}</span>}
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-slate-600 uppercase text-[10px] font-bold">{emp.position || '—'}</td>
+                                        <td className="p-3 text-slate-500">{emp.formattedStart}</td>
+                                        <td className="p-3 text-slate-500">
+                                            {emp.formattedEnd}
+                                            {emp.alerts === 2 && <span className="ml-1 text-red-500 font-bold text-[10px]" title="Contrato vencido">!</span>}
+                                        </td>
+                                        <td className="p-3 text-slate-500 max-w-[120px] truncate" title={emp.motivoFiniquito}>{emp.motivoFiniquito || '—'}</td>
+                                        <td className="p-3">
+                                            <span className={`inline-block px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+                                                emp.status?.toUpperCase() === 'FINIQUITADO' ? 'bg-slate-100 text-slate-600' :
+                                                emp.status?.toUpperCase() === 'RECHAZADO' ? 'bg-rose-100 text-rose-600' :
+                                                emp.status?.toUpperCase() === 'RETIRADO' ? 'bg-amber-100 text-amber-600' :
+                                                'bg-zinc-100 text-zinc-600'
+                                            }`}>
+                                                {emp.status || '—'}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-right">
+                                            <div className="flex gap-1 justify-end">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/captura-talento?id=${emp._id}`, '_blank')}}
+                                                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                    title="Ficha Registro Talento"
+                                                >
+                                                    Ficha
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); window.open(`/rrhh/gestion-documental?id=${emp._id}`, '_blank')}}
+                                                    className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                    title="Expediente Legal"
+                                                >
+                                                    Docs
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

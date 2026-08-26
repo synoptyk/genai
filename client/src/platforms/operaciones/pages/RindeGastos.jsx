@@ -365,7 +365,7 @@ const RindeGastos = () => {
                       ></textarea>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Inputs ocultos de archivos */}
                       <input 
                         type="file" 
@@ -448,7 +448,7 @@ const RindeGastos = () => {
 
         {activeTab !== 'rendir' && (
           <div className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-2xl shadow-slate-200 overflow-hidden animate-in slide-in-from-bottom duration-500">
-            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white/50">
+            <div className="p-6 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/50">
               <h2 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">
                 {activeTab === 'historial' ? 'Mis Rendiciones' : 'Solicitudes por Aprobar'}
               </h2>

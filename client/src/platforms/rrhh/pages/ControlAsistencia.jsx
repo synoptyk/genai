@@ -274,7 +274,7 @@ const ControlAsistencia = () => {
         if (autoSyncedRef.current.has(period)) return;     // already done for this period
         autoSyncedRef.current.add(period);
         // Defer one tick so colaboradoresFiltrados is computed
-        setTimeout(() => handleSyncProduccion(true), 0);
+        setTimeout(() => handleSyncEstados(true), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, period, colaboradores.length]);
 
@@ -621,204 +621,33 @@ const ControlAsistencia = () => {
         finally { setSaving(false); }
     };
 
-    // ── Sincronización con Producción Telecom (auto + manual) ────────────────
+    // ── Sincronización Estados Contractuales (auto + manual) ────────────────
     // isAuto=true → silenciosa (no muestra alertas, no abre/cierra modal)
     // isAuto=false → flujo manual (modal confirmación, alertas de resultado)
-    const handleSyncProduccion = async (isAuto = false) => {
+    const handleSyncEstados = async (isAuto = false) => {
         if (!isAuto) setSyncModal(false);
         if (isAuto) setAutoSyncing(true);
         else setSyncing(true);
         try {
             const [y, m] = period.split('-').map(Number);
-            // 1. Cargar producción de todo el mes
-            const res = await telecomAsistenciaApi.getProduccionStats({ months: period });
-            const prodData = res.data?.tecnicos || res.data?.data || [];
             
-            console.log("DEBUG ADVANCED SYNC: prodData returned", prodData.length, "technicians.");
+            // Llama a la nueva ruta centralizada del backend que aplica la lógica de estados
+            const res = await asistenciaApi.syncEstadosContractuales(m, y);
             
-            // Mapear días con producción por RUT / TOA ID
-            const rutProdMap = {};
-            prodData.forEach(t => {
-                const cleanRut = (t.rut || '').replace(/[^0-9kK]/g, '');
-                if (cleanRut && t.dailyMap) {
-                    if (!rutProdMap[cleanRut]) rutProdMap[cleanRut] = new Set();
-                    Object.entries(t.dailyMap).forEach(([dateStr, daily]) => {
-                        if (daily.orders > 0 || daily.ptsTotal > 0 || daily.ptsCompletados > 0) {
-                            rutProdMap[cleanRut].add(dateStr);
-                        }
-                    });
-                } else if (!cleanRut && t.idRecursoToa && t.dailyMap) {
-                    const toaId = String(t.idRecursoToa).trim();
-                    if (!rutProdMap[`TOA_${toaId}`]) rutProdMap[`TOA_${toaId}`] = new Set();
-                    Object.entries(t.dailyMap).forEach(([dateStr, daily]) => {
-                        if (daily.orders > 0 || daily.ptsTotal > 0 || daily.ptsCompletados > 0) {
-                            rutProdMap[`TOA_${toaId}`].add(dateStr);
-                        }
-                    });
-                }
-            });
-
-            const nuevosRegistros = [];
-            const mapDia = { Lunes: 1, Martes: 2, Miércoles: 3, Jueves: 4, Viernes: 5, Sábado: 6, Domingo: 0 };
-
-            colaboradoresFiltrados.forEach(col => {
-                const cRut = (col.rut || '').replace(/[^0-9kK]/g, '');
-                const cToa = String(col.idRecursoToa || col.idRecurso || '').trim();
-                
-                let prodDays = null;
-                if (cRut && rutProdMap[cRut]) {
-                    prodDays = rutProdMap[cRut];
-                } else if (cToa && rutProdMap[`TOA_${cToa}`]) {
-                    prodDays = rutProdMap[`TOA_${cToa}`];
-                }
-
-                const turno = turnoMap[col._id?.toString()];
-                const diasTurno = new Set(turno?.diasSemana || []);
-                
-                // Fechas límite de contrato
-                // IMPORTANTE: contractStartDate es la fecha de contratación (para saber si aún no estaba contratado)
-                const contraStart = col.contractStartDate || col.hiring?.contractStartDate || col.fechaIngreso || null;
-                // IMPORTANTE: contractEndDate puede ser el fin de un plazo fijo RENOVADO — NO lo usamos como finiquito
-                // Solo fechaFiniquito indica un finiquito real. Si el empleado está en status Finiquitado,
-                // entonces sí usamos contractEndDate como fecha de corte.
-                const isReallyFiniquitado = col.status === 'Finiquitado' || col.estado === 'Finiquitado';
-                const contraEnd = col.fechaFiniquito || (isReallyFiniquitado ? col.contractEndDate : null) || null;
-
-                diasArray.forEach(d => {
-                    const dateStr = `${periodYear}-${String(periodMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                    const fechaD = new Date(`${dateStr}T12:00:00`);
-                    
-                    // Si la fecha es a futuro, no sincronizamos
-                    if (dateStr > todayStr) return;
-
-                    // Verificar si ya existe registro en la base de datos para este colaborador y día
-                    const existing = registrosMes.find(r => {
-                        const rCandId = r.candidatoId?._id?.toString() || r.candidatoId?.toString();
-                        return rCandId === col._id?.toString() && r.fecha.startsWith(dateStr);
-                    });
-
-                    // Si ya existe registro, lo respetamos — salvo en re-sync manual cuando el
-                    // registro fue creado automáticamente como 'Finiquitado' y el empleado NO está realmente finiquitado.
-                    if (existing) {
-                        const esFiniquitadoMalCreado = !isAuto
-                            && existing.estado === 'Finiquitado'
-                            && !existing.minutosTardanza
-                            && !existing.horasExtra
-                            && !isReallyFiniquitado;
-                        if (!esFiniquitadoMalCreado) return;
-                        // Continuar para recalcular y actualizar el registro incorrecto
-                    }
-
-                    // 1. Verificar si es antes del inicio de contrato
-                    if (contraStart) {
-                        const dtInicio = new Date(contraStart);
-                        dtInicio.setUTCHours(0,0,0,0);
-                        const dtActual = new Date(Date.UTC(periodYear, periodMonth - 1, d));
-                        if (dtActual < dtInicio) {
-                            // Se registra como Finiquitado/NC para que no sume asistencia
-                            nuevosRegistros.push({
-                                candidatoId: col._id,
-                                fecha: dateStr,
-                                estado: 'Finiquitado',
-                                descuentaDia: true,
-                                minutosTardanza: 0,
-                                horasExtra: 0,
-                            });
-                            return;
-                        }
-                    }
-
-                    // 2. Verificar si es después del finiquito / fin de contrato
-                    if (contraEnd) {
-                        const dtFin = new Date(contraEnd);
-                        dtFin.setUTCHours(23,59,59,999);
-                        const dtActual = new Date(Date.UTC(periodYear, periodMonth - 1, d));
-                        if (dtActual > dtFin) {
-                            nuevosRegistros.push({
-                                candidatoId: col._id,
-                                fecha: dateStr,
-                                estado: 'Finiquitado',
-                                descuentaDia: true,
-                                minutosTardanza: 0,
-                                horasExtra: 0,
-                            });
-                            return;
-                        }
-                    }
-
-                    // 3. Verificar si el técnico tuvo producción
-                    const tieneProd = prodDays && prodDays.has(dateStr);
-
-                    if (tieneProd) {
-                        nuevosRegistros.push({
-                            candidatoId: col._id,
-                            turnoId: turno?._id || undefined,
-                            fecha: dateStr,
-                            horaEntrada: turno?.horaEntrada || '',
-                            horaSalida: turno?.horaSalida || '',
-                            estado: 'Presente',
-                            minutosTardanza: 0,
-                            horasExtra: 0,
-                        });
-                        return;
-                    }
-
-                    // Si es hoy y no tiene producción, no marcamos ausencia aún
-                    const esHoy = dateStr === todayStr;
-                    if (esHoy) return;
-
-                    // 4. Si NO tuvo producción (y es un día pasado), validamos si debía trabajar
-                    // Exclusión de Feriados
-                    const esFeriado = feriadoSet.has(dateStr);
-                    if (esFeriado) return; // Se deja vacío para que renderice FER dinámicamente
-
-                    // Exclusión de Domingo (a menos que trabaje los domingos)
-                    const esDom = fechaD.getDay() === 0;
-                    if (esDom) {
-                        const esDomLaboral = turno && diasTurno.has('Domingo');
-                        if (!esDomLaboral) return; // Se deja vacío para que renderice DOM dinámicamente
-                    }
-
-                    // Validar si es día laboral de su turno
-                    const diaNombre = Object.keys(mapDia).find(k => mapDia[k] === fechaD.getDay());
-                    const esDiaLaboral = !turno ? (diaNombre !== 'Domingo') : (turno.diasSemana?.length === 0 || diasTurno.has(diaNombre));
-
-                    if (!esDiaLaboral) return; // Se deja vacío para que renderice LIB dinámicamente
-
-                    // Si era día laboral pasado pero NO registró producción -> Ausente
-                    nuevosRegistros.push({
-                        candidatoId: col._id,
-                        turnoId: turno?._id || undefined,
-                        fecha: dateStr,
-                        estado: 'Ausente',
-                        descuentaDia: true,
-                        minutosTardanza: 0,
-                        horasExtra: 0,
-                    });
-                });
-            });
-
-            if (nuevosRegistros.length === 0) {
-                if (!isAuto) showAlert('Sin nuevos registros para actualizar.', 'success');
-                return;
-            }
-
-            await asistenciaApi.bulkUpsert(nuevosRegistros, true);
             await fetchMes();
             if (!isAuto) {
-                showAlert(`✓ Sincronización completa: ${nuevosRegistros.length} registros actualizados.`);
+                showAlert(res.data?.mensaje || `✓ Sincronización completada exitosamente.`);
             } else {
-                console.log(`[ControlAsistencia] Auto-sync ✓ — ${nuevosRegistros.length} registros (producción → asistencia).`);
+                console.log(`[ControlAsistencia] Auto-sync ✓ — ${res.data?.total || 0} registros actualizados.`);
             }
         } catch (e) {
-            console.error('[ControlAsistencia] Sync producción error:', e);
-            if (!isAuto) showAlert('Error al ejecutar la sincronización de producción.', 'error');
+            console.error('[ControlAsistencia] Sync estados error:', e);
+            if (!isAuto) showAlert('Error al ejecutar la sincronización de estados.', 'error');
         } finally {
             if (isAuto) setAutoSyncing(false);
             else setSyncing(false);
         }
     };
-
     // Aprobar/rechazar HE
     const handleHEAction = async (registro, action) => {
         try {
@@ -1034,11 +863,11 @@ const ControlAsistencia = () => {
                             setSyncModal(true);
                         }}
                         disabled={syncing || autoSyncing}
-                        title="Forzar re-sincronización con producción Telecom"
+                        title="Sincronizar estados contractuales y feriados"
                         className="flex items-center gap-2 px-5 py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 shadow-sm transition-all disabled:opacity-50"
                     >
                         <Zap size={14} className="text-indigo-600" />
-                        {syncing ? 'Sincronizando...' : 'Re-Sincronizar'}
+                        {syncing ? 'Sincronizando...' : 'Re-Sincronizar Estados'}
                     </button>
                     <button onClick={handleExportExcel} className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all">
                         <Download size={14} className="text-emerald-500" /> Exportar
@@ -1047,7 +876,7 @@ const ControlAsistencia = () => {
             </div>
 
             {/* ── KPI CARDS ── */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                 {[
                     { label: 'Asistencia',  value: `${statsGlobales.tasaAsistencia}%`,  sub: 'tasa período',  color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', icon: TrendingUp },
                     { label: 'Presentes',   value: statsGlobales.presente,  sub: 'registros',     color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircle2 },
@@ -1560,7 +1389,7 @@ const ControlAsistencia = () => {
             ════════════════════════════════════════════════════════ */}
             {viewTab === 'resumen' && (
                 <div>
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                         <div>
                             <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Resumen del Período</h2>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Base para sincronización con Nómina & Remuneraciones</p>
@@ -1648,7 +1477,7 @@ const ControlAsistencia = () => {
             ════════════════════════════════════════════════════════ */}
             {viewTab === 'horasextra' && (
                 <div>
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                         <div>
                             <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Gestión de Horas Extra</h2>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Art. 32 C.T. — Recargo 50% · Código DT 1003</p>
@@ -1669,7 +1498,7 @@ const ControlAsistencia = () => {
                     </div>
 
                     {/* Stats HE */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                         {[
                             { label: 'HE Pendientes', val: registrosMes.filter(r => r.estadoHorasExtra === 'Pendiente').reduce((s, r) => s + r.horasExtra, 0), color: 'bg-amber-500' },
                             { label: 'HE Aprobadas',  val: registrosMes.filter(r => r.estadoHorasExtra === 'Aprobado').reduce((s, r) => s + r.horasExtraAprobadas, 0), color: 'bg-emerald-600' },
@@ -1751,7 +1580,7 @@ const ControlAsistencia = () => {
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                         {/* Header */}
-                        <div className="p-6 bg-gradient-to-r from-indigo-600 to-violet-700 rounded-t-[2rem] flex items-start justify-between">
+                        <div className="p-4 md:p-6 bg-gradient-to-r from-indigo-600 to-violet-700 rounded-t-[2rem] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div>
                                 <h2 className="text-lg font-black text-white uppercase tracking-tight">
                                     {formReg._id ? 'Editar Registro' : 'Registrar Asistencia'}
@@ -1837,7 +1666,7 @@ const ControlAsistencia = () => {
 
                             {/* Horario */}
                             {['Presente', 'Tardanza'].includes(formReg.estado) && (
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Hora Entrada</label>
                                         <input type="time" value={formReg.horaEntrada}
@@ -1875,7 +1704,7 @@ const ControlAsistencia = () => {
                                         <span className="text-[10px] font-black text-violet-700 uppercase tracking-wide">Horas Extra (Art. 32 CT)</span>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-wide block mb-1">Horas declaradas</label>
                                         <input type="number" min="0" max="12" step="0.5" value={formReg.horasExtra}
@@ -1950,7 +1779,7 @@ const ControlAsistencia = () => {
                                 <Zap size={24} />
                             </div>
                             <div>
-                                <h2 className="text-xl font-black">Sincronizar desde Producción</h2>
+                                <h2 className="text-xl font-black">Sincronizar Estados Contractuales</h2>
                                 <p className="text-indigo-200 text-[10px] font-bold uppercase mt-1">Período: {period}</p>
                             </div>
                         </div>
@@ -1959,17 +1788,18 @@ const ControlAsistencia = () => {
                             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
                                 <p className="text-sm font-bold text-slate-700 mb-2">⚙️ Qué hará esta sincronización:</p>
                                 <ul className="text-[12px] text-slate-600 space-y-1 list-none">
-                                    <li>✓ Lee todos los registros de <strong>Producción Día</strong></li>
-                                    <li>✓ Marca <strong>NC (No Contratado)</strong> antes de fecha de contrato</li>
+                                    <li>✓ Lee todos los ingresos de <strong>Captura de Talento</strong></li>
+                                    <li>✓ Lee todos los ceses de la <strong>Bóveda de Desvinculados</strong></li>
+                                    <li>✓ Marca <strong>NC (No Contratado)</strong> y <strong>Finiquitado</strong></li>
                                     <li>✓ Identifica <strong>Feriados y Domingos</strong> automáticamente</li>
-                                    <li>✓ Si hay producción → <strong>Presente</strong></li>
-                                    <li>✓ Si NO hay producción → <strong>Ausente</strong> (descuenta)</li>
+                                    <li>✓ Si tiene marcaje manual → <strong>Presente</strong></li>
+                                    <li>✓ Si NO tiene marcaje → <strong>Ausente</strong> (descuenta)</li>
                                 </ul>
                             </div>
 
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                                 <p className="text-[11px] font-bold text-amber-950">
-                                    💡 <strong>Comportamiento Híbrido:</strong> Los registros manuales ya ingresados por RRHH (Licencias, Vacaciones, etc.) <strong>NO se sobrescribirán</strong>. La sincronización avanzada solo rellenará las celdas vacías basándose en los días con y sin producción.
+                                    💡 <strong>Comportamiento Híbrido:</strong> Los registros manuales ya ingresados por RRHH (Licencias, Vacaciones, etc.) <strong>NO se sobrescribirán</strong>.
                                 </p>
                             </div>
                         </div>
@@ -1979,7 +1809,7 @@ const ControlAsistencia = () => {
                                 className="flex-1 py-3 border-2 border-slate-200 text-slate-700 rounded-xl font-black text-sm hover:bg-white transition-all disabled:opacity-50">
                                 Cancelar
                             </button>
-                            <button onClick={handleSyncProduccion} disabled={syncing}
+                            <button onClick={() => handleSyncEstados(false)} disabled={syncing}
                                 className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                                 {syncing ? (
                                     <>

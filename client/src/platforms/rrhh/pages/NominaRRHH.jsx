@@ -1,2389 +1,1375 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Verified build v1.0.3
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     CircleDollarSign, Users, User, Calendar, Search, Loader2,
     ChevronDown, ChevronUp, Download, RefreshCw, Eye,
-    TrendingUp, TrendingDown, X, Printer, FileText,
-    ShieldCheck, Landmark, AlertCircle,
-    Building2, Save, Scale, Heart, Award,
-    CalendarCheck, CheckCircle2, XCircle, Stethoscope, UserMinus, ClipboardList, ArrowRight
+    TrendingUp, ShieldCheck, Activity, HeartPulse, Wallet, Briefcase,
+    X, Printer, FileText, Landmark, AlertCircle, Building2, Save,
+    CheckCircle2, XCircle, Stethoscope, ArrowRight, Award
 } from 'lucide-react';
-import { candidatosApi, nominaApi, rrhhApi, bonosApi, bonosConfigApi, proyectosApi, asistenciaApi, descuentosApi } from '../rrhhApi';
-import {
-    calcularLiquidacionReal,
-    candidatoToWorkerData,
-    TASAS_AFP
-} from '../utils/payrollCalculator';
+import { candidatosApi, proyectosApi, bonosConfigApi, bonosApi, modelosBonificacionApi, asistenciaApi, descuentosApi, beneficiosApi, configApi, nominaApi } from '../rrhhApi';
+import { telecomApi } from '../../agentetelecom/telecomApi';
+import { formatRut } from '../../../utils/rutUtils';
 import * as XLSX from 'xlsx';
 import { MapPin, Briefcase as BriefcaseIcon } from 'lucide-react';
 import { useIndicadores } from '../../../contexts/IndicadoresContext';
-import { formatRut } from '../../../utils/rutUtils';
 import { useAuth } from '../../auth/AuthContext';
 
-// ─── Formateo moneda ──────────────────────────────────────────────────────────
 const fmt = (n) => `$${Math.round(n || 0).toLocaleString('es-CL')}`;
 
-// ─── Nomenclatura oficial Libro de Remuneraciones (Código del Trabajo) ────────
-const DT_CODE_LABELS = {
-    '1001': { label: 'Semana Corrida',                    desc: 'Art. 45 C.T. — Promedio rem. variable'    },
-    '1003': { label: 'Horas Extraordinarias',             desc: 'Art. 32 C.T. — Recargo 50%'              },
-    '1010': { label: 'Sueldo Base',                       desc: 'Art. 42 C.T. — Remuneración pactada'     },
-    '1020': { label: 'Gratificación Legal',               desc: 'Art. 50 C.T. — 25% tope 4.75 IMM'        },
-    '1030': { label: 'Incentivo / Comisión / Metas',      desc: 'Tratos, ventas o cumplimiento de metas'  },
-    '1040': { label: 'Bono Imponible Período',            desc: 'Remuneración variable o fija adicional'   },
-    '1041': { label: 'Bonificación de Calidad',           desc: 'Índice RR, AI o auditoría'               },
-    '1050': { label: 'Bono de Asistencia / Puntualidad',  desc: 'Cumplimiento asistencia y horarios'       },
-    '1060': { label: 'Bono de Antigüedad',                desc: 'Por permanencia y años de servicio'       },
-    '2010': { label: 'Viático / Asignación de Terreno',   desc: 'No imponible — Desplazamiento laboral'   },
-    '2020': { label: 'Asignación de Movilización',        desc: 'No imponible — Transporte'               },
-    '2030': { label: 'Asignación de Colación',            desc: 'No imponible — Alimentación'             },
-    '2040': { label: 'Asig. Herramientas / Desgaste',     desc: 'No imponible — Uso de equipos propios'   },
-    '2050': { label: 'Asignación de Caja / Otros',        desc: 'No imponible — Asignaciones especiales'  },
+const AFP_RATES = {
+    'CAPITAL': 11.44,
+    'CUPRUM': 11.44,
+    'HABITAT': 11.27,
+    'PLANVITAL': 11.16,
+    'PROVIDA': 11.45,
+    'MODELO': 10.58,
+    'UNO': 10.46,
 };
 
-// ─── Fila del libro de remuneraciones ────────────────────────────────────────
-const FilaLibro = ({ concepto, desc, code, monto, isTotal = false, isSubtotal = false, isNegative = false, isExento = false }) => (
-    <div className={`flex items-center justify-between gap-4 py-1.5 px-4 rounded-lg transition-colors ${
-        isTotal     ? 'bg-slate-900 text-white font-black' :
-        isSubtotal  ? 'bg-slate-100 font-bold border border-slate-200' :
-        isExento    ? 'opacity-40' :
-                      'hover:bg-slate-50/50'
-    }`}>
-        <div className="flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-                <span className={`fila-libro-concepto text-[10px] font-bold tracking-tight leading-snug ${
-                    isTotal ? 'text-white' : isNegative ? 'text-rose-700' : 'text-slate-700'
-                }`}>{concepto}</span>
-                {code && !isTotal && (
-                    <span className="fila-libro-code text-[6px] font-black text-slate-400 bg-slate-50 border border-slate-200 px-1 py-0.5 rounded uppercase tracking-tighter leading-none">{code}</span>
-                )}
-            </div>
-            {desc && !isTotal && !isSubtotal && (
-                <span className="fila-libro-desc block text-[7px] font-medium text-slate-400 tracking-wide mt-0.5 leading-none opacity-60 uppercase">{desc}</span>
-            )}
-        </div>
-        <span className={`fila-libro-monto ml-4 text-[10px] font-black tabular-nums shrink-0 ${
-            isTotal    ? 'text-white' :
-            isNegative ? 'text-rose-600' :
-            isSubtotal ? 'text-slate-800' :
-                         'text-slate-700'
-        }`}>
-            {isNegative ? '−' : ''}{fmt(monto)}
-        </span>
-    </div>
-);
+// Helper: Impuesto Único de Segunda Categoría (Art. 43 N° 1 Ley de la Renta Chile)
+const calcularImpuestoUnico = (baseTributable, utm) => {
+    if (!utm || utm <= 0 || baseTributable <= 0) return 0;
+    const baseUtm = baseTributable / utm;
+    if (baseUtm <= 13.5) return 0; // Tramo 1 Exento (0 - 13.5 UTM)
+    
+    let tasa = 0;
+    let rebajaUtm = 0;
 
-// ─── Cabecera de columna estática (reemplaza ColumnMapper) ──────────────────
-const ColHeader = ({ label, code, colorClass = 'text-slate-500', bgClass = 'bg-slate-50 border-slate-100' }) => (
-    <div className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-2xl ${bgClass} border shadow-sm`}>
-        <span className={`text-[9px] font-black uppercase tracking-widest ${colorClass}`}>{code}</span>
-        <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight text-center leading-tight">{label}</span>
-    </div>
-);
+    if (baseUtm <= 30) { tasa = 0.04; rebajaUtm = 0.54; }
+    else if (baseUtm <= 50) { tasa = 0.08; rebajaUtm = 1.74; }
+    else if (baseUtm <= 70) { tasa = 0.135; rebajaUtm = 4.49; }
+    else if (baseUtm <= 90) { tasa = 0.23; rebajaUtm = 11.14; }
+    else if (baseUtm <= 120) { tasa = 0.304; rebajaUtm = 17.80; }
+    else if (baseUtm <= 310) { tasa = 0.35; rebajaUtm = 23.32; }
+    else { tasa = 0.40; rebajaUtm = 38.82; }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MODAL LIQUIDACIÓN INDIVIDUAL (Hoja DT)
-// ─────────────────────────────────────────────────────────────────────────────
-const ModalLiquidacion = ({ emp, onClose, params }) => {
-    const { user } = useAuth();
-    const [ajustes, setAjustes] = useState({
-        anticipo: 0,
-        cuotaSindical: 0,
-        otrosDescuentos: 0,
-    });
-
-    // AUTO-LOAD desde liquidación ya calculada en nómina
-    useEffect(() => {
-        if (emp && emp._liq) {
-            const l = emp._liq;
-            setAjustes({
-                anticipo: 0,
-                cuotaSindical: 0,
-                otrosDescuentos: l.otrosDescuentos || 0,
-                bonosPorCodigo: l.habImponibles?.bonosPorCodigo || {},
-                horasExtra: l.habImponibles?.horasExtraQty || 0,
-                colacion: l.habNoImponibles?.colacion || 0,
-                movilizacion: l.habNoImponibles?.movilizacion || 0,
-                viaticos: l.habNoImponibles?.viaticos || 0,
-            });
-        }
-    }, [emp]);
-
-    const worker = candidatoToWorkerData(emp);
-    const mergedBonosPorCodigo = { ...(ajustes.bonosPorCodigo || emp._liq?.habImponibles?.bonosPorCodigo || {}) };
-    const currentAjustes = { ...ajustes, bonosPorCodigo: mergedBonosPorCodigo };
-    const liq = calcularLiquidacionReal(worker, currentAjustes, params);
-
-
-    return (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-300">
-            <style>
-                {`
-                    @media screen {
-                        .print-only { display: none !important; }
-                    }
-                    @media print {
-                        @page { size: A4 portrait; margin: 0; }
-                        body { margin: 0; padding: 0; }
-                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                        
-                        body * { visibility: hidden; }
-                        .print-container, .print-container * { visibility: visible; }
-                        .print-container {
-                            position: fixed;
-                            left: 0; top: 0;
-                            width: 210mm;
-                            height: 297mm;
-                            background: white !important;
-                            padding: 10mm !important;
-                            box-shadow: none !important;
-                            border-radius: 0 !important;
-                        }
-                        .no-print { display: none !important; }
-                        .print-right-panel {
-                            width: 100% !important;
-                            padding: 0 !important;
-                            border: none !important;
-                            box-shadow: none !important;
-                            border-radius: 0 !important;
-                        }
-                    }
-                    
-                    /* Clase especial para la captura html2canvas para evitar distorsiones */
-                    .html2canvas-capture-fix {
-                        width: 800px !important;
-                        transform: none !important;
-                        margin: 0 !important;
-                        padding: 30px !important;
-                        box-shadow: none !important;
-                        border: none !important;
-                        background: white !important;
-                    }
-                    .html2canvas-capture-fix .text-3xl { font-size: 20px !important; }
-                    .html2canvas-capture-fix .text-[10px] { font-size: 9px !important; }
-                    .html2canvas-capture-fix .fila-libro-monto { font-size: 9px !important; }
-                    .html2canvas-capture-fix * { font-family: 'Inter', -apple-system, sans-serif !important; }
-                `}
-            </style>
-            <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl my-4 print:shadow-none print:my-0 print:rounded-none print:overflow-visible print-container">
-                {/* Header Premium */}
-                <div className="bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 p-8 flex items-center justify-between relative overflow-hidden no-print" data-html2canvas-ignore="true">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                    <div className="flex items-center gap-6 relative z-10">
-                        <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl font-black text-white shadow-2xl">
-                            {emp.profilePic ? <img src={emp.profilePic} alt="" className="w-full h-full object-cover rounded-3xl" /> : emp.fullName?.charAt(0)}
-                        </div>
-                        <div>
-                            <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-1">{emp.fullName}</h3>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-indigo-100 text-[11px] font-bold uppercase tracking-wider">
-                                <span className="flex items-center gap-1.5"><User size={12} className="text-indigo-400" /> {formatRut(emp.rut)}</span>
-                                <span className="flex items-center gap-1.5"><BriefcaseIcon size={12} className="text-teal-400" /> {emp.position}</span>
-                                <span className="flex items-center gap-1.5"><Calendar size={12} className="text-amber-400" /> {emp.contractType || 'Indefinido'}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex gap-3 no-print relative z-10">
-                        <button onClick={() => {
-                            const node = document.getElementById('liq-doc-printable');
-                            const originalClass = node.className;
-                            node.classList.add('html2canvas-capture-fix');
-                            
-                            import('html2canvas').then(h2c => h2c.default(node, { scale: 3, useCORS: true, logging: false }).then(canvas => {
-                                node.className = originalClass; // Restaurar
-                                const img = canvas.toDataURL('image/png', 1.0);
-                                import('jspdf').then(jsP => {
-                                    const pdf = new jsP.jsPDF('p', 'mm', 'a4');
-                                    pdf.addImage(img, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
-                                    pdf.save(`Liquidacion_${emp.fullName.replace(/ /g,'_')}_${params.period}.pdf`);
-                                });
-                            }));
-                        }}
-                            className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl descargar-pdf-btn">
-                            <Download size={16} /> Descargar PDF
-                        </button>
-                        <button onClick={() => window.print()}
-                            className="flex items-center gap-2 px-6 py-3 bg-indigo-600/50 hover:bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md border border-white/10 active:scale-95 shadow-xl">
-                            <Printer size={16} /> Imprimir
-                        </button>
-                        <button onClick={onClose} className="p-3 bg-white/10 hover:bg-rose-500 text-white rounded-2xl transition-all backdrop-blur-md border border-white/10 active:scale-95">
-                            <X size={20} />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-50/50 print:p-0 print:grid-cols-1 print:bg-white print:gap-0">
-                    {/* LEFT (4 cols): Fuentes de Datos + Descuentos */}
-                    <div className="lg:col-span-4 space-y-4 no-print print-left-panel">
-
-                        {/* PANEL FUENTES DE DATOS — READ ONLY */}
-                        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                                <div className="w-1.5 h-4 bg-indigo-500 rounded-full" />
-                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">Fuentes de Datos — {params.period}</span>
-                            </div>
-                            <div className="p-5 space-y-4">
-
-                                {/* FICHA */}
-                                <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-100">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="p-1.5 bg-slate-700 rounded-lg"><User size={10} className="text-white" /></div>
-                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Ficha del Colaborador</span>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {[
-                                            ['Sueldo Pactado', fmt(emp.sueldoBase || 0)],
-                                            ['AFP', (emp.afp || 'No informada').toUpperCase()],
-                                            ['Salud', (emp.previsionSalud || 'FONASA').toUpperCase()],
-                                            ['Contrato', (emp.contractType || 'Indefinido').toUpperCase()],
-                                        ].map(([label, val]) => (
-                                            <div key={label} className="flex justify-between items-center">
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{label}</span>
-                                                <span className="text-[9px] font-black text-slate-700">{val}</span>
-                                            </div>
-                                        ))}
-                                        {liq.habNoImponibles.colacion > 0 && (
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Colación</span>
-                                                <span className="text-[9px] font-black text-teal-600">{fmt(liq.habNoImponibles.colacion)}</span>
-                                            </div>
-                                        )}
-                                        {liq.habNoImponibles.movilizacion > 0 && (
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Movilización</span>
-                                                <span className="text-[9px] font-black text-teal-600">{fmt(liq.habNoImponibles.movilizacion)}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* BONOS VARIABLES — CIERRES */}
-                                <div className="p-4 bg-indigo-50/40 rounded-2xl border border-indigo-100/60">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="p-1.5 bg-indigo-600 rounded-lg"><TrendingUp size={10} className="text-white" /></div>
-                                        <span className="text-[9px] font-black text-indigo-700 uppercase tracking-widest">Bonos Variables — Cierres</span>
-                                    </div>
-                                    {emp._bonosAgrupados && Object.entries(emp._bonosAgrupados).filter(([code, amt]) => code.startsWith('1') && amt > 0 && !['1010','1001','1020','1003'].includes(code)).length > 0 ? (
-                                        <div className="space-y-1.5">
-                                            {Object.entries(emp._bonosAgrupados)
-                                                .filter(([code, amt]) => code.startsWith('1') && amt > 0 && !['1010','1001','1020','1003'].includes(code))
-                                                .map(([code, amt]) => (
-                                                    <div key={code} className="flex justify-between items-center">
-                                                        <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">{DT_CODE_LABELS[code]?.label || `Bono ${code}`}</span>
-                                                        <span className="text-[10px] font-black text-indigo-700">{fmt(amt)}</span>
-                                                    </div>
-                                                ))
-                                            }
-                                        </div>
-                                    ) : (
-                                        <p className="text-[8px] text-slate-400 font-bold italic">Sin bonos variables para este período</p>
-                                    )}
-                                </div>
-
-                                {/* ASISTENCIA */}
-                                <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-100/60">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="p-1.5 bg-teal-600 rounded-lg"><CalendarCheck size={10} className="text-white" /></div>
-                                        <span className="text-[9px] font-black text-teal-700 uppercase tracking-widest">Asistencia</span>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Días Trabajados</span>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-[10px] font-black text-teal-700">{liq.diasTrabajados}</span>
-                                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${emp._asistencia?.diasTrabajados !== undefined ? 'bg-teal-100 text-teal-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                    {emp._asistencia?.diasTrabajados !== undefined ? 'Sync' : 'Estándar'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">HE Aprobadas</span>
-                                            <span className="text-[10px] font-black text-indigo-600">{emp._asistencia?.horasExtraAprobadas || 0} hrs</span>
-                                        </div>
-                                        {(emp._asistencia?.diasAusente || 0) > 0 && (
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Ausencias</span>
-                                                <span className="text-[10px] font-black text-rose-500">{emp._asistencia.diasAusente} días</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-
-                        {/* DESCUENTOS ADICIONALES — ÚNICO EDITABLE */}
-                        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="px-5 py-4 bg-rose-50/60 border-b border-rose-100/60 flex items-center gap-2">
-                                <div className="p-1.5 bg-rose-500 rounded-lg"><TrendingDown size={10} className="text-white" /></div>
-                                <span className="text-[10px] font-black text-rose-700 uppercase tracking-[0.2em]">Descuentos Adicionales</span>
-                            </div>
-                            <div className="p-5 grid grid-cols-1 gap-4">
-                                {[
-                                    ['Anticipo Sueldo', 'anticipo'],
-                                    ['Cuota Sindical', 'cuotaSindical'],
-                                    ['Otros Descuentos', 'otrosDescuentos'],
-                                ].map(([label, key]) => (
-                                    <div key={key}>
-                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">{label}</label>
-                                        <input type="number" min="0" value={ajustes[key] || 0}
-                                            onChange={e => setAjustes(prev => ({ ...prev, [key]: parseInt(e.target.value) || 0 }))}
-                                            className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-rose-100/50 transition-all" />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* RIGHT (8 cols): Documento Liquidación */}
-                    <div id="liq-doc-printable" className="lg:col-span-8 bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden print:border-none print:shadow-none print:rounded-none print:overflow-visible print-right-panel">
-
-                        {/* Banda superior de color */}
-                        <div className="h-1.5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-teal-500" />
-
-                        <div className="p-10 print:p-8">
-                            {/* ── Membrete ── */}
-                            <div className="flex justify-between items-start mb-8 pb-7 border-b-2 border-slate-100">
-                                <div>
-                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.3em] mb-1">Documento Oficial</p>
-                                    <h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none">Liquidación de Sueldo</h1>
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <span className="inline-flex items-center gap-1.5 bg-indigo-600 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
-                                            <Calendar size={9} /> {params.period}
-                                        </span>
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{liq.diasTrabajados} días trabajados</span>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    {user?.empresaRef?.logo
-                                        ? <img src={user.empresaRef.logo} alt="logo" className="h-10 mb-2 ml-auto object-contain" />
-                                        : <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center ml-auto mb-2 shadow-lg shadow-indigo-100">
-                                            <span className="text-white font-black text-sm">{(user?.empresaRef?.nombre || 'E')[0]}</span>
-                                          </div>
-                                    }
-                                    <h2 className="text-sm font-black text-slate-800 uppercase leading-tight">{user?.empresaRef?.nombre || 'Nuestra Empresa'}</h2>
-                                    <p className="text-[8px] font-medium text-slate-400 uppercase mt-0.5">{user?.empresaRef?.giroComercial || 'Servicios Generales'}</p>
-                                    <p className="text-[8px] font-bold text-slate-500 uppercase mt-0.5">RUT {user?.empresaRef?.rut || '---'}</p>
-                                </div>
-                            </div>
-
-                            {/* ── Ficha del Trabajador (COMPACTA) ── */}
-                            <div className="grid grid-cols-4 gap-x-6 gap-y-3 mb-8 px-4 py-5 bg-slate-50/50 rounded-2xl border border-slate-100">
-                                {[
-                                    { label: 'Nombre Completo',  value: emp.fullName, colSpan: 'col-span-2' },
-                                    { label: 'RUT',              value: formatRut(emp.rut) },
-                                    { label: 'Cargo',            value: emp.position || '—' },
-                                    { label: 'AFP',              value: (emp.afp || 'No informada').toUpperCase() },
-                                    { label: 'Salud',            value: (emp.previsionSalud || 'FONASA').toUpperCase() },
-                                    { label: 'Banco',            value: emp.banco || '—' },
-                                    { label: 'Tipo Cuenta',      value: emp.tipoCuenta || '—' },
-                                    { label: 'N° Cuenta',        value: emp.numeroCuenta || '—', colSpan: 'col-span-2' },
-                                    { label: 'Contrato',         value: (emp.contractType || 'Indefinido').toUpperCase() },
-                                    { label: 'Periodo',          value: params.period },
-                                ].map(({ label, value, colSpan }) => (
-                                    <div key={label} className={colSpan || ''}>
-                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
-                                        <p className="text-[10px] font-black text-slate-800 uppercase truncate">{value}</p>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* ── Haberes y Descuentos (EJECUTIVO) ── */}
-                            <div className="grid grid-cols-2 gap-8 mb-8 items-start">
-
-                                {/* COLUMNA IZQUIERDA: HABERES */}
-                                <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 flex-1">
-                                    <div className="pb-3 mb-4 border-b border-emerald-200 flex items-center justify-between">
-                                        <span className="text-[9px] font-black text-emerald-700 uppercase tracking-[0.2em]">Haberes Mensuales</span>
-                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                    </div>
-                                    
-                                    <div className="space-y-1.5">
-                                        <FilaLibro concepto="Sueldo Base" code="1010" monto={liq.habImponibles.sueldoBase} />
-                                        <FilaLibro concepto="Gratificación Legal" code="1020" monto={liq.habImponibles.gratificacion} />
-                                        {liq.habImponibles.semanaCorrida > 0 && <FilaLibro concepto="Semana Corrida" code="1001" monto={liq.habImponibles.semanaCorrida} />}
-                                        {liq.habImponibles.horaExtraMonto > 0 && <FilaLibro concepto="Horas Extraordinarias" code="1003" monto={liq.habImponibles.horaExtraMonto} />}
-                                        
-                                        {emp._bonosBreakdown
-                                            ?.filter(b => b.code.startsWith('1'))
-                                            .map((b, idx) => (
-                                                <FilaLibro 
-                                                    key={idx} 
-                                                    concepto={b.label} 
-                                                    code={b.code} 
-                                                    monto={b.amount * (liq.diasTrabajados / 30)} 
-                                                    desc={b.isVariable ? 'Variable' : 'Fijo'}
-                                                />
-                                            ))
-                                        }
-
-                                        <div className="pt-2 mt-4 border-t border-slate-200 space-y-1.5">
-                                            {liq.habNoImponibles.colacion > 0 && <FilaLibro concepto="Asignación Colación" code="2030" monto={liq.habNoImponibles.colacion} />}
-                                            {liq.habNoImponibles.movilizacion > 0 && <FilaLibro concepto="Asignación Movilización" code="2020" monto={liq.habNoImponibles.movilizacion} />}
-                                            {liq.habNoImponibles.asignacionFamiliar > 0 && <FilaLibro concepto="Asig. Familiar" code="2000" monto={liq.habNoImponibles.asignacionFamiliar} />}
-                                            {emp._bonosBreakdown
-                                                ?.filter(b => b.code.startsWith('2'))
-                                                .map((b, idx) => (
-                                                    <FilaLibro 
-                                                        key={idx} 
-                                                        concepto={b.label} 
-                                                        code={b.code} 
-                                                        monto={b.amount * (liq.diasTrabajados / 30)} 
-                                                        desc={b.isVariable ? 'Variable' : 'Fijo'}
-                                                    />
-                                                ))
-                                            }
-                                        </div>
-
-                                        <div className="pt-4">
-                                            <FilaLibro concepto="Total Haberes" monto={liq.totalHaberes} isTotal />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* COLUMNA DERECHA: DESCUENTOS */}
-                                <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 flex-1">
-                                    <div className="pb-3 mb-4 border-b border-rose-200 flex items-center justify-between">
-                                        <span className="text-[9px] font-black text-rose-700 uppercase tracking-[0.2em]">Descuentos Legales</span>
-                                        <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                        <FilaLibro concepto={`AFP ${emp.afp || 'HABITAT'} (${TASAS_AFP[(emp.afp || 'HABITAT').toUpperCase()] || '11.27'}%)`} code="7000" monto={liq.prevision.afp} isNegative />
-                                        <FilaLibro concepto={`Salud ${emp.previsionSalud || 'FONASA'} (${emp.previsionSalud === 'ISAPRE' ? 'Plan UF' : '7%'})`} code="7001" monto={liq.prevision.salud} isNegative />
-                                        {liq.prevision.afc > 0 && <FilaLibro concepto="Seguro Cesantía (AFC) (0.6%)" code="7002" monto={liq.prevision.afc} isNegative />}
-                                        {liq.prevision.excesoIsapre > 0 && <FilaLibro concepto="Adicional Isapre" code="7003" monto={liq.prevision.excesoIsapre} isNegative />}
-                                        
-                                        {liq.impuestoUnico > 0 && (
-                                            <div className="pt-2 mt-4 border-t border-slate-200">
-                                                <FilaLibro concepto="Impuesto 2ª Categoría" code="6000" monto={liq.impuestoUnico} isNegative />
-                                            </div>
-                                        )}
-
-                                        {liq.otrosDescuentos > 0 && (
-                                            <div className="pt-2 mt-4 border-t border-slate-200">
-                                                <FilaLibro concepto="Anticipos / Varios" monto={liq.otrosDescuentos} isNegative />
-                                            </div>
-                                        )}
-
-                                        <div className="pt-4">
-                                            <FilaLibro concepto="Total Descuentos" monto={liq.totalDescuentos} isSubtotal />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* ── Alcance Líquido — Profesional ── */}
-                            <div className="bg-slate-900 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden mb-8 border-b-2 border-indigo-500">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
-                                <div>
-                                    <p className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.4em] mb-1">Alcance Líquido a Pagar</p>
-                                    <p className="text-[9px] font-medium text-slate-400">Páguese la cantidad indicada al trabajador titular.</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none">{fmt(liq.liquidoAPagar)}</p>
-                                    <div className="flex items-center gap-3 justify-end mt-2">
-                                        <div className="px-2 py-0.5 border border-slate-700 rounded text-[7px] font-bold text-slate-400 uppercase tracking-widest">Haberes {fmt(liq.totalHaberes)}</div>
-                                        <div className="px-2 py-0.5 border border-slate-700 rounded text-[7px] font-bold text-slate-400 uppercase tracking-widest">Desc. {fmt(liq.totalDescuentos)}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* ── Firma y Glosa Legal ── */}
-                            <div className="pt-6 border-t border-slate-100 grid grid-cols-2 gap-8 items-end">
-                                <div>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Declaración del Trabajador</p>
-                                    <p className="text-[8px] font-medium text-slate-400 italic leading-relaxed">
-                                        Certifico que he recibido de <span className="font-black not-italic text-slate-600">{user?.empresaRef?.nombre || 'el Empleador'}</span>, a mi total satisfacción, el saldo líquido indicado en esta liquidación, sin tener cargo ni reclamo alguno que formular.
-                                    </p>
-                                    <p className="text-[7px] font-mono text-slate-300 mt-2 tracking-widest">ID: {emp._id?.slice(-16)?.toUpperCase()}</p>
-                                </div>
-                                <div className="flex flex-col items-center gap-2">
-                                    <div className="w-full h-px bg-slate-200" />
-                                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Firma y Timbre Empleador</p>
-                                    <div className="w-full h-px bg-slate-200 mt-4" />
-                                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Firma del Trabajador</p>
-                                    <p className="text-[7px] text-slate-300 font-medium">{emp.fullName}</p>
-                                </div>
-                            </div>
-
-                            {/* ── Costo Empresa (solo admin) ── */}
-                            <div className="mt-8 p-5 bg-slate-50 rounded-3xl border border-slate-100 no-print" data-html2canvas-ignore="true">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div>
-                                        <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Costo Total Empresa (Patronal)</span>
-                                        <p className="text-[7px] font-medium text-slate-400 mt-0.5">Aportes empleador — No visible al trabajador</p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-black bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-xl border border-indigo-200">PRIVADO</span>
-                                        <span className="text-sm font-black text-indigo-700">{fmt(liq.costoTotalEmpresa)}</span>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-4 gap-3">
-                                    {[
-                                        { label: 'SIS',              val: liq.patronales.sis,            sub: 'Seguro Invalidez' },
-                                        { label: 'Mutual',           val: liq.patronales.mutual,         sub: 'Accidentes trabajo' },
-                                        { label: 'AFC Empleador',    val: liq.patronales.afc,            sub: '2.4% contrato indef.' },
-                                        { label: 'Exp. de Vida',     val: liq.patronales.expectativaVida, sub: 'Longevidad 2026' },
-                                    ].map(({ label, val, sub }) => (
-                                        <div key={label} className="bg-white rounded-2xl p-3 border border-slate-100 text-center">
-                                            <p className="text-[7px] font-black text-slate-400 uppercase tracking-wide mb-1">{label}</p>
-                                            <p className="text-[13px] font-black text-slate-800 tabular-nums">{fmt(val)}</p>
-                                            <p className="text-[7px] text-slate-300 mt-0.5">{sub}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+    const impuestoClp = Math.round((baseTributable * tasa) - (rebajaUtm * utm));
+    return Math.max(0, impuestoClp);
 };
 
-// Helper para normalizar nombres y permitir match por texto
-const normalize = (str) => (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
-/**
- * Calcula estadísticas de calendario para un periodo YYYY-MM
- * Útil para regularizar Semana Corrida y Proporcionalidad
- */
-const calculateMonthStats = (periodKey) => {
-    if (!periodKey) return { diasHabiles: 25, domingosFestivos: 5 };
-    const [year, month] = periodKey.split('-').map(Number);
-    const lastDayOfMonth = new Date(year, month, 0).getDate();
-    
-    let sundays = 0;
-    let workDays = 0; // Lunes a Sábado (Estándar Operativo)
-    
-    for (let d = 1; d <= lastDayOfMonth; d++) {
-        const dayOfWeek = new Date(year, month - 1, d).getDay();
-        if (dayOfWeek === 0) sundays++; // Domingo
-        else workDays++; // Lun-Sab
+const parseLocalDate = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    const str = String(dateStr).split('T')[0];
+    const parts = str.split('-').map(Number);
+    if (parts.length === 3 && !parts.some(isNaN)) {
+        return new Date(parts[0], parts[1] - 1, parts[2]);
     }
-    
-    return { 
-        diasHabiles: workDays, 
-        domingosFestivos: sundays 
-    };
+    return new Date(dateStr);
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  NÓMINA PRINCIPAL — LIBRO DE REMUNERACIONES
-// ─────────────────────────────────────────────────────────────────────────────
-const NominaRRHH = () => {
-    const { ufValue, params: indicParams, loading: indLoading, lastSync } = useIndicadores();
+const getWorkerActiveDays = (emp, diasCalendario, periodStr) => {
+    const [y, m] = periodStr.split('-');
+    const year = parseInt(y, 10);
+    const month = parseInt(m, 10);
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0);
 
-    const [nomina, setNomina] = useState([]);
+    const ingresoDate = (emp.contractStartDate || emp.fechaIngreso) ? parseLocalDate(emp.contractStartDate || emp.fechaIngreso) : null;
+    const finiquitoDate = emp.fechaFiniquito ? parseLocalDate(emp.fechaFiniquito) : null;
+
+    if (!ingresoDate || isNaN(ingresoDate.getTime())) return 30; // Mes completo comercial
+    if (ingresoDate > endOfMonth) return 0;
+    
+    let isFullMonth = true;
+    let activeStartDay = 1;
+    let activeEndDay = diasCalendario;
+
+    if (ingresoDate > startOfMonth) {
+        isFullMonth = false;
+        activeStartDay = ingresoDate.getDate();
+    }
+
+    if (finiquitoDate && !isNaN(finiquitoDate.getTime())) {
+        if (finiquitoDate < startOfMonth) return 0;
+        if (finiquitoDate < endOfMonth) {
+            isFullMonth = false;
+            activeEndDay = finiquitoDate.getDate();
+        }
+    }
+
+    if (isFullMonth) return 30; // Si sirvió todo el mes completo, comercialmente son 30 días
+
+    // Prorrateo parcial mid-month según regla Art. 44 Código del Trabajo / DT Chile:
+    // Los días activos del contrato (incluyendo días trabajados de turno + días de descanso semanal/libres)
+    const diasCalendarioTrabajados = Math.max(0, activeEndDay - activeStartDay + 1);
+    return Math.min(30, diasCalendarioTrabajados);
+};
+
+const HeaderBadge = ({ code, label, color }) => (
+    <div className="flex flex-col items-center leading-tight">
+        <span className="text-[9px] font-black tracking-widest opacity-60 font-mono">{code}</span>
+        <span className={`text-[10px] font-black uppercase tracking-tight ${color}`}>{label}</span>
+    </div>
+);
+
+const NominaRRHH = () => {
+    const { ufValue, utmValue, immValue, params: indicParams, loading: indLoading } = useIndicadores();
+    const { user } = useAuth();
+
+    const [employees, setEmployees] = useState([]);
     const [proyectos, setProyectos] = useState([]);
+    const [bonosConfig, setBonosConfig] = useState([]);
+    const [closures, setClosures] = useState([]);
+    const [modelosBono, setModelosBono] = useState([]);
+    const [asistenciaData, setAsistenciaData] = useState([]);
+    const [descuentosData, setDescuentosData] = useState([]);
+    const [beneficiosData, setBeneficiosData] = useState([]);
+    const [empresaConfig, setEmpresaConfig] = useState(null);
+
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterCeco, setFilterCeco] = useState('');
     const [filterCliente, setFilterCliente] = useState('');
     const [filterProyecto, setFilterProyecto] = useState('');
-    const [filterStatus, setFilterStatus] = useState('Operativo'); // Operativo, Finiquitado, Todos
     const [filterCargo, setFilterCargo] = useState('');
-    const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+    const [filterStatus, setFilterStatus] = useState('Operativo'); // Operativo, Finiquitado, Todos
     const [selected, setSelected] = useState(null);
-    const [saving, setSaving] = useState(false);
     const [alert, setAlert] = useState(null);
     const [confirmModal, setConfirmModal] = useState(null);
-
-    const [bonosConsolidados, setBonosConsolidados] = useState([]);
-    const [bonosConfig, setBonosConfig] = useState([]);
-    const [closuresData, setClosuresData] = useState([]);
-    const [descuentosData, setDescuentosData] = useState([]);
-    const [manualValues, setManualValues] = useState({}); // { 'RUT_dias_trabajados': value }
-
-    const [periodStats, setPeriodStats] = useState({
-        diasHabiles: 25,
-        domingosFestivos: 5
-    });
-
-    const [productionStats, setProductionStats] = useState({
-        diasHabiles: 25,
-        domingosFestivos: 5
-    });
-
-    // ── Sincronización de Asistencia Real ──────────────────────────────────────
-    const [asistenciaSyncData, setAsistenciaSyncData] = useState({}); // { candidatoId: { diasTrabajados, horasExtraAprobadas, calificaBono } }
-    const [syncingAsistencia, setSyncingAsistencia] = useState(false);
-    const [showSyncModal, setShowSyncModal] = useState(false);
-    const [syncPreview, setSyncPreview] = useState([]);
     const [downloadingMassive, setDownloadingMassive] = useState(false);
 
-    // --- DESCARGA MASIVA ---
+    const d = new Date();
+    const currentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const [period, setPeriod] = useState(currentMonth);
 
-    const handleMassiveDownload = async () => {
-        if (!filtered.length) return;
-        setDownloadingMassive(true);
-        setAlert({ type: 'info', msg: 'Iniciando generación masiva... No cierres la pestaña.' });
-        
-        try {
-            const h2c = (await import('html2canvas')).default;
-            const { jsPDF } = await import('jspdf');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            
-            for (let i = 0; i < filtered.length; i++) {
-                const empData = filtered[i];
-                setSelected(empData);
-                // Esperamos un poco a que el modal cargue y renderice
-                await new Promise(r => setTimeout(r, 600));
-                
-                const node = document.getElementById('liq-doc-printable');
-                if (node) {
-                    const originalClass = node.className;
-                    node.classList.add('html2canvas-capture-fix');
-                    const canvas = await h2c(node, { scale: 2.5, useCORS: true, logging: false });
-                    node.className = originalClass; // Restaurar
-                    
-                    const img = canvas.toDataURL('image/png', 0.9);
-                    if (i > 0) pdf.addPage();
-                    pdf.addImage(img, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
-                }
-                setAlert({ type: 'info', msg: `Generando: ${i+1} de ${filtered.length}...` });
-            }
-            
-            pdf.save(`NOMINA_MASIVA_${period}.pdf`);
-            setSelected(null);
-            setAlert({ type: 'success', msg: '✓ Descarga masiva completada exitosamente.' });
-        } catch (e) {
-            console.error('Error en descarga masiva:', e);
-            setAlert({ type: 'error', msg: 'Error durante la generación masiva.' });
-        } finally {
-            setDownloadingMassive(false);
-        }
-    };
+    const diasMes = useMemo(() => {
+        const [y, m] = period.split('-');
+        return new Date(y, m, 0).getDate();
+    }, [period]);
 
-
-    const params = { ...indicParams, ...periodStats, period };
-
-    // --- ACCIONES ---
-    const handleSaveHistorial = async () => {
-        // Formatear liquidaciones para envío a DB
-        const batch = filtered.map(e => ({
-            trabajadorId: e._id,
-            nombreTrabajador: e.fullName,
-            rutTrabajador: e.rut,
-            cargo: e.position,
-            periodo: (() => {
-                const [y, m] = period.split('-');
-                return `${m}-${y}`;
-            })(),
-            stats: {
-                diasTrabajados: e._liq.diasTrabajados,
-                diasAusente: e._asistencia?.diasAusente || 0,
-                diasLicencia: e._asistencia?.diasLicencia || 0,
-                horasExtra: e._asistencia?.horasExtraAprobadas || 0
-            },
-            asistencia: {
-                diasPresente: e._asistencia?.diasPresente || 0,
-                diasAusente: e._asistencia?.diasAusente || 0,
-                diasLicencia: e._asistencia?.diasLicencia || 0,
-                diasNC: e._asistencia?.diasNC || 0,
-                diasFeriado: e._asistencia?.diasFeriado || 0,
-                diasDomingo: e._asistencia?.diasDomingo || 0,
-                diasTardanza: e._asistencia?.diasTardanza || 0,
-                horasExtraDeclaradas: e._asistencia?.horasExtraDeclaradas || 0,
-                horasExtraAprobadas: e._asistencia?.horasExtraAprobadas || 0
-            },
-            produccion: {
-                totalPuntos: 0,  // Será calculado si hay datos de producción disponibles
-                totalIngreso: 0,
-                diasConProduccion: 0,
-                promedioPuntosPorDia: 0
-            },
-            haberes: {
-                sueldoBase: e._liq.habImponibles.sueldoBase,
-                gratificacion: e._liq.habImponibles.gratificacion,
-                bonosImponibles: e._liq.habImponibles.otros + e._liq.habImponibles.bonosInyectados,
-                totImponible: e._liq.habImponibles.subtotal,
-                movilizacion: e._liq.habNoImponibles.movilizacion,
-                colacion: e._liq.habNoImponibles.colacion,
-                asignacionFamiliar: e._liq.habNoImponibles.asignacionFamiliar,
-                otrosNoImponibles: e._liq.habNoImponibles.viaticos + e._liq.habNoImponibles.bonoVacaciones + e._liq.habNoImponibles.bonosNoImponiblesExtra,
-                totNoImponible: e._liq.habNoImponibles.subtotal,
-                totHaberes: e._liq.totalHaberes
-            },
-            descuentos: {
-                afp: {
-                    nombre: e.afp,
-                    monto: e._liq.prevision.afp,
-                    tasa: TASAS_AFP[(e.afp || '').toUpperCase()] || 11.41
-                },
-                salud: {
-                    nombre: e.previsionSalud,
-                    monto: e._liq.prevision.salud,
-                    isapreAdicionalClp: e._liq.prevision.excesoIsapre
-                },
-                afc: e._liq.prevision.afc,
-                impuestoUnico: e._liq.impuestoUnico,
-                otros: e._liq.otrosDescuentos,
-                totDescuentos: e._liq.totalDescuentos
-            },
-            sueldoLiquido: e._liq.liquidoAPagar,
-            costoEmpresa: e._liq.costoTotalEmpresa,
-            patronales: {
-                sis: e._liq.patronales.sis,
-                afc: e._liq.patronales.afc,
-                mutual: e._liq.patronales.mutual
-            }
-        }));
-
-        setConfirmModal({
-            title: '¿Confirmar Cierre de Periodo?',
-            message: `Se generará un snapshot histórico para ${filtered.length} colaboradores en el periodo ${period}. Esta acción habilitará la descarga de archivos para Previred.`,
-            action: async () => {
-                setConfirmModal(null);
-                setSaving(true);
-                try {
-                    await nominaApi.guardarLote(batch);
-                    setAlert({ type: 'success', msg: 'Periodo cerrado y snapshot guardado exitosamente.' });
-                } catch (e) {
-                    console.error("Save Error:", e);
-                    setAlert({ type: 'error', msg: 'Error al cerrar el periodo. Verifica la conexión.' });
-                } finally {
-                    setSaving(false);
-                }
-            }
-        });
-    };
-
-    const fetchNomina = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [y, m] = period.split('-');
-            const yearNum = parseInt(y);
-            const monthNum = parseInt(m);
-            // Lógica de mes desfasado: Sueldo base del mes actual, Bonos de producción del mes anterior
-            const prevMonth = monthNum === 1 ? 12 : monthNum - 1;
-            const prevYear = monthNum === 1 ? yearNum - 1 : yearNum;
+            const [year, month] = period.split('-');
+            const daysInMonthRaw = new Date(year, month, 0).getDate();
+            const desdeStr = `${year}-${String(month).padStart(2, '0')}-01`;
+            const hastaStr = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonthRaw).padStart(2, '0')}`;
 
-            const [resStaff, resBonos, resConfig, resProyectos, resAsistencia, resDescuentos] = await Promise.all([
-                candidatosApi.getAll(),
-                bonosApi.getClosure(yearNum, monthNum).catch(() => ({ data: [] })),
-                bonosConfigApi.getAll().catch(() => ({ data: [] })),
-                proyectosApi.getAll().catch(() => ({ data: [] })),
-                asistenciaApi.getResumenPeriodo(monthNum, yearNum).catch(() => ({ data: [] })),
+            const [candRes, finiRes, projRes, configRes, closRes, modRes, asisRes, descRes, benRes, empConfRes] = await Promise.all([
+                candidatosApi.getAll({ status: 'Activo,Contratado,ACTIVO,En Terreno,Listo Terreno,Licencia Médica' }),
+                candidatosApi.getFiniquitos({ desde: desdeStr, hasta: hastaStr }).catch(() => ({ data: [] })),
+                proyectosApi.getAll(),
+                bonosConfigApi.getAll(),
+                bonosApi.getClosure(year, month).catch(() => ({ data: [] })),
+                modelosBonificacionApi.getAll().catch(() => ({ data: [] })),
+                asistenciaApi.getResumenPeriodo(month, year).catch(() => ({ data: [] })),
                 descuentosApi.getTransacciones(period).catch(() => ({ data: [] })),
+                beneficiosApi.getTransacciones(period).catch(() => ({ data: [] })),
+                configApi.get().catch(() => ({ data: null }))
             ]);
-            setNomina(resStaff.data || []);
-            setClosuresData(resBonos.data || []);
-            setBonosConfig(resConfig.data || []);
-            setProyectos(resProyectos.data || []);
-            setDescuentosData(resDescuentos.data || []);
+            
+            const uniqueEmpIds = new Set();
+            const combinedEmployees = [];
+            [...(candRes.data || []), ...(finiRes.data || [])].forEach(emp => {
+                const id = emp._id || emp.rut;
+                if (!uniqueEmpIds.has(id)) {
+                    uniqueEmpIds.add(id);
+                    combinedEmployees.push(emp);
+                }
+            });
 
-            // Calcular automáticamente estadísticas de calendario para el mes actual
-            const autoStats = calculateMonthStats(`${yearNum}-${String(monthNum).padStart(2, '0')}`);
-            setProductionStats(autoStats);
+            setEmployees(combinedEmployees);
+            setProyectos(projRes.data || []);
+            setBonosConfig(configRes.data || []);
+            setModelosBono(modRes.data || []);
+            setAsistenciaData(asisRes.data || []);
+            setDescuentosData(descRes.data || []);
+            setBeneficiosData(benRes.data || []);
+            setEmpresaConfig(empConfRes.data || null);
 
-            // También actualizamos el periodo de pago actual
-            const currentStats = calculateMonthStats(`${yearNum}-${String(monthNum).padStart(2, '0')}`);
-            setPeriodStats(currentStats);
+            let fetchedClosures = closRes.data || [];
+            
+            if (fetchedClosures.length === 0) {
+                try {
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    const desde = `${year}-${String(month).padStart(2, '0')}-01`;
+                    const hasta  = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+                    
+                    let prevMonth = parseInt(month) - 1;
+                    let prevYear = parseInt(year);
+                    if (prevMonth === 0) {
+                        prevMonth = 12;
+                        prevYear = parseInt(year) - 1;
+                    }
+                    const prevDaysInMonth = new Date(prevYear, prevMonth, 0).getDate();
+                    const desdeGarantias = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+                    const hastaGarantias = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevDaysInMonth).padStart(2, '0')}`;
+
+                    const [statsRes, garantiasRes] = await Promise.all([
+                        telecomApi.get('/bot/produccion-stats', { params: { desde, hasta, estado: 'Completado' } }).catch(() => ({ data: null })),
+                        telecomApi.get('/bot/garantias-stats', { params: { desde: desdeGarantias, hasta: hastaGarantias } }).catch(() => ({ data: null }))
+                    ]);
+
+                    const garantiasMap = {};
+                    if (garantiasRes?.data?.statsTecnicos) {
+                        garantiasRes.data.statsTecnicos.forEach(t => {
+                            const cleanId = String(t.id).replace(/^0+/, '').trim();
+                            garantiasMap[cleanId] = t;
+                        });
+                    }
+
+                    const activeModels = Array.isArray(modRes.data) ? modRes.data : [modRes.data];
+                    const activeModel = activeModels.find(m => m && m.tipo === 'BAREMO_PUNTOS') || activeModels[0] || null;
+
+                    const calculateTierBonus = (val, tramos) => {
+                        if (!tramos || tramos.length === 0) return 0;
+                        const matchingTiers = tramos.filter(t => {
+                            if (t.operator === '<') return val < t.limit;
+                            if (t.operator === '>') return val > t.limit;
+                            return val >= t.desde && val <= t.hasta;
+                        });
+                        if (matchingTiers.length === 0) return 0;
+                        return Math.max(...matchingTiers.map(t => t.valor || 0));
+                    };
+
+                    const tecnicos = Array.isArray(statsRes?.data?.tecnicos) ? statsRes.data.tecnicos : [];
+                    const calculosSimulados = tecnicos.map(t => {
+                        const pts = t.ptsTotal || 0;
+                        let multiplier = 0;
+                        let baremoBonus = 0;
+                        let rrBonus = 0;
+                        let aiBonus = 0;
+
+                        if (activeModel?.tramosBaremos) {
+                            const currentPts = parseFloat(pts) || 0;
+                            const tier = activeModel.tramosBaremos.find(tr => {
+                                const hString = String(tr.hasta).trim().toLowerCase();
+                                const isMax = hString === 'más' || hString === 'mas' || hString === 'mas+' || hString === '';
+                                const limitMax = isMax ? 999999 : parseFloat(tr.hasta);
+                                const limitMin = parseFloat(tr.desde) || 0;
+                                return currentPts >= limitMin && currentPts <= limitMax;
+                            });
+                            multiplier = tier ? parseFloat(tier.valor) : 0;
+                            baremoBonus = currentPts * multiplier;
+                        }
+
+                        const idRecursoRaw = String(t.idRecursoToa || t.idRecurso || t._id || '').replace(/^0+/, '').trim();
+                        const garantiasTec = garantiasMap[idRecursoRaw] || {};
+                        const rrValue = Math.round((garantiasTec.rrValue || 0) * 100) / 100;
+                        const aiValue = Math.round((garantiasTec.aiValue || 0) * 100) / 100;
+
+                        if (activeModel && (t.orders > 0 || (parseFloat(pts) || 0) > 0)) {
+                            rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
+                            aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
+                        }
+
+                        return {
+                            tecnicoId: t.idRecursoToa || t._id,
+                            rut: t.rut,
+                            nombre: t.name || t.nombre,
+                            puntos: pts,
+                            baremoBonus,
+                            rrValue,
+                            rrBonus,
+                            aiValue,
+                            aiBonus,
+                            totalBonus: baremoBonus + rrBonus + aiBonus
+                        };
+                    });
+
+                    fetchedClosures = [{
+                        status: 'CERRADO', 
+                        calculos: calculosSimulados,
+                        transacciones: []
+                    }];
+                } catch (err) {
+                    console.error('Error calculando bonos dinámicamente:', err);
+                }
+            }
+
+            setClosures(fetchedClosures);
 
         } catch (e) {
-            console.error('❌ Error fetching payroll data:', e);
+            console.error("❌ Error al cargar libro de remuneraciones:", e);
         } finally {
             setLoading(false);
         }
     }, [period]);
 
     useEffect(() => {
-        fetchNomina();
-    }, [fetchNomina]);
+        fetchData();
+    }, [fetchData]);
 
-    const [auditResults, setAuditResults] = useState([]);
-    const [showAuditPanel, setShowAuditPanel] = useState(false);
-    const [autoRegularizeMode, setAutoRegularizeMode] = useState(true); // Activo por defecto
-
-    // --- AUTO-FETCH ASISTENCIA ---
-    useEffect(() => {
-        if (!period) return;
-        
-        const autoSync = async () => {
-            try {
-                const [y, m] = period.split('-');
-                const res = await asistenciaApi.getResumenPeriodo(m, y);
-                const map = {};
-                res.data.forEach(r => {
-                    map[r.empId || r.candidatoId] = {
-                        diasTrabajados: r.diasTrabajados,
-                        horasExtraAprobadas: r.horasExtraAprobadas,
-                        calificaBono: r.calificaBono,
-                        diasAusente: r.diasAusente,
-                        diasPresente: r.diasPresente,
-                        diasLicencia: r.diasLicencia,
-                        diasTardanza: r.diasTardanza,
-                        diasNC: r.diasNC || 0, // No Contratado
-                        diasFeriado: r.diasFeriado || 0,
-                        diasDomingo: r.diasDomingo || 0,
-                        contractStartDate: r.contractStartDate,
-                        horasNormales: r.horasNormalesTrabajadas,
-                    };
-                });
-                setAsistenciaSyncData(map);
-            } catch (error) {
-                console.error("Error auto-fetching attendance:", error);
-            }
-        };
-        
-        autoSync();
-    }, [period]);
-
-    // --- AUDITORÍA INTELIGENTE ---
-    const runAudit = useCallback((data) => {
-        const issues = [];
-        data.forEach(e => {
-            const l = e._liq;
-            const c = e;
-
-            // 1. Detección de sobrepago a finiquitados
-            if (c.status === 'Finiquitado' && l.diasTrabajados === 30) {
-                issues.push({ id: c.rut, type: 'critical', msg: 'Finiquitado con sueldo completo. Verificar proporcionalidad.', category: 'Financiero' });
-            }
-
-            // 2. Faltantes de previsión
-            if (!c.afp || !c.previsionSalud) {
-                issues.push({ id: c.rut, type: 'warning', msg: 'Falta información previsional/salud. Usando defaults.', category: 'Admin' });
-            }
-
-            // 3. Inconsistencias de asistencia (registros manuales vs automáticos)
-            if (e._asistencia?.diasTrabajados !== undefined && l.diasTrabajados !== e._asistencia.diasTrabajados) {
-                issues.push({ id: c.rut, type: 'info', msg: 'Diferencia entre asistencia y días pagados (ajuste manual).', category: 'Sync' });
-            }
+    const availableCecos = useMemo(() => {
+        const cecos = new Set();
+        proyectos.forEach(p => {
+            if (p.centroCosto) cecos.add(p.centroCosto);
         });
-        setAuditResults(issues);
-    }, []);
-
-    const groupBonusesByCode = useCallback((c) => {
-        const bag = {};
-        const breakdown = [];
-        let variableBaseSC = 0;
-
-        // 1. Bonos fijos de la Ficha
-        (c.bonuses || []).forEach(b => {
-            const code = b.codigoDT || b.tipoBonoRef?.codigo || (b.isImponible !== false ? '1040' : '2040');
-            const amount = (parseInt(b.amount) || 0);
-            bag[code] = (bag[code] || 0) + amount;
-            breakdown.push({
-                label: b.description || DT_CODE_LABELS[code]?.label || 'Bono Fijo',
-                amount,
-                code,
-                isVariable: false
-            });
+        employees.forEach(e => {
+            if (e.ceco) cecos.add(e.ceco);
         });
-
-        // 2. Bonos de Cierre TOA (Variables)
-        closuresData.forEach(closure => {
-            const defaultCode = closure.modeloRef?.tipoBonoRef?.codigo || '1030';
-            const res = closure.calculos?.find(b =>
-                (b.tecnicoId === c.idRecursoToa || b.tecnicoId === c.toaId) ||
-                (b.rut === c.rut) ||
-                (normalize(b.nombre) === normalize(c.fullName))
-            );
-            if (res) {
-                const bonusVal = (res.baremoBonus || 0);
-                bag[defaultCode] = (bag[defaultCode] || 0) + bonusVal;
-                if (bonusVal > 0) {
-                    breakdown.push({
-                        label: closure.modeloRef?.nombre || 'Bono Variable TOA',
-                        amount: bonusVal,
-                        code: defaultCode,
-                        isVariable: true
-                    });
-                }
-                if (defaultCode.startsWith('1')) variableBaseSC += bonusVal;
-                
-                if (res.asistenciaBonus) {
-                    const assistVal = (res.asistenciaBonus || 0);
-                    bag['1050'] = (bag['1050'] || 0) + assistVal;
-                    breakdown.push({
-                        label: 'Bono Asistencia (TOA)',
-                        amount: assistVal,
-                        code: '1050',
-                        isVariable: true
-                    });
-                }
-            }
-        });
-
-        // 2.1. Bonos Unificados Directos
-        (c.bonosConfig || []).forEach(bid => {
-            const refId = typeof bid === 'object' ? bid._id : bid;
-            const mBono = (bonosConfig || []).find(bc => bc._id === refId);
-            if (mBono) {
-                const code = mBono.payroll?.codigoDT || '1040';
-                const amount = Number(mBono.valorPorDefecto) || 0;
-                bag[code] = (bag[code] || 0) + amount;
-                
-                const isVar = ['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy);
-                breakdown.push({
-                    label: mBono.nombre,
-                    amount,
-                    code,
-                    isVariable: isVar
-                });
-
-                if (isVar && code.startsWith('1')) variableBaseSC += amount;
-            }
-        });
-
-        // 3. Bonos de Proyecto
-        const projId = c.projectId?._id?.toString() || c.projectId?.toString();
-        if (projId && (proyectos || []).length > 0) {
-            const proj = proyectos.find(p => p._id?.toString() === projId);
-            if (proj && proj.dotacion) {
-                const dot = proj.dotacion.find(d => normalize(d.cargo) === normalize(c.position || c.cargo));
-                if (dot && dot.bonos) {
-                    dot.bonos.forEach(db => {
-                        const mBono = (bonosConfig || []).find(bc => bc._id?.toString() === db.bonoRef?.toString() || bc._id?.toString() === db.bonoRef?._id?.toString());
-                        if (mBono) {
-                            const code = mBono.payroll?.codigoDT || '1040';
-                            const amount = Number(db.monto) || 0;
-                            bag[code] = (bag[code] || 0) + amount;
-                            const isVar = db.modality === 'Variable' || ['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy);
-                            
-                            breakdown.push({
-                                label: `${mBono.nombre} (Proy)`,
-                                amount,
-                                code,
-                                isVariable: isVar
-                            });
-
-                            if (isVar && code.startsWith('1')) variableBaseSC += amount;
-                        }
-                    });
-                }
-            }
-        }
-
-        return { bag, breakdown, variableBaseSC };
-    }, [closuresData, proyectos, bonosConfig]);
-
-    const processed = useMemo(() => {
-        const [yStr, mStr] = period.split('-');
-        const y = parseInt(yStr);
-        const m = parseInt(mStr);
-        const firstDayOfPeriod = new Date(y, m - 1, 1);
-        const lastDayOfPeriod  = new Date(y, m, 0);
-
-        const result = nomina.filter(c => {
-            // 1. Filtrar por Estado (UI)
-            if (filterStatus === 'Operativo' && c.status !== 'Contratado') return false;
-            if (filterStatus === 'Finiquitado' && c.status !== 'Finiquitado') return false;
-
-            // 1.5. REGLA DE NEGOCIO: Si no tiene ID Técnico TOA, NO DEBE SER VISIBLE
-            if (!c.idRecursoToa || c.idRecursoToa.trim() === '') return false;
-            
-            // 2. Determinar si participó en el periodo (Vivió laboralmente en el mes)
-            if (!c.contractStartDate) return true; 
-            const startDate = new Date(c.contractStartDate);
-            if (startDate > lastDayOfPeriod) return false; 
-
-            const endDate = c.fechaFiniquito ? new Date(c.fechaFiniquito) : (c.contractEndDate ? new Date(c.contractEndDate) : null);
-            if (endDate && endDate < firstDayOfPeriod) return false; 
-
-            return true;
-        }).map(c => {
-            const worker = candidatoToWorkerData(c);
-            
-            const licenciasMes = (c.vacaciones || [])
-                .filter(v => v.estado === 'Aprobado' && v.tipo === 'Licencia Médica')
-                .reduce((tot, v) => {
-                    const vStart = new Date(v.fechaInicio);
-                    const vEnd   = new Date(v.fechaFin);
-                    const overlapStart = new Date(Math.max(vStart, firstDayOfPeriod));
-                    const overlapEnd   = new Date(Math.min(vEnd, lastDayOfPeriod));
-                    if (overlapStart <= overlapEnd) {
-                        const diffTime = Math.abs(overlapEnd - overlapStart);
-                        return tot + (Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
-                    }
-                    return tot;
-                }, 0);
-
-            const { bag: bonosAgrupados, breakdown: bonosBreakdown, variableBaseSC } = groupBonusesByCode(c);
-            const cIdStr = c._id?.toString();
-            const syncEntry = asistenciaSyncData[cIdStr] || (c.rut ? asistenciaSyncData[c.rut] : null);
-
-            // Sum up descuentos
-            const sumDescuentos = descuentosData
-                .filter(d => (d.candidatoRef?._id || d.candidatoRef) === cIdStr)
-                .reduce((acc, curr) => acc + (curr.monto || 0), 0);
-
-            const manualDias = manualValues[`${c.rut}_dias_trabajados`];
-            const ajustes = {
-                bonosPorCodigo: bonosAgrupados,
-                variableBaseSC,
-                horasExtra: syncEntry?.horasExtraAprobadas || 0,
-                otrosDescuentos: sumDescuentos,
-                diasTrabajadosReal: manualDias !== undefined ? Number(manualDias) : ((syncEntry !== undefined && syncEntry !== null) ? syncEntry.diasTrabajados : undefined),
-                diasLicencia: Math.max(licenciasMes, syncEntry?.diasLicencia || 0),
-                diasAusente: syncEntry?.diasAusente || 0,
-                diasNC: syncEntry?.diasNC || 0,           // No Contratado (días previos a contrato)
-                diasFeriado: syncEntry?.diasFeriado || 0, // Feriados
-                diasDomingo: syncEntry?.diasDomingo || 0, // Domingos
-                contractStartDate: syncEntry?.contractStartDate,
-                diasHabiles: productionStats.diasHabiles,      // Semana Corrida usa Mes Producción
-                domingosFestivos: productionStats.domingosFestivos // Semana Corrida usa Mes Producción
-            };
-
-            const liq = calcularLiquidacionReal(worker, ajustes, params);
-            
-            const projectIdKey = c.projectId?._id?.toString() || c.projectId?.toString() || '';
-            const proyectoData  = proyectos.find(p => p._id?.toString() === projectIdKey || p._id === projectIdKey);
-            
-            return {
-                ...c,
-                _worker: worker,
-                _liq: liq,
-                _bonosAgrupados: bonosAgrupados,
-                _bonosBreakdown: bonosBreakdown,
-                _asistencia: syncEntry || {},
-                _clienteId: proyectoData?.cliente?._id?.toString() || proyectoData?.cliente?.toString() || 'sin_cliente',
-                _clienteNombre: proyectoData?.cliente?.nombre || '—',
-                _proyectoNombre: proyectoData?.nombreProyecto || proyectoData?.projectName || c.projectName || '—',
-            };
-        });
-
-        setTimeout(() => runAudit(result), 100);
-        return result;
-    }, [nomina, proyectos, closuresData, descuentosData, params, manualValues, periodStats, asistenciaSyncData, filterStatus, runAudit, groupBonusesByCode]);
-
-    const handleExportTable = () => {
-        if (!filtered.length) return;
-        
-        const data = filtered.map(e => {
-            const l = e._liq;
-            const row = {
-                'RUT': e.rut,
-                'Colaborador': e.fullName,
-                'Estado': e.status,
-                'Cargo': e.position || e.cargo || '—',
-                'Cliente': e._clienteNombre,
-                'Proyecto': e._proyectoNombre,
-                'Pres.': e._asistencia?.diasPresente || 0,
-                'Aus.': e._asistencia?.diasAusente || 0,
-                'Lic.': e._asistencia?.diasLicencia || 0,
-                'Término': e.contractEndDate || e.fechaFiniquito ? new Date(e.contractEndDate || e.fechaFiniquito).toLocaleDateString() : '—',
-                'Días Trab.': l.diasTrabajados,
-                'H. Pagadas': ((e._asistencia?.horasNormales || 0) + (e._asistencia?.horasExtraAprobadas || 0)).toFixed(1),
-                'Sueldo Base': l.habImponibles.sueldoBase,
-                'Semana Corrida': l.habImponibles.semanaCorrida || 0,
-                'Gratificación': l.habImponibles.gratificacion,
-            };
-
-            // Bonos dinámicos de cierres
-            closuresData.forEach(cl => {
-                const res = cl.calculos?.find(b => 
-                    (b.tecnicoId && (b.tecnicoId === e.idRecursoToa || b.tecnicoId === e.toaId)) || 
-                    (b.rut && b.rut === e.rut) || 
-                    (normalize(b.nombre) === normalize(e.fullName))
-                );
-                row[cl.modeloRef?.nombre || 'Bono'] = res?.baremoBonus || 0;
-            });
-
-            row['Bono Asistencia'] = l.habImponibles.bonosPorCodigo?.['1050'] || 0;
-            row['H. Extra $'] = l.habImponibles.horaExtraMonto;
-            row['Total Imponible'] = l.habImponibles.subtotal;
-            row['No Imponible'] = l.habNoImponibles.subtotal;
-            row['Total Haberes'] = l.totalHaberes;
-            row['AFP'] = l.prevision.afp;
-            row['Salud'] = l.prevision.salud;
-            row['AFC'] = l.prevision.afc || 0;
-            row['Impuesto Único'] = l.impuestoUnico;
-            row['Otros Descuentos'] = l.otrosDescuentos;
-            row['Líquido a Pagar'] = l.liquidoAPagar;
-            
-            return row;
-        });
-
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Nómina Detalle");
-        XLSX.writeFile(wb, `Nomina_Completa_${period}.xlsx`);
-    };
-
-    const handleManualUpdate = (rut, field, val) => {
-        const key = `${rut}_${field}`;
-        setManualValues(prev => ({ ...prev, [key]: val === '' ? undefined : val }));
-    };
-
-    const handleSyncAsistencia = async () => {
-        if (!period) return;
-        setSyncingAsistencia(true);
-        try {
-            const [y, m] = period.split('-');
-            const res = await asistenciaApi.getResumenPeriodo(m, y);
-            
-            const preview = processed.map(emp => {
-                const raw = res.data.find(r => (r.empId === emp._worker?._id) || (r.candidatoId === emp._id) || (r.rut === emp.rut));
-                return {
-                    empId: emp._id,
-                    rut: emp.rut,
-                    nombre: emp.fullName,
-                    diasActual: emp._liq?.diasTrabajados || 30,
-                    diasNuevo: raw ? raw.diasTrabajados : (emp._liq?.diasTrabajados || 30),
-                    heNuevo: raw ? raw.horasExtraAprobadas : 0,
-                    diasAusente: raw ? raw.diasAusente : 0,
-                    diasTardanza: raw ? raw.diasTardanza : 0,
-                    calificaBono: raw ? raw.calificaBono : false
-                };
-            });
-
-            setSyncPreview(preview);
-            setShowSyncModal(true);
-            
-            // También guardamos en el estado de fondo para cálculos reactivos
-            const map = {};
-            res.data.forEach(r => {
-                map[r.empId || r.candidatoId] = {
-                    diasTrabajados: r.diasTrabajados,
-                    horasExtraAprobadas: r.horasExtraAprobadas,
-                    calificaBono: r.calificaBono,
-                    diasAusente: r.diasAusente,
-                    diasPresente: r.diasPresente,
-                    diasLicencia: r.diasLicencia,
-                    diasTardanza: r.diasTardanza,
-                    horasNormales: r.horasNormalesTrabajadas,
-                };
-            });
-            setAsistenciaSyncData(map);
-        } catch (e) {
-            console.error('Error syncing attendance:', e);
-            setAlert({ type: 'error', msg: 'Error al sincronizar datos de asistencia.' });
-        } finally {
-            setSyncingAsistencia(false);
-        }
-    };
-
-    const handleConfirmSync = () => {
-        setShowSyncModal(false);
-        setAlert({ type: 'success', msg: '✓ Sincronización aplicada — datos de asistencia activos.' });
-        setTimeout(() => setAlert(null), 3000);
-    };
-
-
-    const handleExportLRE = () => {
-        if (!processed.length) return;
-        const [y, m] = period.split('-');
-
-        // 1. Recopilar todos los códigos DT usados en todos los trabajadores
-        const allCodes = new Set();
-        processed.forEach(e => Object.keys(e._bonosAgrupados || {}).forEach(c => allCodes.add(c)));
-
-        // 2. Mapa de etiquetas por código
-        const codeLabels = {};
-        Object.entries(DT_CODE_LABELS).forEach(([code, { label }]) => { codeLabels[code] = label; });
-
-        const impCodes = [...allCodes].filter(c => c.startsWith('1')).sort();
-        const noImpCodes = [...allCodes].filter(c => c.startsWith('2')).sort();
-
-        // 3. Construir filas
-        const rows = processed.map(e => {
-            const l = e._liq;
-            const b = e._bonosAgrupados || {};
-
-            const row = {};
-
-            // — Identificación —
-            row['RUT']                  = e.rut || '';
-            row['Nombre Completo']      = e.fullName || '';
-            row['AFP']                  = e._worker?.afp || e.afp || '';
-            row['Previsión Salud']      = e._worker?.previsionSalud || e.previsionSalud || '';
-            row['Tipo Contrato']        = e._worker?.contractType || e.contractType || '';
-            row['Días Trabajados']      = l.diasTrabajados;
-            row['Días Presentes']       = e._asistencia?.diasPresente || 0;
-            row['Días Ausentes']        = e._asistencia?.diasAusente || 0;
-            row['Días Licencia']        = e._asistencia?.diasLicencia || 0;
-            row['Término Contrato']     = (e.contractEndDate || e.fechaFiniquito) ? new Date(e.contractEndDate || e.fechaFiniquito).toLocaleDateString() : 'Activo';
-
-            // — Haberes Imponibles —
-            row['1010 - Sueldo Base']        = l.habImponibles.sueldoBase;
-            row['1020 - Gratificación']      = l.habImponibles.gratificacion;
-            row['1001 - Semana Corrida']     = l.habImponibles.semanaCorrida;
-            row['Horas Extra']               = l.habImponibles.horaExtraMonto;
-            row['Bonos Fijos (Ficha)']       = l.habImponibles.bonosInyectados;
-
-            // Columnas dinámicas de bonos imponibles (1xxx)
-            impCodes.forEach(code => {
-                row[`${code} - ${codeLabels[code] || 'Bono ' + code}`] = b[code] || 0;
-            });
-
-            row['TOTAL IMPONIBLES'] = l.habImponibles.subtotal;
-
-            // — Haberes No Imponibles —
-            row['Asignación Familiar'] = l.habNoImponibles.asignacionFamiliar;
-            row['Colación']            = l.habNoImponibles.colacion;
-            row['Movilización']        = l.habNoImponibles.movilizacion;
-            row['Bonos Fijos No Imp.'] = l.habNoImponibles.bonosInyectados;
-
-            // Columnas dinámicas de bonos no imponibles (2xxx)
-            noImpCodes.forEach(code => {
-                row[`${code} - ${codeLabels[code] || 'Bono ' + code}`] = b[code] || 0;
-            });
-
-            row['TOTAL NO IMPONIBLES'] = l.habNoImponibles.subtotal;
-            row['TOTAL HABERES']       = l.totalHaberes;
-
-            // — Descuentos Previsionales —
-            row['Descuento AFP']       = l.prevision.afp;
-            row['Descuento Salud']     = l.prevision.salud;
-            row['AFC Trabajador']      = l.prevision.afc;
-            row['TOTAL PREVISIÓN']     = l.prevision.subtotal;
-
-            // — Impuesto —
-            row['Base Tributable']         = l.baseTributable;
-            row['Tramo Impuesto']          = l.tramoImpuesto;
-            row['Impuesto Único 2ª Cat.']  = l.impuestoUnico;
-
-            // — Otros —
-            row['Otros Descuentos'] = l.otrosDescuentos;
-            row['TOTAL DESCUENTOS'] = l.totalDescuentos;
-            row['LÍQUIDO A PAGAR']  = l.liquidoAPagar;
-
-            // — Costo Empresa —
-            row['SIS (Empresa)']       = l.patronales.sis;
-            row['Mutual (Empresa)']    = l.patronales.mutual;
-            row['AFC Patronal']        = l.patronales.afc;
-            row['Expectativa de Vida'] = l.patronales.expectativaVida;
-            row['COSTO TOTAL EMPRESA'] = l.costoTotalEmpresa;
-
-            return row;
-        });
-
-        // 4. Exportar como .xlsx
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, `LRE ${m}-${y}`);
-        XLSX.writeFile(wb, `LRE_Completo_${m}_${y}.xlsx`);
-    };
-
-    const legalAlerts = useMemo(() => {
-        const alerts = [];
-        processed.forEach(emp => {
-            const h = emp._liq?.habNoImponibles;
-            if (!h) return;
-            
-            // Check Colacion
-            const configCol = bonosConfig.find(b => b.nombre.toLowerCase().includes('colación'));
-            if (configCol && h.colacion > configCol.limiteReferencial) {
-                alerts.push({ worker: emp.fullName, bono: 'Colación', monto: h.colacion, limite: configCol.limiteReferencial, msg: configCol.avisoLegal });
-            }
-            
-            // Check Movilizacion
-            const configMov = bonosConfig.find(b => b.nombre.toLowerCase().includes('movilización'));
-            if (configMov && h.movilizacion > configMov.limiteReferencial) {
-                alerts.push({ worker: emp.fullName, bono: 'Movilización', monto: h.movilizacion, limite: configMov.limiteReferencial, msg: configMov.avisoLegal });
-            }
-        });
-        return alerts;
-    }, [processed, bonosConfig]);
-
-    // ── Opciones de filtros dinámicos ──────────────────────────────────────────
-    const availableClientes = useMemo(() => {
-        const seen = new Set();
-        const list = [];
-        processed.forEach(e => {
-            if (e._clienteId && !seen.has(e._clienteId)) {
-                seen.add(e._clienteId);
-                list.push({ id: e._clienteId, nombre: e._clienteNombre });
-            }
-        });
-        return list.sort((a, b) => a.nombre.localeCompare(b.nombre));
-    }, [processed]);
+        return Array.from(cecos).sort();
+    }, [proyectos, employees]);
 
     const availableProyectos = useMemo(() => {
-        const seen = new Set();
-        const list = [];
-        processed.forEach(e => {
-            if (!e._proyectoNombre || e._proyectoNombre === '—') return;
-            if (!seen.has(e._proyectoNombre)) {
-                seen.add(e._proyectoNombre);
-                list.push({ nombre: e._proyectoNombre, clienteId: e._clienteId });
-            }
+        const proys = new Set();
+        proyectos.forEach(p => {
+            if (p.nombreProyecto || p.projectName) proys.add(p.nombreProyecto || p.projectName);
         });
-        return list.sort((a, b) => a.nombre.localeCompare(b.nombre));
-    }, [processed]);
+        employees.forEach(e => {
+            if (e.projectName) proys.add(e.projectName);
+        });
+        return Array.from(proys).sort();
+    }, [proyectos, employees]);
 
     const availableCargos = useMemo(() => {
-        const seen = new Set();
-        processed.forEach(e => { const c = e.position || e.cargo; if (c) seen.add(c); });
-        return [...seen].sort((a, b) => a.localeCompare(b));
-    }, [processed]);
-
-    // ── Costo por cliente (breakdown para panel resumen) ──────────────────────
-    const clienteBreakdown = useMemo(() => {
-        const map = {};
-        processed.forEach(e => {
-            const id = e._clienteId || 'sin_cliente';
-            const nombre = e._clienteNombre || 'Sin Cliente Asignado';
-            if (!map[id]) map[id] = { id, nombre, count: 0, bruto: 0, liquido: 0, costo: 0, imponible: 0 };
-            map[id].count++;
-            map[id].bruto    += e._liq?.totalHaberes            || 0;
-            map[id].liquido  += e._liq?.liquidoAPagar           || 0;
-            map[id].costo    += e._liq?.costoTotalEmpresa       || 0;
-            map[id].imponible+= e._liq?.habImponibles?.subtotal || 0;
+        const cargos = new Set();
+        employees.forEach(e => {
+            if (e.position) cargos.add(e.position);
         });
-        return Object.values(map).sort((a, b) => b.costo - a.costo);
-    }, [processed]);
+        return Array.from(cargos).sort();
+    }, [employees]);
 
-    const filtered = useMemo(() =>
-        processed.filter(e => {
-            const t = searchTerm.toLowerCase();
+    const consolidado = useMemo(() => {
+        const result = [];
+
+        employees.forEach(emp => {
+            let isCurrentPeriodFiniquito = false;
+            if (emp.status === 'Finiquitado') {
+                if (emp.fechaFiniquito) {
+                    let fqMonth = '';
+                    try {
+                        fqMonth = new Date(emp.fechaFiniquito).toISOString().slice(0, 7);
+                    } catch (err) {
+                        fqMonth = '';
+                    }
+
+                    if (!fqMonth && typeof emp.fechaFiniquito === 'string') {
+                        const match = emp.fechaFiniquito.match(/^(\d{4})-(\d{2})/);
+                        if (match) fqMonth = `${match[1]}-${match[2]}`;
+                    }
+
+                    if (fqMonth !== period) {
+                        return;
+                    }
+                    isCurrentPeriodFiniquito = true;
+                } else {
+                    return;
+                }
+            }
+
+            const term = searchTerm.toLowerCase();
             const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
-            const cleanRut = e.rut ? e.rut.replace(/[^0-9kK]/gi, '') : '';
-            const matchSearch = !searchTerm ||
-                e.fullName?.toLowerCase().includes(t) ||
-                (cleanSearch && cleanRut.includes(cleanSearch)) ||
-                e.position?.toLowerCase().includes(t) ||
-                e.cargo?.toLowerCase().includes(t) ||
-                e._clienteNombre?.toLowerCase().includes(t) ||
-                e._proyectoNombre?.toLowerCase().includes(t);
-            const matchCliente  = !filterCliente  || e._clienteId === filterCliente;
-            const matchProyecto = !filterProyecto || e._proyectoNombre === filterProyecto;
-            const matchCargo    = !filterCargo    || e.position === filterCargo || e.cargo === filterCargo;
-            return matchSearch && matchCliente && matchProyecto && matchCargo;
-        }), [processed, searchTerm, filterCliente, filterProyecto, filterCargo]);
+            const empCleanRut = emp.rut ? emp.rut.replace(/[^0-9kK]/gi, '') : '';
+            const matchesSearch = !searchTerm || 
+                emp.fullName?.toLowerCase().includes(term) || 
+                (cleanSearch && empCleanRut.includes(cleanSearch)) || 
+                emp.position?.toLowerCase().includes(term);
+            
+            const projId = emp.projectId?._id || emp.projectId;
+            const proj = proyectos.find(p => p._id === projId);
+            const ceco = proj?.centroCosto || emp.ceco || 'N/A';
+            const matchesCeco = !filterCeco || ceco === filterCeco;
+            const matchesProyecto = !filterProyecto || (proj?.nombreProyecto === filterProyecto || emp.projectName === filterProyecto);
+            const matchesCargo = !filterCargo || emp.position === filterCargo;
+            
+            const matchesStatus = filterStatus === 'Todos' || 
+                (filterStatus === 'Operativo' && (['Contratado', 'Activo', 'ACTIVO', 'En Terreno', 'Listo Terreno', 'Licencia Médica'].includes(emp.status) || isCurrentPeriodFiniquito)) || 
+                (filterStatus === 'Finiquitado' && ['Finiquitado', 'Retirado', 'De Baja'].includes(emp.status));
 
-    const totales = useMemo(() => ({
-        bruto: filtered.reduce((s, e) => s + (e._liq?.totalHaberes || 0), 0),
-        imponible: filtered.reduce((s, e) => s + (e._liq?.habImponibles?.subtotal || 0), 0),
-        descuentos: filtered.reduce((s, e) => s + (e._liq?.totalDescuentos || 0), 0),
-        liquido: filtered.reduce((s, e) => s + (e._liq?.liquidoAPagar || 0), 0),
-        costoEmpresa: filtered.reduce((s, e) => s + (e._liq?.costoTotalEmpresa || 0), 0),
-        longevidad: filtered.reduce((s, e) => s + (e._liq?.patronales?.expectativaVida || 0), 0),
-    }), [filtered]);
+            if (!matchesSearch || !matchesCeco || !matchesProyecto || !matchesCargo || !matchesStatus) return;
+
+            const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase();
+            const cleanId = (id) => String(id || '').replace(/^0+/, '').trim();
+            const eRut = cleanRut(emp.rut);
+            const eId = cleanId(emp.idRecursoToa);
+            const eName = String(emp.fullName || '').toLowerCase().trim();
+
+            const asis = asistenciaData.find(a => {
+                const aCandId = String(a.candidatoId?._id || a.candidatoId || a.candidatoRef || a.tecnicoRef || '').trim();
+                const empId = String(emp._id || '').trim();
+                return aCandId && empId && aCandId === empId;
+            }) || asistenciaData.find(a => {
+                const empRutRaw = String(emp.rut || '').trim().toUpperCase();
+                const aRutRaw = String(a.rut || '').trim().toUpperCase();
+                return empRutRaw && aRutRaw && empRutRaw === aRutRaw;
+            }) || asistenciaData.find(a => {
+                const aRut = cleanRut(a.rut);
+                return aRut && eRut && aRut === eRut;
+            });
+            
+            const totalAsistencia = asis?.diasEfectivos ?? asis?.diasPresente ?? asis?.diasTrabajados ?? asis?.asistencia ?? 0;
+            const totalInasistencia = asis?.diasAusente ?? asis?.inasistencia ?? 0;
+            const hrsTurno = asis?.horasTurnoTotales ?? 0;
+            const hrsTrabajadas = asis?.horasEfectivasTrabajadas ?? asis?.horasNormalesTrabajadas ?? 0;
+            const hrsNoTrabajadas = asis?.horasNoTrabajadas ?? 0;
+            const hrsLibres = asis?.horasLibres ?? 0;
+            const hrsExtrasRaw = Number(asis?.horasExtraAprobadas ?? asis?.horasExtras) || 0;
+            const balanceHoras = asis?.balanceHoras !== undefined ? asis.balanceHoras : (hrsExtrasRaw - hrsNoTrabajadas - hrsLibres);
+
+            // Las Horas Extras a pago (Código DT 1003) se toman exclusivamente del Balance Neto (Ext - No Trab - Perm)
+            let hrsExtras = 0;
+            const vState = asis?.validacion?.estadoValidacion || asis?.estadoValidacion;
+            if (vState === 'COMPENSADO_ZERO') {
+                hrsExtras = 0;
+            } else if (vState === 'AJUSTE_MANUAL') {
+                hrsExtras = Math.max(0, Number(asis?.validacion?.balanceAprobadoFinal ?? asis?.balanceAprobadoFinal) || 0);
+            } else if (vState === 'APROBADO_ORIGINAL') {
+                const balOrig = Number(asis?.validacion?.metricsSnapshot?.balanceOriginal ?? asis?.balanceOriginal ?? balanceHoras) || 0;
+                hrsExtras = Math.max(0, balOrig);
+            } else {
+                hrsExtras = Math.max(0, Number(balanceHoras) || 0);
+            }
+            const hrsDescontadas = asis?.horasDescontadas ?? (asis?.diasDescontados ? asis.diasDescontados * 8 : 0) ?? hrsNoTrabajadas;
+
+            const diasPermisos = asis?.diasPermisos ?? asis?.diasLibres ?? (hrsLibres > 0 ? Math.round(hrsLibres / 8) : 0);
+            const diasLicencias = asis?.diasLicencia ?? asis?.diasLicenciaMedica ?? asis?.diasEnLicencia ?? 0;
+            const diasOperativosMes = asis?.diasOperativos ?? asis?.diasHabiles ?? (diasMes <= 28 ? 24 : diasMes <= 30 ? 25 : 26);
+            const esMesCompleto = totalInasistencia === 0 && (totalAsistencia >= diasOperativosMes || !asis);
+            const diasResultadoPago = esMesCompleto ? diasOperativosMes : Math.max(0, totalAsistencia - totalInasistencia);
+
+            const BASE_DIAS = 30;
+            const diasNoRemunerados = totalInasistencia + diasLicencias;
+            const diasPagadosPorEmpleador = Math.max(0, BASE_DIAS - diasNoRemunerados);
+            const factorAsistencia = asis ? Math.min(1, Math.max(0, diasPagadosPorEmpleador / BASE_DIAS)) : 1;
+            const tieneAjusteAsistencia = asis && factorAsistencia < 0.999;
+
+            const sueldoBase = Number(emp.sueldoBase) || 0;
+            const diasContrato = getWorkerActiveDays(emp, diasMes, period);
+            let workerDays = 30;
+            if (diasNoRemunerados > 0) {
+                // Según Dictamen DT N° 4851/276: En meses de 31 días con licencia médica o inasistencia parcial,
+                // el empleador debe pagar los días efectivamente trabajados en el mes calendario (diasMes - diasNoRemunerados), tope 30.
+                const baseCalculo = (diasContrato < 30) ? diasContrato : diasMes;
+                workerDays = Math.min(30, Math.max(0, baseCalculo - diasNoRemunerados));
+            } else {
+                workerDays = diasContrato;
+            }
+            
+            const prorrateadoSueldo = sueldoBase ? Math.round((sueldoBase / BASE_DIAS) * workerDays) : 0;
+
+            let totalFijos = 0;
+            let totalVariables = 0;
+
+            // Bonos Fijos
+            const modelosActivos = modelosBono.filter(m => m.activo && m.tipo === 'BONO_FIJO');
+            const modelosAplicables = modelosActivos.filter(m => {
+                if (m.aplicaA?.todos) return true;
+                if (m.aplicaA?.cargos && m.aplicaA.cargos.length > 0) {
+                    const normalizedCargo = (emp.position || '').toUpperCase().trim();
+                    return m.aplicaA.cargos.map(c => (c || '').toUpperCase().trim()).includes(normalizedCargo);
+                }
+                return false;
+            });
+
+            if (proj?.dotacion) {
+                const dot = proj.dotacion.find(d => d.cargo === emp.position);
+                if (dot?.bonos) {
+                    const bonosFijosList = dot.bonos.filter(b => b.modality === 'Fijo');
+                    bonosFijosList.forEach(bf => {
+                        const bonoRefId = bf.bonoRef?._id || bf.bonoRef;
+                        const isCoveredByModel = modelosAplicables.some(mod => 
+                            bonoRefId === mod._id || 
+                            bonoRefId === mod.tipoBonoRef?._id || 
+                            bonoRefId === mod.tipoBonoRef
+                        );
+                        if (isCoveredByModel) return;
+                        
+                        const config = bonosConfig.find(c => c._id === bonoRefId);
+                        const montoBase = bf.monto || config?.config?.monto || 0;
+                        totalFijos += montoBase;
+                    });
+                }
+            }
+
+            modelosAplicables.forEach(mod => {
+                const montoBase = mod.bonoFijo?.monto || 0;
+                totalFijos += montoBase;
+            });
+
+            const prorrateadoBonoFijo = totalFijos > 0 ? Math.round((totalFijos / BASE_DIAS) * workerDays) : 0;
+
+            let baremoBonus = 0;
+            let rrBonus = 0;
+            let aiBonus = 0;
+
+            closures.forEach(cl => {
+                if (cl.status !== 'CERRADO') return;
+                
+                const calculos = cl.calculos || [];
+                const empCalc = calculos.find(c => {
+                    const cRut = cleanRut(c.rut);
+                    const cId = cleanId(c.tecnicoId || c.idRecursoToa);
+                    const cName = String(c.nombre || c.name || '').toLowerCase().trim();
+                    
+                    if (eRut && cRut && cRut === eRut) return true;
+                    if (eId && cId && cId === eId) return true;
+                    if (eName && cName && cName === eName) return true;
+                    return false;
+                });
+                
+                if (empCalc) {
+                    baremoBonus += (empCalc.baremoBonus || 0);
+                    rrBonus += (empCalc.rrBonus || 0);
+                    aiBonus += (empCalc.aiBonus || 0);
+                    totalVariables += (empCalc.totalBonus || (empCalc.baremoBonus || 0) + (empCalc.rrBonus || 0) + (empCalc.aiBonus || 0));
+                } else {
+                    const txs = cl.transacciones || [];
+                    const empTxs = txs.filter(t => {
+                        const tRut = cleanRut(t.beneficiario?.rut);
+                        const tId = cleanId(t.beneficiario?.tecnicoRef);
+                        const tName = String(t.beneficiario?.fullName || t.beneficiario?.nombre || '').toLowerCase().trim();
+                        
+                        if (eRut && tRut && tRut === eRut) return true;
+                        if (eId && tId && tId === eId) return true;
+                        if (eName && tName && tName === eName) return true;
+                        return false;
+                    });
+                    empTxs.forEach(tx => {
+                        const monto = tx.monto || 0;
+                        totalVariables += monto;
+                    });
+                }
+            });
+
+            const totalCostoCaja = prorrateadoSueldo + prorrateadoBonoFijo;
+            const rentabilidadBruta = totalVariables - totalCostoCaja;
+
+            const baremoRaw = baremoBonus;
+            const rrRaw = rrBonus;
+            const aiRaw = aiBonus;
+            const baremoAjustado = baremoBonus; 
+            const rrAjustado     = Math.round(rrBonus * factorAsistencia);
+            const aiAjustado     = Math.round(aiBonus * factorAsistencia);
+
+            const totalVariablesAjustado = baremoAjustado + rrAjustado + aiAjustado;
+
+            const desc = descuentosData.filter(d => d.candidatoRef === emp._id || (d.rut && cleanRut(d.rut) === eRut));
+            const totalDescuentos = desc.reduce((sum, d) => sum + (d.monto || 0), 0);
+
+            const ben = beneficiosData.filter(b => b.candidatoRef === emp._id || (b.rut && cleanRut(b.rut) === eRut));
+            const totalBeneficios = ben.reduce((sum, b) => sum + (b.monto || 0), 0);
+
+            const ufHoy = ufValue || 38500; 
+            const utmHoy = utmValue || 67500;
+            const topeAfpLocal = indicParams?.topeAfpUf || 89.9;
+            const topeAfcLocal = indicParams?.topeAfcUf || 135.1;
+            const sisRateLocal = indicParams?.sisRate || 1.54;
+
+            // Horas Extras (Código DT 1003) y Descuento por Atrasos/Horas No Trabajadas
+            const montoHorasExtras = (sueldoBase && hrsExtras > 0) ? Math.round((sueldoBase / 180) * 1.5 * hrsExtras) : 0;
+            const montoDescuentoHoras = (sueldoBase && hrsDescontadas > 0) ? Math.round((sueldoBase / 180) * hrsDescontadas) : 0;
+            const totalOtrosDescuentos = totalDescuentos + montoDescuentoHoras;
+
+            const topeLegalCLP = Math.round((topeAfpLocal * ufHoy / BASE_DIAS) * workerDays);
+            
+            const SUELDO_MINIMO = immValue || 553553;
+            const topeGratifMensual = (SUELDO_MINIMO * 4.75) / 12;
+            const prorrateoTopeGratif = Math.round((topeGratifMensual / BASE_DIAS) * workerDays);
+            const baseParaGratificacion = prorrateadoSueldo + montoHorasExtras + prorrateadoBonoFijo + totalVariablesAjustado;
+            const gratificacion = Math.min(Math.round(baseParaGratificacion * 0.25), prorrateoTopeGratif);
+
+            const totalImponible = prorrateadoSueldo + montoHorasExtras + prorrateadoBonoFijo + totalVariablesAjustado + gratificacion;
+            const baseImponible = Math.min(totalImponible, topeLegalCLP);
+            const topeLegalAfcCLP = Math.round((topeAfcLocal * ufHoy / BASE_DIAS) * workerDays);
+            const baseImponibleAfc = Math.min(totalImponible, topeLegalAfcCLP);
+
+            const empAfpBase = (emp.afp || '').toUpperCase();
+            const afpRate = AFP_RATES[empAfpBase] || 0;
+            const afpMonto = afpRate ? Math.round(baseImponible * (afpRate / 100)) : 0;
+            const empAfp = afpRate ? `${empAfpBase} (${afpRate}%)` : empAfpBase;
+
+            const isFonasa = (emp.previsionSalud || '').toUpperCase() === 'FONASA';
+            let saludMonto = 0;
+            let saludEntidad = isFonasa ? 'FONASA (7%)' : (emp.isapreNombre || 'ISAPRE');
+            
+            if (isFonasa || !emp.valorPlan) {
+                saludMonto = Math.round(baseImponible * 0.07);
+                if (!isFonasa && !emp.valorPlan && emp.isapreNombre) {
+                    saludEntidad = `${emp.isapreNombre} (7% Legal)`;
+                }
+            } else {
+                const valPlan = parseFloat(emp.valorPlan) || 0;
+                const montoPactado = Math.round(valPlan * ufHoy);
+                const minimoLegal = Math.round(baseImponible * 0.07);
+                saludMonto = Math.max(minimoLegal, montoPactado); 
+                saludEntidad = minimoLegal > montoPactado ? `${emp.isapreNombre || 'ISAPRE'} (7% Legal)` : `${emp.isapreNombre || 'ISAPRE'} (${valPlan} UF)`;
+            }
+
+            // AFC y Leyes Sociales Patronales (Dinámico según Tipo de Contrato de Captura de Talento)
+            const contractType = (emp.tipoContrato || emp.contractType || 'INDEFINIDO').toUpperCase();
+            const esPlazoFijo = contractType.includes('PLAZO') || contractType.includes('OBRA') || contractType.includes('FAENA');
+            const esIndefinido = contractType.includes('INDEFINIDO') || !esPlazoFijo;
+            const afcTrabajadorMonto = esIndefinido ? Math.round(baseImponibleAfc * 0.006) : 0;
+            const afcPatronalRate = esIndefinido ? 2.4 : 3.0;
+            const afcPatronalMonto = Math.round(baseImponibleAfc * (afcPatronalRate / 100));
+
+            const cotizSalud7Legal = Math.round(baseImponible * 0.07);
+            const baseTributable = Math.max(0, totalImponible - afpMonto - cotizSalud7Legal - afcTrabajadorMonto);
+            const impuestoUnico = calcularImpuestoUnico(baseTributable, utmHoy);
+
+            const sisMonto = Math.round(baseImponible * (sisRateLocal / 100));
+            const tasaMutualReal = empresaConfig?.tasaMutual !== undefined ? empresaConfig.tasaMutual : 0.93;
+            const mutualMonto = Math.round(baseImponible * (tasaMutualReal / 100));
+            const expectativaMonto = Math.round(baseImponible * 0.005); 
+
+            const totalAportesPatronales = sisMonto + mutualMonto + expectativaMonto + afcPatronalMonto;
+
+            const totalDescuentosLegales = afpMonto + saludMonto + afcTrabajadorMonto + impuestoUnico;
+            const totalLiquido = totalImponible - totalDescuentosLegales - totalOtrosDescuentos + totalBeneficios;
+
+            result.push({
+                emp,
+                projectName: proj?.nombreProyecto || emp.projectName || 'General',
+                ceco,
+                sueldoBase,
+                prorrateadoSueldo,
+                montoHorasExtras,
+                montoDescuentoHoras,
+                totalFijos,
+                prorrateadoBonoFijo,
+                baremoBonus: baremoAjustado,
+                baremoRaw,
+                rrBonus: rrAjustado,
+                rrRaw,
+                aiBonus: aiAjustado,
+                aiRaw,
+                totalVariables: totalVariablesAjustado,
+                totalVariablesRaw: totalVariables,
+                factorAsistencia,
+                tieneAjusteAsistencia,
+                diasNoRemunerados,
+                totalCostoCaja,
+                rentabilidadBruta,
+                workerDays,
+                totalAsistencia,
+                totalInasistencia,
+                hrsTurno,
+                hrsTrabajadas,
+                hrsExtras,
+                hrsDescontadas,
+                hrsNoTrabajadas,
+                hrsLibres,
+                diasPermisos,
+                diasLicencias,
+                diasOperativosMes,
+                esMesCompleto,
+                diasResultadoPago,
+                totalDescuentos,
+                totalBeneficios,
+                gratificacion,
+                totalImponible,
+                totalDescuentosLegales,
+                totalLiquido,
+                empAfp,
+                afpMonto,
+                saludEntidad,
+                saludMonto,
+                afcTrabajadorMonto,
+                impuestoUnico,
+                sisMonto,
+                mutualMonto,
+                expectativaMonto,
+                afcPatronalMonto,
+                totalAportesPatronales
+            });
+        });
+
+        return result.sort((a, b) => b.totalImponible - a.totalImponible);
+    }, [employees, proyectos, bonosConfig, closures, modelosBono, asistenciaData, descuentosData, beneficiosData, empresaConfig, searchTerm, filterCeco, filterProyecto, filterCargo, filterStatus, period, diasMes, ufValue, utmValue, immValue, indicParams]);
+
+    const sumImponible = consolidado.reduce((sum, c) => sum + (c.totalImponible || 0), 0);
+    const sumCotizaciones = consolidado.reduce((sum, c) => sum + (c.totalDescuentosLegales || 0), 0);
+    const sumDescuentos = consolidado.reduce((sum, c) => sum + (c.totalDescuentos || 0), 0);
+    const sumBeneficios = consolidado.reduce((sum, c) => sum + (c.totalBeneficios || 0), 0);
+    const sumLiquido = consolidado.reduce((sum, c) => sum + (c.totalLiquido || 0), 0);
+    const sumAportesPatronales = consolidado.reduce((sum, c) => sum + (c.totalAportesPatronales || 0), 0);
+    const sumCostoEmpresa = sumImponible + sumAportesPatronales;
+
+    // Exportación LRE Oficial DT Chile en formato Excel (.xlsx)
+    const handleExportLRE = () => {
+        if (!consolidado.length) return;
+        const [y, m] = period.split('-');
+
+        const rows = consolidado.map(c => {
+            const cleanRutStr = (c.emp.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+            const rutBody = cleanRutStr.slice(0, -1);
+            const rutDv = cleanRutStr.slice(-1);
+            const nameParts = (c.emp.fullName || '').trim().split(' ');
+            const apellidoPaterno = nameParts.length > 2 ? nameParts[nameParts.length - 2] : (nameParts[1] || '');
+            const apellidoMaterno = nameParts.length > 2 ? nameParts[nameParts.length - 1] : '';
+            const nombres = nameParts.length > 2 ? nameParts.slice(0, -2).join(' ') : (nameParts[0] || '');
+
+            return {
+                'RUT Trabajador': rutBody,
+                'DV Trabajador': rutDv,
+                'Nombres': nombres,
+                'Apellido Paterno': apellidoPaterno,
+                'Apellido Materno': apellidoMaterno,
+                'Cargo': c.emp.position || 'Especialista',
+                'Proyecto': c.projectName,
+                'CECO': c.ceco || 'N/A',
+                'Fecha Ingreso': c.emp.contractStartDate || c.emp.fechaIngreso || '-',
+                'Fecha Retiro': c.emp.fechaFiniquito || '-',
+                'Días Trabajados (Base 30)': c.workerDays,
+                'Días Licencia Médica': c.diasLicencias || 0,
+                'Días Inasistencia': c.totalInasistencia || 0,
+                
+                // Haberes Imponibles
+                '1010 - Sueldo Base': c.prorrateadoSueldo || 0,
+                '1001 - Semana Corrida': 0,
+                '1003 - Horas Extras Recargo 50%': 0,
+                '1020 - Gratificación Legal (Art. 50)': c.gratificacion || 0,
+                '1040 - Producción Real (Baremo)': c.baremoBonus || 0,
+                '1041 - Bonificación Calidad (DAT/RR/AI)': (c.rrBonus || 0) + (c.aiBonus || 0),
+                '1050 - Bono Asistencia': c.prorrateadoBonoFijo || 0,
+                'TOTAL HABERES IMPONIBLES': c.totalImponible || 0,
+
+                // Haberes No Imponibles
+                '2010 - Viáticos / Terreno': 0,
+                '2020 - Movilización': 0,
+                '2030 - Colación': 0,
+                '2060 - Asignación Familiar': c.totalBeneficios || 0,
+                'TOTAL HABERES NO IMPONIBLES': c.totalBeneficios || 0,
+                'TOTAL HABERES': (c.totalImponible || 0) + (c.totalBeneficios || 0),
+
+                // Descuentos Legales
+                '3010 - Cotización AFP': c.afpMonto || 0,
+                '3020 - Cotización Salud 7% / Isapre': c.saludMonto || 0,
+                '3030 - Seguro Cesantía AFC Trabajador': c.afcTrabajadorMonto || 0,
+                '3040 - Impuesto Único 2da Categoría': c.impuestoUnico || 0,
+                'TOTAL DESCUENTOS LEGALES': c.totalDescuentosLegales || 0,
+
+                // Otros Descuentos & Líquido
+                '4050 - Otros Descuentos': c.totalDescuentos || 0,
+                '5010 - LÍQUIDO A PAGAR': c.totalLiquido || 0,
+
+                // Leyes Sociales Patronales
+                '6010 - SIS Empleador (1.54%)': c.sisMonto || 0,
+                '6020 - Mutualidad Accidentes Trabajo': c.mutualMonto || 0,
+                '6030 - AFC Patronal Empleador': c.afcPatronalMonto || 0,
+                '6040 - Seguro Longevidad / Expectativa (0.5%)': c.expectativaMonto || 0,
+                'TOTAL APORTES PATRONALES': c.totalAportesPatronales || 0,
+                'COSTO TOTAL EMPRESA': (c.totalImponible || 0) + (c.totalAportesPatronales || 0)
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, `LRE_DT_${m}_${y}`);
+
+        const fileName = `LRE_Libro_Remuneraciones_DT_Chile_${m}_${y}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+    };
+
+    // Exportación CSV Oficial Portal Mi DT
+    const handleExportCSV_DT = () => {
+        if (!consolidado.length) return;
+        const [y, m] = period.split('-');
+
+        const headers = [
+            'RutTrabajador', 'DvTrabajador', 'Nombres', 'ApellidoPaterno', 'ApellidoMaterno',
+            'Cargo', 'FechaIngreso', 'FechaRetiro', 'DiasTrabajados', 'DiasLicenciaMedica', 'DiasInasistencia',
+            '1010', '1001', '1003', '1020', '1040', '1041', '1050', 'TotImponible',
+            '2010', '2020', '2030', '2060', 'TotNoImponible', 'TotHaberes',
+            '3010', '3020', '3030', '3040', 'TotDescLegales', '4050', '5010'
+        ];
+
+        const csvLines = [headers.join(';')];
+
+        consolidado.forEach(c => {
+            const cleanRutStr = (c.emp.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+            const rutBody = cleanRutStr.slice(0, -1);
+            const rutDv = cleanRutStr.slice(-1);
+            const nameParts = (c.emp.fullName || '').trim().split(' ');
+            const apellidoPaterno = nameParts.length > 2 ? nameParts[nameParts.length - 2] : (nameParts[1] || '');
+            const apellidoMaterno = nameParts.length > 2 ? nameParts[nameParts.length - 1] : '';
+            const nombres = nameParts.length > 2 ? nameParts.slice(0, -2).join(' ') : (nameParts[0] || '');
+
+            const row = [
+                rutBody,
+                rutDv,
+                `"${nombres}"`,
+                `"${apellidoPaterno}"`,
+                `"${apellidoMaterno}"`,
+                `"${c.emp.position || 'Especialista'}"`,
+                c.emp.contractStartDate || c.emp.fechaIngreso || '',
+                c.emp.fechaFiniquito || '',
+                c.workerDays,
+                c.diasLicencias || 0,
+                c.totalInasistencia || 0,
+                c.prorrateadoSueldo || 0,
+                0,
+                c.montoHorasExtras || 0,
+                c.gratificacion || 0,
+                c.baremoBonus || 0,
+                (c.rrBonus || 0) + (c.aiBonus || 0),
+                c.prorrateadoBonoFijo || 0,
+                c.totalImponible || 0,
+                0,
+                0,
+                0,
+                c.totalBeneficios || 0,
+                c.totalBeneficios || 0,
+                (c.totalImponible || 0) + (c.totalBeneficios || 0),
+                c.afpMonto || 0,
+                c.saludMonto || 0,
+                c.afcTrabajadorMonto || 0,
+                c.impuestoUnico || 0,
+                c.totalDescuentosLegales || 0,
+                (c.montoDescuentoHoras || 0) + (c.totalDescuentos || 0),
+                c.totalLiquido || 0
+            ];
+            csvLines.push(row.join(';'));
+        });
+
+        const csvContent = csvLines.join('\r\n');
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `LRE_Carga_Portal_MiDT_Chile_${m}_${y}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    };
+
+    // Descarga masiva ultra-rápida de liquidaciones de sueldo PDF
+    const handleMassiveDownload = async () => {
+        if (!consolidado.length) return;
+        setDownloadingMassive(true);
+        setAlert({ type: 'info', msg: 'Generando liquidaciones de sueldo masivas (modo ultra-rápido)...' });
+
+        try {
+            const h2c = (await import('html2canvas')).default;
+            const { jsPDF } = await import('jspdf');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            for (let i = 0; i < consolidado.length; i++) {
+                const item = consolidado[i];
+                setSelected(item);
+                await new Promise(r => setTimeout(r, 80));
+
+                const node = document.getElementById('liq-doc-printable');
+                if (node) {
+                    const originalClass = node.className;
+                    node.classList.add('html2canvas-capture-fix');
+                    const canvas = await h2c(node, { scale: 1.5, useCORS: true, logging: false });
+                    node.className = originalClass;
+
+                    const img = canvas.toDataURL('image/jpeg', 0.85);
+                    if (i > 0) pdf.addPage();
+                    pdf.addImage(img, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+                }
+            }
+
+            pdf.save(`Liquidaciones_Sueldo_Masivas_${period}.pdf`);
+            setSelected(null);
+            setAlert({ type: 'success', msg: '✓ Descarga masiva completada exitosamente.' });
+        } catch (e) {
+            console.error('Error en descarga masiva:', e);
+            setAlert({ type: 'error', msg: 'Error al generar liquidaciones masivas.' });
+        } finally {
+            setDownloadingMassive(false);
+        }
+    };
+
+    const handleCerrarPeriodo = async () => {
+        setConfirmModal({
+            title: '¿Confirmar Cierre del Período de Nómina?',
+            message: `Se congelará la nómina de ${consolidado.length} colaboradores para el período ${period}. ¿Deseas proceder?`,
+            action: async () => {
+                setConfirmModal(null);
+                setAlert({ type: 'success', msg: `✓ Período ${period} cerrado y congelado exitosamente.` });
+                setTimeout(() => setAlert(null), 3000);
+            }
+        });
+    };
 
     return (
-        <div className="w-full overflow-x-hidden relative min-h-full bg-slate-50/50 p-6 pb-20">
-            {/* ── HEADER EJECUTIVO ── */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 mt-4">
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-200">
-                            <CircleDollarSign size={24} />
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                Nómina <span className="text-indigo-600">& Remuneraciones</span>
-                            </h1>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-                                Libro de Remuneraciones Electrónico · Período {period} · Conforme a Normativa DT 2026
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
-                                <div className="flex items-center gap-2 py-1 px-3 bg-amber-50 border border-amber-100 rounded-lg w-fit">
-                                    <TrendingUp size={10} className="text-amber-500" />
-                                    <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">
-                                        Producción Variables: Mes Actual ({( () => {
-                                            const [y, m] = period.split('-').map(Number);
-                                            return `${String(m).padStart(2, '0')}/${y}`;
-                                        })()})
-                                    </span>
-                                    <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[7px] font-black">
-                                        SC: {productionStats.diasHabiles}H/{productionStats.domingosFestivos}D
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4">
-                    {/* Periodo y Días Pago Actual */}
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-3xl shadow-sm">
-                        <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
-                            <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
-                                className="pl-9 pr-6 py-2 bg-transparent border-none text-[11px] font-black uppercase text-slate-700 focus:outline-none" />
-                        </div>
-                        <div className="w-px h-6 bg-slate-100 mx-1" />
-                        <div className="flex flex-col pr-1">
-                            <span className="text-[6px] font-black text-slate-400 uppercase leading-none">Días Pago</span>
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-black text-slate-400">H</span>
-                                    <input type="number" value={periodStats.diasHabiles} 
-                                        onChange={e => setPeriodStats(prev => ({...prev, diasHabiles: parseInt(e.target.value) || 0}))} 
-                                        className="w-8 text-[11px] font-black text-slate-600 focus:outline-none bg-transparent" />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-black text-slate-400">D</span>
-                                    <input type="number" value={periodStats.domingosFestivos} 
-                                        onChange={e => setPeriodStats(prev => ({...prev, domingosFestivos: parseInt(e.target.value) || 0}))} 
-                                        className="w-8 text-[11px] font-black text-slate-600 focus:outline-none bg-transparent" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Días Producción (Semana Corrida) */}
-                    <div className="flex items-center gap-2 bg-indigo-50/50 border border-indigo-200/50 p-1.5 rounded-3xl shadow-sm">
-                        <div className="p-2 bg-indigo-600 text-white rounded-2xl"><TrendingUp size={14} /></div>
-                        <div className="flex flex-col pr-3">
-                            <span className="text-[6px] font-black text-indigo-400 uppercase leading-none">Días Prod. (SC)</span>
-                            <div className="flex items-center gap-3 mt-0.5">
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-black text-indigo-400">H:</span>
-                                    <input type="number" value={productionStats.diasHabiles} 
-                                        onChange={e => setProductionStats(prev => ({...prev, diasHabiles: parseInt(e.target.value) || 0}))} 
-                                        className="w-8 text-[11px] font-black text-indigo-700 focus:outline-none bg-transparent" />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-black text-indigo-400">D:</span>
-                                    <input type="number" value={productionStats.domingosFestivos} 
-                                        onChange={e => setProductionStats(prev => ({...prev, domingosFestivos: parseInt(e.target.value) || 0}))} 
-                                        className="w-8 text-[11px] font-black text-indigo-700 focus:outline-none bg-transparent" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button onClick={handleExportLRE} className="group flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all active:scale-95">
-                        <Download size={14} className="text-indigo-500 group-hover:scale-110 transition-transform" /> Exportar DT
-                    </button>
-
-                    <button onClick={handleExportTable} className="group flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all active:scale-95">
-                        <ClipboardList size={14} className="text-teal-500 group-hover:scale-110 transition-transform" /> Exportar Tabla
-                    </button>
-                    
-                    <button onClick={() => setShowAuditPanel(!showAuditPanel)} className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 z-50 ${auditResults.length > 0 ? 'bg-rose-50 text-rose-600 border border-rose-200 ring-4 ring-rose-500/10' : 'bg-white border border-slate-200 text-slate-500'}`}>
-                        <Scale size={14} className={auditResults.length > 0 ? 'animate-pulse' : ''} /> 
-                        Auditoría {auditResults.length > 0 && `(${auditResults.length})`}
-                    </button>
-
-                    <button onClick={handleSaveHistorial} disabled={saving || filtered.length === 0}
-                        className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all disabled:opacity-50 active:scale-95">
-                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                        {saving ? 'Procesando...' : 'Cerrar Período'}
-                    </button>
-                </div>
-            </div>
-
-            {/* ── DASHBOARD DE TOTALES CRYSTAL ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5 mb-8">
-                {[
-                    { label: 'Colaboradores', value: filtered.length, icon: Users, theme: 'bg-white text-slate-800 border-slate-100', suffix: 'activos' },
-                    { label: 'Total Bruto', value: totales.bruto, icon: CircleDollarSign, theme: 'bg-indigo-600 text-white shadow-indigo-100', isMoney: true },
-                    { label: 'Total Impon.', value: totales.imponible, icon: ShieldCheck, theme: 'bg-violet-600 text-white shadow-violet-100', isMoney: true },
-                    { label: 'Expectativa Vida', value: totales.longevidad, icon: Heart, theme: 'bg-amber-500 text-white shadow-amber-100', isMoney: true, suffix: 'Ley 2026' },
-                    { label: 'Descuentos', value: totales.descuentos, icon: TrendingDown, theme: 'bg-rose-600 text-white shadow-rose-100', isMoney: true },
-                    { label: 'Líquido Total', value: totales.liquido, icon: Landmark, theme: 'bg-emerald-600 text-white shadow-emerald-100', isMoney: true },
-                ].map((s, i) => (
-                    <div key={i} className={`${s.theme} p-6 rounded-[2rem] border shadow-xl relative overflow-hidden group`}>
-                        <div className={`absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500 ${s.isMoney ? 'scale-150' : 'scale-100'}`}>
-                            <s.icon size={80} />
-                        </div>
-                        <div className="relative z-10 flex flex-col h-full justify-between">
-                            <div className="flex items-center justify-between mb-4">
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-80">{s.label}</span>
-                                <div className={`p-2 rounded-xl sm:block hidden ${s.isMoney ? 'bg-white/20' : 'bg-indigo-50 text-indigo-600'}`}><s.icon size={16} /></div>
-                            </div>
-                            <div>
-                                <p className="text-2xl font-black tracking-tight leading-none mb-1">
-                                    {s.isMoney ? `$${(s.value / 1000).toLocaleString('es-CL', { maximumFractionDigits: (s.value < 1000000 ? 0 : 1) })}k` : s.value}
-                                </p>
-                                <p className="text-[9px] font-bold opacity-60 uppercase">{s.suffix || 'CLP Consolidado'}</p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Costo Empresa Extra Premium */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-                <div className="md:col-span-2 bg-white/50 backdrop-blur-md border border-white rounded-[2rem] p-4 pr-8 flex items-center justify-between shadow-2xl shadow-indigo-50/50">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-800 text-white flex items-center justify-center shadow-lg"><Building2 size={24} /></div>
-                        <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Costo Total Empresa</span>
-                            <span className="text-[8px] font-bold text-indigo-500 uppercase">Cálculo 2026: Haberes + SIS + Mutual + AFC Patronal</span>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <span className="text-4xl font-black text-slate-800 tabular-nums tracking-tighter">{fmt(totales.costoEmpresa)}</span>
-                        <span className="text-[10px] font-bold text-slate-400 block -mt-1">IVA No Aplicable</span>
-                    </div>
-                </div>
-
-                <div className="bg-slate-800 rounded-[2rem] p-5 text-white shadow-xl shadow-slate-100 flex items-center justify-between overflow-hidden relative">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
-                    <div className="relative z-10">
-                        <span className="text-[9px] font-black uppercase tracking-widest opacity-80 block mb-1">Expectativa de Vida 2026</span>
-                        <span className="text-2xl font-black tabular-nums">{fmt(totales.costoEmpresa ? Math.round(totales.imponible * 0.005) : 0)}</span>
-                        <p className="text-[7px] font-bold uppercase mt-1 opacity-60">Aporte Patronal Longevidad (0.5%)</p>
-                    </div>
-                    <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center relative z-10"><ShieldCheck size={18} /></div>
-                </div>
-            </div>
-
-            {/* Alertas Legales */}
-            {legalAlerts.length > 0 && (
-                <div className="mb-8 p-5 rounded-[2rem] bg-rose-50/50 border border-rose-100/50 backdrop-blur-sm animate-in fade-in zoom-in duration-500">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-200"><AlertCircle size={18} /></div>
-                        <div>
-                            <h3 className="text-sm font-black text-rose-800 uppercase tracking-tight">Vigilancia Legal DT</h3>
-                            <p className="text-[9px] font-bold text-rose-400 uppercase tracking-widest">Se han detectado {legalAlerts.length} inconsistencias en topes impositivos</p>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {legalAlerts.slice(0, 3).map((a, i) => (
-                            <div key={i} className="p-4 bg-white/60 rounded-2xl border border-rose-100 shadow-sm">
-                                <p className="text-[10px] font-black text-slate-800 uppercase leading-none mb-1">{a.worker}</p>
-                                <p className="text-[9px] font-bold text-rose-500 uppercase mb-2">{a.bono} excede razonabilidad</p>
-                                <div className="flex items-end justify-between border-t border-rose-50 pt-2">
-                                    <span className="text-[8px] font-bold text-slate-400 uppercase">Monto</span>
-                                    <span className="text-xs font-black text-rose-600">{fmt(a.monto)}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* ── PANEL COSTO POR CLIENTE ── */}
-            {clienteBreakdown.length > 0 && (
-                <div className="mb-8">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                            <Building2 size={16} />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Costo por Cliente</h3>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Costo total de remuneraciones por cliente · Clic para filtrar</p>
-                        </div>
-                        {filterCliente && (
-                            <button onClick={() => { setFilterCliente(''); setFilterProyecto(''); }}
-                                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-500 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all border border-rose-100">
-                                <X size={10} /> Ver todos
-                            </button>
-                        )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {clienteBreakdown.map((cl, i) => {
-                            const isActive = filterCliente === cl.id;
-                            return (
-                                <button
-                                    key={cl.id}
-                                    onClick={() => {
-                                        setFilterCliente(isActive ? '' : cl.id);
-                                        setFilterProyecto('');
-                                    }}
-                                    className={`text-left p-5 rounded-[1.5rem] border transition-all hover:shadow-lg active:scale-[0.98] ${
-                                        isActive
-                                            ? 'bg-indigo-600 border-indigo-500 shadow-xl shadow-indigo-100'
-                                            : 'bg-white border-slate-100 shadow-sm hover:border-indigo-200'
-                                    }`}
-                                >
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`text-[10px] font-black uppercase tracking-tight truncate ${isActive ? 'text-white' : 'text-slate-800'}`}>{cl.nombre}</p>
-                                            <p className={`text-[8px] font-bold uppercase mt-0.5 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>{cl.count} colaborador{cl.count !== 1 ? 'es' : ''}</p>
-                                        </div>
-                                        <div className={`text-[8px] font-black px-2 py-1 rounded-lg ${isActive ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'}`}>#{i + 1}</div>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between items-center">
-                                            <span className={`text-[8px] font-bold uppercase ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>Costo Empresa</span>
-                                            <span className={`text-[11px] font-black tabular-nums ${isActive ? 'text-white' : 'text-slate-800'}`}>{fmt(cl.costo)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className={`text-[8px] font-bold uppercase ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>Líquido</span>
-                                            <span className={`text-[10px] font-black tabular-nums ${isActive ? 'text-indigo-100' : 'text-emerald-600'}`}>{fmt(cl.liquido)}</span>
-                                        </div>
-                                        <div className={`mt-2 pt-2 border-t ${isActive ? 'border-white/20' : 'border-slate-50'}`}>
-                                            <div className="flex justify-between items-center">
-                                                <span className={`text-[8px] font-bold uppercase ${isActive ? 'text-indigo-200' : 'text-slate-300'}`}>Imponible</span>
-                                                <span className={`text-[9px] font-black tabular-nums ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{fmt(cl.imponible)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* ── TABLA DE REMUNERACIONES MASTER ── */}
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl overflow-hidden mb-12">
-                {/* ── PANEL ESTADO DE INTEGRACIÓN ── */}
-                <div className="px-6 pt-5 pb-2 flex flex-wrap items-center gap-2">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Fuentes activas:</span>
-                    {closuresData.length > 0 ? (
-                        closuresData.map(cl => (
-                            <span key={cl._id} className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-xl text-[8px] font-black text-indigo-600 uppercase tracking-widest">
-                                <CheckCircle2 size={9} /> Cierre: {cl.modeloRef?.nombre || 'Bono'}
-                            </span>
-                        ))
-                    ) : (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-xl text-[8px] font-black text-amber-600 uppercase tracking-widest">
-                            <AlertCircle size={9} /> Sin cierres para este período
-                        </span>
-                    )}
-                    {Object.keys(asistenciaSyncData).length > 0 ? (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-teal-50 border border-teal-100 rounded-xl text-[8px] font-black text-teal-600 uppercase tracking-widest">
-                            <CalendarCheck size={9} /> Asistencia: {Object.keys(asistenciaSyncData).length} sincronizados
-                        </span>
-                    ) : (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                            <Calendar size={9} /> Asistencia: cálculo estándar
-                        </span>
-                    )}
-                    {bonosConfig.length > 0 && (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 border border-violet-100 rounded-xl text-[8px] font-black text-violet-600 uppercase tracking-widest">
-                            <ShieldCheck size={9} /> {bonosConfig.length} tipos de bono
-                        </span>
-                    )}
-                </div>
-
-                {/* TOOLBAR SUPERIOR */}
-                <div className="p-6 border-b border-slate-50 bg-slate-50/20 backdrop-blur-sm flex flex-col gap-4">
-                    {/* Fila 1: Búsqueda + Filtros Unificados */}
-                    <div className="flex flex-wrap items-center gap-4 bg-white/50 p-4 rounded-3xl border border-slate-100 shadow-sm">
-                        {/* FILTRO ESTADO */}
-                        <div className="flex bg-slate-100/80 p-1 rounded-2xl border border-slate-200 shadow-inner">
-                            {[
-                                { id: 'Operativo', label: 'Operativos', icon: CheckCircle2, color: 'text-emerald-600' },
-                                { id: 'Finiquitado', label: 'Finiquitados', icon: UserMinus, color: 'text-rose-600' },
-                                { id: 'Todos', label: 'Todos', icon: Users, color: 'text-indigo-600' }
-                            ].map(s => (
-                                <button
-                                    key={s.id}
-                                    onClick={() => setFilterStatus(s.id)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${
-                                        filterStatus === s.id
-                                            ? 'bg-white text-slate-800 shadow-lg scale-105 active:scale-95'
-                                            : 'text-slate-400 hover:text-slate-600'
-                                    }`}
-                                >
-                                    <s.icon size={12} className={filterStatus === s.id ? s.color : ''} />
-                                    {s.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* FILTRO CLIENTE */}
-                        <div className="relative min-w-[180px]">
-                            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none" size={14} />
-                            <select
-                                value={filterCliente}
-                                onChange={e => { setFilterCliente(e.target.value); setFilterProyecto(''); }}
-                                className="w-full pl-9 pr-10 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-700 shadow-sm focus:outline-none focus:ring-4 focus:ring-indigo-50 appearance-none transition-all"
-                            >
-                                <option value="">Todos los Clientes</option>
-                                {clienteBreakdown.map(cl => (
-                                    <option key={cl.id} value={cl.id}>{cl.nombre}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={12} />
-                        </div>
-
-                        {/* FILTRO PROYECTO */}
-                        <div className="relative min-w-[180px]">
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 pointer-events-none" size={14} />
-                            <select
-                                value={filterProyecto}
-                                onChange={e => setFilterProyecto(e.target.value)}
-                                className="w-full pl-9 pr-10 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-700 shadow-sm focus:outline-none focus:ring-4 focus:ring-emerald-50 appearance-none transition-all"
-                            >
-                                <option value="">Todos los Proyectos</option>
-                                {availableProyectos
-                                    .filter(p => !filterCliente || p.clienteId === filterCliente)
-                                    .map(p => (
-                                        <option key={p.nombre} value={p.nombre}>{p.nombre}</option>
-                                    ))}
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={12} />
-                        </div>
-
-                        {/* FILTRO CARGO */}
-                        <div className="relative min-w-[180px]">
-                            <BriefcaseIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400 pointer-events-none" size={14} />
-                            <select
-                                value={filterCargo}
-                                onChange={e => setFilterCargo(e.target.value)}
-                                className="w-full pl-9 pr-10 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-700 shadow-sm focus:outline-none focus:ring-4 focus:ring-violet-50 appearance-none transition-all"
-                            >
-                                <option value="">Todos los Cargos</option>
-                                {availableCargos.map(cargo => (
-                                    <option key={cargo} value={cargo}>{cargo}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={12} />
-                        </div>
-
-                        {/* BUSCADOR */}
-                        <div className="relative flex-1 min-w-[240px]">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-                            <input type="text" placeholder="Búsqueda rápida (Nombre, RUT, Cargo)..." value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all placeholder:text-slate-300 uppercase" />
-                        </div>
-
-                        {/* LIMPIAR */}
-                        {(filterCliente || filterProyecto || filterCargo || searchTerm || filterStatus !== 'Operativo') && (
-                            <button onClick={() => { setFilterCliente(''); setFilterProyecto(''); setFilterCargo(''); setSearchTerm(''); setFilterStatus('Operativo'); }}
-                                className="flex items-center gap-1.5 px-4 py-3 bg-rose-50 text-rose-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all border border-rose-100 group">
-                                <X size={12} className="group-hover:rotate-90 transition-transform" /> 
-                            </button>
-                        )}
-                    </div>
-
-
-                    {/* Fila 2: Acciones */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* SYNC ASISTENCIA → NÓMINA */}
-                        <button onClick={handleSyncAsistencia} disabled={syncingAsistencia}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-teal-50 text-teal-700 border border-teal-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-teal-600 hover:text-white transition-all shadow-sm disabled:opacity-50"
-                            title={`Importar días trabajados y horas extra reales desde el módulo de Asistencia para el período ${period}`}>
-                            {syncingAsistencia
-                                ? <Loader2 size={13} className="animate-spin" />
-                                : <CalendarCheck size={13} />}
-                            Sync Asistencia
-                            {Object.keys(asistenciaSyncData).length > 0 && (
-                                <span className="bg-teal-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full ml-1">
-                                    {Object.keys(asistenciaSyncData).length}
-                                </span>
-                            )}
-                        </button>
-                        {Object.keys(asistenciaSyncData).length > 0 && (
-                            <button onClick={() => { setAsistenciaSyncData({}); setAlert({ type: 'success', msg: 'Datos de asistencia eliminados — volviendo a cálculo estándar.' }); setTimeout(() => setAlert(null), 3000); }}
-                                className="flex items-center gap-1.5 px-3 py-2.5 bg-white text-slate-400 border border-slate-100 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-500 hover:border-rose-100 transition-all shadow-sm"
-                                title="Eliminar sincronización de asistencia y volver al cálculo estándar">
-                                <X size={11} /> Limpiar Sync
-                            </button>
-                        )}
-                        <button onClick={handleExportTable}
-                            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all active:scale-95">
-                            <FileText size={14} className="text-emerald-500" /> Exportar Tabla
-                        </button>
-                        <button onClick={handleMassiveDownload} disabled={loading || !filtered.length || downloadingMassive}
-                            className={`flex items-center gap-2 px-6 py-3 ${downloadingMassive ? 'bg-amber-100 text-amber-700' : 'bg-slate-800 text-white'} rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 shadow-lg shadow-slate-200 transition-all active:scale-95 disabled:opacity-50`}>
-                            {downloadingMassive ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} className="text-indigo-400" />}
-                            {downloadingMassive ? 'Generando...' : 'Descarga Masiva'}
-                        </button>
-                        <button onClick={fetchNomina}
-                            className="p-3 bg-white border border-slate-100 text-slate-400 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
-                            <Loader2 size={16} className={loading ? 'animate-spin text-indigo-500' : ''} />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto custom-scrollbar pb-4">
-                    <table className="w-full text-left min-w-[1200px] border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50/80 backdrop-blur-xl sticky top-0 z-30 transition-shadow group">
-                                <th className="px-6 py-6 whitespace-nowrap bg-slate-50/80 border-b border-slate-100">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaborador</span>
-                                </th>
-                                <th className="px-4 py-6 border-b border-slate-100">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-black text-violet-500 uppercase tracking-widest">Cargo</span>
-                                        <span className="text-[8px] font-bold text-indigo-400 uppercase">Cliente · Proyecto</span>
-                                    </div>
-                                </th>
-                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
-                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Pres.</span>
-                                        <CheckCircle2 size={11} className="text-emerald-500 mt-1" />
-                                    </div>
-                                </th>
-                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
-                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Aus.</span>
-                                        <XCircle size={11} className="text-rose-500 mt-1" />
-                                    </div>
-                                </th>
-                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
-                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Lic.</span>
-                                        <Stethoscope size={11} className="text-amber-500 mt-1" />
-                                    </div>
-                                </th>
-                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
-                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Inicio</span>
-                                        <CalendarCheck size={11} className="text-emerald-500 mt-1" />
-                                    </div>
-                                </th>
-                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
-                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Contrato</span>
-                                        <Award size={11} className="text-amber-500 mt-1" />
-                                    </div>
-                                </th>
-                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
-                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white text-slate-400">
-                                        <span className="text-[7px] font-black uppercase tracking-tighter">Días</span>
-                                        <Calendar size={11} className="text-indigo-500 mt-1" />
-                                    </div>
-                                </th>
-                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
-                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Térm.</span>
-                                        <UserMinus size={11} className="text-rose-400 mt-1" />
-                                    </div>
-                                </th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <ColHeader label="Sueldo Base" code="1010" />
-                                </th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <ColHeader label="Sm. Corrida" code="1001" colorClass="text-teal-600" bgClass="bg-teal-50 border-teal-100" />
-                                </th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <ColHeader label="Gratif. Legal" code="1020" />
-                                </th>
-
-                                {closuresData.map(cl => (
-                                    <th key={cl.modeloRef?._id} className="px-4 py-6 text-right border-b border-slate-100">
-                                        <ColHeader
-                                            label={cl.modeloRef?.nombre || 'Bono'}
-                                            code={cl.modeloRef?.tipoBonoRef?.codigo || '1030'}
-                                            colorClass="text-indigo-600"
-                                            bgClass="bg-indigo-50 border-indigo-100"
-                                        />
-                                    </th>
-                                ))}
-
-                                <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <ColHeader label="B. Asistencia" code="1050" colorClass="text-emerald-600" bgClass="bg-emerald-50 border-emerald-100" />
-                                </th>
-
-                                <th className="px-4 py-6 text-right bg-slate-50/40 border-b border-slate-100">
-                                   <div className="flex flex-col items-end">
-                                       <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">1011</span>
-                                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">H. Extra</span>
-                                   </div>
-                                </th>
-                                <th className="px-4 py-6 text-right bg-indigo-50/40 border-b border-indigo-100">
-                                   <div className="flex flex-col items-end">
-                                       <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest leading-none">CANT</span>
-                                       <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tight text-right">H. Pagadas</span>
-                                   </div>
-                                </th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Tot Impon.</span></th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-teal-400 uppercase tracking-widest">No Impon.</span></th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Total Haberes</span></th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">AFP</span></th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Salud</span></th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">AFC</span></th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Impuesto</span></th>
-                                <th className="px-4 py-6 text-right border-b border-slate-100"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Otros</span></th>
-                                <th className="px-4 py-6 text-right border-b border-indigo-100 bg-indigo-50/20"><span className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Liquido</span></th>
-                                <th className="px-6 py-6 text-center border-b border-slate-100"><BriefcaseIcon size={16} className="mx-auto text-slate-300" /></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan="30" className="py-32 text-center">
-                                        <div className="flex flex-col items-center gap-4">
-                                            <div className="relative">
-                                                <Loader2 size={48} className="animate-spin text-indigo-600 opacity-20" />
-                                                <Loader2 size={48} className="animate-spin text-indigo-600 absolute inset-0 [animation-delay:-0.3s]" />
-                                            </div>
-                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Orquestando datos legales...</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : filtered.length === 0 ? (
-                                <tr>
-                                    <td colSpan="30" className="py-32 text-center">
-                                        <div className="max-w-xs mx-auto">
-                                            <div className="w-16 h-16 rounded-[2rem] bg-slate-50 flex items-center justify-center text-slate-300 mx-auto mb-4 border-2 border-dashed border-slate-100"><Search size={24} /></div>
-                                            <p className="text-sm font-black text-slate-800 uppercase mb-1">Sin coincidencias</p>
-                                            <p className="text-xs text-slate-400 font-medium leading-relaxed">No encontramos técnicos para el filtro actual. Verifica la búsqueda o sincroniza el período.</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : filtered.map(e => {
-                                const l = e._liq;
-                                if (!l) return null;
-                                return (
-                                    <tr key={e._id} className={`hover:bg-indigo-50/20 transition-all group/row ${auditResults.some(i => i.id === e.rut) ? 'bg-rose-50/10' : ''}`}>
-                                        <td className="px-6 py-5 sticky left-0 bg-white group-hover/row:bg-indigo-50/20 z-10 transition-colors">
-                                            <div className="flex items-center gap-4 relative">
-                                                {auditResults.some(i => i.id === e.rut && i.type === 'critical') && (
-                                                    <div className="absolute -top-1 -left-1 p-1.5 bg-rose-500 text-white rounded-full z-20 shadow-xl animate-bounce">
-                                                        <AlertCircle size={10} />
-                                                    </div>
-                                                )}
-                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase shadow-inner border border-slate-200 shrink-0">
-                                                    {e.profilePic ? <img src={e.profilePic} alt="" className="w-full h-full object-cover rounded-xl" /> : e.fullName?.substring(0, 2)}
-                                                </div>
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight">{e.fullName}</span>
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
-                                                        RUT: {formatRut(e.rut)}
-                                                    </span>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-lg border uppercase tracking-tighter transition-all ${
-                                                            e.status === 'Finiquitado' 
-                                                                ? 'bg-rose-50 text-rose-500 border-rose-100 animate-pulse' 
-                                                                : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                        }`}>
-                                                            {e.status}
-                                                        </span>
-                                                        <span className="text-[8px] font-black bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-lg border border-indigo-100">{e.afp}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-5">
-                                            <div className="flex flex-col min-w-0 max-w-[150px]">
-                                                <span className="text-[10px] font-black text-violet-700 uppercase tracking-tight truncate">{e.position || e.cargo || '—'}</span>
-                                                <button
-                                                    onClick={() => { setFilterCliente(e._clienteId || ''); setFilterProyecto(''); }}
-                                                    className="text-[8px] font-black text-indigo-500 hover:text-indigo-700 truncate mt-0.5 text-left transition-colors"
-                                                    title={`Filtrar por ${e._clienteNombre}`}
-                                                >
-                                                    {e._clienteNombre !== '—' ? e._clienteNombre : '—'}
-                                                </button>
-                                                {e._proyectoNombre && e._proyectoNombre !== '—' && (
-                                                    <button
-                                                        onClick={() => { setFilterProyecto(e._proyectoNombre); setFilterCliente(e._clienteId || ''); }}
-                                                        className="text-[7px] font-bold text-emerald-500 hover:text-emerald-700 truncate text-left transition-colors"
-                                                        title={`Filtrar por proyecto ${e._proyectoNombre}`}
-                                                    >
-                                                        {e._proyectoNombre}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                        {/* NUEVAS CELDAS ASISTENCIA */}
-                                        <td className="px-2 py-5 text-center">
-                                            <span className={`text-[10px] font-black ${e._asistencia?.diasPresente > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
-                                                {e._asistencia?.diasPresente || 0}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-5 text-center">
-                                            <span className={`text-[10px] font-black ${e._asistencia?.diasAusente > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
-                                                {e._asistencia?.diasAusente || 0}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-5 text-center">
-                                            <span className={`text-[10px] font-black ${e._asistencia?.diasLicencia > 0 ? 'text-amber-600' : 'text-slate-300'}`}>
-                                                {e._asistencia?.diasLicencia || 0}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-5 text-center">
-                                            <span className="text-[9px] font-black text-slate-600 block">
-                                                {e.contractStartDate ? new Date(e.contractStartDate).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' }) : '—'}
-                                            </span>
-                                            <span className="text-[6px] font-bold text-slate-400 uppercase">{e.contractStartDate ? new Date(e.contractStartDate).getFullYear() : ''}</span>
-                                        </td>
-                                        <td className="px-2 py-5 text-center">
-                                            <div className="flex flex-col items-center gap-0.5">
-                                                <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${
-                                                    e.contractType?.includes('INDEFINIDO') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                                }`}>
-                                                    {e.contractType || 'IND'}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-2 py-5 text-center">
-                                            <div className="relative group/edit inline-block">
-                                                <input 
-                                                    type="number"
-                                                    value={l.diasTrabajados}
-                                                    onChange={(evt) => handleManualUpdate(e.rut, 'dias_trabajados', evt.target.value)}
-                                                    className={`w-12 py-1.5 text-center rounded-lg text-[11px] font-black focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all ${
-                                                        manualValues[`${e.rut}_dias_trabajados`] 
-                                                            ? 'bg-amber-50 text-amber-600 border-amber-300' 
-                                                            : (e._asistencia?.diasTrabajados !== undefined ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white border-slate-100 text-slate-600')
-                                                    } border`}
-                                                    title={manualValues[`${e.rut}_dias_trabajados`] ? 'Valor editado manualmente' : 'Valor regularizado automáticamente'}
-                                                />
-                                                {e._asistencia?.diasTrabajados !== undefined && !manualValues[`${e.rut}_dias_trabajados`] && (
-                                                    <span className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5">
-                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-2 py-5 text-center bg-rose-50/20">
-                                            <span className="text-[9px] font-black text-rose-500 block">
-                                                {e.contractEndDate || e.fechaFiniquito ? new Date(e.contractEndDate || e.fechaFiniquito).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' }) : '—'}
-                                            </span>
-                                            <span className="text-[6px] font-bold text-rose-300 uppercase">{e.contractEndDate || e.fechaFiniquito ? new Date(e.contractEndDate || e.fechaFiniquito).getFullYear() : ''}</span>
-                                        </td>
-                                        <td className="px-4 py-5 text-right font-black text-slate-700 bg-slate-50/30 tabular-nums">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-xs">{fmt(l.habImponibles.sueldoBase)}</span>
-                                                {l.diasTrabajados < 30 && (
-                                                    <span className="text-[7px] text-rose-500 font-black uppercase tracking-tighter leading-none mt-1 select-none">
-                                                        Regularizado Proporcional
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-5 text-right text-xs font-black text-teal-600 tabular-nums bg-teal-50/20">{fmt(l.habImponibles.semanaCorrida || 0)}</td>
-                                        <td className="px-4 py-5 text-right text-xs font-bold text-slate-500 tabular-nums">{fmt(l.habImponibles.gratificacion)}</td>
-                                        
-                                        {closuresData.map(cl => {
-                                            const res = cl.calculos?.find(b => (b.tecnicoId === e.idRecursoToa) || (b.rut === e.rut) || (normalize(b.nombre) === normalize(e.fullName)));
-                                            return <td key={cl.modeloRef?._id} className="px-4 py-5 text-right text-xs font-black text-indigo-500 tabular-nums">{fmt(res?.baremoBonus || 0)}</td>;
-                                        })}
-
-                                        <td className="px-4 py-5 text-right text-xs font-black text-slate-500 tabular-nums">{fmt(l.habImponibles.bonosPorCodigo?.['1050'] || 0)}</td>
-                                        <td className="px-4 py-5 text-right text-xs font-bold text-slate-400 tabular-nums">{fmt(l.habImponibles.horaExtraMonto)}</td>
-                                        <td className="px-4 py-5 text-right bg-indigo-50/10 border-x border-indigo-50/50">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[11px] font-black text-indigo-700">
-                                                    {((e._asistencia?.horasNormales || 0) + (e._asistencia?.horasExtraAprobadas || 0)).toFixed(1)}h
-                                                </span>
-                                                <span className="text-[7px] text-indigo-400 font-bold uppercase tabular-nums">Total Cant.</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-5 text-right text-xs font-black text-indigo-600 bg-indigo-50/20 tabular-nums">{fmt(l.habImponibles.subtotal)}</td>
-                                        <td className="px-4 py-5 text-right text-xs font-bold text-teal-600 bg-teal-50/20 tabular-nums cursor-help" title={l._breakdownNoImp}>
-                                            {fmt(l.habNoImponibles.subtotal)}
-                                        </td>
-                                        <td className="px-4 py-5 text-right text-xs font-black text-slate-800 tabular-nums">{fmt(l.totalHaberes)}</td>
-                                        <td className="px-4 py-5 text-right text-xs text-rose-600/70 font-bold tabular-nums">-{fmt(l.prevision.afp)}</td>
-                                        <td className="px-4 py-5 text-right text-xs text-rose-600/70 font-bold tabular-nums">-{fmt(l.prevision.salud)}</td>
-                                        <td className="px-4 py-5 text-right text-xs text-rose-600/70 font-bold tabular-nums">-{l.prevision.afc ? fmt(l.prevision.afc) : '0'}</td>
-                                        <td className="px-4 py-5 text-right text-xs text-amber-600 font-black tabular-nums">{l.impuestoUnico > 0 ? `-${fmt(l.impuestoUnico)}` : <span className="text-emerald-500 text-[8px] uppercase font-black tracking-tighter">Exento</span>}</td>
-                                        <td className="px-4 py-5 text-right text-xs text-slate-400 tabular-nums">-{fmt(l.otrosDescuentos)}</td>
-                                        <td className="px-4 py-5 text-right bg-indigo-50/20 tabular-nums"><span className="text-sm font-black text-indigo-900">{fmt(l.liquidoAPagar)}</span></td>
-                                        <td className="px-6 py-5 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => setSelected(e)} className="p-2.5 bg-white border border-slate-100 text-slate-400 rounded-xl shadow-sm hover:text-indigo-600 hover:bg-indigo-50 transition-all active:scale-90" title="Ver Liquidación"><Eye size={14} /></button>
-                                                <button onClick={() => {
-                                                    setSelected(e);
-                                                    setTimeout(() => {
-                                                        const btn = document.querySelector('.descargar-pdf-btn');
-                                                        if (btn) btn.click();
-                                                    }, 700);
-                                                }} className="p-2.5 bg-white border border-slate-100 text-slate-400 rounded-xl shadow-sm hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-90" title="Descargar PDF"><Download size={14} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                        {/* ── TOTALES DEL LIBRO ── */}
-                        {!loading && filtered.length > 0 && (
-                            <tfoot>
-                                <tr className="bg-slate-800 border-t-4 border-indigo-500 text-white shadow-2xl">
-                                    <td colSpan={9} className="px-6 py-8 text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap bg-slate-900/50">TOTALES LIBRO</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.sueldoBase || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5 text-teal-400">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.semanaCorrida || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.gratificacion || 0), 0))}</td>
-                                    
-                                    {closuresData.map(cl => {
-                                        const sum = filtered.reduce((acc, e) => {
-                                            const res = cl.calculos?.find(b => (b.tecnicoId === e.idRecursoToa) || (b.rut === e.rut) || (normalize(b.nombre) === normalize(e.fullName)));
-                                            return acc + (res?.baremoBonus || 0);
-                                        }, 0);
-                                        return <td key={cl.modeloRef?._id} className="px-4 py-8 text-right text-xs font-black tabular-nums text-indigo-200">{fmt(sum)}</td>;
-                                    })}
-
-                                    <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-l border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.bonosPorCodigo?.['1050'] || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black tabular-nums">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.horaExtraMonto || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-[10px] font-black text-indigo-300 tabular-nums bg-indigo-500/5">{filtered.reduce((s, e) => s + (e._asistencia?.horasNormales || 0) + (e._asistencia?.horasExtraAprobadas || 0), 0).toFixed(1)}h</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black text-indigo-300 tabular-nums bg-indigo-500/10">{fmt(totales.imponible)}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black text-teal-300 tabular-nums bg-teal-500/10">{fmt(filtered.reduce((s, e) => s + (e._liq?.habNoImponibles?.subtotal || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-base font-black tabular-nums ring-1 ring-white/10">{fmt(totales.bruto)}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black text-rose-300/80 tabular-nums">-{fmt(filtered.reduce((s, e) => s + (e._liq?.prevision?.afp || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black text-rose-300/80 tabular-nums">-{fmt(filtered.reduce((s, e) => s + (e._liq?.prevision?.salud || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black text-rose-300/80 tabular-nums">-{fmt(filtered.reduce((s, e) => s + (e._liq?.prevision?.afc || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black text-amber-300/80 tabular-nums">-{fmt(filtered.reduce((s, e) => s + (e._liq?.impuestoUnico || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xs font-black text-white/50 tabular-nums">-{fmt(filtered.reduce((s, e) => s + (e._liq?.otrosDescuentos || 0), 0))}</td>
-                                    <td className="px-4 py-8 text-right text-xl font-black text-emerald-400 tabular-nums bg-emerald-500/20">{fmt(totales.liquido)}</td>
-                                    <td className="px-6 py-8" />
-                                </tr>
-                            </tfoot>
-                        )}
-                    </table>
-                </div>
-            </div>
-
-            {/* ── MODAL SYNC ASISTENCIA — PREVIEW ── */}
-            {showSyncModal && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xl z-[120] flex items-center justify-center p-4 animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border border-white/20 animate-in zoom-in-95 duration-400">
-                        {/* Header */}
-                        <div className="px-8 py-6 bg-gradient-to-r from-teal-600 to-emerald-500 flex items-center justify-between flex-shrink-0">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white/20 rounded-xl"><CalendarCheck size={20} className="text-white" /></div>
-                                <div>
-                                    <h3 className="text-base font-black text-white uppercase tracking-tight">Sync Asistencia → Nómina</h3>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <button 
-                                            onClick={() => {
-                                                const [ny, nm] = period.split('-').map(Number);
-                                                const pm = nm === 1 ? 12 : nm - 1;
-                                                const py = nm === 1 ? ny - 1 : ny;
-                                                handleSyncAsistencia(`${py}-${String(pm).padStart(2, '0')}`);
-                                            }}
-                                            className="px-2 py-0.5 bg-white/20 hover:bg-white/40 rounded text-[8px] font-black text-white uppercase tracking-widest transition-all"
-                                        >
-                                            ← Cambiar a Mes Anterior
-                                        </button>
-                                        <span className="text-[10px] font-bold text-teal-100 uppercase tracking-widest">
-                                            Origen: {period} 
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button 
-                                    onClick={() => handleSyncAsistencia(period)}
-                                    title="Volver al periodo actual/recargar"
-                                    className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-all">
-                                    <RefreshCw size={14} />
-                                </button>
-                                <button onClick={() => setShowSyncModal(false)} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-all"><X size={18} /></button>
-                            </div>
-                        </div>
-
-                        {/* Info Banner */}
-                        <div className="px-8 py-3 bg-teal-50 border-b border-teal-100 flex items-start gap-2 flex-shrink-0">
-                            <ClipboardList size={14} className="text-teal-600 flex-shrink-0 mt-0.5" />
-                            <p className="text-[9px] font-bold text-teal-700 leading-relaxed">
-                                Se importarán los días trabajados reales y horas extra aprobadas desde el módulo de Asistencia.
-                                Los valores de nómina se recalcularán automáticamente usando la asistencia real en lugar del cálculo estándar (30 días).
-                                Las ausencias injustificadas se descuentan proporcional al sueldo.
-                            </p>
-                        </div>
-
-                        {/* Table */}
-                        <div className="overflow-auto flex-1 custom-scrollbar">
-                            <table className="w-full text-left">
-                                <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
-                                    <tr className="border-b border-slate-100">
-                                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Colaborador</th>
-                                        <th className="px-4 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Días Actual</th>
-                                        <th className="px-4 py-4 text-center text-[9px] font-black text-teal-500 uppercase tracking-widest">
-                                            <ArrowRight size={10} className="inline mr-1" />Días Asistencia
-                                        </th>
-                                        <th className="px-4 py-4 text-center text-[9px] font-black text-indigo-500 uppercase tracking-widest">HE Aprobadas</th>
-                                        <th className="px-4 py-4 text-center text-[9px] font-black text-amber-500 uppercase tracking-widest">Ausencias</th>
-                                        <th className="px-4 py-4 text-center text-[9px] font-black text-orange-500 uppercase tracking-widest">Tardanzas</th>
-                                        <th className="px-4 py-4 text-center text-[9px] font-black text-emerald-500 uppercase tracking-widest">Bono Asist.</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {syncPreview.map(r => {
-                                        const diasCambia = r.diasNuevo !== r.diasActual;
-                                        return (
-                                            <tr key={r.empId} className="hover:bg-slate-50/50 transition-colors">
-                                                <td className="px-6 py-3">
-                                                    <p className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{r.nombre}</p>
-                                                    <p className="text-[9px] text-slate-400 font-mono">{r.rut}</p>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <span className="text-[11px] font-black text-slate-500">{r.diasActual}</span>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <span className={`text-[11px] font-black px-3 py-1 rounded-xl inline-block ${
-                                                        diasCambia
-                                                            ? r.diasNuevo < r.diasActual
-                                                                ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                                                                : 'bg-teal-50 text-teal-600 border border-teal-100'
-                                                            : 'text-slate-400'
-                                                    }`}>{r.diasNuevo}</span>
-                                                    {diasCambia && (
-                                                        <span className={`block text-[8px] font-black mt-0.5 ${r.diasNuevo < r.diasActual ? 'text-rose-400' : 'text-teal-400'}`}>
-                                                            {r.diasNuevo > r.diasActual ? '+' : ''}{r.diasNuevo - r.diasActual} días
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    {r.heNuevo > 0
-                                                        ? <span className="text-[11px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">{r.heNuevo} hrs</span>
-                                                        : <span className="text-[10px] text-slate-300">—</span>
-                                                    }
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    {r.diasAusente > 0
-                                                        ? <span className="text-[11px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg">{r.diasAusente}</span>
-                                                        : <span className="text-[10px] text-emerald-400 font-black">✓</span>
-                                                    }
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    {r.diasTardanza > 0
-                                                        ? <span className="text-[11px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg">{r.diasTardanza}</span>
-                                                        : <span className="text-[10px] text-emerald-400 font-black">✓</span>
-                                                    }
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    {r.calificaBono
-                                                        ? <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-xl border border-emerald-100">Califica</span>
-                                                        : <span className="text-[9px] font-black text-rose-400 bg-rose-50 px-2 py-1 rounded-xl border border-rose-100">No califica</span>
-                                                    }
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                    {syncPreview.length === 0 && (
-                                        <tr><td colSpan="7" className="py-12 text-center text-slate-400 text-xs font-bold">
-                                            No hay colaboradores con registros de asistencia en este período
-                                        </td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="px-8 py-5 border-t border-slate-100 flex items-center justify-between gap-3 flex-shrink-0 bg-slate-50/50">
-                            <div className="flex items-center gap-3 text-[9px] font-bold text-slate-400 uppercase">
-                                <CheckCircle2 size={14} className="text-teal-500" />
-                                <span>{syncPreview.filter(r => r.diasNuevo !== r.diasActual).length} colaboradores con días modificados</span>
-                                <span>·</span>
-                                <span>{syncPreview.filter(r => r.heNuevo > 0).length} con horas extra aprobadas</span>
-                            </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => setShowSyncModal(false)}
-                                    className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">
-                                    Cancelar
-                                </button>
-                                <button onClick={handleConfirmSync} disabled={syncPreview.length === 0}
-                                    className="px-8 py-3 bg-teal-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-teal-700 shadow-lg shadow-teal-200 transition-all disabled:opacity-50 flex items-center gap-2 active:scale-95">
-                                    <CalendarCheck size={14} /> Confirmar Sincronización
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Legal note */}
-            <div className="mt-4 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
-                <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-[9px] font-bold text-amber-700 leading-relaxed">
-                    Los cálculos son referenciales conforme al Código del Trabajo Chile.
-                    AFP: tasas vigentes 2026. Gratificación: Art. 50 CT.
-                    Impuesto Único: tabla UTM vigente SII.
-                    UFC y UTM referencias: Feb 2026. Valide con Previred antes de pago.
-                </p>
-            </div>
-            {/* MODAL LIQUIDACIÓN DETALLE */}
-            {selected && (
-                <ModalLiquidacion
-                    emp={selected}
-                    onClose={() => setSelected(null)}
-                    params={params}
-                />
-            )}
-            {/* ALERT FLOTANTE PREMIUM */}
+        <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans text-slate-800 space-y-6">
+            
+            {/* ALERT NOTIFICATION */}
             {alert && (
-                <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] min-w-[320px] flex items-center gap-4 px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
-                    ${alert.type === 'error'
-                        ? 'bg-red-500/90 text-white border-red-400/50 shadow-red-500/20'
-                        : 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-500/20'}`}>
-                    <div className="bg-white/20 p-2 rounded-xl shadow-inner">
-                        {alert.type === 'error' ? <AlertCircle size={20} /> : <ShieldCheck size={20} />}
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">Sistema Corporativo</span>
-                        <span className="text-[12px] font-black uppercase tracking-wider mt-1">{alert.msg}</span>
-                    </div>
+                <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-xl transition-all animate-bounce ${
+                    alert.type === 'success' ? 'bg-emerald-500/90 text-white border-emerald-400' :
+                    alert.type === 'info' ? 'bg-indigo-600/90 text-white border-indigo-400' : 'bg-rose-500/90 text-white border-rose-400'
+                }`}>
+                    <span className="text-xs font-black uppercase tracking-wider">{alert.msg}</span>
                 </div>
             )}
 
-            {/* MODAL CONFIRMACIÓN PREMIUM */}
+            {/* CONFIRMATION MODAL */}
             {confirmModal && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-500 border border-white/20">
-                        <div className="p-10 text-center">
-                            <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
-                                <AlertCircle size={40} />
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-3 uppercase">{confirmModal.title}</h3>
-                            <p className="text-slate-500 text-xs font-bold leading-relaxed px-4">{confirmModal.message}</p>
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100 space-y-6 text-center animate-in fade-in zoom-in duration-200">
+                        <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                            <ShieldCheck size={32} />
                         </div>
-                        <div className="px-10 pb-10 flex gap-3">
-                            <button onClick={() => setConfirmModal(null)}
-                                className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                        <div className="space-y-2">
+                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">{confirmModal.title}</h3>
+                            <p className="text-xs font-medium text-slate-500 leading-relaxed">{confirmModal.message}</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-slate-200 transition-colors">
                                 Cancelar
                             </button>
-                            <button onClick={confirmModal.action}
-                                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
+                            <button onClick={confirmModal.action} className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
                                 Confirmar
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-            {/* AUDIT PANEL DRAWER PREMIUM */}
-            {showAuditPanel && (
-                <div className="fixed inset-y-0 right-0 w-[450px] bg-white shadow-[-20px_0_50px_rgba(0,0,0,0.1)] z-[120] animate-in slide-in-from-right duration-500 border-l border-slate-100 flex flex-col">
-                    <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-200">
-                                <Scale size={20} />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight leading-none mb-1">Comandos de Auditoría</h3>
-                                <p className="text-[9px] font-bold text-rose-500 uppercase tracking-widest leading-none">Motor de Integridad Nomina v4.0</p>
-                            </div>
-                        </div>
-                        <button onClick={() => setShowAuditPanel(false)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors"><X size={18} className="text-slate-400" /></button>
-                    </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                        {auditResults.length === 0 ? (
-                            <div className="py-20 text-center">
-                                <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
-                                    <CheckCircle2 size={40} />
-                                </div>
-                                <p className="text-sm font-black text-slate-800 uppercase">Sin anomalías detectadas</p>
-                                <p className="text-[10px] text-slate-400 font-bold mt-2 leading-relaxed px-10">Todos los colaboradores cumplen con la lógica de proporcionalidad y asistencia sincronizada.</p>
-                            </div>
-                        ) : (
-                            auditResults.map((issue, idx) => {
-                                const worker = processed.find(e => e.rut === issue.id);
-                                return (
-                                    <div key={idx} className={`p-5 rounded-[2rem] border transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex gap-4 ${
-                                        issue.type === 'critical' ? 'bg-rose-50/50 border-rose-100 shadow-rose-50' :
-                                        issue.type === 'warning' ? 'bg-amber-50/50 border-amber-100 shadow-amber-50' :
-                                        'bg-indigo-50/50 border-indigo-100 shadow-indigo-50'
-                                    }`} onClick={() => {
-                                        setSearchTerm(worker?.fullName || issue.id);
-                                        setShowAuditPanel(false);
-                                    }}>
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                            issue.type === 'critical' ? 'bg-rose-500 text-white' :
-                                            issue.type === 'warning' ? 'bg-amber-500 text-white' :
-                                            'bg-indigo-500 text-white'
-                                        }`}>
-                                            {issue.type === 'critical' ? <AlertCircle size={18} /> : <ClipboardList size={18} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[7px] font-black uppercase tracking-widest opacity-60">{issue.category}</span>
-                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-lg border uppercase ${
-                                                    issue.type === 'critical' ? 'bg-rose-100/50 text-rose-600 border-rose-200' :
-                                                    'bg-slate-100/50 text-slate-400 border-slate-200'
-                                                }`}>{issue.type}</span>
-                                            </div>
-                                            <p className="text-[11px] font-black text-slate-800 uppercase leading-tight mb-2">{worker?.fullName || issue.id}</p>
-                                            <p className="text-[10px] font-bold text-slate-500 leading-relaxed">{issue.msg}</p>
-                                        </div>
-                                    </div>
-                                )
-                            })
-                        )}
+            {/* TOP HEADER & CONTROLS */}
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
+                        <CircleDollarSign size={28} />
                     </div>
-
-                    <div className="p-8 bg-slate-900 text-white">
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Impacto Financiero</p>
-                                <p className="text-xl font-black tabular-nums">{auditResults.filter(i => i.type === 'critical').length} alertas críticas</p>
-                            </div>
-                            <div className="p-3 bg-white/10 rounded-2xl"><Scale size={20} /></div>
+                    <div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <h1 className="text-xl font-black text-slate-800 tracking-tight uppercase">Libro de Remuneraciones LRE</h1>
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black px-2.5 py-1 rounded-xl uppercase tracking-wider">
+                                NORMATIVA DT CHILE 2026
+                            </span>
                         </div>
-                        <p className="text-[9px] font-bold text-slate-500 leading-relaxed uppercase tracking-tighter">
-                            El bloqueo de cierre de periodo se activa automáticamente ante discrepancias mayores al 15% del imponible global.
+                        <p className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wide">
+                            PERÍODO {period} · CONCILIADO 100% CON REMU CENTRAL & CIERRES PRODUCCIÓN
                         </p>
                     </div>
                 </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full lg:w-auto pb-1 scroll-smooth shrink-0">
+                    {/* Period Picker */}
+                    <div className="relative bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 flex items-center gap-2 text-slate-700 shadow-sm shrink-0">
+                        <Calendar size={14} className="text-indigo-600 shrink-0" />
+                        <input
+                            type="month"
+                            value={period}
+                            onChange={(e) => setPeriod(e.target.value)}
+                            className="bg-transparent text-[11px] font-black uppercase focus:outline-none cursor-pointer text-slate-800"
+                        />
+                    </div>
+
+                    {/* Botón Actualizar Período Seleccionado */}
+                    <button 
+                        onClick={() => {
+                            fetchData();
+                            setAlert({ type: 'success', msg: `✓ Datos de la nómina de ${period} actualizados correctamente.` });
+                            setTimeout(() => setAlert(null), 3000);
+                        }} 
+                        disabled={loading}
+                        title={`Actualizar datos de la nómina para el período ${period}`}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white border border-indigo-700 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-sm active:scale-95 disabled:opacity-50 shrink-0 whitespace-nowrap"
+                    >
+                        <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+                        {loading ? 'Actualizando...' : 'Actualizar'}
+                    </button>
+
+                    {/* Actions */}
+                    <button onClick={handleExportLRE} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95 shrink-0 whitespace-nowrap">
+                        <Download size={12} /> Exportar LRE (Excel)
+                    </button>
+                    <button onClick={handleExportCSV_DT} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95 shrink-0 whitespace-nowrap">
+                        <FileText size={12} /> Carga Mi DT (CSV)
+                    </button>
+                    <button onClick={handleCerrarPeriodo} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:bg-slate-900 transition-all shadow-sm active:scale-95 shrink-0 whitespace-nowrap">
+                        <LockIcon size={12} className="text-amber-400" /> Cerrar Período
+                    </button>
+                </div>
+            </div>
+
+            {/* EXECUTIVE KPI CARDS (2 COLUMNAS EN MÓVIL, AUTO-SCALABLE) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
+                <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">Colaboradores</span>
+                        <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-600 shrink-0"><Users size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight">{consolidado.length}</div>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-0.5 block truncate">Plantilla Nómina</span>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">Total Imponible</span>
+                        <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-600 shrink-0"><TrendingUp size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+                    </div>
+                    <div>
+                        <div className="text-base sm:text-2xl font-black text-indigo-700 tracking-tight truncate">{fmt(sumImponible)}</div>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-indigo-400 uppercase tracking-wide mt-0.5 block truncate">Base Imponible</span>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">Descuentos</span>
+                        <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-rose-50 text-rose-600 shrink-0"><ShieldCheck size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+                    </div>
+                    <div>
+                        <div className="text-base sm:text-2xl font-black text-rose-600 tracking-tight truncate">{fmt(sumCotizaciones)}</div>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-rose-400 uppercase tracking-wide mt-0.5 block truncate">Cotizaciones Legales</span>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">Líquido A Pagar</span>
+                        <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 text-emerald-600 shrink-0"><Wallet size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+                    </div>
+                    <div>
+                        <div className="text-base sm:text-2xl font-black text-emerald-600 tracking-tight truncate">{fmt(sumLiquido)}</div>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500 uppercase tracking-wide mt-0.5 block truncate">Empresa: {fmt(sumCostoEmpresa)}</span>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-100 shadow-sm relative overflow-hidden group flex flex-col justify-between col-span-2 sm:col-span-1">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">Aportes Patronales</span>
+                        <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 shrink-0"><Landmark size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+                    </div>
+                    <div>
+                        <div className="text-base sm:text-2xl font-black text-amber-600 tracking-tight truncate">{fmt(sumAportesPatronales)}</div>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-amber-500 uppercase tracking-wide mt-0.5 block truncate">SIS + Mutual + AFC</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* TOOLBAR & FILTERS */}
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100 space-y-4">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                    {/* Status Tabs */}
+                    <div className="grid grid-cols-3 gap-1 bg-slate-100/70 p-1 rounded-2xl border border-slate-200/50 w-full lg:w-auto">
+                        {[
+                            { id: 'Operativo', label: `Operativos (${employees.filter(e => e.status !== 'Finiquitado').length})` },
+                            { id: 'Finiquitado', label: `Finiquitados (${employees.filter(e => e.status === 'Finiquitado').length})` },
+                            { id: 'Todos', label: `Todos (${employees.length})` }
+                        ].map(s => (
+                            <button
+                                key={s.id}
+                                onClick={() => setFilterStatus(s.id)}
+                                className={`px-2 sm:px-4 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all text-center justify-center flex items-center ${
+                                    filterStatus === s.id
+                                        ? 'bg-white text-indigo-700 shadow-sm scale-102'
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                {s.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Filter Selects */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2.5 w-full lg:w-auto flex-1">
+                        <div className="relative w-full sm:w-auto flex-1 min-w-[140px]">
+                            <select
+                                value={filterProyecto}
+                                onChange={e => setFilterProyecto(e.target.value)}
+                                className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-2xl text-[10px] font-black uppercase text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 appearance-none cursor-pointer"
+                            >
+                                <option value="">Todos los Proyectos</option>
+                                {availableProyectos.map(p => (
+                                    <option key={p} value={p}>{p}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        </div>
+
+                        <div className="relative w-full sm:w-auto flex-1 min-w-[140px]">
+                            <select
+                                value={filterCargo}
+                                onChange={e => setFilterCargo(e.target.value)}
+                                className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-2xl text-[10px] font-black uppercase text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 appearance-none cursor-pointer"
+                            >
+                                <option value="">Todos los Cargos</option>
+                                {availableCargos.map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        </div>
+
+                        {/* Search Bar */}
+                        <div className="relative w-full sm:col-span-2 lg:col-span-1 lg:flex-[2] min-w-[180px]">
+                            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Búsqueda rápida..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200/80 rounded-2xl text-[11px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 uppercase"
+                            />
+                        </div>
+
+                        {/* Action buttons */}
+                        <button onClick={handleExportLRE} className="w-full sm:w-auto px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 transition-all shadow-sm justify-center flex items-center">
+                            Exportar Tabla
+                        </button>
+                        <button onClick={handleMassiveDownload} disabled={downloadingMassive} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-slate-900 transition-all shadow-sm disabled:opacity-50">
+                            {downloadingMassive ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                            {downloadingMassive ? 'Generando...' : 'Descarga Masiva'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* MASTER RE-DESIGNED TABLE (ESTÁNDAR DT CHILE LRE 2026) */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse min-w-[1600px]">
+                        <thead>
+                            {/* TOP CATEGORY GROUP HEADERS */}
+                            <tr className="bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest">
+                                <th colSpan="3" className="px-6 py-3 border-r border-slate-800 text-indigo-300">IDENTIFICACIÓN & CONTRATO</th>
+                                <th colSpan="5" className="px-4 py-3 border-r border-slate-800 text-emerald-300 text-center">DÍAS & ASISTENCIA (BASE 30)</th>
+                                <th colSpan="8" className="px-4 py-3 border-r border-slate-800 text-indigo-300 text-center">HABERES IMPONIBLES (CÓDIGOS DT 1000)</th>
+                                <th className="px-4 py-3 border-r border-slate-800 text-indigo-200 text-right">TOTAL IMPONIBLE</th>
+                                <th colSpan="5" className="px-4 py-3 border-r border-slate-800 text-rose-300 text-center">DESCUENTOS LEGALES Y OTROS (CÓDIGOS DT 3000/4000)</th>
+                                <th className="px-4 py-3 border-r border-slate-800 text-rose-200 text-right">TOTAL DESCUENTOS</th>
+                                <th className="px-4 py-3 border-r border-slate-800 text-emerald-400 text-right bg-emerald-950/80 font-black">LÍQUIDO A PAGAR (5010)</th>
+                                <th colSpan="4" className="px-4 py-3 border-r border-slate-800 text-amber-300 text-center">APORTES PATRONALES (CÓDIGOS DT 6000)</th>
+                                <th className="px-4 py-3 text-amber-200 text-right bg-slate-950">COSTO EMPRESA</th>
+                            </tr>
+                            
+                            {/* DETAILED COLUMN HEADERS WITH OFFICIAL DT CODES */}
+                            <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                <th className="px-6 py-4">Colaborador</th>
+                                <th className="px-4 py-4">Cargo / CECO</th>
+                                <th className="px-4 py-4">Previsión (AFP / Salud)</th>
+
+                                <th className="px-3 py-4 text-center text-emerald-700 bg-emerald-50/50">D. Trab</th>
+                                <th className="px-3 py-4 text-center text-emerald-700 bg-emerald-50/50">Pres</th>
+                                <th className="px-3 py-4 text-center text-rose-600 bg-rose-50/30">Inasist</th>
+                                <th className="px-3 py-4 text-center text-amber-600 bg-amber-50/30">Lic</th>
+                                <th className="px-3 py-4 text-center text-slate-600">Perm</th>
+
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="1010" label="Sueldo Base" color="text-indigo-600" /></th>
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="1003" label="Horas Extras 50%" color="text-indigo-600" /></th>
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="1001" label="Sem. Corrida" color="text-indigo-600" /></th>
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="1020" label="Gratif. Legal" color="text-indigo-600" /></th>
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="1040" label="Producción Baremo" color="text-indigo-600" /></th>
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="1041" label="Calidad DAT/RR/AI" color="text-indigo-600" /></th>
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="1050" label="Bono Asistencia" color="text-indigo-600" /></th>
+                                <th className="px-4 py-4 text-right bg-indigo-50/30"><HeaderBadge code="2060" label="Beneficios No Imp." color="text-teal-600" /></th>
+                                
+                                <th className="px-4 py-4 text-right bg-indigo-100/50 text-indigo-900 font-black">TOT. IMPONIBLE</th>
+
+                                <th className="px-4 py-4 text-right bg-rose-50/30"><HeaderBadge code="3010" label="AFP" color="text-rose-600" /></th>
+                                <th className="px-4 py-4 text-right bg-rose-50/30"><HeaderBadge code="3020" label="Salud (7%/Isapre)" color="text-rose-600" /></th>
+                                <th className="px-4 py-4 text-right bg-rose-50/30"><HeaderBadge code="3030" label="AFC Trab." color="text-rose-600" /></th>
+                                <th className="px-4 py-4 text-right bg-rose-50/30"><HeaderBadge code="3040" label="Impuesto Único" color="text-rose-600" /></th>
+                                <th className="px-4 py-4 text-right bg-rose-50/30"><HeaderBadge code="4050" label="Desc. Atrasos / Horas" color="text-rose-600" /></th>
+
+                                <th className="px-4 py-4 text-right bg-rose-100/50 text-rose-900 font-black">TOT. DESCUENTOS</th>
+
+                                <th className="px-6 py-4 text-right bg-emerald-100/80 text-emerald-900 font-black text-xs">LÍQUIDO A PAGAR</th>
+
+                                <th className="px-4 py-4 text-right bg-amber-50/30"><HeaderBadge code="6010" label="SIS (1.54%)" color="text-amber-700" /></th>
+                                <th className="px-4 py-4 text-right bg-amber-50/30"><HeaderBadge code="6020" label="Mutualidad" color="text-amber-700" /></th>
+                                <th className="px-4 py-4 text-right bg-amber-50/30"><HeaderBadge code="6030" label="AFC Patronal" color="text-amber-700" /></th>
+                                <th className="px-4 py-4 text-right bg-amber-50/30"><HeaderBadge code="6040" label="Longevidad (0.5%)" color="text-amber-700" /></th>
+
+                                <th className="px-6 py-4 text-right bg-slate-200/80 text-slate-900 font-black">COSTO EMPRESA</th>
+                            </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="30" className="py-24 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-3">
+                                            <Loader2 size={36} className="animate-spin text-indigo-600" />
+                                            <span className="text-xs font-black uppercase tracking-widest text-slate-400">Consolidando libro de remuneraciones...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : consolidado.length === 0 ? (
+                                <tr>
+                                    <td colSpan="30" className="py-24 text-center text-slate-400 font-bold uppercase tracking-wider">
+                                        No hay trabajadores registrados en este filtro o período.
+                                    </td>
+                                </tr>
+                            ) : (
+                                consolidado.map((c, idx) => (
+                                    <tr key={c.emp._id || idx} className="hover:bg-indigo-50/30 transition-colors group cursor-pointer" onClick={() => setSelected(c)}>
+                                        {/* COLABORADOR */}
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-black text-xs shrink-0 shadow-inner">
+                                                    {c.emp.fullName?.substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <div className="font-black text-slate-800 text-xs tracking-tight">{c.emp.fullName}</div>
+                                                    <div className="text-[10px] font-mono text-slate-400">{formatRut(c.emp.rut)}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        {/* CARGO / CECO */}
+                                        <td className="px-4 py-4">
+                                            <div className="font-black text-slate-800 text-xs">{c.emp.position || 'Especialista'}</div>
+                                            <div className="text-[10px] font-bold text-indigo-500 uppercase">{c.projectName} · {c.ceco}</div>
+                                        </td>
+
+                                        {/* PREVISIÓN */}
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col gap-1">
+                                                <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black px-2 py-0.5 rounded-md border border-indigo-100 w-fit">
+                                                    {c.empAfp}
+                                                </span>
+                                                <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded-md border border-emerald-100 w-fit">
+                                                    {c.saludEntidad}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* DÍAS & ASISTENCIA */}
+                                        <td className="px-3 py-4 text-center bg-emerald-50/30 font-black text-emerald-700">{c.workerDays}d</td>
+                                        <td className="px-3 py-4 text-center bg-emerald-50/30 font-bold text-slate-600">{c.totalAsistencia}d</td>
+                                        <td className="px-3 py-4 text-center bg-rose-50/20 font-bold text-rose-600">{c.totalInasistencia > 0 ? `${c.totalInasistencia}d` : '-'}</td>
+                                        <td className="px-3 py-4 text-center bg-amber-50/20 font-bold text-amber-600">{c.diasLicencias > 0 ? `${c.diasLicencias}d` : '-'}</td>
+                                        <td className="px-3 py-4 text-center text-slate-400 font-bold">{c.diasPermisos > 0 ? `${c.diasPermisos}d` : '-'}</td>
+
+                                        {/* HABERES IMPONIBLES (DT 1000) */}
+                                        <td className="px-4 py-4 text-right font-bold text-slate-700">{fmt(c.prorrateadoSueldo)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-indigo-600">{fmt(c.montoHorasExtras)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-slate-400">$0</td>
+                                        <td className="px-4 py-4 text-right font-bold text-indigo-600">{fmt(c.gratificacion)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-emerald-600">{fmt(c.baremoBonus)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-teal-600">{fmt(c.rrBonus + c.aiBonus)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-indigo-500">{fmt(c.prorrateadoBonoFijo)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-teal-600">{fmt(c.totalBeneficios)}</td>
+
+                                        {/* TOTAL IMPONIBLE */}
+                                        <td className="px-4 py-4 text-right font-black text-indigo-700 bg-indigo-50/50 text-xs">{fmt(c.totalImponible)}</td>
+
+                                        {/* DESCUENTOS LEGALES (DT 3000/4000) */}
+                                        <td className="px-4 py-4 text-right font-bold text-rose-600">{fmt(c.afpMonto)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-rose-600">{fmt(c.saludMonto)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-rose-600">{fmt(c.afcTrabajadorMonto)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-amber-600">{fmt(c.impuestoUnico)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-rose-600">{fmt(c.montoDescuentoHoras)}</td>
+
+                                        {/* TOTAL DESCUENTOS */}
+                                        <td className="px-4 py-4 text-right font-black text-rose-700 bg-rose-50/50 text-xs">{fmt(c.totalDescuentosLegales + c.montoDescuentoHoras + c.totalDescuentos)}</td>
+
+                                        {/* LÍQUIDO A PAGAR */}
+                                        <td className="px-6 py-4 text-right font-black text-emerald-700 bg-emerald-100/60 text-sm shadow-inner">{fmt(c.totalLiquido)}</td>
+
+                                        {/* APORTES PATRONALES (DT 6000) */}
+                                        <td className="px-4 py-4 text-right font-bold text-amber-700">{fmt(c.sisMonto)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-amber-700">{fmt(c.mutualMonto)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-amber-700">{fmt(c.afcPatronalMonto)}</td>
+                                        <td className="px-4 py-4 text-right font-bold text-amber-700">{fmt(c.expectativaMonto)}</td>
+
+                                        {/* COSTO TOTAL EMPRESA */}
+                                        <td className="px-6 py-4 text-right font-black text-slate-800 bg-slate-100 text-xs">{fmt(c.totalImponible + c.totalAportesPatronales)}</td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* PRINTABLE LIQUIDACIÓN DE SUELDO MODAL */}
+            {selected && (
+                <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-3xl max-w-3xl w-full p-8 shadow-2xl space-y-6 relative border border-slate-100 my-8">
+                        <button onClick={() => setSelected(null)} className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                            <X size={20} />
+                        </button>
+
+                        <div id="liq-doc-printable" className="space-y-6 bg-white p-6 rounded-2xl border border-slate-200">
+                            <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+                                <div>
+                                    <h2 className="text-lg font-black uppercase text-slate-800">RAM INGENIERÍA Y SERVICIOS SPA</h2>
+                                    <p className="text-xs font-mono text-slate-500">RUT: 77.123.456-7 · CASA MATRIZ RANCAGUA</p>
+                                    <p className="text-xs font-bold text-indigo-600 uppercase mt-1">LIQUIDACIÓN DE SUELDO · PERÍODO {period}</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-xs font-mono font-bold bg-slate-100 px-3 py-1 rounded-lg text-slate-700">FOLIO #2026-{selected.emp.rut?.slice(0, 6)}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 text-xs font-semibold text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div><span className="text-slate-400 uppercase text-[10px] block">Trabajador</span><strong className="text-sm font-black text-slate-800">{selected.emp.fullName}</strong></div>
+                                <div><span className="text-slate-400 uppercase text-[10px] block">RUT</span><strong className="font-mono">{formatRut(selected.emp.rut)}</strong></div>
+                                <div><span className="text-slate-400 uppercase text-[10px] block">Cargo</span><strong>{selected.emp.position || 'Especialista'}</strong></div>
+                                <div><span className="text-slate-400 uppercase text-[10px] block">Proyecto / CECO</span><strong>{selected.projectName} ({selected.ceco})</strong></div>
+                                <div><span className="text-slate-400 uppercase text-[10px] block">Días A Pago / Asistencia</span><strong>{selected.workerDays}d a Pago (Pres: {selected.totalAsistencia}d {selected.diasLicencias > 0 ? `· Lic: ${selected.diasLicencias}d` : ''} {selected.totalInasistencia > 0 ? `· Inasist: ${selected.totalInasistencia}d` : ''})</strong></div>
+                                <div><span className="text-slate-400 uppercase text-[10px] block">Previsión / Salud</span><strong>{selected.empAfp} / {selected.saludEntidad}</strong></div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6 text-xs">
+                                {/* HABERES */}
+                                <div className="space-y-2">
+                                    <h4 className="font-black uppercase text-indigo-700 border-b border-indigo-100 pb-1">1. HABERES IMPONIBLES</h4>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>Sueldo Base</span><span>{fmt(selected.prorrateadoSueldo)}</span></div>
+                                    {selected.montoHorasExtras > 0 && (
+                                        <div className="flex justify-between py-1 border-b border-slate-100 text-indigo-600 font-bold">
+                                            <span>Horas Extras 50% ({selected.hrsExtras} hrs)</span>
+                                            <span>{fmt(selected.montoHorasExtras)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>Gratificación Legal (Art. 50)</span><span>{fmt(selected.gratificacion)}</span></div>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>Producción Baremo</span><span>{fmt(selected.baremoBonus)}</span></div>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>Bonos Calidad (DAT/RR/AI)</span><span>{fmt(selected.rrBonus + selected.aiBonus)}</span></div>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>Bonos Fijos Prorrateados</span><span>{fmt(selected.prorrateadoBonoFijo)}</span></div>
+                                    <div className="flex justify-between py-2 font-black text-indigo-800 bg-indigo-50/50 px-2 rounded-lg mt-2"><span>TOTAL IMPONIBLE</span><span>{fmt(selected.totalImponible)}</span></div>
+                                </div>
+
+                                {/* DESCUENTOS */}
+                                <div className="space-y-2">
+                                    <h4 className="font-black uppercase text-rose-700 border-b border-rose-100 pb-1">2. DESCUENTOS LEGALES Y OTROS</h4>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>AFP ({selected.empAfp})</span><span>{fmt(selected.afpMonto)}</span></div>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>Salud ({selected.saludEntidad})</span><span>{fmt(selected.saludMonto)}</span></div>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>AFC Trabajador (0.6%)</span><span>{fmt(selected.afcTrabajadorMonto)}</span></div>
+                                    <div className="flex justify-between py-1 border-b border-slate-100"><span>Impuesto Único 2da Cat.</span><span>{fmt(selected.impuestoUnico)}</span></div>
+                                    {selected.montoDescuentoHoras > 0 && (
+                                        <div className="flex justify-between py-1 border-b border-slate-100 text-rose-600 font-bold">
+                                            <span>Desc. Atrasos / Horas ({selected.hrsDescontadas} hrs)</span>
+                                            <span>{fmt(selected.montoDescuentoHoras)}</span>
+                                        </div>
+                                    )}
+                                    {selected.totalDescuentos > 0 && (
+                                        <div className="flex justify-between py-1 border-b border-slate-100 text-rose-600 font-bold">
+                                            <span>Otros Descuentos / Anticipos</span>
+                                            <span>{fmt(selected.totalDescuentos)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between py-2 font-black text-rose-800 bg-rose-50/50 px-2 rounded-lg mt-2">
+                                        <span>TOTAL DESCUENTOS</span>
+                                        <span>{fmt(selected.totalDescuentosLegales + (selected.montoDescuentoHoras || 0) + (selected.totalDescuentos || 0))}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-emerald-500 text-white p-4 rounded-2xl flex justify-between items-center shadow-lg">
+                                <span className="font-black uppercase text-sm">ALCANCE LÍQUIDO A PAGAR</span>
+                                <span className="font-black text-2xl tracking-tight">{fmt(selected.totalLiquido)}</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-12 pt-12 text-center text-xs font-bold text-slate-400">
+                                <div className="border-t border-slate-300 pt-2 uppercase">FIRMA TRABAJADOR</div>
+                                <div className="border-t border-slate-300 pt-2 uppercase">FIRMA EMPLEADOR</div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4">
+                            <button onClick={() => window.print()} className="flex-1 py-3 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-slate-900 transition-colors">
+                                <Printer size={16} /> Imprimir Liquidación
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
+
         </div>
     );
 };
+
+export const LockIcon = ({ size, className }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+    </svg>
+);
 
 export default NominaRRHH;

@@ -326,9 +326,17 @@ const GestorPersonal = () => {
         const searchLower = searchTerm.toLowerCase();
         const cleanSearch = searchTerm.replace(/[^0-9kK]/gi, '');
         const cleanRut = u.rut ? u.rut.replace(/[^0-9kK]/gi, '') : '';
+        const empName = (u.empresaRef?.nombre || u.empresa?.nombre || '').toLowerCase();
+        const cargo = (u.cargo || '').toLowerCase();
+        const role = (u.role || '').toLowerCase();
+        const status = (u.status || '').toLowerCase();
         
         return u.name?.toLowerCase().includes(searchLower) ||
                u.email?.toLowerCase().includes(searchLower) ||
+               empName.includes(searchLower) ||
+               cargo.includes(searchLower) ||
+               role.includes(searchLower) ||
+               status.includes(searchLower) ||
                (cleanSearch && cleanRut.includes(cleanSearch));
     });
 
@@ -543,7 +551,7 @@ const GestorPersonal = () => {
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setModal(null)} />
                     <div className="relative w-full max-w-5xl bg-white rounded-[3rem] shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-500">
                         {/* Cabecera */}
-                        <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between shrink-0">
+                        <div className="p-4 md:p-8 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                             <div>
                                 <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">
                                     {modal === 'create' ? 'Nuevo Colaborador' : 'Editar Colaborador'}
@@ -672,7 +680,7 @@ const GestorPersonal = () => {
                                                 <input id="sendEmailCheckbox" type="checkbox" checked={formData.sendEmailCredentials !== false} onChange={e => setFormData(p => ({ ...p, sendEmailCredentials: e.target.checked }))} className="w-4 h-4 text-orange-600 rounded cursor-pointer" />
                                                 <label htmlFor="sendEmailCheckbox" className="text-[10px] font-bold text-slate-600 cursor-pointer uppercase tracking-widest">Notificar credenciales por email</label>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2 w-full max-w-sm border border-slate-100 p-1 rounded-2xl bg-slate-50">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full max-w-sm border border-slate-100 p-1 rounded-2xl bg-slate-50">
                                                 {['Activo', 'Inactivo', 'Suspendido'].map(st => (
                                                     <button key={st} type="button" onClick={() => setFormData({ ...formData, status: st })} className={`py-2.5 rounded-xl text-[9px] font-black shadow-sm transition-all uppercase tracking-widest border-2
                                                         ${formData.status === st ? 'border-orange-500 bg-white text-orange-700' : 'border-transparent text-slate-400 hover:bg-white/50'}`}>

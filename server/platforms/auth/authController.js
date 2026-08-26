@@ -646,9 +646,17 @@ exports.resetPin = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
     const { email } = req.body;
     try {
-        const user = await PlatformUser.findOne({ email: email.toLowerCase().trim() }).populate('empresaRef');
+        if (!email || !email.trim()) {
+            return res.status(400).json({ message: 'El correo electrónico es requerido.' });
+        }
+
+        const normalizedEmail = email.trim();
+        const user = await PlatformUser.findOne({ 
+            email: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') 
+        }).populate('empresaRef');
+
         if (!user) {
-            return res.status(404).json({ message: 'No existe una cuenta con este correo.' });
+            return res.status(404).json({ message: 'No existe una cuenta registrada con este correo.' });
         }
 
         // Generar token en crudo
@@ -660,9 +668,17 @@ exports.forgotPassword = async (req, res) => {
 
         await user.save();
 
-        // Enviar email
-        // Considera URL dinámica si estás en producción vs dev. Aquí usaremos un origin
-        const origin = req.headers.origin || 'http://localhost:3000';
+        // Enviar email con resolución de dominio garantizada
+        const { BRAND } = require('../../config/brand');
+        let origin = req.headers.origin;
+        if (!origin && req.headers.referer) {
+            try { origin = new URL(req.headers.referer).origin; } catch (_) {}
+        }
+        if (!origin) {
+            origin = process.env.APP_PUBLIC_URL || process.env.CLIENT_URL || BRAND.publicAppUrl || 'https://www.genai.cl';
+        }
+        if (origin.endsWith('/')) origin = origin.slice(0, -1);
+
         const resetUrl = `${origin}/reset-password/${resetToken}`;
 
         const { sendPasswordResetEmail } = require('../../utils/mailer');
@@ -670,21 +686,21 @@ exports.forgotPassword = async (req, res) => {
         const empresaNombre = user.empresa?.nombre || user.empresaRef?.nombre;
         const empresaLogo = user.empresa?.logo || user.empresaRef?.logo;
 
-        try {
-            await sendPasswordResetEmail({
-                email: user.email,
-                name: user.name,
-                resetUrl,
-                companyName: empresaNombre,
-                companyLogo: empresaLogo
-            });
-            res.json({ message: 'Correo enviado. Revisa tu bandeja de entrada.' });
-        } catch (error) {
-            console.error('Error enviando correo de recuperación:', error);
+        const sent = await sendPasswordResetEmail({
+            email: user.email,
+            name: user.name,
+            resetUrl,
+            companyName: empresaNombre,
+            companyLogo: empresaLogo
+        });
+
+        if (sent) {
+            return res.json({ message: 'Correo enviado. Revisa tu bandeja de entrada o spam.' });
+        } else {
             user.resetPasswordToken = undefined;
             user.resetPasswordExpire = undefined;
             await user.save();
-            res.status(500).json({ message: 'El correo no pudo ser enviado. Inténtalo más tarde.' });
+            return res.status(500).json({ message: 'El correo no pudo ser enviado. Por favor intenta más tarde o contacta al administrador.' });
         }
     } catch (e) {
         console.error('❌ Error en forgotPassword:', e);

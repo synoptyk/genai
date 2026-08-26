@@ -9,7 +9,12 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
     horaSalida:   String,
     estado: {
         type: String,
-        enum: ['Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso', 'Feriado', 'Vacaciones', 'Libre', 'NC'],
+        enum: [
+            'Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso',
+            'Feriado', 'Vacaciones', 'Libre', 'NC', 'Finiquitado',
+            'Licencia Médica', 'Licencia Maternal/Paternal', 'Accidente del Trabajo',
+            'Permiso con Goce', 'Permiso sin Goce', 'Suspendido'
+        ],
         default: 'Presente'
     },
     // NUEVOS CAMPOS PARA ASISTENCIA OPERATIVA
@@ -63,7 +68,8 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
     isBeforeContract: { type: Boolean, default: false }, // NC (No Contratado) - fecha anterior a contractStartDate
     esFeriado:        { type: Boolean, default: false }, // Marcador de feriado legal
     esDomingo:        { type: Boolean, default: false }, // Marcador de domingo
-    syncFromProduccion: { type: Boolean, default: false }, // true = sincronizado desde Producción, false = manual
+    syncFromProduccion: { type: Boolean, default: false }, // legacy
+    syncContractual:    { type: Boolean, default: false }, // true = sincronizado desde estados contractuales
 
     // ASISTENCIA LEGAL (DT)
     auditLog: {

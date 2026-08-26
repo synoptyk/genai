@@ -68,7 +68,7 @@ export default function FiniquitoModalAsistente({
                         promedioSueldoVariable: fd.promedioSueldoVariable || 0,
                         colacion: fd.colacion || 0,
                         movilizacion: fd.movilizacion || 0,
-                        gratificacion: fd.gratificacion !== undefined ? fd.gratificacion : Math.min(Math.round((initialTarget.sueldoBase || 0) * 0.25), 197917),
+                        gratificacion: fd.gratificacion !== undefined ? fd.gratificacion : Math.min(Math.round((initialTarget.sueldoBase || 0) * 0.25), 219115),
                         valorUF: fd.valorUF || ufValue || 38500,
                         diasVacacionesTomados: fd.diasVacacionesTomados || 0,
                         diasVacacionesProgresivas: fd.diasVacacionesProgresivas || 0,
@@ -121,7 +121,7 @@ export default function FiniquitoModalAsistente({
         const vacsTomadas = (c.vacaciones || [])
             .filter(v => v.estado === 'Aprobado' && v.tipo === 'Vacaciones')
             .reduce((sum, v) => sum + (Number(v.diasHabiles) || 0), 0);
-        const defaultGratificacion = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 197917);
+        const defaultGratificacion = Math.min(Math.round((c.sueldoBase || 0) * 0.25), 219115);
             
         setFiniquitoData({
             fechaEgreso: '', fechaNotificacion: '', causalTermino: '',

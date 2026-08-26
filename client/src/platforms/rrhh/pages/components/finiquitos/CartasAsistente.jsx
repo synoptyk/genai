@@ -142,7 +142,7 @@ const CartasAsistente = ({ contratados, MOTIVOS }) => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1 border border-slate-200 rounded-3xl p-4 bg-white shadow-sm flex flex-col h-[500px]">
+                <div className={`lg:col-span-1 border border-slate-200 rounded-3xl p-4 bg-white shadow-sm flex-col h-[500px] ${cartaCandidatoId ? 'hidden lg:flex' : 'flex'}`}>
                     <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-wider mb-3">1. Seleccionar Colaborador</h4>
                     <div className="relative mb-3">
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -170,11 +170,18 @@ const CartasAsistente = ({ contratados, MOTIVOS }) => {
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 border border-slate-200 rounded-3xl p-6 bg-white shadow-sm">
+                <div className={`lg:col-span-2 border border-slate-200 rounded-3xl p-6 bg-white shadow-sm ${!cartaCandidatoId ? 'hidden lg:block' : 'block'}`}>
                     {cartaCandidatoId ? (() => {
                         const target = contratados.find(c => c._id === cartaCandidatoId);
                         return (
                             <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                {/* Botón Volver */}
+                                <button 
+                                    onClick={() => setCartaCandidatoId(null)}
+                                    className="lg:hidden flex items-center gap-2 text-slate-500 hover:text-slate-800 font-black text-[10px] uppercase tracking-widest bg-slate-50 py-2.5 px-5 rounded-2xl shadow-sm border border-slate-200 transition-all active:scale-95 w-fit mb-2"
+                                >
+                                    ← Volver a la lista
+                                </button>
                                 <div>
                                     <h4 className="text-[10px] font-black uppercase text-violet-600 tracking-wider mb-1">2. Datos de la Carta</h4>
                                     <p className="text-[11px] font-bold text-slate-700">Configurando carta para: <span className="text-violet-700">{target.fullName}</span></p>

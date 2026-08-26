@@ -148,7 +148,7 @@ const GoalBar = ({ label, actual, meta, color, suffix = '', sub }) => {
 /* ── Global Filter Bar ── */
 const GlobalFilterBar = ({ filters, setFilters, clientesBase, refreshing }) => {
   return (
-    <div className="sticky-filter-bar sticky top-0 z-[100] mb-4 md:mb-8">
+    <div className="sticky-filter-bar sticky top-0 z-20 mb-4 md:mb-8">
       <div className="bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl md:rounded-[2.5rem] p-3 md:p-6 shadow-xl md:shadow-2xl shadow-indigo-100/30 animate-in fade-in slide-in-from-top-4 duration-500 border-b-4 border-b-indigo-500/20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-6 items-end">
           {/* Fecha Desde */}

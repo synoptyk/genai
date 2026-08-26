@@ -2,80 +2,180 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Google Fonts: Inter ─────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ═══════════════════════════════════════════════════════════════
+   GENAI360 BRAND DESIGN SYSTEM
+   Paleta extraída del logo V1: Navy · Blue · Violet · Green · Gold · Cyan
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Brand Colors — Inverted Hierarchy (Celeste, Verde & Dorado Predominantes) */
+  --brand-cyan:    #00bcd4;
+  --brand-cyanL:   #26c6da;
+  --brand-cyanXL:  #e0f7fa;
+  --brand-green:   #00897b;
+  --brand-greenL:  #10b981;
+  --brand-greenXL: #e0f2f1;
+  --brand-gold:    #f59e0b;
+  --brand-goldL:   #fbbf24;
+  --brand-goldXL:  #fef3c7;
+  --brand-blue:    #1565c0;
+  --brand-blueL:   #1976d2;
+  --brand-blueXL:  #e3f2fd;
+  --brand-violet:  #5c35d4;
+  --brand-violetL: #7c4dff;
+  --brand-navy:    #0d1854;
+  --brand-navyL:   #1a237e;
+
+  /* Semánticos (Cyan / Green / Gold predominant) */
+  --color-primary:       0 188 212;    /* brand-cyan (PREDOMINANTE) */
+  --color-primary-hover: 0 137 123;    /* brand-green */
+  --color-primary-light: 224 247 250;  /* brand-cyanXL */
+  --bg-main:             240 249 250;  /* fondo con tinte cyan ultra ligero */
+  --bg-card:             255 255 255;
+  --text-main:           10 25 40;     /* dark navy text */
+  --text-muted:          100 116 139;
+  --border-color:        200 235 240;  /* borde cyan sutil */
+  --safe-area-top:    env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
+}
+
+.dark {
+  --bg-main:    13 24 84;   /* brand-navy */
+  --bg-card:    26 35 126;  /* brand-navyL */
+  --text-main:  240 245 255;
+  --text-muted: 143 163 192; /* brand-muted */
+  --border-color: 92 53 212; /* brand-violet con baja opacidad */
+}
+
 @layer components {
+  /* ── Inputs ──────────────────────────────────────────────── */
   .input-rrhh {
     @apply w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 text-xs outline-none transition-all font-semibold placeholder:text-slate-300 shadow-sm appearance-none;
   }
-
   .input-rrhh:focus {
-    @apply border-indigo-500 ring-[6px] ring-indigo-500/5 bg-white shadow-xl shadow-indigo-100/50;
+    @apply border-brand-blue ring-[6px] ring-brand-blue/10 bg-white shadow-brand-blue;
   }
 
+  /* ── Labels ──────────────────────────────────────────────── */
   .label-premium {
-    @apply flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 ml-1 transition-colors group-hover:text-indigo-600;
+    @apply flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 ml-1 transition-colors group-hover:text-brand-blue;
   }
 
+  /* ── Cards ───────────────────────────────────────────────── */
   .section-card-premium {
-    @apply bg-white p-8 rounded-[1.5rem] shadow-premium border border-slate-100/50 space-y-6 transition-all hover:shadow-premium-hover;
+    @apply bg-white p-8 rounded-[1.5rem] shadow-premium border border-slate-100/50 space-y-6 transition-all hover:shadow-brand-blue/20 hover:border-brand-blueXL;
   }
-
   .glass-card {
-    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl;
+    @apply bg-white/70 backdrop-blur-xl border border-brand-blue/10 shadow-xl;
   }
 
+  /* ── Texto Gradiente Brand ───────────────────────────────── */
   .premium-gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600;
+    @apply bg-clip-text text-transparent bg-brand-primary;
+  }
+  .gold-gradient-text {
+    @apply bg-clip-text text-transparent bg-brand-gold;
   }
 
+  /* ── Sidebar Active Tab ──────────────────────────────────── */
   .sidebar-tab-active {
-    @apply bg-indigo-50 text-indigo-600 shadow-premium-inset border border-indigo-100/50;
+    background: rgba(0, 188, 212, 0.12) !important;
+    border-left: 3px solid var(--brand-cyan) !important;
+    color: var(--brand-cyan) !important;
   }
+
+  /* ── Botones Brand ───────────────────────────────────────── */
+  .btn-brand {
+    @apply bg-brand-primary text-white font-semibold px-5 py-2.5 rounded-xl shadow-brand-blue
+           hover:shadow-brand-blue-lg hover:scale-[1.02] active:scale-[0.98]
+           transition-all duration-200;
+  }
+  .btn-brand-outline {
+    @apply border-2 border-brand-blue text-brand-blue font-semibold px-5 py-2.5 rounded-xl
+           hover:bg-brand-blueXL hover:shadow-brand-blue
+           transition-all duration-200;
+  }
+  .btn-brand-gold {
+    @apply bg-brand-gold text-white font-semibold px-5 py-2.5 rounded-xl shadow-brand-gold
+           hover:bg-brand-goldL hover:shadow-brand-gold hover:scale-[1.02]
+           transition-all duration-200;
+  }
+  .btn-brand-green {
+    @apply bg-brand-green text-white font-semibold px-5 py-2.5 rounded-xl shadow-brand-green
+           hover:bg-brand-greenL hover:scale-[1.02]
+           transition-all duration-200;
+  }
+  .btn-brand-violet {
+    @apply bg-brand-violet text-white font-semibold px-5 py-2.5 rounded-xl shadow-brand-violet
+           hover:bg-brand-violetL hover:scale-[1.02]
+           transition-all duration-200;
+  }
+
+  /* ── Badges / Pills ──────────────────────────────────────── */
+  .badge-brand-blue   { @apply bg-brand-blueXL text-brand-blue border border-brand-blue/20 text-xs font-bold px-2.5 py-0.5 rounded-full; }
+  .badge-brand-green  { @apply bg-brand-greenXL text-brand-green border border-brand-green/20 text-xs font-bold px-2.5 py-0.5 rounded-full; }
+  .badge-brand-gold   { @apply bg-brand-goldXL text-brand-gold border border-brand-gold/20 text-xs font-bold px-2.5 py-0.5 rounded-full; }
+  .badge-brand-cyan   { @apply bg-brand-cyanXL text-brand-cyan border border-brand-cyan/20 text-xs font-bold px-2.5 py-0.5 rounded-full; }
+  .badge-brand-violet { @apply bg-purple-50 text-brand-violet border border-brand-violet/20 text-xs font-bold px-2.5 py-0.5 rounded-full; }
+
+  /* ── KPI Cards ───────────────────────────────────────────── */
+  .kpi-card-blue   { @apply bg-brand-primary text-white rounded-2xl p-5 shadow-brand-blue; }
+  .kpi-card-green  { @apply bg-brand-green text-white rounded-2xl p-5 shadow-brand-green; }
+  .kpi-card-gold   { @apply bg-brand-gold text-white rounded-2xl p-5 shadow-brand-gold; }
+  .kpi-card-violet { @apply bg-brand-violet text-white rounded-2xl p-5 shadow-brand-violet; }
+  .kpi-card-cyan   { @apply bg-brand-cyan text-white rounded-2xl p-5 shadow-brand-cyan; }
+
+  /* ── Dot/Status indicator ────────────────────────────────── */
+  .status-dot-green  { @apply w-2 h-2 rounded-full bg-brand-green shadow-brand-green; }
+  .status-dot-gold   { @apply w-2 h-2 rounded-full bg-brand-gold shadow-brand-gold; }
+  .status-dot-blue   { @apply w-2 h-2 rounded-full bg-brand-blue; }
+  .status-dot-cyan   { @apply w-2 h-2 rounded-full bg-brand-cyan animate-glow; }
+
+  /* ── Dynamic Brand Utility classes ──────────────────────── */
+  .text-primary-brand    { color: var(--brand-blue) !important; }
+  .bg-primary-brand      { background-color: var(--brand-blue) !important; }
+  .border-primary-brand  { border-color: var(--brand-blue) !important; }
+  .bg-primary-brand-light { background-color: var(--brand-blueXL) !important; }
+  .bg-primary-brand-hover:hover { background-color: var(--brand-blueL) !important; }
 }
 
+
+/* ── Body base ──────────────────────────────────────────────── */
 body {
   margin: 0;
-  background-color: #f8fafc;
+  background-color: #f0f4ff;
   -webkit-font-smoothing: antialiased;
-  @apply text-slate-900 font-sans;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #0a0f2e;
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Custom Scrollbar for Premium UI */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+/* ── Custom Scrollbar Brand ──────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar { width: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
+  background: #c5d8f5;
   border-radius: 10px;
 }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #1565c0; }
+/* Global scrollbar (sidebar nav) */
+* { scrollbar-width: thin; scrollbar-color: #c5d8f5 transparent; }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
-}
-
-/* Responsive PDF Visor & Printing Scaling */
+/* ── PDF Viewer ──────────────────────────────────────────────── */
 .pdf-container-responsive {
-  width: 100%;
-  overflow-x: auto;
-  display: flex;
-  justify-content: center;
-  padding: 1rem;
-  background-color: #f1f5f9;
+  width: 100%; overflow-x: auto; display: flex;
+  justify-content: center; padding: 1rem;
+  background-color: #e3f2fd;
 }
-
 .pdf-page-sim {
-  width: 210mm;
-  min-height: 297mm;
-  background-color: white;
-  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.1);
-  transform-origin: top center;
-  transition: transform 0.3s ease;
+  width: 210mm; min-height: 297mm; background-color: white;
+  box-shadow: 0 25px 50px -12px rgba(21, 101, 192, 0.15);
+  transform-origin: top center; transition: transform 0.3s ease;
 }
-
 @media (max-width: 794px) {
   .pdf-page-sim {
     transform: scale(calc(100vw / 794 * 0.9));
@@ -83,93 +183,46 @@ body {
   }
 }
 
-/* Touche Targets & Safe Areas */
+/* ── Touch Targets ───────────────────────────────────────────── */
 @media (max-width: 640px) {
-  button, a {
-    min-height: 44px;
-    min-width: 44px;
-  }
+  button, a { min-height: 44px; min-width: 44px; }
 }
 
-:root {
-  --color-primary: 79 70 229; /* rgb for indigo-600 */
-  --color-primary-hover: 67 56 202; /* indigo-700 */
-  --color-primary-light: 238 242 255; /* indigo-50 */
-  --bg-main: 248 250 252; /* slate-50 */
-  --bg-card: 255 255 255; /* white */
-  --text-main: 15 23 42; /* slate-900 */
-  --text-muted: 100 116 139; /* slate-500 */
-  --border-color: 241 245 249; /* slate-100 */
-  --safe-area-top: env(safe-area-inset-top);
-  --safe-area-bottom: env(safe-area-inset-bottom);
-}
 
-.dark {
-  --bg-main: 15 23 42; /* slate-900 */
-  --bg-card: 30 41 59; /* slate-800 */
-  --text-main: 248 250 252; /* slate-50 */
-  --text-muted: 148 163 184; /* slate-400 */
-  --border-color: 51 65 85; /* slate-700 */
-}
-
-body {
-  padding-top: var(--safe-area-top);
-  padding-bottom: var(--safe-area-bottom);
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Global Dark Mode Style Overrides */
+/* ── Dark Mode Overrides — Brand Colors ─────────────────────── */
 .dark body {
-  background-color: rgb(var(--bg-main)) !important;
-  color: rgb(var(--text-main)) !important;
+  background-color: var(--brand-navy) !important;
+  color: #f0f4ff !important;
 }
-
 .dark .bg-white,
 .dark .bg-white\/70,
 .dark .glass-card {
-  background-color: rgba(30, 41, 59, 0.85) !important;
-  border-color: rgba(71, 85, 105, 0.4) !important;
-  color: rgb(var(--text-main)) !important;
+  background-color: rgba(26, 35, 126, 0.85) !important;
+  border-color: rgba(92, 53, 212, 0.3) !important;
+  color: #f0f4ff !important;
 }
-
-.dark .text-slate-900,
-.dark .text-slate-800,
-.dark .text-slate-700,
-.dark .text-slate-600 {
-  color: rgb(var(--text-main)) !important;
+.dark .text-slate-900, .dark .text-slate-800,
+.dark .text-slate-700, .dark .text-slate-600 { color: #e8eeff !important; }
+.dark .text-slate-500, .dark .text-slate-400 { color: var(--brand-muted) !important; }
+.dark .border-slate-100, .dark .border-slate-200,
+.dark .border-slate-300\/50, .dark .border-slate-200\/50 { border-color: rgba(92,53,212,0.25) !important; }
+.dark .bg-slate-50, .dark .bg-slate-100, .dark .bg-slate-50\/50 { background-color: var(--brand-navy) !important; }
+.dark input, .dark select, .dark textarea {
+  background-color: rgba(13, 24, 84, 0.8) !important;
+  border-color: rgba(92, 53, 212, 0.3) !important;
+  color: #f0f4ff !important;
 }
-
-.dark .text-slate-500,
-.dark .text-slate-400 {
-  color: rgb(var(--text-muted)) !important;
-}
-
-.dark .border-slate-100,
-.dark .border-slate-200,
-.dark .border-slate-300\/50,
-.dark .border-slate-200\/50 {
-  border-color: rgb(var(--border-color)) !important;
-}
-
-.dark .bg-slate-50,
-.dark .bg-slate-100,
-.dark .bg-slate-50\/50 {
-  background-color: rgb(var(--bg-main)) !important;
-}
-
-.dark input,
-.dark select,
-.dark textarea {
-  background-color: rgb(var(--bg-main)) !important;
-  border-color: rgb(var(--border-color)) !important;
-  color: rgb(var(--text-main)) !important;
-}
-
 .dark .section-card-premium {
-  background-color: rgb(var(--bg-card)) !important;
-  border-color: rgb(var(--border-color)) !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+  background-color: rgba(26, 35, 126, 0.7) !important;
+  border-color: rgba(92, 53, 212, 0.2) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
 }
+.dark .sidebar-tab-active {
+  background-color: rgba(0, 188, 212, 0.15) !important;
+  border-color: var(--brand-cyan) !important;
+  color: var(--brand-cyan) !important;
+}
+
 
 .dark .sidebar-tab-active {
   background-color: rgba(79, 70, 229, 0.15) !important;
@@ -202,6 +255,39 @@ body {
    beneficiarse de estas reglas base.
 ═══════════════════════════════════════════════════════════════ */
 
+/* ── FLUID TYPOGRAPHY & CONTAINER QUERIES (MODERN WEB SPEC 2026) ── */
+:root {
+  --fluid-min-width: 320;
+  --fluid-max-width: 1440;
+}
+
+.font-fluid-xs { font-size: clamp(0.65rem, 0.55rem + 0.35vw, 0.75rem); }
+.font-fluid-sm { font-size: clamp(0.75rem, 0.65rem + 0.45vw, 0.875rem); }
+.font-fluid-base { font-size: clamp(0.875rem, 0.75rem + 0.55vw, 1rem); }
+.font-fluid-lg { font-size: clamp(1rem, 0.85rem + 0.7vw, 1.25rem); }
+.font-fluid-xl { font-size: clamp(1.25rem, 1rem + 1vw, 1.75rem); }
+.font-fluid-2xl { font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem); }
+
+/* Container Query context wrappers */
+.container-card {
+  container-type: inline-size;
+  container-name: card;
+}
+
+.container-section {
+  container-type: inline-size;
+  container-name: section;
+}
+
+/* Dynamic Viewport & Overscroll control */
+.min-h-dvh {
+  min-height: 100dvh;
+}
+
+.h-dvh {
+  height: 100dvh;
+}
+
 /* ── 1. TABLES — Scroll horizontal automático en móvil ──────── */
 /* Cubre los 40+ archivos con tablas HTML sin tocar ninguno       */
 @media (max-width: 1024px) {
@@ -210,6 +296,8 @@ body {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
+    scrollbar-gutter: stable;
+    overscroll-behavior-x: contain;
   }
   /* Indicador visual de scroll disponible */
   table:not(:only-child) {
@@ -410,17 +498,14 @@ main {
 
 /* ── 13b. GRID SISTÉMICO — Las páginas apilan mejor en celular ───────── */
 @media (max-width: 640px) {
-  .sm\:grid-cols-2,
-  .md\:grid-cols-2,
-  .md\:grid-cols-3,
-  .lg\:grid-cols-2,
-  .lg\:grid-cols-3,
-  .lg\:grid-cols-4,
-  .xl\:grid-cols-2,
-  .xl\:grid-cols-3,
-  .xl\:grid-cols-4 {
-    grid-template-columns: minmax(0, 1fr) !important;
+  /* Grids de tarjetas KPI permiten 2 columnas en móviles para mejor aprovechamiento */
+  .grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
+  .grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
   .max-w-md,
   .max-w-lg,
   .max-w-xl,

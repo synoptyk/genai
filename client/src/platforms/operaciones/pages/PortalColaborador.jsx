@@ -4,6 +4,7 @@ import { calcularBonoImponible } from '../utils/bonoImponible';
 import { DollarSign } from 'lucide-react';
 import api from '../../../api/api';
 import { useAuth } from '../../auth/AuthContext';
+import { useIndicadores } from '../../../contexts/IndicadoresContext';
 import {
     User, Truck, ClipboardCheck, Calendar,
     BarChart3, ShieldCheck, FileText, BadgeCheck,
@@ -18,7 +19,8 @@ import {
     ClipboardList,
     TrendingUp, Star, Trophy, Settings,
     Wrench, Shield, Cpu, Layers, Hammer, Gauge, Timer, Target, Check,
-    Upload, Image as ImageIcon, RefreshCw
+    Upload, Image as ImageIcon, RefreshCw,
+    Receipt, Coins, PiggyBank, Landmark, Sparkles, Scale, FileSpreadsheet, CheckCheck, HeartPulse
 } from 'lucide-react';
 import logisticaApi from '../../logistica/logisticaApi';
 import {
@@ -29,6 +31,79 @@ import GarantiasTab from '../../agentetelecom/components/GarantiasTab';
 import AgendaColaboradorTab from '../components/AgendaColaboradorTab';
 import NotificacionesTramites from './NotificacionesTramites';
 import { getHorarioDelDia } from '../../rrhh/utils/turnoHelper';
+
+const AFP_RATES = {
+    'CAPITAL': 11.44,
+    'CUPRUM': 11.44,
+    'HABITAT': 11.27,
+    'PLANVITAL': 11.16,
+    'PROVIDA': 11.45,
+    'MODELO': 10.58,
+    'UNO': 10.46,
+};
+
+const calcularImpuestoUnico = (baseTributable, utm) => {
+    if (!utm || utm <= 0 || baseTributable <= 0) return 0;
+    const baseUtm = baseTributable / utm;
+    if (baseUtm <= 13.5) return 0;
+    let tasa = 0;
+    let rebajaUtm = 0;
+    if (baseUtm <= 30) { tasa = 0.04; rebajaUtm = 0.54; }
+    else if (baseUtm <= 50) { tasa = 0.08; rebajaUtm = 1.74; }
+    else if (baseUtm <= 70) { tasa = 0.135; rebajaUtm = 4.49; }
+    else if (baseUtm <= 90) { tasa = 0.23; rebajaUtm = 11.14; }
+    else if (baseUtm <= 120) { tasa = 0.304; rebajaUtm = 17.80; }
+    else if (baseUtm <= 310) { tasa = 0.35; rebajaUtm = 23.32; }
+    else { tasa = 0.40; rebajaUtm = 38.82; }
+    const impuestoClp = Math.round((baseTributable * tasa) - (rebajaUtm * utm));
+    return Math.max(0, impuestoClp);
+};
+
+const parseLocalDateHelper = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    const str = String(dateStr).split('T')[0];
+    const parts = str.split('-').map(Number);
+    if (parts.length === 3 && !parts.some(isNaN)) {
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+    return new Date(dateStr);
+};
+
+const getWorkerActiveDaysHelper = (emp, diasCalendario, periodStr) => {
+    const [y, m] = periodStr.split('-');
+    const year = parseInt(y, 10);
+    const month = parseInt(m, 10);
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0);
+
+    const ingresoDate = (emp.contractStartDate || emp.fechaIngreso) ? parseLocalDateHelper(emp.contractStartDate || emp.fechaIngreso) : null;
+    const finiquitoDate = emp.fechaFiniquito ? parseLocalDateHelper(emp.fechaFiniquito) : null;
+
+    if (!ingresoDate || isNaN(ingresoDate.getTime())) return 30;
+    if (ingresoDate > endOfMonth) return 0;
+    
+    let isFullMonth = true;
+    let activeStartDay = 1;
+    let activeEndDay = diasCalendario;
+
+    if (ingresoDate > startOfMonth) {
+        isFullMonth = false;
+        activeStartDay = ingresoDate.getDate();
+    }
+
+    if (finiquitoDate && !isNaN(finiquitoDate.getTime())) {
+        if (finiquitoDate < startOfMonth) return 0;
+        if (finiquitoDate < endOfMonth) {
+            isFullMonth = false;
+            activeEndDay = finiquitoDate.getDate();
+        }
+    }
+
+    if (isFullMonth) return 30;
+    const diasCalendarioTrabajados = Math.max(0, activeEndDay - activeStartDay + 1);
+    return Math.min(30, diasCalendarioTrabajados);
+};
 
 const getLocation = () => {
     return new Promise((resolve, reject) => {
@@ -239,6 +314,13 @@ const PortalColaborador = () => {
     const [tarifasLPU, setTarifasLPU] = useState([]);
     const [loadingTarifas, setLoadingTarifas] = useState(false);
 
+    // --- Preliquidación en Línea: Integración dinámica con Remu Central ---
+    const { ufValue, utmValue, immValue, params: indicParams } = useIndicadores();
+    const [asistenciaPeriodo, setAsistenciaPeriodo] = useState(null);
+    const [descuentosPeriodo, setDescuentosPeriodo] = useState([]);
+    const [beneficiosPeriodo, setBeneficiosPeriodo] = useState([]);
+    const [loadingPreliq, setLoadingPreliq] = useState(false);
+
     useEffect(() => {
         const fetchBonos = async () => {
             setLoadingBonos(true);
@@ -250,7 +332,8 @@ const PortalColaborador = () => {
                         ...tr,
                         hasta: tr.hasta === 'Más' ? null : tr.hasta
                     })));
-                    setPuntosNoCalculables(modelo.puntosExcluidos || 0);
+                    // 100% de puntos son calculables (restricción de 95 desactivada)
+                    setPuntosNoCalculables(0);
                     setTramosRRState(modelo.tramosRR || []);
                     setTramosAIState(modelo.tramosAI || []);
                 }
@@ -264,6 +347,54 @@ const PortalColaborador = () => {
             }
         };
         fetchBonos();
+
+        const fetchPreliqDatos = async () => {
+            setLoadingPreliq(true);
+            try {
+                const mesNum = selectedMonth + 1;
+                const periodoStr = `${activeYear}-${String(mesNum).padStart(2, '0')}`;
+                const rutClean = (tecnico?.rut || perfil?.rut || user?.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+                
+                const [resAsis, resDesc, resBen] = await Promise.all([
+                    api.get(`/api/rrhh/asistencia/resumen-periodo?month=${mesNum}&year=${activeYear}`).catch(() => ({ data: [] })),
+                    api.get(`/api/rrhh/descuentos/transacciones/${periodoStr}`).catch(() => ({ data: [] })),
+                    api.get(`/api/rrhh/beneficios/transacciones/${periodoStr}`).catch(() => ({ data: [] }))
+                ]);
+
+                // Asistencia
+                const asisList = resAsis.data || [];
+                const miAsis = asisList.find(a => {
+                    const aRut = (a.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+                    const aId = String(a.candidatoId?._id || a.candidatoId || a.candidatoRef || a.tecnicoRef || '').trim();
+                    const cId = String(perfil?._id || tecnico?._id || '').trim();
+                    return (rutClean && aRut === rutClean) || (cId && aId === cId);
+                });
+                setAsistenciaPeriodo(miAsis || null);
+
+                // Descuentos
+                const descList = resDesc.data || [];
+                const misDesc = descList.filter(d => {
+                    const dRut = (d.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+                    const cId = String(perfil?._id || tecnico?._id || '').trim();
+                    return (rutClean && dRut === rutClean) || (cId && d.candidatoRef === cId);
+                });
+                setDescuentosPeriodo(misDesc);
+
+                // Beneficios
+                const benList = resBen.data || [];
+                const misBen = benList.filter(b => {
+                    const bRut = (b.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+                    const cId = String(perfil?._id || tecnico?._id || '').trim();
+                    return (rutClean && bRut === rutClean) || (cId && b.candidatoRef === cId);
+                });
+                setBeneficiosPeriodo(misBen);
+            } catch (err) {
+                console.warn('Error al cargar datos de preliquidación:', err);
+            } finally {
+                setLoadingPreliq(false);
+            }
+        };
+        fetchPreliqDatos();
 
         const fetchTarifasLPU = async () => {
             setLoadingTarifas(true);
@@ -806,7 +937,7 @@ const PortalColaborador = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full md:w-auto">
                         <div className="bg-white p-5 rounded-[2.2rem] border border-slate-100 shadow-sm text-center min-w-[130px]">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">OTs del Mes</p>
                             <p className="text-3xl font-black text-slate-800 leading-none">{produccion?.resumen?.totalActividades ?? 0}</p>
@@ -1422,9 +1553,8 @@ const PortalColaborador = () => {
                 const META_MENSUAL = META_DIARIA * DIAS_LABORALES_MES;
                 const cumplimientoMeta = Math.min(100, Math.round((totalPuntos / META_MENSUAL) * 100));
 
-                // --- Bono imponible: tramo se busca por puntos TOTALES, se multiplica por pts calculables ---
-                // (misma lógica que CierreBonos.jsx del administrador)
-                const puntosCalculables = Math.round((Math.max(0, totalPuntos - puntosNoCalculables)) * 10) / 10;
+                // --- Bono imponible: 100% de puntos son calculables (restricción de 95 desactivada) ---
+                const puntosCalculables = Math.round(totalPuntos * 10) / 10;
                 let valorTramo = 0;
                 if (tramosBaremo.length > 0) {
                     for (let i = 0; i < tramosBaremo.length; i++) {
@@ -1460,12 +1590,98 @@ const PortalColaborador = () => {
 
                 let rrBonus = 0;
                 let aiBonus = 0;
-                if (puntosCalculables > 0) {
+                if (totalPuntos > 0 || (garantiasMetrics.aiTotal > 0 || garantiasMetrics.rrTotal > 0)) {
                     rrBonus = calculateTierBonus(garantiasMetrics.rrValue, tramosRRState);
                     aiBonus = calculateTierBonus(garantiasMetrics.aiValue, tramosAIState);
                 }
 
                 const bonoTotalFinal = bonoBaremo + rrBonus + aiBonus;
+
+                // ─── CÁLCULO PRELIQUIDACIÓN EN LÍNEA (DINÁMICO REMU CENTRAL) ───
+                const candidatoData = perfil || tecnico || {};
+                const sueldoBaseTrabajador = Number(candidatoData?.sueldoBase || tecnico?.sueldoBase || 553553);
+                const diasEnMes = new Date(activeYear, selectedMonth + 1, 0).getDate();
+                const periodoStr = `${activeYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+                const diasContrato = getWorkerActiveDaysHelper(candidatoData, diasEnMes, periodoStr);
+
+                const totalAsistencia = asistenciaPeriodo?.diasEfectivos ?? asistenciaPeriodo?.diasPresente ?? asistenciaPeriodo?.diasTrabajados ?? asistenciaPeriodo?.asistencia ?? 0;
+                const totalInasistencia = asistenciaPeriodo?.diasAusente ?? asistenciaPeriodo?.inasistencia ?? 0;
+                const diasLicencias = asistenciaPeriodo?.diasLicencia ?? asistenciaPeriodo?.diasLicenciaMedica ?? asistenciaPeriodo?.diasEnLicencia ?? 0;
+                const diasNoRemunerados = totalInasistencia + diasLicencias;
+
+                let workerDays = 30;
+                if (diasNoRemunerados > 0) {
+                    const baseCalculo = (diasContrato < 30) ? diasContrato : diasEnMes;
+                    workerDays = Math.min(30, Math.max(0, baseCalculo - diasNoRemunerados));
+                } else {
+                    workerDays = diasContrato;
+                }
+
+                const factorAsistencia = asistenciaPeriodo ? Math.min(1, Math.max(0, Math.max(0, 30 - diasNoRemunerados) / 30)) : 1;
+
+                // 1. Haberes Imponibles
+                const prorrateadoSueldo = Math.round((sueldoBaseTrabajador / 30) * workerDays);
+                const bonoBaremoPreliq = bonoBaremo;
+                const aiBonusPreliq = Math.round(aiBonus * factorAsistencia);
+                const rrBonusPreliq = Math.round(rrBonus * factorAsistencia);
+                const totalProduccionVariables = bonoBaremoPreliq + aiBonusPreliq + rrBonusPreliq;
+
+                const hrsExtras = Number(asistenciaPeriodo?.horasExtraAprobadas ?? asistenciaPeriodo?.horasExtras ?? asistenciaPeriodo?.balanceHoras ?? 0);
+                const montoHorasExtras = (sueldoBaseTrabajador && hrsExtras > 0) ? Math.round((sueldoBaseTrabajador / 180) * 1.5 * hrsExtras) : 0;
+
+                const sueldoMinimoLegal = immValue || 553553;
+                const topeGratifMensual = (sueldoMinimoLegal * 4.75) / 12;
+                const prorrateoTopeGratif = Math.round((topeGratifMensual / 30) * workerDays);
+                const baseParaGratificacion = prorrateadoSueldo + montoHorasExtras + totalProduccionVariables;
+                const gratificacionLegal = Math.min(Math.round(baseParaGratificacion * 0.25), prorrateoTopeGratif);
+
+                const totalHaberesImponibles = prorrateadoSueldo + montoHorasExtras + totalProduccionVariables + gratificacionLegal;
+
+                // 2. Descuentos Previsionales Legales
+                const ufHoy = ufValue || 38500;
+                const utmHoy = utmValue || 67500;
+                const topeAfpLocal = indicParams?.topeAfpUf || 89.9;
+                const topeAfcLocal = indicParams?.topeAfcUf || 135.1;
+                const topeLegalCLP = Math.round((topeAfpLocal * ufHoy / 30) * workerDays);
+                const baseImponible = Math.min(totalHaberesImponibles, topeLegalCLP);
+
+                const afpNombre = (candidatoData?.afp || 'MODELO').toUpperCase().trim();
+                const afpRate = AFP_RATES[afpNombre] || 10.58;
+                const afpMonto = Math.round(baseImponible * (afpRate / 100));
+
+                const isFonasa = (candidatoData?.previsionSalud || 'FONASA').toUpperCase().includes('FONASA');
+                let saludMonto = 0;
+                let saludLabel = isFonasa ? 'FONASA (7%)' : (candidatoData?.isapreNombre || 'ISAPRE');
+                if (isFonasa || !candidatoData?.valorPlan) {
+                    saludMonto = Math.round(baseImponible * 0.07);
+                    if (!isFonasa && candidatoData?.isapreNombre) saludLabel = `${candidatoData.isapreNombre} (7% Legal)`;
+                } else {
+                    const valPlan = parseFloat(candidatoData?.valorPlan) || 0;
+                    const montoPactado = Math.round(valPlan * ufHoy);
+                    const minimoLegal = Math.round(baseImponible * 0.07);
+                    saludMonto = Math.max(minimoLegal, montoPactado);
+                    saludLabel = minimoLegal > montoPactado ? `${candidatoData?.isapreNombre || 'ISAPRE'} (7% Legal)` : `${candidatoData?.isapreNombre || 'ISAPRE'} (${valPlan} UF)`;
+                }
+
+                const contractType = (candidatoData?.tipoContrato || candidatoData?.contractType || 'INDEFINIDO').toUpperCase();
+                const esPlazoFijo = contractType.includes('PLAZO') || contractType.includes('OBRA') || contractType.includes('FAENA');
+                const esIndefinido = !esPlazoFijo;
+                const topeLegalAfcCLP = Math.round((topeAfcLocal * ufHoy / 30) * workerDays);
+                const baseImponibleAfc = Math.min(totalHaberesImponibles, topeLegalAfcCLP);
+                const afcMonto = esIndefinido ? Math.round(baseImponibleAfc * 0.006) : 0;
+
+                const cotizSalud7Legal = Math.round(baseImponible * 0.07);
+                const baseTributable = Math.max(0, totalHaberesImponibles - afpMonto - cotizSalud7Legal - afcMonto);
+                const impuestoUnico = calcularImpuestoUnico(baseTributable, utmHoy);
+
+                const totalDescuentosLegales = afpMonto + saludMonto + afcMonto + impuestoUnico;
+
+                // 3. Otros Descuentos y Beneficios
+                const totalOtrosDescuentos = descuentosPeriodo.reduce((sum, d) => sum + (d.monto || 0), 0);
+                const totalBeneficios = beneficiosPeriodo.reduce((sum, b) => sum + (b.monto || 0), 0);
+
+                // 4. Sueldo Líquido Final
+                const totalSueldoLiquido = Math.max(0, totalHaberesImponibles - totalDescuentosLegales - totalOtrosDescuentos + totalBeneficios);
 
 
         return (
@@ -1513,7 +1729,7 @@ const PortalColaborador = () => {
                 </div>
 
                                 {/* Bono Imponible Alcanzado */}
-                                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-3xl shadow-xl overflow-hidden mb-12 relative">
+                                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-3xl shadow-xl overflow-hidden mb-8 relative">
                                     {/* Abstract background blobs */}
                                     <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-200/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
                                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-200/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
@@ -1555,8 +1771,8 @@ const PortalColaborador = () => {
                                                             <span className="font-mono font-bold text-slate-800">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                                                         </div>
                                                         <div className="flex justify-between items-center text-xs">
-                                                            <span className="text-slate-500 font-medium">No Calculables:</span>
-                                                            <span className="font-mono text-slate-500">-{puntosNoCalculables}</span>
+                                                            <span className="text-slate-500 font-medium">Puntos Calculables:</span>
+                                                            <span className="font-mono font-bold text-emerald-600">{puntosCalculables} pts (100%)</span>
                                                         </div>
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-slate-500 font-medium">Tramo Alcanzado:</span>
@@ -1586,9 +1802,10 @@ const PortalColaborador = () => {
                                                             <span className="text-slate-500 font-medium">% Logrado:</span>
                                                             <span className={`font-mono font-bold ${garantiasMetrics.aiValue > 10 ? 'text-rose-500' : 'text-blue-600'}`}>{Number(garantiasMetrics.aiValue).toFixed(1)}%</span>
                                                         </div>
-                                                        {puntosCalculables <= 0 && (
-                                                            <div className="text-[10px] font-bold text-rose-500 text-center uppercase tracking-wider py-1">No cumple pts mínimos</div>
-                                                        )}
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">Estado Calidad:</span>
+                                                            <span className="font-bold text-emerald-600 text-[10px] uppercase">Calificado</span>
+                                                        </div>
                                                         <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between items-center">
                                                             <span className="text-[10px] font-black uppercase text-slate-400">Bono Calidad AI</span>
                                                             <span className="text-lg font-black text-emerald-700">${aiBonus.toLocaleString('es-CL')}</span>
@@ -1613,9 +1830,10 @@ const PortalColaborador = () => {
                                                             <span className="text-slate-500 font-medium">% Logrado:</span>
                                                             <span className={`font-mono font-bold ${garantiasMetrics.rrValue > 10 ? 'text-rose-500' : 'text-indigo-600'}`}>{Number(garantiasMetrics.rrValue).toFixed(1)}%</span>
                                                         </div>
-                                                        {puntosCalculables <= 0 && (
-                                                            <div className="text-[10px] font-bold text-rose-500 text-center uppercase tracking-wider py-1">No cumple pts mínimos</div>
-                                                        )}
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-medium">Estado Calidad:</span>
+                                                            <span className="font-bold text-emerald-600 text-[10px] uppercase">Calificado</span>
+                                                        </div>
                                                         <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between items-center">
                                                             <span className="text-[10px] font-black uppercase text-slate-400">Bono Calidad RR</span>
                                                             <span className="text-lg font-black text-emerald-700">${rrBonus.toLocaleString('es-CL')}</span>
@@ -1626,6 +1844,211 @@ const PortalColaborador = () => {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* ═══════════════════════════════════════════════════════════════════ */}
+                                {/* NUEVA FRANJA: PRELIQUIDACIÓN EN LÍNEA (DINÁMICA REMU CENTRAL)       */}
+                                {/* ═══════════════════════════════════════════════════════════════════ */}
+                                <div className="bg-white border border-slate-200/80 rounded-[2.5rem] shadow-xl p-8 mb-12 relative overflow-hidden group">
+                                    {/* Background decorative gradient */}
+                                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-50/50 rounded-full blur-3xl -z-10"></div>
+                                    <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-50/40 rounded-full blur-3xl -z-10"></div>
+
+                                    {/* Header de la Preliquidación */}
+                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-100 mb-8">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
+                                                <Receipt size={28} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-3">
+                                                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Preliquidación En Línea</h3>
+                                                    <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                        En Tiempo Real (Remu Central)
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                                    Estimación oficial de remuneraciones sincronizada con asistencia, DT Chile, Topes UF y Leyes Sociales.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Badges de Parámetros Laborales */}
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 flex items-center gap-2">
+                                                <Calendar size={13} className="text-indigo-500" />
+                                                <span>Días a Pago: <strong className="font-mono text-slate-900">{workerDays}/30</strong></span>
+                                            </div>
+                                            <div className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 flex items-center gap-2">
+                                                <ShieldCheck size={13} className="text-emerald-500" />
+                                                <span>AFP: <strong className="font-mono text-slate-900">{afpNombre} ({afpRate}%)</strong></span>
+                                            </div>
+                                            <div className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 flex items-center gap-2">
+                                                <HeartPulse size={13} className="text-rose-500" />
+                                                <span>Salud: <strong className="font-mono text-slate-900">{saludLabel}</strong></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Gran Banner de Sueldo Líquido */}
+                                    <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-2xl mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border border-slate-800">
+                                        <div>
+                                            <div className="flex items-center gap-2 text-indigo-300 text-xs font-black uppercase tracking-widest mb-1">
+                                                <Wallet size={16} /> Sueldo Líquido Estimado a Pagar
+                                            </div>
+                                            <div className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 tracking-tight">
+                                                ${totalSueldoLiquido.toLocaleString('es-CL')}
+                                            </div>
+                                            <div className="text-[11px] text-slate-400 mt-2 flex items-center gap-3">
+                                                <span>Total Imponible: <strong className="text-white font-mono">${totalHaberesImponibles.toLocaleString('es-CL')}</strong></span>
+                                                <span>•</span>
+                                                <span>Descuentos Legales: <strong className="text-rose-300 font-mono">-${totalDescuentosLegales.toLocaleString('es-CL')}</strong></span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-start md:items-end gap-2 shrink-0">
+                                            <span className="px-4 py-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-2xl text-xs font-black uppercase tracking-wider">
+                                                Líquido al {new Date().getDate()} de {availableMonths.find(m => m.id === selectedMonth)?.name}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 italic">
+                                                * Sujeto a cierre contable de fin de mes
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Grid de 3 Columnas: Haberes, Descuentos Legales, Otros */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                                        {/* Columna 1: Haberes Imponibles */}
+                                        <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-5 flex flex-col justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-200/80">
+                                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                                        <Plus size={15} />
+                                                    </div>
+                                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Haberes Imponibles</span>
+                                                </div>
+                                                <div className="space-y-2.5 text-xs">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Sueldo Base ({workerDays} días):</span>
+                                                        <span className="font-mono font-bold text-slate-800">${prorrateadoSueldo.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Gratificación Legal:</span>
+                                                        <span className="font-mono font-bold text-slate-800">${gratificacionLegal.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Bono Producción (Baremos):</span>
+                                                        <span className="font-mono font-bold text-emerald-600">${bonoBaremoPreliq.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Bono Calidad (AI + RR):</span>
+                                                        <span className="font-mono font-bold text-emerald-600">${(aiBonusPreliq + rrBonusPreliq).toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    {montoHorasExtras > 0 && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-slate-500 font-medium">Horas Extras ({hrsExtras}h):</span>
+                                                            <span className="font-mono font-bold text-indigo-600">${montoHorasExtras.toLocaleString('es-CL')}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="pt-3 mt-3 border-t border-slate-200/80 flex justify-between items-center">
+                                                <span className="text-[10px] font-black uppercase text-slate-400">Total Imponible</span>
+                                                <span className="text-sm font-black text-emerald-700">${totalHaberesImponibles.toLocaleString('es-CL')}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Columna 2: Descuentos Previsionales Legales */}
+                                        <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-5 flex flex-col justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-200/80">
+                                                    <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
+                                                        <Scale size={15} />
+                                                    </div>
+                                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Descuentos Legales</span>
+                                                </div>
+                                                <div className="space-y-2.5 text-xs">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">AFP {afpNombre} ({afpRate}%):</span>
+                                                        <span className="font-mono font-bold text-rose-600">-${afpMonto.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Salud ({isFonasa ? '7% Fonasa' : 'Isapre'}):</span>
+                                                        <span className="font-mono font-bold text-rose-600">-${saludMonto.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Seguro Cesantía AFC ({esIndefinido ? '0.6%' : 'Exento'}):</span>
+                                                        <span className="font-mono font-bold text-rose-600">-${afcMonto.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Impuesto Único Segunda Cat.:</span>
+                                                        <span className="font-mono font-bold text-slate-600">${impuestoUnico > 0 ? `-${impuestoUnico.toLocaleString('es-CL')}` : '$0 (Exento)'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="pt-3 mt-3 border-t border-slate-200/80 flex justify-between items-center">
+                                                <span className="text-[10px] font-black uppercase text-slate-400">Total Descuentos</span>
+                                                <span className="text-sm font-black text-rose-600">-${totalDescuentosLegales.toLocaleString('es-CL')}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Columna 3: Otros Descuentos & Beneficios */}
+                                        <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-5 flex flex-col justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-200/80">
+                                                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                                        <Coins size={15} />
+                                                    </div>
+                                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Ajustes & Beneficios</span>
+                                                </div>
+                                                <div className="space-y-2.5 text-xs">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Asignaciones No Imponibles:</span>
+                                                        <span className="font-mono font-bold text-emerald-600">+${totalBeneficios.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Otros Descuentos / Préstamos:</span>
+                                                        <span className="font-mono font-bold text-slate-600">-${totalOtrosDescuentos.toLocaleString('es-CL')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Inasistencias / Licencias:</span>
+                                                        <span className={`font-mono font-bold ${diasNoRemunerados > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                            {diasNoRemunerados > 0 ? `-${diasNoRemunerados} días` : '0 días (Asistencia Completa)'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 font-medium">Factor de Liquidación:</span>
+                                                        <span className="font-mono font-bold text-indigo-600">{(factorAsistencia * 100).toFixed(0)}%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="pt-3 mt-3 border-t border-slate-200/80 flex justify-between items-center">
+                                                <span className="text-[10px] font-black uppercase text-slate-400">Total Líquido</span>
+                                                <span className="text-base font-black text-emerald-600">${totalSueldoLiquido.toLocaleString('es-CL')}</span>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    {/* Nota Informativa Corporativa de Preliquidación */}
+                                    <div className="mt-8 p-4 sm:p-5 bg-gradient-to-r from-indigo-50/80 via-slate-50 to-indigo-50/80 border border-indigo-100/90 rounded-2xl flex items-start gap-4 shadow-sm">
+                                        <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-indigo-200">
+                                            <Info size={20} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wide flex items-center gap-2">
+                                                <span>Aviso Informativo & Proyección de Remuneraciones</span>
+                                            </h4>
+                                            <p className="text-[11px] leading-relaxed text-slate-600 font-medium">
+                                                Esta <strong>Preliquidación en Línea</strong> constituye una simulación proyectada en tiempo real diseñada exclusivamente para entregar a nuestros colaboradores una visión clara, transparente y oportuna del monto aproximado que percibirían en el período en curso.
+                                            </p>
+                                            <p className="text-[11px] leading-relaxed text-slate-500 font-medium">
+                                                Tenga en consideración que pueden existir variables dinámicas tales como validación final de asistencia, atrasos, licencias médicas, ajustes contractuales o recalificaciones de métricas de calidad y producción técnica al término del ciclo mensual, las cuales alterarán el resultado final. Por este motivo, se solicita considerar todos los valores expuestos como una <strong>estimación referencial</strong> sujeta al cierre formal de nómina.
+                                            </p>
+                                        </div>
+                                    </div>
+
                                 </div>
 
                 {loadingProduccion ? (
@@ -2038,7 +2461,7 @@ const PortalColaborador = () => {
                                             {/* Análisis vs Meta */}
                                             <div className="mt-6 pt-5 border-t border-slate-100 space-y-3 relative z-10">
                                                 <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2">Análisis vs Meta</p>
-                                                <div className="grid grid-cols-2 gap-2">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                     <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-center">
                                                         <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Meta Diaria</p>
                                                         <p className="text-base font-black text-indigo-700 italic">{META_DIARIA_KPI}<span className="text-[9px] opacity-60 ml-0.5 not-italic">pts</span></p>
@@ -2756,7 +3179,7 @@ const PortalColaborador = () => {
                                                     {/* Equipos Reales */}
                                                     <div className="pt-4 border-t border-slate-100">
                                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Equipos Reales Instalados</label>
-                                                        <div className="grid grid-cols-2 gap-4">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Decos (STB)</label>
                                                                 <input 
@@ -3830,7 +4253,10 @@ const PortalColaborador = () => {
                                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Turno Asignado</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Ingreso</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Salida</th>
-                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">H. Extras</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Hrs Turno</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Hrs Trabajadas</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-purple-500 uppercase tracking-widest whitespace-nowrap">Balance</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">H. Extras Dec.</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Estado</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Registrado Por</th>
                                 </tr>
@@ -3869,9 +4295,31 @@ const PortalColaborador = () => {
                                             if (['Licencia', 'Permiso', 'Vacaciones'].includes(log.estado)) estadoColor = 'bg-amber-50 text-amber-600 border border-amber-100';
                                             if (log.estado === 'Libre') estadoColor = 'bg-sky-50 text-sky-600 border border-sky-100';
                                             if (log.estado === 'Feriado') estadoColor = 'bg-indigo-50 text-indigo-600 border border-indigo-100';
+                                            if (log.estado === 'Desvinculado') estadoColor = 'bg-zinc-50 text-zinc-500 border border-zinc-200';
                                         }
                                         const ultimoEvento = log.eventosTimeline && log.eventosTimeline.length > 0 ? log.eventosTimeline[log.eventosTimeline.length - 1] : null;
                                         const registradoPor = ultimoEvento?.registradoPor || log.validadoPor || log.registradoPor || '---';
+
+                                        // Cálculo de horas del turno y trabajadas
+                                        let turnH = 0;
+                                        if (horario?.horaEntrada && horario?.horaSalida) {
+                                            const [teH, teM] = horario.horaEntrada.split(':').map(Number);
+                                            const [tsH, tsM] = horario.horaSalida.split(':').map(Number);
+                                            turnH = (tsH + (tsM||0)/60) - (teH + (teM||0)/60);
+                                            if (turnH < 0) turnH += 24;
+                                        }
+                                        let trabH = 0;
+                                        const hrEnt = log.horaIngresoDeclarada || log.horaEntrada;
+                                        if ((log.estado === 'Presente' || log.estado === 'Tardanza') && hrEnt && log.horaSalida) {
+                                            const [ieH, ieM] = hrEnt.split(':').map(Number);
+                                            const [isH, isM] = log.horaSalida.split(':').map(Number);
+                                            trabH = (isH + (isM||0)/60) - (ieH + (ieM||0)/60);
+                                            if (trabH < 0) trabH += 24;
+                                        }
+                                        const noTrabH = turnH > 0 && !['Vacaciones','Licencia','Feriado','Permiso','Libre','Desvinculado'].includes(log.estado)
+                                            ? Math.max(0, turnH - trabH) : 0;
+                                        const extraDecH = log.horasExtra || 0;
+                                        const balanceDia = extraDecH - noTrabH;
 
                                         return (
                                             <tr key={log._id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -3887,9 +4335,9 @@ const PortalColaborador = () => {
                                                     ) : <span className="text-slate-300 text-xs">—</span>}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    {(log.horaIngresoDeclarada || log.horaEntrada) ? (
+                                                    {hrEnt ? (
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-black text-slate-800">{log.horaIngresoDeclarada || log.horaEntrada}</span>
+                                                            <span className="text-xs font-black text-slate-800">{hrEnt}</span>
                                                             {log.minutosTardanza > 0 && (
                                                                 <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase">+{log.minutosTardanza}m</span>
                                                             )}
@@ -3901,10 +4349,31 @@ const PortalColaborador = () => {
                                                         <span className="text-xs font-black text-slate-800">{log.horaSalida}</span>
                                                     ) : <span className="text-slate-300 text-xs">—</span>}
                                                 </td>
-                                                <td className="px-6 py-4">
+                                                <td className="px-6 py-4 text-right">
+                                                    {turnH > 0 ? (
+                                                        <span className="text-[10px] font-black text-slate-500 tabular-nums">{turnH.toFixed(2)}</span>
+                                                    ) : <span className="text-slate-200 text-xs">—</span>}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    {trabH > 0 ? (
+                                                        <span className="text-[10px] font-black text-slate-700 tabular-nums">{trabH.toFixed(2)}</span>
+                                                    ) : <span className="text-slate-200 text-xs">—</span>}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    {(trabH > 0 || noTrabH > 0) ? (
+                                                        <span className={`text-[10px] font-black tabular-nums px-2 py-1 rounded-lg ${
+                                                            balanceDia > 0 ? 'bg-emerald-50 text-emerald-700' :
+                                                            balanceDia < 0 ? 'bg-rose-50 text-rose-700' :
+                                                            'bg-slate-50 text-slate-400'
+                                                        }`}>
+                                                            {balanceDia > 0 ? '+' : ''}{balanceDia.toFixed(2)}
+                                                        </span>
+                                                    ) : <span className="text-slate-200 text-xs">—</span>}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
                                                     {log.horasExtraAprobadas > 0 ? (
                                                         <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg">
-                                                            {log.horasExtraAprobadas} hrs
+                                                            {Number(log.horasExtraAprobadas).toFixed(2)} hrs
                                                         </span>
                                                     ) : <span className="text-slate-300 text-xs">—</span>}
                                                 </td>

@@ -22,12 +22,66 @@ const printStyles = `
       size: A4;
       margin: 10mm;
     }
-    body {
+    
+    html, body, #root {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow: visible !important;
       background: white !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    .print-hide { display: none !important; }
+    
+    /* Hide all elements by default */
+    body * {
+       visibility: hidden;
+    }
+
+    /* Make the modal and its children visible */
+    .print-modal-wrapper, .print-modal-wrapper * {
+        visibility: visible;
+    }
+    
+    /* Re-hide elements explicitly marked as print-hide */
+    .print-hide, .print-hide * { 
+        display: none !important; 
+    }
+    
+    /* Position the modal wrapper at the absolute top-left of the page */
+    .print-modal-wrapper {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: block !important;
+        overflow: visible !important;
+    }
+    
+    /* Ensure internal modal containers can grow to their full height */
+    .print-modal-content {
+        position: static !important;
+        height: auto !important;
+        max-width: none !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        display: block !important;
+    }
+    
+    .print-modal-body {
+        position: static !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        display: block !important;
+        padding: 0 !important;
+    }
+
     .ficha-container {
       width: 100% !important;
       max-width: none !important;
@@ -37,15 +91,18 @@ const printStyles = `
       border: none !important;
       background: white !important;
     }
+    
     .ficha-content {
       transform: none !important;
       width: 100% !important;
     }
+    
     .print-no-break {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
         margin-bottom: 2rem !important;
     }
+    
     /* Estilos para asegurar que los bordes y gradientes se vean bien */
     section {
         border-color: #e2e8f0 !important;
@@ -361,33 +418,33 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
         </div>
       </div>
 
-      <div className="ficha-container bg-white p-12 max-w-5xl mx-auto shadow-2xl border border-slate-100 font-sans text-slate-800 transition-all duration-500 relative rounded-3xl">
+      <div className="ficha-container bg-white p-6 md:p-12 max-w-5xl mx-auto shadow-2xl border border-slate-100 font-sans text-slate-800 transition-all duration-500 relative rounded-3xl">
         <div className="ficha-content">
           {/* Header Banner */}
           <div className="h-3 bg-gradient-to-r from-[#3b79b6] to-slate-900 w-full mb-8 rounded-full opacity-90 overflow-hidden relative">
             <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.1)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.1)_50%,rgba(255,255,255,0.1)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-[slide_1s_linear_infinite]"></div>
           </div>
 
-          <div className="flex justify-between items-start mb-12 border-b-2 border-slate-50 pb-8">
-            <div className="flex items-center gap-6">
-              <div className="w-20 h-20 bg-slate-900 rounded-[2rem] flex items-center justify-center text-white shadow-2xl relative overflow-hidden group">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-12 border-b-2 border-slate-50 pb-6 md:pb-8 gap-6 md:gap-0">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 w-full">
+              <div className="w-20 h-20 bg-slate-900 rounded-[2rem] flex items-center justify-center text-white shadow-2xl relative overflow-hidden group shrink-0">
                  <span className="text-4xl font-black relative z-10">{data.fullName?.charAt(0)}</span>
                  <div className="absolute inset-0 bg-[#3b79b6] opacity-0 group-hover:opacity-20 transition-all"></div>
               </div>
               <div>
-                <h1 className="text-4xl font-black text-[#2c3e50] tracking-tighter uppercase leading-none">
+                <h1 className="text-3xl md:text-4xl font-black text-[#2c3e50] tracking-tighter uppercase leading-none">
                   Expediente <span className="text-[#3b79b6]">Auditado</span>
                 </h1>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2">
+                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-2">
                   Ecosistema de Gestión <span className="text-[#3b79b6]">{data.empresaRef?.nombre || 'Portal Corporativo'}</span>
                 </p>
               </div>
             </div>
-            <div className="text-right glass-sm p-4 rounded-3xl border border-slate-100 bg-slate-50/50">
+            <div className="text-left md:text-right glass-sm p-4 rounded-3xl border border-slate-100 bg-slate-50/50 w-full md:w-auto">
                <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">ID RECURSO TOA</p>
-               <span className="text-[14px] font-black text-indigo-600 font-mono leading-none tracking-widest">{data.idRecursoToa || 'SIN ASIGNAR'}</span>
+               <span className="text-[14px] font-black text-indigo-600 font-mono leading-none tracking-widest block truncate">{data.idRecursoToa || 'SIN ASIGNAR'}</span>
                <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3 mb-1">Hash ID Registro</p>
-               <span className="text-[10px] font-black text-slate-400 font-mono leading-none tracking-tighter opacity-50">#{data._id?.toString().toUpperCase()}</span>
+               <span className="text-[9px] md:text-[10px] font-black text-slate-400 font-mono leading-none tracking-tighter opacity-50 block truncate">#{data._id?.toString().toUpperCase()}</span>
             </div>
           </div>
 
@@ -397,8 +454,8 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
               <div className="flex items-center gap-3 mb-6 border-l-4 border-[#3b79b6] pl-5">
                 <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">01. Protocolo de Identidad</h2>
               </div>
-              <div className="flex gap-10">
-                <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col md:flex-row gap-6 md:gap-10">
+                <div className="flex flex-col items-center gap-4 w-full md:w-auto">
                   <div className="w-32 h-44 bg-slate-100 rounded-[2.5rem] overflow-hidden flex items-center justify-center border-4 border-white shadow-xl ring-1 ring-slate-100 flex-shrink-0">
                     {(data.fotoPerfil || data.profilePic) ? (
                       <img src={data.fotoPerfil || data.profilePic} alt="Perfil" className="w-full h-full object-cover" />
@@ -411,7 +468,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                       href={data.cvUrl} 
                       target="_blank" 
                       rel="noreferrer"
-                      className="flex flex-col items-center gap-2 p-4 bg-indigo-50 hover:bg-indigo-100 rounded-3xl border border-indigo-100 transition-all group/cv w-full"
+                      className="flex flex-col items-center gap-2 p-4 bg-indigo-50 hover:bg-indigo-100 rounded-3xl border border-indigo-100 transition-all group/cv w-full max-w-[128px]"
                     >
                       <FileText size={20} className="text-indigo-600 group-hover/cv:scale-110 transition-transform" />
                       <span className="text-[7px] font-black text-indigo-600 uppercase tracking-widest text-center leading-tight">Ver Curriculum</span>
@@ -419,10 +476,10 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                   )}
                 </div>
 
-                <div className="flex-1 grid grid-cols-3 gap-4">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 w-full">
                   {[
-                    { label: 'Nombres', value: data.nombres || data.fullName?.split(' ')[0] },
-                    { label: 'Apellidos', value: data.apellidos || data.fullName?.split(' ').slice(1).join(' ') },
+                    { label: 'Nombres', value: data.nombres || (data.fullName ? data.fullName.trim().split(' ').slice(0, Math.ceil(data.fullName.trim().split(' ').length / 2)).join(' ') : '') },
+                    { label: 'Apellidos', value: data.apellidos || (data.fullName ? data.fullName.trim().split(' ').slice(Math.ceil(data.fullName.trim().split(' ').length / 2)).join(' ') : '') },
                     { label: 'RUT / Identificador', value: formatRut(data.rut) },
                     { label: 'Fecha Nacimiento', value: formatDate(data.fechaNacimiento) },
                     { label: 'Nacionalidad', value: data.nacionalidad || data.nationality },
@@ -432,9 +489,9 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                     { label: 'Nivel Educacional', value: data.educationLevel },
                     { label: 'Género', value: data.gender || 'No Informado' },
                   ].map((item, i) => (
-                    <div key={i} className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-[#3b79b6]/30">
-                      <label className="text-[7px] font-black text-slate-300 uppercase block mb-1 tracking-widest">{item.label}</label>
-                      <div className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{item.value || '—'}</div>
+                    <div key={i} className="bg-slate-50/60 p-4 rounded-xl md:rounded-2xl border border-slate-200/60 shadow-sm transition-all hover:bg-white hover:shadow-md hover:border-indigo-200 flex flex-col justify-center overflow-hidden">
+                      <label className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase block mb-1 md:mb-1.5 tracking-widest">{item.label}</label>
+                      <div className="text-[10px] md:text-[11px] font-black text-slate-800 uppercase tracking-tight leading-tight truncate w-full" title={item.value || '—'}>{item.value || '—'}</div>
                     </div>
                   ))}
                 </div>
@@ -442,7 +499,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
             </section>
 
             {/* 2. CONTACTO & EDUCACIÓN */}
-            <div className="grid grid-cols-2 gap-10 print-no-break">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 print-no-break">
                <section>
                   <div className="flex items-center gap-3 mb-6 border-l-4 border-[#3b79b6] pl-5">
                     <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">02. Localización y Médios</h2>
@@ -454,11 +511,11 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                       { label: 'Residencia Actual', value: (data.address || `${data.calle || ''} ${data.numero || ''} ${data.deptoBlock ? `Block/Depto: ${data.deptoBlock}` : ''}`).trim() || '—', icon: MapPin, color: 'rose' },
                       { label: 'Comuna / Región', value: data.comuna ? `${data.comuna} / ${data.region}` : '—', icon: Map, color: 'indigo' },
                     ].map((item, i) => (
-                      <div key={i} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-center gap-5 transition-all hover:bg-white hover:shadow-lg">
-                        <div className={`w-10 h-10 rounded-xl bg-${item.color}-50 text-${item.color}-600 flex items-center justify-center shadow-sm`}><item.icon size={16} /></div>
-                        <div>
-                          <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{item.label}</p>
-                          <p className="text-[9px] font-black text-slate-800 uppercase leading-none mt-1">{item.value || '—'}</p>
+                      <div key={i} className="bg-slate-50/60 p-4 rounded-2xl border border-slate-200/60 flex items-center gap-5 transition-all hover:bg-white hover:shadow-md hover:border-indigo-200">
+                        <div className={`w-10 h-10 rounded-xl bg-${item.color}-50 border border-${item.color}-100 text-${item.color}-600 flex items-center justify-center shadow-sm shrink-0`}><item.icon size={16} /></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
+                          <p className="text-[10px] md:text-[11px] font-black text-slate-800 uppercase leading-tight truncate" title={item.value || '—'}>{item.value || '—'}</p>
                         </div>
                       </div>
                     ))}
@@ -490,7 +547,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
               <div className="flex items-center gap-3 mb-6 border-l-4 border-[#3b79b6] pl-5">
                 <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">04. Asignación y Perfil Laboral</h2>
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 {[
                   { label: 'Posición Estratégica', value: data.cargo || data.position, icon: Briefcase },
                   { label: 'Unidad de Negocio', value: data.area || data.departamento, icon: Building },
@@ -501,38 +558,38 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                   { label: 'Empresa Principal', value: data.empresaRef?.nombre, icon: Building },
                   { label: 'Fuente de Captación', value: data.source || 'Captación Directa', icon: Share2 }
                 ].map((item, i) => (
-                  <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center group transition-all hover:bg-slate-900 hover:text-white">
-                    <p className="text-[7px] font-black text-slate-400 group-hover:text-blue-400 uppercase mb-2 tracking-widest">{item.label}</p>
-                    <p className="text-[10px] font-black uppercase leading-none truncate">{item.value || '—'}</p>
+                  <div key={i} className="bg-slate-50/60 p-4 md:p-5 rounded-2xl border border-slate-200/60 shadow-sm text-center group transition-all hover:bg-indigo-600 hover:border-indigo-600 hover:shadow-lg flex flex-col justify-center">
+                    <p className="text-[7px] md:text-[8px] font-black text-slate-400 group-hover:text-indigo-100 uppercase mb-2 tracking-widest">{item.label}</p>
+                    <p className="text-[10px] md:text-[11px] font-black text-slate-800 group-hover:text-white uppercase leading-tight truncate" title={item.value || '—'}>{item.value || '—'}</p>
                   </div>
                 ))}
               </div>
               
               {/* Info Contrato Adicional */}
-              <div className="grid grid-cols-3 gap-4 mt-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Tipo Contrato</span>
-                   <span className="text-[10px] font-black text-slate-800 uppercase">{data.contractType || '—'}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mt-4">
+                <div className="bg-slate-50/60 p-4 md:p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:bg-white hover:border-indigo-200 hover:shadow-md">
+                   <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Tipo Contrato</span>
+                   <span className="text-[9px] md:text-[10px] font-black text-slate-800 uppercase text-right leading-tight">{data.contractType || '—'}</span>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Inicio LABORES</span>
-                   <span className="text-[10px] font-black text-slate-800 uppercase">{formatDate(data.contractStartDate)}</span>
+                <div className="bg-slate-50/60 p-4 md:p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:bg-white hover:border-indigo-200 hover:shadow-md">
+                   <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Inicio LABORES</span>
+                   <span className="text-[9px] md:text-[10px] font-black text-slate-800 uppercase text-right leading-tight">{formatDate(data.contractStartDate)}</span>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Duración Contrato</span>
-                   <span className="text-[10px] font-black text-slate-800 uppercase">{data.contractDurationDays ? `${data.contractDurationDays} días` : '—'}</span>
+                <div className="bg-slate-50/60 p-4 md:p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:bg-white hover:border-indigo-200 hover:shadow-md">
+                   <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Duración Contrato</span>
+                   <span className="text-[9px] md:text-[10px] font-black text-slate-800 uppercase text-right leading-tight">{data.contractDurationDays ? `${data.contractDurationDays} días` : '—'}</span>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Término Contrato</span>
-                   <span className="text-[10px] font-black text-slate-800 uppercase">{formatDate(data.contractEndDate)}</span>
+                <div className="bg-slate-50/60 p-4 md:p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:bg-white hover:border-indigo-200 hover:shadow-md">
+                   <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Término Contrato</span>
+                   <span className="text-[9px] md:text-[10px] font-black text-slate-800 uppercase text-right leading-tight">{formatDate(data.contractEndDate)}</span>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Inicio Operativo</span>
-                   <span className="text-[10px] font-black text-slate-800 uppercase">{formatDate(data.operationalStartDate)}</span>
+                <div className="bg-slate-50/60 p-4 md:p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:bg-white hover:border-indigo-200 hover:shadow-md">
+                   <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Inicio Operativo</span>
+                   <span className="text-[9px] md:text-[10px] font-black text-slate-800 uppercase text-right leading-tight">{formatDate(data.operationalStartDate)}</span>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Etapa Contrato</span>
-                   <span className="text-[10px] font-black text-indigo-600 uppercase font-bold">{data.contractStep || '—'}</span>
+                <div className="bg-slate-50/60 p-4 md:p-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all hover:bg-white hover:border-indigo-200 hover:shadow-md">
+                   <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Etapa Contrato</span>
+                   <span className="text-[9px] md:text-[10px] font-black text-indigo-600 uppercase font-bold text-right leading-tight">{data.contractStep || '—'}</span>
                 </div>
               </div>
             </section>
@@ -542,8 +599,8 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
               <div className="flex items-center gap-3 mb-6 border-l-4 border-[#3b79b6] pl-5">
                 <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">05. Compensación y Protección Social</h2>
               </div>
-              <div className="grid grid-cols-4 gap-6">
-                 <div className="bg-slate-900 p-5 rounded-3xl text-white col-span-1 shadow-xl">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+                 <div className="bg-slate-900 p-5 rounded-3xl text-white md:col-span-1 shadow-xl">
                     <p className="text-[7px] font-black text-blue-400 uppercase mb-2 tracking-[0.2em]">Sueldo Base Mensual</p>
                     <p className="text-[18px] font-black leading-none">${Number(data.sueldoBase || 0).toLocaleString('es-CL')}</p>
                     <div className="mt-4 flex items-center gap-2">
@@ -551,35 +608,35 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Pacto Mensual Auditado</span>
                     </div>
                  </div>
-                 <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 col-span-1 flex flex-col justify-center gap-3 shadow-inner">
+                 <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 md:col-span-1 flex flex-col justify-center gap-3 shadow-inner">
                     <div className="flex justify-between items-center bg-white px-3 py-2 rounded-xl border border-slate-100">
                        <span className="text-[8px] font-black text-slate-400 uppercase">AFP</span>
-                       <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none">{data.afp || '—'}</span>
+                       <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none truncate ml-2 text-right">{data.afp || '—'}</span>
                     </div>
                     <div className="flex flex-col gap-1 bg-white px-3 py-2 rounded-xl border border-slate-100">
                        <div className="flex justify-between items-center">
                           <span className="text-[8px] font-black text-slate-400 uppercase">SALUD</span>
-                          <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none">{data.previsionSalud || 'FONASA'}</span>
+                          <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none truncate ml-2 text-right">{data.previsionSalud || 'FONASA'}</span>
                        </div>
                        {data.previsionSalud === 'ISAPRE' && (
                           <div className="pt-1 mt-1 border-t border-slate-50 flex flex-col gap-0.5">
-                             <p className="text-[7px] font-black text-indigo-500 uppercase leading-none">{data.isapreNombre}</p>
+                             <p className="text-[7px] font-black text-indigo-500 uppercase leading-none truncate">{data.isapreNombre}</p>
                              <p className="text-[8px] font-black text-slate-700 leading-none">{data.valorPlan} {data.monedaPlan}</p>
                           </div>
                        )}
                     </div>
                  </div>
-                 <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm col-span-2 flex items-center gap-6">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white"><CreditCard size={20} /></div>
-                    <div className="flex-1">
-                       <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Institución: {data.banco || 'NO REGISTRADA'}</p>
-                       <div className="flex gap-4">
-                          <div>
-                             <p className="text-[11px] font-black text-slate-800 uppercase tracking-tighter leading-none">{data.numeroCuenta || 'EVALUANDO'}</p>
+                 <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm md:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-4 md:gap-6">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white shrink-0"><CreditCard size={20} /></div>
+                    <div className="flex-1 w-full">
+                       <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1 truncate">Institución: {data.banco || 'NO REGISTRADA'}</p>
+                       <div className="flex flex-col sm:flex-row gap-4 sm:gap-4 w-full">
+                          <div className="w-full sm:w-auto">
+                             <p className="text-[11px] font-black text-slate-800 uppercase tracking-tighter leading-none truncate">{data.numeroCuenta || 'EVALUANDO'}</p>
                              <p className="text-[7px] font-bold text-slate-400 uppercase mt-1">Cuenta</p>
                           </div>
-                          <div className="border-l border-slate-100 pl-4 text-right ml-auto">
-                             <p className="text-[11px] font-black text-slate-800 uppercase tracking-tighter leading-none">{data.tipoCuenta || 'TRAB. ACTIVO'}</p>
+                          <div className="sm:border-l border-t sm:border-t-0 border-slate-100 sm:pl-4 pt-2 sm:pt-0 text-left sm:text-right w-full sm:ml-auto">
+                             <p className="text-[11px] font-black text-slate-800 uppercase tracking-tighter leading-none truncate">{data.tipoCuenta || 'TRAB. ACTIVO'}</p>
                              <p className="text-[7px] font-bold text-slate-400 uppercase mt-1 font-mono">Tipo</p>
                           </div>
                        </div>
@@ -628,7 +685,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
               <div className="flex items-center gap-3 mb-6 border-l-4 border-rose-500 pl-5">
                 <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">06. Salud y Bienestar</h2>
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                  {[
                    { label: 'Grupo Sanguíneo', value: data.bloodType || '—', color: 'rose' },
                    { label: 'Jubilado/Pensionado', value: data.pensionado || 'NO', color: 'indigo' },
@@ -641,7 +698,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                    </div>
                  ))}
               </div>
-              <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-4">
                 <div className="bg-rose-50/30 p-4 rounded-2xl border border-rose-100">
                    <p className="text-[7px] font-black text-rose-400 uppercase tracking-widest mb-1.5">Alergias Conocidas</p>
                    <p className="text-[9px] font-black text-rose-800 uppercase italic">{data.allergies || 'Ninguna declarada'}</p>
@@ -688,12 +745,12 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
             </section>
 
             {/* 6. DOTACIÓN, EMERGENCIA & LICENCIA */}
-            <div className="grid grid-cols-2 gap-10 print-no-break">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 print-no-break">
                <section>
                   <div className="flex items-center gap-3 mb-6 border-l-4 border-[#3b79b6] pl-5">
                     <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">07. Equipamiento Auditado</h2>
                   </div>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {[
                       { label: 'Calzado', value: data.shoeSize, icon: Truck },
                       { label: 'Pantalón', value: data.pantsSize, icon: Shirt },
@@ -715,7 +772,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                   <div className="flex items-center gap-3 mb-6 border-l-4 border-rose-600 pl-5">
                     <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">08. Protocolo de Emergencia</h2>
                   </div>
-                  <div className="bg-rose-50/50 p-5 rounded-[2rem] border border-rose-100 flex items-center gap-6">
+                  <div className="bg-rose-50/50 p-5 rounded-[2rem] border border-rose-100 flex flex-col sm:flex-row items-start sm:items-center gap-4 md:gap-6">
                      <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center animate-pulse"><Heart size={28} /></div>
                      <div className="flex-1">
                         <p className="text-[11px] font-black text-rose-800 uppercase truncate leading-none">{data.emergencyContact || 'SIN CONTACTO'}</p>
@@ -732,7 +789,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                <div className="flex items-center gap-3 mb-6 border-l-4 border-orange-600 pl-5">
                  <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">09. Licencia de Conducir</h2>
                </div>
-               <div className="bg-orange-50/50 p-5 rounded-[2rem] border border-orange-100 flex items-center gap-6">
+               <div className="bg-orange-50/50 p-5 rounded-[2rem] border border-orange-100 flex flex-col sm:flex-row items-start sm:items-center gap-4 md:gap-6">
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${data.requiereLicencia === 'SI' ? 'bg-orange-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
                      <Truck size={28} />
                   </div>
@@ -756,11 +813,11 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
               <div className="flex items-center gap-3 mb-6 border-l-4 border-amber-500 pl-5">
                 <h2 className="text-xs font-black text-[#2c3e50] uppercase tracking-[0.2em]">10. Declaración de Conflicto de Interés</h2>
               </div>
-              <div className={`p-5 rounded-[2rem] border flex items-center gap-6 ${data.conflictOfInterest?.hasFamilyInCompany ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50/50 border-slate-100'}`}>
+              <div className={`p-5 rounded-[2rem] border flex flex-col sm:flex-row items-start sm:items-center gap-4 md:gap-6 ${data.conflictOfInterest?.hasFamilyInCompany ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50/50 border-slate-100'}`}>
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-md ${data.conflictOfInterest?.hasFamilyInCompany ? 'bg-amber-500 text-white animate-pulse' : 'bg-slate-200 text-slate-400'}`}>
                   <Shield size={28} />
                 </div>
-                <div className="flex-1 grid grid-cols-3 gap-6">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 w-full">
                   <div>
                     <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">¿Tiene Familiares en la Empresa?</p>
                     <p className={`text-[11px] font-black uppercase mt-1.5 ${data.conflictOfInterest?.hasFamilyInCompany ? 'text-amber-800' : 'text-slate-800'}`}>

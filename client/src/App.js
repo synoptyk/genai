@@ -192,7 +192,7 @@ const AppShell = ({ children }) => {
   const mainRef = React.useRef(null);
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden">
+    <div className="flex h-dvh min-h-dvh max-h-dvh bg-[#F8FAFC] font-sans overflow-hidden">
       <Sidebar isMobileOpen={isMobileMenuOpen} setIsMobileOpen={setIsMobileMenuOpen} />
       <div className="flex-1 flex flex-col h-full relative overflow-hidden min-w-0">
         <AppHeader onMenuClick={() => setIsMobileMenuOpen(true)} />
@@ -388,9 +388,13 @@ function App() {
         (error) => {
           if (error.code === error.PERMISSION_DENIED) {
             console.warn('⚠️ [GPS Web] El usuario denegó el permiso de ubicación.');
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            console.warn('⚠️ [GPS Web] Ubicación no disponible (error de red o GPS del sistema).');
+          } else {
+            console.warn('⚠️ [GPS Web] Timeout o error al obtener ubicación:', error.message);
           }
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     }
   }, []);

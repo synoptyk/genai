@@ -64,7 +64,7 @@ const ProduccionProyectos = ({ clientProjects = [] }) => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {clientProjects.slice(0, 4).map((cp, i) => (
             <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl flex flex-col justify-between">
               <div className="flex items-center justify-between mb-4">

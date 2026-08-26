@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const addressparser = require('nodemailer/lib/addressparser');
+const axios = require('axios');
 const Empresa = require('../platforms/auth/models/Empresa');
 const { BRAND, appLink } = require('../config/brand');
 
@@ -64,6 +65,35 @@ const sanitizeRecipientFields = (mailOptions = {}) => {
 
 const sendMailSafe = async (mailOptions) => {
   const sanitized = sanitizeRecipientFields(mailOptions);
+  const resendApiKey = process.env.RESEND_API_KEY;
+
+  if (resendApiKey) {
+    try {
+      const fromAddr = process.env.FROM_EMAIL || 'GENAI360 <genai360@synoptyk.cl>';
+      const toRecipients = Array.isArray(sanitized.to)
+        ? sanitized.to
+        : String(sanitized.to || '').split(',').map(s => s.trim()).filter(Boolean);
+
+      const payload = {
+        from: fromAddr,
+        to: toRecipients,
+        subject: sanitized.subject || 'Notificación GENAI360',
+        html: sanitized.html || sanitized.text || '<p>Notificación GENAI360</p>'
+      };
+
+      const res = await axios.post('https://api.resend.com/emails', payload, {
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+      console.log('✅ Correo enviado con Resend API:', res.data?.id);
+      return { messageId: res.data?.id };
+    } catch (e) {
+      console.error('⚠️ Error al enviar por Resend API, intentando SMTP fallback:', e.response?.data || e.message);
+    }
+  }
   return transporter.sendMail(sanitized);
 };
 
@@ -100,15 +130,19 @@ const injectCustomImage = (imageConfig) => {
   `;
 };
 
+const smtpPort = parseInt(process.env.SMTP_PORT) || 587;
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.zoho.com',
-  port: parseInt(process.env.SMTP_PORT) || 465,
-  secure: true,
+  host: process.env.SMTP_HOST || 'smtp.resend.com',
+  port: smtpPort,
+  secure: smtpPort === 465,
   auth: {
-    user: process.env.SMTP_EMAIL,
-    pass: process.env.SMTP_PASSWORD,
+    user: process.env.SMTP_EMAIL || 'resend',
+    pass: process.env.SMTP_PASSWORD || '',
   },
-  timeout: 10000, // 10 segundos de timeout
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 10000
 });
 
 // Verificar conexión SMTP al iniciar
@@ -116,7 +150,7 @@ transporter.verify((error, success) => {
   if (error) {
     console.error('❌ Error de conexión SMTP:', error.message);
   } else {
-    console.log('🚀 Servidor de correo listo para enviar mensajes');
+    console.log('🚀 Servidor de correo listo para enviar mensajes (Resend SMTP)');
   }
 });
 
@@ -180,8 +214,9 @@ exports.sendPasswordResetEmail = async (data) => {
   const { email, name, resetUrl, companyName, companyLogo } = data;
   const finalFromName = companyName ? `${companyName} via ${BRAND.productName}` : (process.env.FROM_NAME || `Soporte ${BRAND.productName}`);
 
+  const senderEmail = process.env.FROM_EMAIL || process.env.SMTP_EMAIL || 'genai360@synoptyk.cl';
   const mailOptions = {
-    from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
+    from: `"${finalFromName}" <${senderEmail}>`,
     to: email,
     subject: `Recuperación de Contraseña - ${companyName || BRAND.productName}`,
     html: `
@@ -1744,3 +1779,5 @@ exports.sendExecutiveSummaryEmail = async ({ to, companyName, companyLogo, notif
         return false;
     }
 };
+
+module.exports.sendMailSafe = sendMailSafe;

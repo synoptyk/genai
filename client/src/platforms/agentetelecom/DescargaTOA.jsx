@@ -464,11 +464,17 @@ const DescargaTOA = () => {
                 return;
             }
 
-            // Crear el Blob desde el ArrayBuffer
-            const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            
+            // Extraer nombre de archivo y tipo desde headers si viene del servidor
             const rangoStr = params.desde && params.hasta ? `_${params.desde}_a_${params.hasta}` : '_COMPLETO';
-            const filename = `Produccion_TOA${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            let filename = `Produccion_TOA${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            const contentDisposition = res.headers['content-disposition'];
+            if (contentDisposition && contentDisposition.includes('filename=')) {
+                const match = contentDisposition.match(/filename="?([^";]+)"?/);
+                if (match && match[1]) filename = match[1];
+            }
+
+            const blobType = contentType || (filename.endsWith('.csv') ? 'text/csv; charset=utf-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            const blob = new Blob([res.data], { type: blobType });
 
             // Usar URL.createObjectURL para una descarga más eficiente y robusta
             const url = window.URL.createObjectURL(blob);
@@ -1122,7 +1128,7 @@ const DescargaTOA = () => {
                                 <span className="text-[9px] text-slate-400 font-medium">Controla la extracción y exportación</span>
                             </div>
                         </div>
-                        <div className="p-4 grid grid-cols-2 gap-2.5">
+                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             {ACCIONES.map(acc => (
                                 <button key={acc.id}
                                     onClick={acc.accion && !acc.proximamente ? acc.accion : undefined}
@@ -1175,7 +1181,7 @@ const DescargaTOA = () => {
                                     <Database size={14} />
                                     📊 Última Actualización MongoDB
                                 </h4>
-                                <div className="grid grid-cols-4 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <div className="bg-white rounded-lg p-2 border border-orange-100">
                                         <div className="text-orange-600 font-black text-lg">{recalculoStats.recalculadas}</div>
                                         <div className="text-orange-700 text-[10px] font-bold">Recalculadas</div>
@@ -1206,7 +1212,7 @@ const DescargaTOA = () => {
                                     <Users size={14} />
                                     👥 Sincronización de Técnicos Vinculados
                                 </h4>
-                                <div className="grid grid-cols-4 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <div className="bg-white rounded-lg p-2 border border-cyan-100">
                                         <div className="text-cyan-600 font-black text-lg">{sincronizacionStats.tecnicosVinculados}</div>
                                         <div className="text-cyan-700 text-[10px] font-bold">Vinculados</div>
@@ -1893,7 +1899,7 @@ const DescargaTOA = () => {
                         {recalculoStats && (
                             <div className="mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
                                 <h4 className="font-black text-emerald-900 mb-2">📊 Última Actualización MongoDB</h4>
-                                <div className="grid grid-cols-4 gap-2 text-sm">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
                                     <div>
                                         <div className="text-emerald-600 font-bold">{recalculoStats.recalculadas}</div>
                                         <div className="text-emerald-700 text-xs">Recalculadas</div>

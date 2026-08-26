@@ -49,6 +49,10 @@ async function refreshOAuth2Token(account) {
 
 async function processScheduledEmails() {
     try {
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState !== 1) {
+            return; // Esperar a que la conexión con MongoDB esté 100% lista
+        }
         const now = new Date();
         const pendingEmails = await EmailScheduled.find({
             sendAt: { $lte: now },

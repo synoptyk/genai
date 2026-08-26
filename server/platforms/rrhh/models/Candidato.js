@@ -144,14 +144,14 @@ const CandidatoSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: [
-            'En Postulación', 'Postulando',
-            'En Entrevista', 'En Evaluación',
-            'Examen Preocupacional', 'En Examen Preocupacional',
+            'En Postulación', 'Postulando', 'Postulación', 'Postulante',
+            'En Entrevista', 'Entrevista', 'En Evaluación', 'Evaluación',
+            'Examen Preocupacional', 'En Examen Preocupacional', 'Examen',
             'Aprobado', 'Aprobado/No Operativo', 'Curso Online', 'OTEC',
-            'En Acreditación', 'Acreditación', 'En Documentación', 'Contratado',
-            'En Terreno', 'Listo Terreno', 'Acreditación', 'Bajas/Inactivos',
-            'Rechazado', 'Retirado', 'Finiquitado',
-            'Inactivo', 'Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica'
+            'En Acreditación', 'Acreditación', 'En Documentación', 'Documentación', 'Contratado',
+            'En Terreno', 'Listo Terreno', 'Bajas/Inactivos',
+            'Rechazado', 'Retirado', 'Finiquitado', 'Por Finiquitar',
+            'Inactivo', 'Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Activo'
         ],
         default: 'En Postulación'
     },
@@ -174,7 +174,7 @@ const CandidatoSchema = new mongoose.Schema({
     operationalStartDate: Date, // Fecha en que realmente empieza a trabajar
     nextAddendumDate: Date,
     nextAddendumDescription: String,
-    contractStep: { type: String, default: '1ER CONTRATO' }, // 1ER CONTRATO, 2DO CONTRATO, INDEFINIDO
+    contractStep: { type: String, default: 'CONTRATO INICIAL' }, // CONTRATO INICIAL, ANEXO PLAZO FIJO, CONTRATO INDEFINIDO, ANEXO INDEFINIDO
     clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente' },
 
     // Emergencia
@@ -224,6 +224,9 @@ const CandidatoSchema = new mongoose.Schema({
     }],
     bonosConfig: [{ type: mongoose.Schema.Types.ObjectId, ref: 'BonoConfig' }],
     fechaFiniquito: Date,
+    tipoTermino: String,
+    tipoDocumentoTermino: String,
+    otroDocumentoTermino: String,
     finiquitoMotivo: String,
     finiquitoDetalle: {
         fechaIngresoReal: Date,

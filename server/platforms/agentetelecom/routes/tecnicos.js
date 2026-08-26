@@ -840,7 +840,7 @@ router.delete('/:id', authorize('cfg_personal:eliminar', 'op_dotacion:eliminar',
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// FICHA COMPLETA DEL TRABAJADOR (solo lectura — tecnico + candidato)
+// FICHA COMPLETA DEL TRABAJADOR (unificada: tecnico + candidato de Captura de Talento)
 router.get('/:id/ficha', async (req, res) => {
   try {
     const isHighLevel = [
@@ -848,30 +848,138 @@ router.get('/:id/ficha', async (req, res) => {
       ROLES.CEO,
       ROLES.CEO_GENAI,
       ROLES.GERENCIA,
-      ROLES.ADMIN
+      ROLES.ADMIN,
+      ROLES.RRHH_ADMIN
     ].includes(String(req.user.role).toLowerCase());
 
     const empresaFilter = isHighLevel && !req.headers['x-company-override'] ? {} : { empresaRef: req.user.empresaRef };
+    const rawParam = String(req.params.id || '').trim();
+    const isObjectId = mongoose.Types.ObjectId.isValid(rawParam);
+    const rutParamLimpio = cleanRut(rawParam);
 
-    // 1. Buscar el técnico con los filtros básicos de empresa (si no es high level)
-    const tecnico = await Tecnico.findOne({ _id: req.params.id, ...empresaFilter })
-      .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
-      .populate('supervisorId', 'name email')
-      .lean();
+    let candidateSelect = 'fullName rut position positionCode department area sede projectId projectName ceco contractType contractStartDate contractEndDate profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring sueldoBase banco tipoCuenta numeroCuenta tallaCamisa tallaPantalon tallaCalzado overol guantes fechaNacimiento nationality civilStatus address status';
 
-    if (!tecnico) return res.status(404).json({ error: 'No encontrado o sin acceso' });
+    let tecnico = null;
+    let candidato = null;
 
-    // 2. Validación de Permisos Dinámica (Bypass para dueños y supervisores)
+    // 1. Intentar buscar en Tecnico por ID o por RUT
+    if (isObjectId) {
+      tecnico = await Tecnico.findOne({ _id: rawParam, ...empresaFilter })
+        .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+        .populate('supervisorId', 'name email')
+        .lean();
+    }
+
+    if (!tecnico && rutParamLimpio) {
+      tecnico = await Tecnico.findOne({
+        $or: [
+          { rut: rawParam },
+          { rut: rutParamLimpio },
+          { rut: new RegExp(`^${rutParamLimpio}$`, 'i') }
+        ],
+        ...empresaFilter
+      })
+        .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+        .populate('supervisorId', 'name email')
+        .lean();
+    }
+
+    // 2. Si no se encontró tecnico por ID, quizás el ID recibido es de Candidato (Captura de Talento)
+    if (!tecnico && isObjectId) {
+      candidato = await Candidato.findOne({ _id: rawParam, ...empresaFilter })
+        .select(candidateSelect)
+        .lean();
+    }
+
+    // 3. Si aún no hay candidato pero sí tecnico, buscar candidato por RUT o nombre
+    if (tecnico && !candidato) {
+      const rutTecLimpio = cleanRut(tecnico.rut);
+      if (rutTecLimpio) {
+        candidato = await Candidato.findOne({
+          $or: [
+            { rut: tecnico.rut },
+            { rut: rutTecLimpio },
+            { rut: new RegExp(rutTecLimpio.split('').join('.*'), 'i') }
+          ]
+        })
+          .select(candidateSelect)
+          .lean();
+      }
+
+      if (!candidato && tecnico.nombre) {
+        candidato = await Candidato.findOne({
+          fullName: { $regex: tecnico.nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
+        })
+          .select(candidateSelect)
+          .lean();
+      }
+    }
+
+    // 4. Si se encontró Candidato pero no Tecnico, intentar buscar Tecnico por el RUT del Candidato
+    if (candidato && !tecnico) {
+      const rutCandLimpio = cleanRut(candidato.rut);
+      if (rutCandLimpio) {
+        tecnico = await Tecnico.findOne({
+          $or: [
+            { rut: candidato.rut },
+            { rut: rutCandLimpio },
+            { rut: new RegExp(`^${rutCandLimpio}$`, 'i') }
+          ],
+          ...empresaFilter
+        })
+          .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+          .populate('supervisorId', 'name email')
+          .lean();
+      }
+
+      // Si aún no hay Tecnico en DB, sintetizar la ficha técnica en memoria con los datos del Candidato
+      if (!tecnico) {
+        const parts = String(candidato.fullName || '').split(' ');
+        tecnico = {
+          _id: candidato._id,
+          rut: candidato.rut,
+          nombres: parts[0] || 'Sin Nombre',
+          apellidos: parts.slice(1).join(' ') || 'Sin Apellido',
+          nombre: candidato.fullName || 'Colaborador',
+          cargo: candidato.position || candidato.cargo || 'Técnico',
+          departamento: candidato.department || candidato.departamento || '',
+          area: candidato.area || '',
+          sede: candidato.sede || '',
+          ceco: candidato.ceco || '',
+          email: candidato.email || '',
+          telefono: candidato.phone || '',
+          proyecto: candidato.projectName || '',
+          projectId: candidato.projectId || null,
+          idRecursoToa: candidato.idRecursoToa || '',
+          estadoActual: (candidato.status === 'Inactivo' || candidato.status === 'Retirado') ? 'INACTIVO' : 'OPERATIVO',
+          fechaIngreso: candidato.contractStartDate || candidato.fechaIngreso || null,
+          tipoContrato: candidato.contractType || '',
+          sueldoBase: candidato.sueldoBase || 0
+        };
+      }
+    }
+
+    if (!tecnico && !candidato) {
+      return res.status(404).json({ error: 'No se encontró ficha registrada para este colaborador.' });
+    }
+
+    // 5. Validación de Permisos Dinámica
     const rutUser = cleanRut(req.user.rut);
-    const rutTec = cleanRut(tecnico.rut);
+    const rutTec = cleanRut(tecnico?.rut || candidato?.rut);
 
-    const sameEmail = req.user.email && tecnico.email && req.user.email.toLowerCase() === tecnico.email.toLowerCase();
+    const userEmailNorm = (req.user.email || '').toLowerCase().trim();
+    const tecEmailNorm = (tecnico?.email || candidato?.email || '').toLowerCase().trim();
+    const sameEmail = userEmailNorm && tecEmailNorm && userEmailNorm === tecEmailNorm;
     const esPropietario = (rutUser && rutUser === rutTec) || sameEmail;
-    const esSuSupervisor = tecnico.supervisorId && String(tecnico.supervisorId._id || tecnico.supervisorId) === String(req.user._id);
+    const esSuSupervisor = tecnico?.supervisorId && String(tecnico.supervisorId._id || tecnico.supervisorId) === String(req.user._id);
 
-    // Verificar permiso granular rrhh_captura:ver, cfg_personal:ver u op_designaciones:ver
     const perms = req.user.permisosModulos || {};
-    const hasGranularPerm = (perms.cfg_personal?.ver === true) || (perms.rrhh_captura?.ver === true) || (perms.op_designaciones?.ver === true);
+    const hasGranularPerm = (perms.cfg_personal?.ver === true) || 
+                           (perms.rrhh_captura?.ver === true) || 
+                           (perms.op_designaciones?.ver === true) ||
+                           (perms.op_dotacion?.ver === true) ||
+                           (perms.op_supervision?.ver === true) ||
+                           (perms.rend_operativo?.ver === true);
 
     if (!isHighLevel && !esPropietario && !esSuSupervisor && !hasGranularPerm) {
       return res.status(403).json({
@@ -880,33 +988,10 @@ router.get('/:id/ficha', async (req, res) => {
       });
     }
 
-    // Complementar con datos del candidato (RRHH) - Búsqueda ultra-robusta por RUT
-    const rutLimpio = cleanRut(tecnico.rut);
-
-    // Intentamos encontrar al candidato con varias estrategias de match de RUT
-    let candidateSelect = 'profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate idRecursoToa area sede projectId projectName proyectoTipo ceco region';
-
-    let candidato = await Candidato.findOne({
-      $or: [
-        { rut: tecnico.rut },
-        { rut: rutLimpio },
-        { rut: new RegExp(rutLimpio.split('').join('.*'), 'i') }
-      ]
-    })
-      .select(candidateSelect)
-      .lean();
-
-    // Fallback: Si no hay match por RUT (raro), intentar por nombre completo aproximado si el RUT es muy corto o sospechoso
-    if (!candidato && tecnico.nombre) {
-      candidato = await Candidato.findOne({ fullName: { $regex: tecnico.nombre, $options: 'i' } })
-        .select(candidateSelect)
-        .lean();
-    }
-
+    // Filtrar campos sensibles si es supervisor sin permisos globales
     if (candidato && !isHighLevel) {
       const userRole = String(req.user.role).toLowerCase();
       if (userRole === ROLES.SUPERVISOR) {
-        // Blindaje de datos sensibles para supervisores
         if (candidato.hiring) delete candidato.hiring.salary;
         delete candidato.bonuses;
         delete candidato.sueldoBase;
@@ -918,6 +1003,7 @@ router.get('/:id/ficha', async (req, res) => {
 
     res.json({ tecnico, candidato: candidato || null });
   } catch (err) {
+    console.error('❌ Error en GET /api/tecnicos/:id/ficha:', err);
     res.status(500).json({ error: err.message });
   }
 });

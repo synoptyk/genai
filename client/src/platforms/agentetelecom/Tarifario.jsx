@@ -631,7 +631,7 @@ const Tarifario = () => {
               ) : null}
 
               {/* Cliente y Proyecto — vinculados a Administración */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
                     Cliente <span className="text-red-400">*</span>
@@ -699,7 +699,7 @@ const Tarifario = () => {
               </div>
 
               {/* Valor por Punto + Moneda */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="col-span-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
                     Valor por Punto <span className="text-red-400">*</span>

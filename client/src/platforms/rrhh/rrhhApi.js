@@ -152,6 +152,8 @@ export const asistenciaApi = {
     createMarcajeLegal: (data)     => rrhhApi.post('/asistencia/marcaje-legal', data),
     remove:            (id, motivo) => rrhhApi.delete(`/asistencia/${id}`, { data: { motivo } }),
     syncToa:           (month, year) => rrhhApi.post('/asistencia/sync-toa', { month, year }),
+    syncEstadosContractuales: (month, year) => rrhhApi.post('/asistencia/sync-estados', { month, year }),
+    validarBalance:    (data) => rrhhApi.post('/asistencia/validar-balance', data),
 };
 
 export const configApi = {

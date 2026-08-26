@@ -61,21 +61,40 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
     // Construir lista de fechas
     const fechasAProcesar = [];
-    if (fechaInicio && fechaFin) {
-        let c = new Date(fechaInicio + 'T00:00:00Z');
-        const fin = new Date(fechaFin + 'T00:00:00Z');
+    const fIni = fechaInicio ? String(fechaInicio).trim() : '';
+    const fFin = fechaFin ? String(fechaFin).trim() : '';
+
+    if (fIni && fFin) {
+        const start = fIni <= fFin ? fIni : fFin;
+        const end = fIni <= fFin ? fFin : fIni;
+        let c = new Date(start + 'T00:00:00Z');
+        const fin = new Date(end + 'T00:00:00Z');
         while (c <= fin) { 
             fechasAProcesar.push(c.toISOString().split('T')[0]); 
             c.setUTCDate(c.getUTCDate() + 1); 
         }
-    } else if (fechaInicio) {
-        fechasAProcesar.push(fechaInicio);
+    } else if (fIni) {
+        fechasAProcesar.push(fIni);
+    } else if (fFin) {
+        fechasAProcesar.push(fFin);
     } else {
-        let c = new Date(Date.UTC(2026, 0, 1));
-        const fin = new Date(); fin.setUTCHours(0, 0, 0, 0);
-        while (c <= fin) { 
-            fechasAProcesar.push(c.toISOString().split('T')[0]); 
-            c.setUTCDate(c.getUTCDate() + 1); 
+        const hoy = new Date().toISOString().split('T')[0];
+        fechasAProcesar.push(hoy);
+    }
+
+    // Autocompletar credenciales TOA si no vienen provistas
+    if (!credenciales.usuario || !credenciales.clave) {
+        try {
+            const mongoose = require('mongoose');
+            const Empresa = mongoose.models.Empresa || mongoose.model('Empresa', new mongoose.Schema({}, { strict: false }));
+            const emp = await Empresa.findOne({ 'integracionTOA.usuario': { $exists: true, $ne: '' } });
+            if (emp && emp.integracionTOA) {
+                const { desencriptarTexto } = require('../../../utils/criptografiaSegura');
+                if (!credenciales.usuario && emp.integracionTOA.usuario) credenciales.usuario = emp.integracionTOA.usuario;
+                if (!credenciales.clave && emp.integracionTOA.clave) credenciales.clave = desencriptarTexto(emp.integracionTOA.clave);
+            }
+        } catch (credErr) {
+            console.warn('⚠️ Error al autocompletar credenciales TOA de respaldo:', credErr.message);
         }
     }
 
@@ -754,9 +773,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     for (const el of all) {
                         const r = el.getBoundingClientRect();
 
-                        // Zona ESPECÍFICA (esquina superior derecha)
-                        if (r.y > 160 && r.y < 195 &&
-                            r.x > (windowWidth - 180) &&
+                        // Zona ESPECÍFICA (esquina superior derecha) - Tolerancia Y aumentada por banners
+                        if (r.y > 130 && r.y < 280 &&
+                            r.x > (windowWidth - 200) &&
                             r.width > 15 && r.width < 55 &&
                             r.height > 15 && r.height < 55) {
 
@@ -2683,7 +2702,7 @@ if (require.main === module) {
         usuario: process.env.BOT_TOA_USER || '',
         clave: process.env.BOT_TOA_PASS || ''
     };
-    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
 
     if (!mongoUri) {
         const msg = '❌ MONGODB_URI/MONGO_URI no configurado en proceso hijo';
@@ -2694,7 +2713,11 @@ if (require.main === module) {
 
     if (process.send) process.send({ type: 'log', text: '🚀 Proceso hijo iniciado: conectando MongoDB...' });
 
-    mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 })
+    mongoose.connect(mongoUri, { 
+        serverSelectionTimeoutMS: 30000, 
+        directConnection: true,
+        connectTimeoutMS: 30000 
+    })
         .then(() => {
             if (process.send) process.send({ type: 'log', text: '✅ MongoDB child OK' });
             return iniciarExtraccion(process.env.BOT_FECHA_INICIO || null, process.env.BOT_FECHA_FIN || null, cred);
