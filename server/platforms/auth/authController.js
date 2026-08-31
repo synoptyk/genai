@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendWelcomeEmail, sendUpdateNotification } = require('../../utils/mailer');
 const notificationService = require('../../utils/notificationService');
+const { formatRut, cleanRut } = require('../../utils/rutUtils');
 
 const generateToken = (id, version = 0) => {
     return jwt.sign({ id: id.toString(), version }, process.env.JWT_SECRET || 'platform_secret_2026', {
@@ -16,8 +17,27 @@ const generateToken = (id, version = 0) => {
 exports.login = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await PlatformUser.findOne({ email }).select('+password').populate('empresaRef');
-        if (!user) return res.status(401).json({ message: 'Email no registrado en el sistema' });
+        const rawInput = String(email || '').trim();
+        const cleanEmail = rawInput.toLowerCase();
+        const cleanRutInput = cleanRut(rawInput).toUpperCase();
+        const fRutInput = formatRut(cleanRutInput);
+
+        const searchCriteria = [
+            { email: cleanEmail },
+            { email: rawInput },
+            { corporateEmail: cleanEmail }
+        ];
+
+        if (cleanRutInput && cleanRutInput.length >= 7) {
+            searchCriteria.push({ rut: cleanRutInput });
+            searchCriteria.push({ rut: fRutInput });
+            searchCriteria.push({ rut: rawInput });
+        }
+
+        const user = await PlatformUser.findOne({
+            $or: searchCriteria
+        }).select('+password').populate('empresaRef');
+        if (!user) return res.status(401).json({ message: 'Email o RUT no registrado en el sistema' });
 
         const isMatch = await user.matchPassword(password);
         if (!isMatch) return res.status(401).json({ message: 'Contraseña incorrecta' });
@@ -65,22 +85,47 @@ exports.login = async (req, res) => {
         user.tokenVersion = newTokens;
 
         let rutStr = user.rut;
-        if (!rutStr && email) {
-            // Optimización: Búsqueda exacta indexada en lugar de RegExp
-            const cleanEmail = String(email).toLowerCase().trim();
-            const tech = await Tecnico.findOne({ email: cleanEmail });
-            if (tech) {
-                rutStr = tech.rut;
-            } else {
-                const cand = await Candidato.findOne({ email: email.toLowerCase().trim() });
-                if (cand) rutStr = cand.rut;
-            }
+        const cleanRutUser = (rutStr || '').replace(/[^0-9kK]/g, '').toUpperCase();
+        const fRutUser = formatRut(cleanRutUser);
 
-            // 🚀 PERSISTENCIA: Guardar el RUT encontrado en la cuenta de usuario para futuras sesiones
-            if (rutStr && rutStr !== 'Rut No Definido') {
-                await PlatformUser.updateOne({ _id: user._id }, { $set: { rut: rutStr } });
-                user.rut = rutStr;
-            }
+        // 🚀 AUTO-CURACIÓN: Resolver RUT y empresaRef desde Tecnico / Candidato
+        const rutSearchArray = cleanRutUser ? [{ rut: cleanRutUser }, { rut: fRutUser }, { rut: rutStr }] : [];
+        const techMatch = await Tecnico.findOne({
+            $or: [
+                { email: cleanEmail },
+                ...rutSearchArray
+            ]
+        }).lean();
+
+        const candMatch = techMatch ? null : await Candidato.findOne({
+            $or: [
+                { email: cleanEmail },
+                ...rutSearchArray
+            ]
+        }).lean();
+
+        const resolvedEmpresaRef = user.empresaRef?._id || user.empresaRef || techMatch?.empresaRef || candMatch?.empresaRef;
+        if (!rutStr || rutStr === 'Rut No Definido') {
+            const foundRut = techMatch?.rut || candMatch?.rut;
+            if (foundRut) rutStr = formatRut(foundRut);
+        }
+
+        const updateSet = {};
+        if (rutStr && rutStr !== user.rut && rutStr !== 'Rut No Definido') {
+            updateSet.rut = rutStr;
+            user.rut = rutStr;
+        }
+        if (resolvedEmpresaRef && (!user.empresaRef || String(user.empresaRef?._id || user.empresaRef) !== String(resolvedEmpresaRef))) {
+            updateSet.empresaRef = resolvedEmpresaRef;
+            user.empresaRef = resolvedEmpresaRef;
+        }
+        if (user.email !== cleanEmail) {
+            updateSet.email = cleanEmail;
+            user.email = cleanEmail;
+        }
+
+        if (Object.keys(updateSet).length > 0) {
+            await PlatformUser.updateOne({ _id: user._id }, { $set: updateSet });
         }
 
         res.json({
@@ -647,16 +692,31 @@ exports.forgotPassword = async (req, res) => {
     const { email } = req.body;
     try {
         if (!email || !email.trim()) {
-            return res.status(400).json({ message: 'El correo electrónico es requerido.' });
+            return res.status(400).json({ message: 'El correo electrónico o RUT es requerido.' });
         }
 
-        const normalizedEmail = email.trim();
+        const rawInput = email.trim();
+        const normalizedEmail = rawInput.toLowerCase();
+        const cleanRutInput = cleanRut(rawInput).toUpperCase();
+        const fRutInput = formatRut(cleanRutInput);
+
+        const searchCriteria = [
+            { email: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            { corporateEmail: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+        ];
+
+        if (cleanRutInput && cleanRutInput.length >= 7) {
+            searchCriteria.push({ rut: cleanRutInput });
+            searchCriteria.push({ rut: fRutInput });
+            searchCriteria.push({ rut: rawInput });
+        }
+
         const user = await PlatformUser.findOne({ 
-            email: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') 
+            $or: searchCriteria
         }).populate('empresaRef');
 
         if (!user) {
-            return res.status(404).json({ message: 'No existe una cuenta registrada con este correo.' });
+            return res.status(404).json({ message: 'No existe una cuenta registrada con este correo o RUT.' });
         }
 
         // Generar token en crudo

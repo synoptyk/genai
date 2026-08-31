@@ -1725,7 +1725,11 @@ app.get('/api/bot/garantias-stats', botLimiter, protect, async (req, res, next) 
             { idRecurso: { $in: restrictedIDsArray } },
             { "Recurso": { $in: restrictedIDsArray } },
             { idRecursoToa: { $in: restrictedIDsArray } },
-            { IDRECURSOTOA: { $in: restrictedIDsArray } }
+            { IDRECURSOTOA: { $in: restrictedIDsArray } },
+            { "AUTO-ASIGNADO_A_RECURSO_(ID)": { $in: restrictedIDsArray } },
+            { "Auto-asignado a recurso (id)": { $in: restrictedIDsArray } },
+            { "Auto-asignado_a_recurso_(id)": { $in: restrictedIDsArray } },
+            { "AUTO_ASIGNADO_A_RECURSO_(ID)": { $in: restrictedIDsArray } }
           ]
         });
       } else {
@@ -1766,16 +1770,70 @@ app.get('/api/bot/garantias-stats', botLimiter, protect, async (req, res, next) 
       }
     }
     if (proyectosFilter) {
-      const projList = String(proyectosFilter).split(',').map(s => s.trim()).filter(Boolean);
+      const projList = String(proyectosFilter).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
       if (projList.length > 0) {
-        queryConditions.push({
-          $or: [
-            { "PROYECTO": { $in: projList } },
-            { "Proyecto": { $in: projList } },
-            { "Tipo Trabajo": { $in: projList } },
-            { "Subtipo de Actividad": { $in: projList } }
-          ]
+        const Proyecto = require('./platforms/rrhh/models/Proyecto');
+        const Candidato = require('./platforms/rrhh/models/Candidato');
+        const allProjs = await Proyecto.find({}).lean();
+        const projByName = {};
+        allProjs.forEach(p => {
+          const pName = p.nombreProyecto || p.projectName || p.nombre || '';
+          if (pName) projByName[pName.toUpperCase().trim()] = String(p._id);
         });
+
+        const [tDocs, cDocs] = await Promise.all([
+          Tecnico.find({ empresaRef: targetObjectId }).select('idRecursoToa idRecurso projectId proyecto projectName sede').populate('projectId', 'nombreProyecto projectName').lean(),
+          Candidato ? Candidato.find({ empresaRef: targetObjectId }).select('idRecursoToa idRecurso projectId projectName sede').populate('projectId', 'nombreProyecto projectName').lean() : Promise.resolve([])
+        ]);
+
+        const allMatchedTechIds = new Set();
+        const checkTechMatches = (t) => {
+          const tProj = (t.projectId && typeof t.projectId === 'object' ? (t.projectId.nombreProyecto || t.projectId.projectName) : (t.proyecto || t.projectName || '')) || '';
+          const tProjNorm = tProj.toUpperCase().trim();
+          const tProjId = t.projectId && typeof t.projectId === 'object' ? String(t.projectId._id) : String(t.projectId || '');
+          const tSede = String(t.sede || '').toUpperCase().trim();
+
+          const matches = projList.some(filterP => {
+            const fNorm = filterP.trim().toUpperCase();
+            const targetProjId = projByName[fNorm];
+            if (targetProjId && tProjId && tProjId === targetProjId) return true;
+            if (tProjNorm === fNorm) return true;
+            if (fNorm.includes('RANCAGUA') && (tProjNorm.includes('RANCAGUA') || tSede.includes('RANCAGUA') || tSede.includes("O'HIGGINS"))) return true;
+            if ((fNorm.includes('RM') || fNorm.includes('METROPOLITANA')) && (tProjNorm.includes('RM') || tProjNorm.includes('METROPOLITANA')) && !tProjNorm.includes('RANCAGUA')) return true;
+            if (fNorm.includes('COMFICA') && tProjNorm.includes('COMFICA')) return true;
+            return false;
+          });
+
+          if (matches) {
+            const id1 = String(t.idRecursoToa || '').trim();
+            const id2 = String(t.idRecurso || '').trim();
+            if (id1) { allMatchedTechIds.add(id1); allMatchedTechIds.add(id1.replace(/^0+/, '')); }
+            if (id2) { allMatchedTechIds.add(id2); allMatchedTechIds.add(id2.replace(/^0+/, '')); }
+          }
+        };
+
+        tDocs.forEach(checkTechMatches);
+        (cDocs || []).forEach(checkTechMatches);
+
+        const techIdsArr = Array.from(allMatchedTechIds);
+        if (techIdsArr.length > 0) {
+          queryConditions.push({
+            $or: [
+              { "RECURSO": { $in: techIdsArr } },
+              { "ID Recurso": { $in: techIdsArr } },
+              { "ID_Recurso": { $in: techIdsArr } },
+              { "ID_RECURSO": { $in: techIdsArr } },
+              { idRecurso: { $in: techIdsArr } },
+              { "Recurso": { $in: techIdsArr } },
+              { idRecursoToa: { $in: techIdsArr } },
+              { "Auto-asignado a recurso (id)": { $in: techIdsArr } },
+              { "AUTO-ASIGNADO_A_RECURSO_(ID)": { $in: techIdsArr } },
+              { "AUTO_ASIGNADO_A_RECURSO_(ID)": { $in: techIdsArr } }
+            ]
+          });
+        } else {
+          queryConditions.push({ "RECURSO": "__NONE__" });
+        }
       }
     }
     if (tecnicoId) {
@@ -2277,7 +2335,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         }).lean()
       : Promise.resolve([]);
 
-    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands, r_asistencia] = await Promise.allSettled([
+    const Proyecto = require('./platforms/rrhh/models/Proyecto');
+    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands, r_asistencia, r_proyectos] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
         ? Tecnico.find({}).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean()
@@ -2288,7 +2347,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       isSystemAdmin && !empresaFilter
         ? Candidato.find({}).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean()
         : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean(),
-      queryAsistencia
+      queryAsistencia,
+      Proyecto.find({}).lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -2297,6 +2357,17 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
     const candsVal = r_cands && r_cands.status === 'fulfilled' ? r_cands.value : [];
     const asistenciaRecords = r_asistencia && r_asistencia.status === 'fulfilled' ? r_asistencia.value : [];
+    const allProyectosDocs = r_proyectos && r_proyectos.status === 'fulfilled' ? r_proyectos.value : [];
+
+    const projById = {};
+    const projByName = {};
+    allProyectosDocs.forEach(p => {
+      const pName = p.nombreProyecto || p.projectName || p.nombre || '';
+      projById[String(p._id)] = pName;
+      if (pName) {
+        projByName[pName.toUpperCase().trim()] = String(p._id);
+      }
+    });
 
 
     // Map RUTs from HR just in case Tecnico is missing it
@@ -2407,9 +2478,15 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const cpKey = keysToa.find(k => mapaValorizacionProd[k]) || keysRec.find(k => mapaValorizacionProd[k]) || rutClean;
       const cpConfig = cpKey ? mapaValorizacionProd[cpKey] : null;
 
-      // Extraer datos maestros desde RRHH / Talento priorizándolos
-      const masterProyecto = t.projectName || (t.projectId && typeof t.projectId === 'object' ? (t.projectId.nombreProyecto || t.projectId.projectName) : null) || t.proyecto || '';
-      const masterCliente = t.clienteNombre || t.cliente || '';
+      // Extraer datos maestros desde RRHH / Talento priorizando el documento canónico de Proyecto
+      const projDocName = (t.projectId && typeof t.projectId === 'object')
+        ? (t.projectId.nombreProyecto || t.projectId.projectName)
+        : (t.projectId ? projById[String(t.projectId)] : null);
+      const rawProjectId = (t.projectId && typeof t.projectId === 'object')
+        ? String(t.projectId._id)
+        : (t.projectId ? String(t.projectId) : '');
+      const masterProyecto = projDocName || cpConfig?.proyecto || t.projectName || t.proyecto || '';
+      const masterCliente = t.clienteNombre || t.cliente || cpConfig?.cliente || '';
 
       if (!key) {
         // Crear nuevo
@@ -2437,8 +2514,11 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           dailyMap: {},
           activities: {},
           cityMap: {},
-          proyecto: masterProyecto || cpConfig?.proyecto || '',
-          cliente: masterCliente || cpConfig?.cliente || '',
+          proyecto: masterProyecto,
+          projectId: rawProjectId,
+          cliente: masterCliente,
+          sede: t.sede || '',
+          ceco: t.ceco || '',
           inicioContrato: inicio,
           cargo: t.position || t.cargo || 'TÉCNICO',
           status: t.status || 'Operativo',
@@ -2481,11 +2561,20 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         });
         nameVariations.forEach(nv => { if (nv && !nameToMapKey[nv]) nameToMapKey[nv] = key; });
 
+        if (projDocName) {
+          ex.proyecto = projDocName;
+          ex.projectId = rawProjectId;
+        } else if (!ex.proyecto && masterProyecto) {
+          ex.proyecto = masterProyecto;
+        }
+        if (rawProjectId && !ex.projectId) ex.projectId = rawProjectId;
+        if (t.sede && !ex.sede) ex.sede = t.sede;
+        if (t.ceco && !ex.ceco) ex.ceco = t.ceco;
+        if (masterCliente && !ex.cliente) ex.cliente = masterCliente;
+
         const inicio = t.contractStartDate || t.hiring?.contractStartDate || t.fechaIngreso || null;
         if (inicio && !ex.inicioContrato) ex.inicioContrato = inicio;
         if (t.cargo && (ex.cargo === 'TÉCNICO' || !ex.cargo)) ex.cargo = t.cargo;
-        if (masterProyecto && !ex.proyecto) ex.proyecto = masterProyecto;
-        if (masterCliente && !ex.cliente) ex.cliente = masterCliente;
       }
 
       // Registrar IDs válidos para el filtro de actividades
@@ -2607,7 +2696,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       for (let k in doc) {
         if (typeof doc[k] === 'function') continue;
         const val = doc[k];
-        const kUpper = k.toUpperCase().replace(/ /g, '_');
+        const kUpper = k.toUpperCase().replace(/[\s-]/g, '_');
         clean[kUpper] = val;
         
         // Quitar acentos para versión sin acentos
@@ -2615,6 +2704,9 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         if (kNoAccents !== kUpper) {
           clean[kNoAccents] = val;
         }
+
+        const kAlphaNum = kUpper.replace(/[^A-Z0-9]/g, '');
+        if (kAlphaNum) clean[kAlphaNum] = val;
 
         // También guardamos una versión con camel/snake case común para el motor de baremos
         const kNormal = k.replace(/[\.\s]/g, '_');
@@ -2635,9 +2727,19 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         clean.IDRECURSOTOA || 
         clean.ID_RECURSO_TOA || 
         clean.RECURSO || 
+        clean.AUTO_ASIGNADO_A_RECURSO_ID ||
+        clean.AUTOASIGNADOARECURSOID ||
         clean['AUTO_ASIGNADO_A_RECURSO_(ID)'] ||
-        clean.TECNICO ||
+        clean['AUTO-ASIGNADO_A_RECURSO_(ID)'] ||
+        clean['Auto-asignado a recurso (id)'] ||
+        clean['Auto-asignado_a_recurso_(id)'] ||
+        clean['ID Recurso'] ||
+        clean.ID_RECURSO ||
         '';
+
+      if (!idRecursoRaw && clean.TECNICO && /^\d+$/.test(String(clean.TECNICO).trim())) {
+        idRecursoRaw = clean.TECNICO;
+      }
 
       const idRecurso = String(idRecursoRaw || '').trim().replace(/^0+/, '');
       const idLow = idRecurso.toLowerCase();
@@ -2988,17 +3090,21 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       // ── Agregar a lpuMap (Mantenido arriba para reactividad) ──
 
       // ── Agregar a clientProjectMap ──
-      if (cpKey) {
-        if (!clientProjectMap[cpKey]) {
-          clientProjectMap[cpKey] = {
-            cliente: clienteName, proyecto: proyectoName,
+      const cliNameResolved = t?.cliente || clienteName || 'S/N';
+      const proNameResolved = t?.proyecto || proyectoName || 'General';
+      const dynamicCpKey = cliNameResolved ? (proNameResolved ? `${cliNameResolved} | ${proNameResolved}` : cliNameResolved) : proNameResolved;
+
+      if (dynamicCpKey) {
+        if (!clientProjectMap[dynamicCpKey]) {
+          clientProjectMap[dynamicCpKey] = {
+            cliente: cliNameResolved, proyecto: proNameResolved,
             pts: 0, clp: 0, retencion: 0, clpNeto: 0, orders: 0, techs: new Set(), days: new Set(),
             provisionCount: 0, repairCount: 0,
             weeklyMap: {}, // weekKey → { pts, orders }
             byTipoTrabajo: {} // tipoTrabajo → { pts, orders }
           };
         }
-        const cp = clientProjectMap[cpKey];
+        const cp = clientProjectMap[dynamicCpKey];
         cp.pts += pTotal;
         cp.clp += valorBruto;
         cp.retencion += descuentoRet;
@@ -3387,16 +3493,44 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
       if (projsNormalized.length > 0) {
         finalFilteredTecnicos = tecnicosFinales.filter(t => {
-          const p = String(t.proyecto || '').trim().toUpperCase();
-          const cliente = String(t.cliente || '').trim().toUpperCase();
-          const ceco = String(t.ceco || '').trim().toUpperCase();
-          return projsNormalized.some(filterP => 
-            p === filterP || 
-            p.includes(filterP) || 
-            filterP.includes(p) || 
-            cliente === filterP || 
-            ceco === filterP
-          );
+          const techProj = String(t.proyecto || '').trim().toUpperCase();
+          const techProjId = String(t.projectId || '').trim();
+          const techSede = String(t.sede || '').trim().toUpperCase();
+          const techCliente = String(t.cliente || '').trim().toUpperCase();
+          const techCeco = String(t.ceco || '').trim().toUpperCase();
+
+          return projsNormalized.some(filterP => {
+            const fNorm = filterP.trim().toUpperCase();
+            const targetProjId = projByName[fNorm];
+
+            // 1. Coincidencia por ID de proyecto
+            if (targetProjId && techProjId && techProjId === targetProjId) return true;
+
+            // 2. Coincidencia exacta
+            if (techProj === fNorm || techCliente === fNorm || techCeco === fNorm) return true;
+
+            // 3. Coincidencia por tokens de zona / región
+            const isFilterRancagua = fNorm.includes('RANCAGUA');
+            const isFilterRM = (fNorm.includes('RM') || fNorm.includes('METROPOLITANA') || fNorm.includes('SANTIAGO')) && !isFilterRancagua;
+            const isFilterComfica = fNorm.includes('COMFICA');
+
+            if (isFilterRancagua) {
+              if (techProj.includes('RANCAGUA') || techSede.includes('RANCAGUA') || techSede.includes("O'HIGGINS")) return true;
+            }
+            if (isFilterRM) {
+              if ((techProj.includes(' RM') || techProj.endsWith('- RM') || techProj.includes('METROPOLITANA')) && !techProj.includes('RANCAGUA') && !techSede.includes('RANCAGUA')) return true;
+            }
+            if (isFilterComfica) {
+              if (techProj.includes('COMFICA')) return true;
+            }
+
+            // 4. Substring seguro (solo si no hay conflicto de zona)
+            if (!isFilterRancagua && !isFilterRM && !isFilterComfica) {
+              if (techProj.includes(fNorm) || fNorm.includes(techProj)) return true;
+            }
+
+            return false;
+          });
         });
       }
     }
@@ -3408,6 +3542,60 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const totalOrders_calc = finalFilteredTecnicos.reduce((s, t) => s + (t.orders || 0), 0);
     const uniqueTechs_calc = finalFilteredTecnicos.length;
     const avgPtsPerTechPerDay_calc = uniqueTechs_calc > 0 && uniqueDays > 0 ? Math.round((totalPts_final_calc / uniqueTechs_calc / uniqueDays) * 100) / 100 : 0;
+
+    let filteredCalendarMap = calendarMap;
+    let filteredCityMap = cityMap;
+    let filteredLpuActivities = lpuActivities;
+    let filteredClientProjects = clientProjects;
+
+    if (proyectos && proyectos.length > 0) {
+      const projsRaw = Array.isArray(proyectos) ? proyectos : String(proyectos).split(',');
+      const projsNormalized = projsRaw.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+
+      filteredClientProjects = clientProjects.filter(cp => {
+        const cpProj = String(cp.proyecto || '').trim().toUpperCase();
+        return projsNormalized.some(fNorm => {
+          const targetProjId = projByName[fNorm];
+          if (cpProj === fNorm) return true;
+          if (fNorm.includes('RANCAGUA') && cpProj.includes('RANCAGUA')) return true;
+          if ((fNorm.includes(' RM') || fNorm.endsWith('- RM')) && cpProj.includes('RM') && !cpProj.includes('RANCAGUA')) return true;
+          if (fNorm.includes('COMFICA') && cpProj.includes('COMFICA')) return true;
+          return false;
+        });
+      });
+
+      filteredCalendarMap = {};
+      filteredCityMap = {};
+      const filteredLpuMap = {};
+
+      finalFilteredTecnicos.forEach(t => {
+        Object.entries(t.dailyMap || {}).forEach(([dk, dd]) => {
+          if (!filteredCalendarMap[dk]) filteredCalendarMap[dk] = { pts: 0, orders: 0, clp: 0, clpNeto: 0, techs: {} };
+          filteredCalendarMap[dk].pts += dd.pts || 0;
+          filteredCalendarMap[dk].orders += dd.orders || 0;
+          if (!filteredCalendarMap[dk].techs[t.name]) {
+            filteredCalendarMap[dk].techs[t.name] = { pts: 0, clp: 0, clpNeto: 0 };
+          }
+          filteredCalendarMap[dk].techs[t.name].pts += dd.pts || 0;
+        });
+
+        Object.entries(t.cityMap || {}).forEach(([cit, cd]) => {
+          if (!filteredCityMap[cit]) filteredCityMap[cit] = { pts: 0, orders: 0 };
+          filteredCityMap[cit].pts += cd.pts || 0;
+          filteredCityMap[cit].orders += cd.orders || 0;
+        });
+
+        Object.entries(t.activities || {}).forEach(([actName, actData]) => {
+          if (!filteredLpuMap[actName]) {
+            filteredLpuMap[actName] = { desc: actName, count: 0, totalPts: 0 };
+          }
+          filteredLpuMap[actName].count += (typeof actData === 'object' ? actData.count : actData) || 0;
+          filteredLpuMap[actName].totalPts += (typeof actData === 'object' ? actData.pts : 0) || 0;
+        });
+      });
+
+      filteredLpuActivities = Object.values(filteredLpuMap).sort((a, b) => b.totalPts - a.totalPts);
+    }
 
     const vinculadosFinales = finalFilteredTecnicos.filter(t => t.isVinculado).map(t => ({
       idRecurso: t.idRecursoToa,
@@ -3463,15 +3651,15 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         uniqueDays
       },
       tecnicos: tecnicosRespuesta,
-      calendar: calendarMap,
-      cities: cityMap,
-      lpuActivities,
+      calendar: filteredCalendarMap,
+      cities: filteredCityMap,
+      lpuActivities: filteredLpuActivities,
       estados: Object.entries(estadoCountMap)
         .map(([estado, count]) => ({ estado, count }))
         .sort((a, b) => b.count - a.count),
       vinculados: vinculadosFinales,
       metaConfig,
-      clientProjects,
+      clientProjects: filteredClientProjects,
       empresaNombre: empresaDoc?.nombre || '',
     });
   } catch (error) {
@@ -3550,11 +3738,21 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
       : Promise.resolve([]);
     
     // ── 1. CARGAR TÉCNICOS Y VINCULAR PROYECTOS DESDE RRHH (CAPTURA TALENTO) ──
-    const [cands, techsMaster, asistenciaRecords] = await Promise.all([
-      Candidato.find({ empresaRef: empresaId }).select('idRecursoToa projectName projectId clienteNombre fullName rut status position').lean(),
-      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa nombre nombres apellidos rut cargo status').lean(),
-      queryAsistencia
+    const Proyecto = require('./platforms/rrhh/models/Proyecto');
+    const [cands, techsMaster, asistenciaRecords, allProjsTelecom] = await Promise.all([
+      Candidato.find({ empresaRef: empresaId }).select('idRecursoToa projectName projectId clienteNombre fullName rut status position sede').populate('projectId', 'nombreProyecto projectName').lean(),
+      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso nombre nombres apellidos rut cargo status projectId proyecto projectName sede').populate('projectId', 'nombreProyecto projectName').lean(),
+      queryAsistencia,
+      Proyecto.find({}).lean()
     ]);
+
+    const projByIdTelecom = {};
+    const projByNameTelecom = {};
+    allProjsTelecom.forEach(p => {
+      const pName = p.nombreProyecto || p.projectName || p.nombre || '';
+      projByIdTelecom[String(p._id)] = pName;
+      if (pName) projByNameTelecom[pName.toUpperCase().trim()] = String(p._id);
+    });
 
     console.log(`   👥 [produccion-dia-telecom] Técnicos en RRHH: ${cands.length}, Técnicos en Maestro: ${techsMaster.length}`);
 
@@ -3562,28 +3760,48 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
     const normId = (id) => String(id || '').trim().replace(/^0+/, '');
 
     // ── 2. DETERMINAR TÉCNICOS VÁLIDOS SEGÚN FILTROS ──
-    const projList = proyectos && proyectos !== 'TODOS' ? proyectos.split(',').filter(Boolean) : [];
-    const clientList = clientes && clientes !== 'TODOS' ? clientes.split(',').filter(Boolean) : [];
+    const projList = proyectos && proyectos !== 'TODOS' ? proyectos.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [];
+    const clientList = clientes && clientes !== 'TODOS' ? clientes.split(',').map(s => s.trim()).filter(Boolean) : [];
     
     let targetTechIds = [];
     const isFiltering = projList.length > 0 || clientList.length > 0;
 
     if (isFiltering) {
-        // Si hay filtros, buscamos SOLAMENTE los técnicos asignados en RRHH a esos proyectos/empresas
-        const filteredCands = cands.filter(c => {
-            const pName = c.projectName || (c.projectId && typeof c.projectId === 'object' ? (c.projectId.nombreProyecto || c.projectId.projectName) : null) || '';
-            const matchProj = projList.length === 0 || projList.some(p => pName.toLowerCase().includes(p.toLowerCase()) || p.toLowerCase().includes(pName.toLowerCase()));
+        const checkMatch = (c) => {
+            const pName = (c.projectId && typeof c.projectId === 'object' ? (c.projectId.nombreProyecto || c.projectId.projectName) : (c.projectId ? projByIdTelecom[String(c.projectId)] : (c.projectName || c.proyecto || ''))) || '';
+            const pNameNorm = pName.toUpperCase().trim();
+            const pId = c.projectId && typeof c.projectId === 'object' ? String(c.projectId._id) : String(c.projectId || '');
+            const sedeNorm = String(c.sede || '').toUpperCase().trim();
+
+            const matchProj = projList.length === 0 || projList.some(filterP => {
+                const targetId = projByNameTelecom[filterP];
+                if (targetId && pId && pId === targetId) return true;
+                if (pNameNorm === filterP) return true;
+                if (filterP.includes('RANCAGUA') && (pNameNorm.includes('RANCAGUA') || sedeNorm.includes('RANCAGUA') || sedeNorm.includes("O'HIGGINS"))) return true;
+                if ((filterP.includes('RM') || filterP.includes('METROPOLITANA')) && (pNameNorm.includes('RM') || pNameNorm.includes('METROPOLITANA')) && !pNameNorm.includes('RANCAGUA')) return true;
+                if (filterP.includes('COMFICA') && pNameNorm.includes('COMFICA')) return true;
+                return false;
+            });
             const matchCli = clientList.length === 0 || clientList.includes(c.clienteNombre);
             return matchProj && matchCli;
-        });
-        
-        targetTechIds = filteredCands.map(c => normId(c.idRecursoToa)).filter(Boolean);
+        };
+
+        const filteredCands = cands.filter(checkMatch);
+        const filteredTechs = techsMaster.filter(checkMatch);
+
+        const combinedIds = new Set([
+          ...filteredCands.map(c => normId(c.idRecursoToa)),
+          ...filteredTechs.map(t => normId(t.idRecursoToa)),
+          ...filteredTechs.map(t => normId(t.idRecurso))
+        ].filter(Boolean));
+
+        targetTechIds = Array.from(combinedIds);
         console.log(`   🎯 [produccion-dia-telecom] Filtrando por ${projList.length} proyectos. Técnicos encontrados: ${targetTechIds.length}`);
     } else {
-        // Si no hay filtros, usamos todos los técnicos de la empresa
         targetTechIds = [
             ...cands.map(c => normId(c.idRecursoToa)),
-            ...techsMaster.map(t => normId(t.idRecursoToa))
+            ...techsMaster.map(t => normId(t.idRecursoToa)),
+            ...techsMaster.map(t => normId(t.idRecurso))
         ].filter(Boolean);
     }
 
@@ -4323,9 +4541,15 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
     const filtro = isSystemAdmin ? {} : {
       $or: [
         { "RECURSO": { $in: restrictedIDs } },
-        { "RECURSO": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } },
+        { "ID_Recurso": { $in: restrictedIDs } },
+        { "ID_RECURSO": { $in: restrictedIDs } },
         { idRecurso: { $in: restrictedIDs } },
-        { "Recurso": { $in: restrictedIDs } }
+        { "Recurso": { $in: restrictedIDs } },
+        { idRecursoToa: { $in: restrictedIDs } },
+        { "AUTO-ASIGNADO_A_RECURSO_(ID)": { $in: restrictedIDs } },
+        { "Auto-asignado a recurso (id)": { $in: restrictedIDs } },
+        { "AUTO_ASIGNADO_A_RECURSO_(ID)": { $in: restrictedIDs } }
       ]
     };
 
@@ -4477,7 +4701,9 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       // 1. Sanitización de keys AGRESIVA -> TODO A MAYÚSCULAS para evitar errores de nombres
       const clean = {};
       for (const [k, v] of Object.entries(doc)) {
-        clean[k.replace(/[\.\s]/g, '_').toUpperCase()] = v;
+        clean[k.replace(/[\.\s-]/g, '_').toUpperCase()] = v;
+        const kAlpha = k.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (kAlpha) clean[kAlpha] = v;
       }
 
       // 2. EXTRACCIÓN DE ID ULTRA-ROBUSTA (Sincronizada con Espejo)
@@ -4488,7 +4714,12 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
         clean.ID_RECURSO_TOA || 
         clean.ID_RECURSO || 
         clean['ID_RECURSO'] || 
+        clean.AUTO_ASIGNADO_A_RECURSO_ID ||
+        clean.AUTOASIGNADOARECURSOID ||
         clean['AUTO_ASIGNADO_A_RECURSO_(ID)'] ||
+        clean['AUTO-ASIGNADO_A_RECURSO_(ID)'] ||
+        clean['Auto-asignado a recurso (id)'] ||
+        clean['ID Recurso'] ||
         clean.TECNICO ||
         '';
 
@@ -4767,15 +4998,43 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // IDs de vinculados para filtro restrictivo (Security Layer similar a produccion-stats)
+    // IDs de vinculados para filtro restrictivo
     const Candidato = require('./platforms/rrhh/models/Candidato');
-    const [tStats, cStats] = await Promise.all([
-      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso').lean(),
-      Candidato ? Candidato.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso').lean() : Promise.resolve([])
+    const Proyecto = require('./platforms/rrhh/models/Proyecto');
+    const [tStats, cStats, allProjsRaw] = await Promise.all([
+      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso projectId proyecto projectName sede').populate('projectId', 'nombreProyecto projectName').lean(),
+      Candidato ? Candidato.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso projectId projectName sede').populate('projectId', 'nombreProyecto projectName').lean() : Promise.resolve([]),
+      Proyecto.find({}).lean()
     ]);
+
+    const projByNameRaw = {};
+    allProjsRaw.forEach(p => {
+      const pName = p.nombreProyecto || p.projectName || p.nombre || '';
+      if (pName) projByNameRaw[pName.toUpperCase().trim()] = String(p._id);
+    });
+
+    const projListRaw = proyectos && proyectos !== 'todos' ? String(proyectos).split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [];
 
     const vinculadosSet = new Set();
     const processItem = (t) => {
+      if (projListRaw.length > 0) {
+        const tProj = (t.projectId && typeof t.projectId === 'object' ? (t.projectId.nombreProyecto || t.projectId.projectName) : (t.proyecto || t.projectName || '')) || '';
+        const tProjNorm = tProj.toUpperCase().trim();
+        const tProjId = t.projectId && typeof t.projectId === 'object' ? String(t.projectId._id) : String(t.projectId || '');
+        const tSede = String(t.sede || '').toUpperCase().trim();
+
+        const match = projListRaw.some(filterP => {
+          const targetId = projByNameRaw[filterP];
+          if (targetId && tProjId && tProjId === targetId) return true;
+          if (tProjNorm === filterP) return true;
+          if (filterP.includes('RANCAGUA') && (tProjNorm.includes('RANCAGUA') || tSede.includes('RANCAGUA') || tSede.includes("O'HIGGINS"))) return true;
+          if ((filterP.includes('RM') || filterP.includes('METROPOLITANA')) && (tProjNorm.includes('RM') || tProjNorm.includes('METROPOLITANA')) && !tProjNorm.includes('RANCAGUA')) return true;
+          if (filterP.includes('COMFICA') && tProjNorm.includes('COMFICA')) return true;
+          return false;
+        });
+        if (!match) return;
+      }
+
       const id1 = String(t.idRecursoToa || '').trim();
       const id2 = String(t.idRecurso || t.rut || '').trim();
       if (id1) {
@@ -4788,15 +5047,21 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
       }
     };
     tStats.forEach(processItem);
-    cStats.forEach(processItem);
+    (cStats || []).forEach(processItem);
     const vinculadosList = Array.from(vinculadosSet);
 
     const filtro = isSystemAdmin ? {} : {
       $or: [
         { "RECURSO": { $in: vinculadosList } },
         { "ID Recurso": { $in: vinculadosList } },
+        { "ID_Recurso": { $in: vinculadosList } },
+        { "ID_RECURSO": { $in: vinculadosList } },
         { idRecurso: { $in: vinculadosList } },
-        { "Recurso": { $in: vinculadosList } }
+        { "Recurso": { $in: vinculadosList } },
+        { idRecursoToa: { $in: vinculadosList } },
+        { "AUTO-ASIGNADO_A_RECURSO_(ID)": { $in: vinculadosList } },
+        { "Auto-asignado a recurso (id)": { $in: vinculadosList } },
+        { "AUTO_ASIGNADO_A_RECURSO_(ID)": { $in: vinculadosList } }
       ]
     };
 

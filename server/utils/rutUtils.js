@@ -1,29 +1,19 @@
-const formatRut = (value) => {
+const cleanRut = (value) => {
     if (!value) return '';
-
-    let cleanRut = value.toString().replace(/[^0-9kK]/g, '').toUpperCase();
-    if (cleanRut.length === 0) return '';
-
-    if (cleanRut.indexOf('K') !== -1 && cleanRut.indexOf('K') !== cleanRut.length - 1) {
-        cleanRut = cleanRut.replace(/K/g, ''); 
-    }
-
-    if (cleanRut.length <= 1) return cleanRut;
-
-    const body = cleanRut.slice(0, -1);
-    const dv = cleanRut.slice(-1);
-
-    let formatBody = '';
-    for (let i = body.length; i > 0; i -= 3) {
-        let chunk = body.slice(Math.max(0, i - 3), i);
-        if (formatBody) {
-            formatBody = chunk + '.' + formatBody;
-        } else {
-            formatBody = chunk;
-        }
-    }
-
-    return `${formatBody}-${dv}`;
+    return value.toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
 };
 
-module.exports = { formatRut };
+const formatRut = (value) => {
+    if (!value) return '';
+    let clean = cleanRut(value);
+    if (clean.length === 0) return '';
+    if (clean.indexOf('K') !== -1 && clean.indexOf('K') !== clean.length - 1) {
+        clean = clean.replace(/K/g, ''); 
+    }
+    if (clean.length <= 1) return clean;
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+    return `${body.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${dv}`;
+};
+
+module.exports = { formatRut, cleanRut, formatRUT: formatRut, cleanRUT: cleanRut };

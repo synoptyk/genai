@@ -41,12 +41,43 @@ exports.protect = async (req, res, next) => {
             
         req.user = user;
 
-        // FALLBACK LEGACY: Si no tiene empresaRef pero tiene empresa.nombre, inyectar el ID real
-        if (!req.user.empresaRef && req.user.empresa?.nombre) {
+        // FALLBACK LEGACY & AUTO-HEAL: Si no tiene empresaRef, resolver desde BD
+        if (!req.user.empresaRef) {
             const mongoose = require('mongoose');
             const Empresa = mongoose.models.Empresa || mongoose.model('Empresa', new mongoose.Schema({ nombre: String }));
-            const empFallback = await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean();
-            if (empFallback) req.user.empresaRef = empFallback._id;
+            let empFallback = req.user.empresa?.nombre ? await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean() : null;
+            
+            if (!empFallback && (req.user.email || req.user.rut)) {
+                const Tecnico = mongoose.models.Tecnico || require('../agentetelecom/models/Tecnico');
+                const Candidato = mongoose.models.Candidato || require('../rrhh/models/Candidato');
+                const cleanEmail = String(req.user.email || '').toLowerCase().trim();
+                const cleanRut = String(req.user.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+
+                const tDoc = await Tecnico.findOne({
+                    $or: [
+                        { email: cleanEmail },
+                        ...(cleanRut ? [{ rut: cleanRut }, { rut: req.user.rut }] : [])
+                    ]
+                }).select('empresaRef').lean();
+
+                const cDoc = tDoc ? null : await Candidato.findOne({
+                    $or: [
+                        { email: cleanEmail },
+                        ...(cleanRut ? [{ rut: cleanRut }, { rut: req.user.rut }] : [])
+                    ]
+                }).select('empresaRef').lean();
+
+                const targetRef = tDoc?.empresaRef || cDoc?.empresaRef;
+                if (targetRef) {
+                    req.user.empresaRef = targetRef;
+                    const PlatformUser = require('./PlatformUser');
+                    PlatformUser.updateOne({ _id: req.user._id }, { $set: { empresaRef: targetRef } }).catch(() => {});
+                }
+            } else if (empFallback) {
+                req.user.empresaRef = empFallback._id;
+                const PlatformUser = require('./PlatformUser');
+                PlatformUser.updateOne({ _id: req.user._id }, { $set: { empresaRef: empFallback._id } }).catch(() => {});
+            }
         }
 
         // EL OJO DE DIOS: Si es CEO/ADMIN y viene un override, aplicamos el cambio de contexto

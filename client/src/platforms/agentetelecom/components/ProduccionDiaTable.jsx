@@ -40,6 +40,15 @@ const ProduccionDiaTable = ({
     const isHorasRep = type === 'horasReparacion';
     return [...tecnicos]
       .filter(t => {
+        if (searchTech && searchTech.trim() !== '') {
+          const s = searchTech.toLowerCase().trim();
+          const nameMatch = (t.name || t.fullName || '').toLowerCase().includes(s);
+          const toaMatch = String(t.idRecursoToa || '').toLowerCase().includes(s);
+          const rutMatch = String(t.rut || '').toLowerCase().includes(s);
+          const projMatch = String(t.proyecto || '').toLowerCase().includes(s);
+          if (!nameMatch && !toaMatch && !rutMatch && !projMatch) return false;
+        }
+
         const techTotal = Object.values(t.dailyMap || {}).reduce((acc, d) => {
           if (typeof d !== 'object') return acc + d;
           if (isPts) return acc + (d.pts || 0);

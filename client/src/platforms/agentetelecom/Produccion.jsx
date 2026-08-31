@@ -123,12 +123,25 @@ export default function Produccion() {
     proyectosApi.getAll()
       .then(res => {
         const list = res.data || [];
-        setAvailableProyectos(
-          list.map(p => p.nombreProyecto || p.projectName || p.nombre || p.name || '').filter(Boolean)
-        );
+        const projs = list.map(p => p.nombreProyecto || p.projectName || p.nombre || p.name || '').filter(Boolean);
+        if (projs.length > 0) {
+          setAvailableProyectos(prev => Array.from(new Set([...prev, ...projs])));
+        }
       })
       .catch(() => {});
   }, []);
+
+  // Enriquecer proyectos con los detectados en las operaciones activas
+  useEffect(() => {
+    if (serverData?.clientProjects?.length > 0) {
+      const fromServer = serverData.clientProjects
+        .map(cp => cp.proyecto)
+        .filter(p => p && p !== 'General' && p !== 'S/N');
+      if (fromServer.length > 0) {
+        setAvailableProyectos(prev => Array.from(new Set([...prev, ...fromServer])));
+      }
+    }
+  }, [serverData]);
 
   // Fetch datos de producción
   const fetchData = useCallback(async () => {

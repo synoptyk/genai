@@ -59,7 +59,8 @@ export const AuthProvider = ({ children }) => {
     }, [user]);
 
     const login = async (email, password, remember = false) => {
-        const { data } = await axios.post(`${API_BASE}/auth/login`, { email, password });
+        const cleanEmail = String(email || '').trim().toLowerCase();
+        const { data } = await axios.post(`${API_BASE}/auth/login`, { email: cleanEmail, password });
         
         // Si el backend requiere PIN, no guardamos sesión todavía y retornamos data para que GenAiLogin lo maneje
         if (data.requirePin) return data;

@@ -1709,16 +1709,23 @@ exports.getStockPorTecnico = async (req, res) => {
 
 exports.getAuditoriasPorTecnico = async (req, res) => {
     try {
-        const { rut } = req.query;
+        const { rut, tecnicoId } = req.query;
         let tecnico;
-        if (rut) {
-            const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
-            tecnico = await Tecnico.findOne({ rut: cleanRut, empresaRef: req.user.empresaRef });
+        if (tecnicoId) {
+            tecnico = await Tecnico.findById(tecnicoId);
+        } else if (rut) {
+            const cleanRutVal = cleanRut(rut);
+            const fRut = formatRut(cleanRutVal);
+            const query = { $or: [{ rut: cleanRutVal }, { rut: fRut }, { rut: String(rut).trim() }] };
+            if (req.user.empresaRef) query.empresaRef = req.user.empresaRef;
+            tecnico = await Tecnico.findOne(query);
         } else {
-            tecnico = await Tecnico.findOne({ email: req.user.email, empresaRef: req.user.empresaRef });
+            const query = { email: req.user.email };
+            if (req.user.empresaRef) query.empresaRef = req.user.empresaRef;
+            tecnico = await Tecnico.findOne(query);
         }
 
-        if (!tecnico) return res.status(404).json({ message: 'Técnico no encontrado' });
+        if (!tecnico) return res.json([]);
 
         if (isSupervisorRole(req.user.role) && String(tecnico.supervisorId || '') !== String(req.user._id || '')) {
             return res.status(403).json({ message: 'No autorizado para ver auditorías de este técnico' });

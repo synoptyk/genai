@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const Candidato = require('../models/Candidato');
 const Proyecto = require('../models/Proyecto');
+const Empresa = require('../../auth/models/Empresa');
+const PlatformUser = require('../../auth/PlatformUser');
+const Tecnico = require('../../agentetelecom/models/Tecnico');
+const BonoConfig = require('../../admin/models/BonoConfig');
+const { formatRut, cleanRut } = require('../../../utils/rutUtils');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
-const Tecnico = require('../../agentetelecom/models/Tecnico');
 const { invalidarCacheValorizacion } = require('../../agentetelecom/utils/calculoEngine');
 const { handlePortalAccess } = require('../../auth/authAutomation');
 const { protect, authorize } = require('../../auth/authMiddleware');
@@ -470,6 +474,8 @@ router.post('/sincronizar-base', protect, authorize('admin', 'rrhh_captura:edita
 
                 // Sincronizar a tabla Tecnico
                 await syncToTecnico(candidato, empresaId, { createIfMissing: true });
+                // Sincronizar a PlatformUser (accesos y credenciales)
+                await handlePortalAccess(candidato);
                 synced++;
 
                 if ((synced % 10) === 0) {
@@ -529,24 +535,29 @@ router.post('/sincronizar-base', protect, authorize('admin', 'rrhh_captura:edita
 
 router.get('/rut/:rut', protect, async (req, res) => {
     try {
-        const rawRut = req.params.rut.trim();
-        const r = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
-        let filter;
+        const rawRut = String(req.params.rut || '').trim();
+        const cleanRutParam = cleanRut(rawRut);
+        const formattedRutParam = formatRut(cleanRutParam);
+        const rutOrArray = [{ rut: cleanRutParam }, { rut: formattedRutParam }, { rut: rawRut }];
+        if (rawRut.includes('@')) {
+            rutOrArray.push({ email: rawRut.toLowerCase() });
+        }
 
+        let filter;
         if (['system_admin', 'ceo'].includes(req.user.role)) { 
-            filter = { $or: [{ rut: r }, { rut: rawRut }] }; 
+            filter = { $or: rutOrArray }; 
         } else if (req.user.role === 'admin') {
             filter = { 
                 $and: [
-                    { $or: [{ rut: r }, { rut: rawRut }] },
+                    { $or: rutOrArray },
                     { $or: [ { empresaRef: req.user.empresaRef }, { empresaRef: null }, { empresaRef: { $exists: false } } ] }
                 ]
             };
         } else { 
             filter = { 
                 $and: [
-                    { $or: [{ rut: r }, { rut: rawRut }] },
-                    { empresaRef: req.user.empresaRef }
+                    { $or: rutOrArray },
+                    ...(req.user.empresaRef ? [{ empresaRef: req.user.empresaRef }] : [])
                 ]
             }; 
         }
@@ -554,12 +565,15 @@ router.get('/rut/:rut', protect, async (req, res) => {
         
         // Fallback: Si no se encuentra por RUT, intentar por email del usuario logueado (Cruce Portal Colaborador)
         if (!candidato && req.user.email) {
-            candidato = await Candidato.findOne({ email: req.user.email }).populate('projectId').populate('empresaRef');
+            candidato = await Candidato.findOne({ email: String(req.user.email).toLowerCase().trim() }).populate('projectId').populate('empresaRef');
         }
 
         if (!candidato) return res.status(404).json({ message: 'No encontrado' });
         res.json(candidato);
-    } catch (err) { res.status(500).json({ message: err.message }); }
+    } catch (err) { 
+        console.error('❌ Error in /api/rrhh/candidatos/rut:', err);
+        res.status(500).json({ message: err.message }); 
+    }
 });
 
 router.get('/:id', protect, async (req, res) => {
@@ -1326,6 +1340,7 @@ router.post('/', protect, authorize('admin', 'rrhh_captura:crear'), async (req, 
             history: [{ action: 'Registro', description: 'Postulante ingresado', user: req.user?.name || 'Sistema' }]
         });
         const saved = await candidato.save();
+        await handlePortalAccess(saved);
 
         try {
             const notificationService = require('../../../utils/notificationService');
@@ -1404,8 +1419,9 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
         console.log(`📊 Candidato actualizado en MongoDB: ${updated.fullName} (${updated.rut})`);
 
         // 5. SINCRONIZACIÓN TRANSVERSAL
-        console.log(`🔄 Sincronizando con módulo operativo...`);
+        console.log(`🔄 Sincronizando con módulo operativo y accesos...`);
         await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: true });
+        await handlePortalAccess(updated);
 
         // 6. NOTIFICACIÓN
         try {

@@ -10,16 +10,23 @@ const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 
 
-// Helper to normalize RUT for comparison
+// Helpers to normalize and format RUT for comparison and queries
 const cleanRut = (r) => (r || "").toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
-const isSupervisorRole = (role) => {
-  const r = String(role || '').toLowerCase();
-  return r === ROLES.SUPERVISOR || r === 'supervisor_hse';
+const formatRut = (r) => {
+  const clean = cleanRut(r);
+  if (!clean || clean.length < 2) return r || '';
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+  return `${cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${dv}`;
 };
 const formatRutWithDash = (r) => {
   const clean = cleanRut(r);
   if (!clean || clean.length < 2) return r || '';
   return `${clean.slice(0, -1)}-${clean.slice(-1)}`;
+};
+const isSupervisorRole = (role) => {
+  const r = String(role || '').toLowerCase();
+  return r === ROLES.SUPERVISOR || r === 'supervisor_hse';
 };
 
 // --- HERRAMIENTA DE LIMPIEZA Y REPARACIÓN ---
@@ -404,18 +411,23 @@ router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotaci
 
 // OBTENER POR RUT (Bypass self-query)
 router.get('/rut/:rut', protect, async (req, res, next) => {
-  const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-  const ur = (req.user.rut || "").replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+  const rawParam = String(req.params.rut || '').trim();
+  const r = cleanRut(rawParam);
+  const ur = cleanRut(req.user.rut);
+  const userEmail = String(req.user.email || '').toLowerCase().trim();
 
-  // 1. Si el RUT coincide con el de la sesión, permitir
-  if (r && ur && r === ur) return next();
+  // 1. Si el RUT coincide con el de la sesión o el param es el email del usuario, permitir
+  if ((r && ur && r === ur) || rawParam.toLowerCase() === userEmail) return next();
 
-  // 2. Si el RUT no coincide (o no está en sesión), pero el usuario es el dueño del técnico (por email)
-  if (req.user.role === 'tecnico' || req.user.role === 'user') {
+  // 2. Si el RUT no coincide, pero el usuario es el dueño del técnico (por email o rut)
+  if (req.user.role === 'tecnico' || req.user.role === 'user' || req.user.role === 'operativo') {
     const isOwner = await Tecnico.exists({
-      $or: [{ rut: r }, { rut: req.params.rut.trim() }],
-      email: req.user.email,
-      empresaRef: req.user.empresaRef
+      $or: [
+        { rut: r },
+        { rut: rawParam },
+        { email: userEmail }
+      ],
+      ...(req.user.empresaRef ? { empresaRef: req.user.empresaRef } : {})
     });
     if (isOwner) return next();
   }
@@ -424,36 +436,65 @@ router.get('/rut/:rut', protect, async (req, res, next) => {
   authorize('cfg_personal:ver')(req, res, next);
 }, async (req, res) => {
   try {
-    const rawRut = req.params.rut.trim();
-    const r = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
+    const rawRut = String(req.params.rut || '').trim();
+    const r = cleanRut(rawRut);
+    // rutUtils imported at top
+    const fRut = formatRut ? formatRut(r) : r;
+    const userEmail = String(req.user.email || '').toLowerCase().trim();
+
+    const rutSearch = [
+      { rut: r },
+      { rut: fRut },
+      { rut: rawRut }
+    ];
+    if (rawRut.includes('@')) {
+      rutSearch.push({ email: rawRut.toLowerCase() });
+    }
+
+    const baseQuery = { $or: rutSearch };
+    if (req.user.empresaRef) {
+      baseQuery.empresaRef = req.user.empresaRef;
+    }
+
     // 🔒 FILTRO POR EMPRESA
-    let tecnico = await Tecnico.findOne({
-      $or: [{ rut: r }, { rut: rawRut }],
-      empresaRef: req.user.empresaRef
-    })
+    let tecnico = await Tecnico.findOne(baseQuery)
       .populate('supervisorId', 'name email telefono')
       .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
       .populate('bonosConfig');
 
+    if (!tecnico && userEmail) {
+      // Fallback de propietario directo por email
+      tecnico = await Tecnico.findOne({ email: userEmail })
+        .populate('supervisorId', 'name email telefono')
+        .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+        .populate('bonosConfig');
+    }
+
     if (!tecnico) {
-      // 🚀 RECUPERACIÓN CRÍTICA: Si no existe el técnico pero sí el candidato contratado, crearlo on-the-fly
+      // 🚀 RECUPERACIÓN CRÍTICA: Si no existe el técnico pero sí el candidato contratado/en terreno, crearlo on-the-fly
       const Candidato = require('../../rrhh/models/Candidato');
-      const rLimpiado = cleanRut(rawRut);
       const cand = await Candidato.findOne({
-        $or: [{ rut: rLimpiado }, { rut: rawRut }],
-        status: 'Contratado'
+        $or: [
+          { rut: r },
+          { rut: fRut },
+          { rut: rawRut },
+          ...(userEmail ? [{ email: userEmail }] : [])
+        ],
+        status: { $in: ['Contratado', 'En Terreno', 'Activo', 'Seleccionado'] }
       }).lean();
 
       if (cand) {
         console.log(`🚀 Creando perfil técnico faltante para: ${cand.fullName}`);
         tecnico = new Tecnico({
           rut: cand.rut,
-          empresaRef: cand.empresaRef,
+          empresaRef: cand.empresaRef || req.user.empresaRef,
           nombres: cand.fullName.split(' ')[0],
           apellidos: cand.fullName.split(' ').slice(1).join(' ') || ' ',
-          email: cand.email,
+          email: cand.email || userEmail,
           idRecursoToa: cand.idRecursoToa || '',
-          estadoActual: 'OPERATIVO'
+          estadoActual: 'OPERATIVO',
+          proyecto: cand.projectName || cand.nombreProyecto || '',
+          projectId: cand.projectId
         });
         await tecnico.save();
         // Recargar con populates

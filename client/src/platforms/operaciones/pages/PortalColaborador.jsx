@@ -598,6 +598,14 @@ const PortalColaborador = () => {
                 resAst = results[0];
             }
 
+            // Fallback por email si la búsqueda por RUT no trajo la ficha técnica
+            if (!resTecnico.data && user?.email) {
+                resTecnico = await api.get(`/api/tecnicos/rut/${encodeURIComponent(user.email)}`).catch(() => ({ data: null }));
+            }
+            if (!resCandidato.data && user?.email) {
+                resCandidato = await api.get(`/api/rrhh/candidatos/rut/${encodeURIComponent(user.email)}`).catch(() => ({ data: null }));
+            }
+
             setPerfil(resCandidato.data);
             setTecnico(resTecnico.data);
 

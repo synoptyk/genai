@@ -345,13 +345,13 @@ const PlatformLogin = () => {
 
                             <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
                             <div>
-                                <label className="label-style text-xs sm:text-sm">Correo Electrónico</label>
+                                <label className="label-style text-xs sm:text-sm">Correo Electrónico o RUT</label>
                                 <div className="relative">
                                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
-                                        type="email" value={email} onChange={e => setEmail(e.target.value)}
+                                        type="text" value={email} onChange={e => setEmail(e.target.value)}
                                         className="input-style input-icon text-sm py-3 sm:py-4"
-                                        placeholder="correo@empresa.cl" required
+                                        placeholder="correo@empresa.cl o RUT (ej. 12.345.678-9)" required
                                         autoComplete="username"
                                     />
                                 </div>
@@ -460,18 +460,18 @@ const PlatformLogin = () => {
                             <div className="text-center mb-6">
                                 <p className="text-[10px] sm:text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-2 sm:mb-3">Recuperar Acceso</p>
                                 <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                                    Ingresa el correo electrónico asociado a tu cuenta y te enviaremos un enlace para restablecer tu contraseña.
+                                    Ingresa el correo electrónico o RUT asociado a tu cuenta y te enviaremos un enlace para restablecer tu contraseña.
                                 </p>
                             </div>
 
                             <div>
-                                <label className="label-style text-xs sm:text-sm">Correo Electrónico</label>
+                                <label className="label-style text-xs sm:text-sm">Correo Electrónico o RUT</label>
                                 <div className="relative">
                                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
-                                        type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
+                                        type="text" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
                                         className="input-style input-icon text-sm py-3 sm:py-4"
-                                        placeholder="correo@empresa.cl" required
+                                        placeholder="correo@empresa.cl o RUT (ej. 12.345.678-9)" required
                                     />
                                 </div>
                             </div>
