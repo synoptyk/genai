@@ -427,141 +427,112 @@ app.use(express.json({ limit: '50mb' }));
 
 // A. MongoDB Atlas
 console.log('⏳ Connecting to MongoDB Database (VPS)...');
-if (!process.env.MONGO_URI) {
-  console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables.');
-} else {
-  console.log(`📡 Intentando conectar a MongoDB: ${process.env.MONGO_URI}`);
-  logger.info(`📡 Intentando conectar a MongoDB: ${process.env.MONGO_URI}`, { type: 'db_init' });
-  mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 30000,
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 300000,
-    maxPoolSize: 20,
-    minPoolSize: 2,
-    heartbeatFrequencyMS: 10000,
-    waitQueueTimeoutMS: 30000,
-  })
-    .then(async () => {
-      console.log('🍃 SUCCESS: Connected to MongoDB Database (VPS/telecom_db)');
-      console.log('📡 Conexiones:');
-      console.log('   - MongoDB: OK');
 
-      // Eventos de conexión — tolerancia a elecciones de réplica (M10 Dedicated)
-      mongoose.connection.on('disconnected', () => console.warn('⚠️ MongoDB desconectado. Reintentando...'));
-      mongoose.connection.on('reconnected', () => console.log('🍃 MongoDB reconectado.'));
-      mongoose.connection.on('error', (err) => console.error('❌ MongoDB error:', err.message));
-      console.log(`   - Cloudinary: ${cloudinaryStatus.connected ? 'OK' : 'NO - ' + cloudinaryStatus.message}`);
-      console.log(`   - Swagger: ${swaggerEnabled ? 'OK' : 'INACTIVO'}`);
+const connectMongoDB = async () => {
+  if (!process.env.MONGO_URI) {
+    console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables.');
+    return;
+  }
+  try {
+    const maskedUri = process.env.MONGO_URI.replace(/:([^:@]+)@/, ':****@');
+    console.log(`📡 Intentando conectar a MongoDB: ${maskedUri}`);
+    logger.info(`📡 Intentando conectar a MongoDB: ${maskedUri}`, { type: 'db_init' });
 
-      // --- TEMPORARY FIX: DROP BAD INDEXES ---
-      try {
-        const collection = mongoose.connection.collection('baremos');
-        const indexes = await collection.indexes();
-        const badIndex = indexes.find(i => i.name === 'codigoActividad_1');
-        if (badIndex) {
-          console.log('🧹 FIX: Dropping obsolete index "codigoActividad_1"...');
-          await collection.dropIndex('codigoActividad_1');
-          console.log('✅ Index dropped successfully.');
-        } else {
-          console.log('✅ Index check: No bad "codigoActividad_1" index found.');
-        }
-      } catch (e) {
-        console.error('⚠️ Index cleanup warning:', e.message);
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 20000,
+      connectTimeoutMS: 20000,
+      socketTimeoutMS: 60000,
+      maxPoolSize: 20,
+      minPoolSize: 1,
+      family: 4,
+      heartbeatFrequencyMS: 10000,
+      bufferCommands: true,
+      autoIndex: false,
+    });
+
+    console.log('🍃 SUCCESS: Connected to MongoDB Database (VPS/telecom_db)');
+    console.log('📡 Conexiones: MongoDB OK');
+
+    // --- TEMPORARY FIX: DROP BAD INDEXES ---
+    try {
+      const collection = mongoose.connection.collection('baremos');
+      const indexes = await collection.indexes();
+      const badIndex = indexes.find(i => i.name === 'codigoActividad_1');
+      if (badIndex) {
+        console.log('🧹 FIX: Dropping obsolete index "codigoActividad_1"...');
+        await collection.dropIndex('codigoActividad_1');
+        console.log('✅ Index dropped successfully.');
       }
+    } catch (e) {
+      console.error('⚠️ Index cleanup warning:', e.message);
+    }
 
-      // --- AUTO WIPE DE URGENCIA ---
-      try {
-          const fs = require('fs');
-          const wipeFile = '/Users/mauro/.gemini/antigravity/scratch/DO_WIPE_MAYO_2_9';
-          if (fs.existsSync(wipeFile)) {
-              console.log("🧹 AUTO WIPE: Ejecutando limpieza profunda de Mayo 2 a 9...");
-              const Actividad = require('./platforms/agentetelecom/models/Actividad');
-              const deleted = await Actividad.deleteMany({
-                  fecha: { 
-                      $gte: new Date('2026-05-02T00:00:00Z'),
-                      $lte: new Date('2026-05-09T23:59:59Z')
-                  }
-              });
-              console.log("✅ AUTO WIPE COMPLETADO! Eliminados:", deleted.deletedCount);
-              fs.unlinkSync(wipeFile);
-          }
-      } catch (e) {
-          console.error("❌ AUTO WIPE ERROR:", e);
-      }
-      // ---------------------------------------
+    const standardize = (val) => (val || '').toString().replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
 
-      const standardize = (val) => (val || '').toString().replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+    // AUTO-CLEANUP DUPLICATES (Tolerant version for local DB)
+    try {
+      const Tecnico = require('./platforms/agentetelecom/models/Tecnico');
+      if (typeof Tecnico !== 'undefined' && Tecnico.find) {
+        const all = await Tecnico.find().sort({ updatedAt: -1 });
+        const seen = new Set();
+        let deleted = 0;
 
-      // AUTO-CLEANUP DUPLICATES (Tolerant version for local DB)
-      try {
-        if (typeof Tecnico !== 'undefined' && Tecnico.find) {
-            const all = await Tecnico.find().sort({ updatedAt: -1 });
-            const seen = new Set();
-            let deleted = 0;
-
-            for (const t of all) {
-                const cleanRut = standardize(t.rut);
-                if (!cleanRut || seen.has(cleanRut)) {
-                    await Tecnico.findByIdAndDelete(t._id);
-                    deleted++;
-                } else {
-                    seen.add(cleanRut);
-                    if (t.rut !== cleanRut) {
-                    t.rut = cleanRut;
-                    await t.save();
-                    }
-                }
-            }
-            if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
-        }
-      } catch (e) { console.warn("ℹ️ Cleanup skipped: Collection might not exist yet."); }
-
-        // 🚀 AUTO-SYNC IDs Recurso (RRHH -> Operaciones)
-        // Buscamos candidatos que tengan RECURSO y lo propagamos a los técnicos si les falta
-        try {
-          const Candidato = require('./platforms/rrhh/models/Candidato');
-          const candidatesWithToa = await Candidato.find({
-            idRecursoToa: { $exists: true, $ne: '' }
-          }).select('rut idRecursoToa').lean();
-
-          let syncedCount = 0;
-          for (const cand of candidatesWithToa) {
-            const cleanRut = standardize(cand.rut);
-            if (!cleanRut) continue;
-
-            const result = await Tecnico.updateMany(
-              {
-                rut: { $in: [cleanRut, cand.rut] },
-                $or: [
-                  { idRecursoToa: null },
-                  { idRecursoToa: '' },
-                  { idRecursoToa: { $exists: false } }
-                ]
-              },
-              { $set: { idRecursoToa: cand.idRecursoToa } }
-            );
-            if (result.modifiedCount > 0 || result.nModified > 0) {
-              syncedCount += (result.modifiedCount || result.nModified);
+        for (const t of all) {
+          const cleanRut = standardize(t.rut);
+          if (!cleanRut || seen.has(cleanRut)) {
+            await Tecnico.findByIdAndDelete(t._id);
+            deleted++;
+          } else {
+            seen.add(cleanRut);
+            if (t.rut !== cleanRut) {
+              t.rut = cleanRut;
+              await t.save();
             }
           }
-          if (syncedCount > 0) console.log(`✅ TOA SYNC: Propagated TOA IDs to ${syncedCount} technical profiles.`);
-        } catch (e) { console.error("Sync error:", e.message); }
-
-        // 🚀 LIMPIEZA INTELIGENTE DESACTIVADA (Mantener reflejo fiel 1:1 solicitado por el usuario)
-
-
-      // --- AUTO-SEED: SYSTEM ADMIN (Sincronizado) ---
-      try {
-        const PlatformUser = require('./platforms/auth/PlatformUser');
-        const Empresa = require('./platforms/auth/models/Empresa');
-        const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'admin@platform-os.cl';
-        const shouldSeed = process.env.ENABLE_AUTO_SEED === 'true';
-
-        if (!shouldSeed) {
-          console.log("ℹ️ Auto-seeding is disabled via ENV.");
-          return;
         }
+        if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
+      }
+    } catch (e) { console.warn("ℹ️ Cleanup skipped: Collection might not exist yet."); }
 
+    // 🚀 AUTO-SYNC IDs Recurso (RRHH -> Operaciones)
+    try {
+      const Tecnico = require('./platforms/agentetelecom/models/Tecnico');
+      const Candidato = require('./platforms/rrhh/models/Candidato');
+      const candidatesWithToa = await Candidato.find({
+        idRecursoToa: { $exists: true, $ne: '' }
+      }).select('rut idRecursoToa').lean();
+
+      let syncedCount = 0;
+      for (const cand of candidatesWithToa) {
+        const cleanRut = standardize(cand.rut);
+        if (!cleanRut) continue;
+
+        const result = await Tecnico.updateMany(
+          {
+            rut: { $in: [cleanRut, cand.rut] },
+            $or: [
+              { idRecursoToa: null },
+              { idRecursoToa: '' },
+              { idRecursoToa: { $exists: false } }
+            ]
+          },
+          { $set: { idRecursoToa: cand.idRecursoToa } }
+        );
+        if (result.modifiedCount > 0 || result.nModified > 0) {
+          syncedCount += (result.modifiedCount || result.nModified);
+        }
+      }
+      if (syncedCount > 0) console.log(`✅ TOA SYNC: Propagated TOA IDs to ${syncedCount} technical profiles.`);
+    } catch (e) { console.error("Sync error:", e.message); }
+
+    // --- AUTO-SEED: SYSTEM ADMIN (Sincronizado) ---
+    try {
+      const PlatformUser = require('./platforms/auth/PlatformUser');
+      const Empresa = require('./platforms/auth/models/Empresa');
+      const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'admin@platform-os.cl';
+      const shouldSeed = process.env.ENABLE_AUTO_SEED === 'true';
+
+      if (shouldSeed) {
         let empresaAdmin = await Empresa.findOne({ nombre: 'ADMIN_CORP' });
         if (!empresaAdmin) {
           empresaAdmin = new Empresa({
@@ -577,13 +548,7 @@ if (!process.env.MONGO_URI) {
         const existing = await PlatformUser.findOne({ email: ceoEmail });
         const seedPassword = process.env.SEED_ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'Platform2026*Master' : undefined);
 
-        if (!existing) {
-          if (!seedPassword) {
-            console.error('❌ ERROR: SEED_ADMIN_PASSWORD no definida. No se puede crear el CEO en producción.');
-            process.exit(1);
-            return;
-          }
-
+        if (!existing && seedPassword) {
           const ceo = new PlatformUser({
             name: 'Mauricio Barrientos',
             email: ceoEmail,
@@ -601,28 +566,54 @@ if (!process.env.MONGO_URI) {
           });
           await ceo.save();
           console.log(`👑 Administrador maestro creado: ${ceoEmail}`);
-        } else {
-          // Asegurar que el CEO siempre tenga el rol y la empresa correcta
+        } else if (existing) {
           let changed = false;
           if (existing.role !== 'system_admin') { existing.role = 'system_admin'; changed = true; }
-          if (!existing.empresaRef) { existing.empresaRef = empresaAdmin._id; changed = true; }
+          if (!existing.empresaRef) { existing.empresaRef = empresaAdmin?._id; changed = true; }
           if (changed) {
             await existing.save();
             console.log(`👑 Administrador maestro (${ceoEmail}) actualizado forzosamente.`);
           }
         }
-      } catch (e) {
-        console.error('⚠️ Error al crear CEO seed:', e.message);
       }
-      // ---------------------------------
+    } catch (e) {
+      console.error('⚠️ Error al crear CEO seed:', e.message);
+    }
+  } catch (err) {
+    console.error('❌ Error conectando a MongoDB:', err.message);
+    console.log('⏳ Reintentando conexión a MongoDB en 3 segundos...');
+    setTimeout(connectMongoDB, 3000);
+  }
+};
 
-    })
-    .catch(err => {
-      console.error('❌ FATAL MONGODB ERROR:', err.message);
-      console.error('👉 Tip: Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
-      // We allow the server to start even if DB fails, so the user can still access the UI shell
-    });
-}
+connectMongoDB();
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️ MongoDB desconectado. Reintentando en 3s...');
+  setTimeout(connectMongoDB, 3000);
+});
+mongoose.connection.on('reconnected', () => console.log('🍃 MongoDB reconectado.'));
+mongoose.connection.on('error', (err) => console.error('❌ MongoDB error:', err.message));
+
+// Middleware de verificación de conexión a MongoDB para endpoints /api
+app.use('/api', async (req, res, next) => {
+  if (req.path === '/health' || req.path.startsWith('/health/')) return next();
+  if (mongoose.connection.readyState === 1) return next();
+
+  let waited = 0;
+  while (mongoose.connection.readyState !== 1 && waited < 4000) {
+    await new Promise(r => setTimeout(r, 200));
+    waited += 200;
+  }
+
+  if (mongoose.connection.readyState === 1) {
+    return next();
+  }
+
+  return res.status(503).json({
+    message: 'Servicio temporalmente no disponible: reconectando a la base de datos. Por favor intenta nuevamente en unos segundos.'
+  });
+});
 
 // B. Cloudinary (Images)
 
