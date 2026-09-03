@@ -439,11 +439,12 @@ const connectMongoDB = async () => {
     logger.info(`📡 Intentando conectar a MongoDB: ${maskedUri}`, { type: 'db_init' });
 
     await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 20000,
-      connectTimeoutMS: 20000,
-      socketTimeoutMS: 60000,
-      maxPoolSize: 20,
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10,
       minPoolSize: 1,
+      maxIdleTimeMS: 30000,
       family: 4,
       heartbeatFrequencyMS: 10000,
       bufferCommands: true,
@@ -589,8 +590,11 @@ const connectMongoDB = async () => {
 connectMongoDB();
 
 mongoose.connection.on('disconnected', () => {
-  console.warn('⚠️ MongoDB desconectado. Reintentando en 3s...');
-  setTimeout(connectMongoDB, 3000);
+  console.warn('⚠️ MongoDB desconectado.');
+  if (mongoose.connection.readyState === 0) {
+    console.log('⏳ Reintentando conexión a MongoDB en 3 segundos...');
+    setTimeout(connectMongoDB, 3000);
+  }
 });
 mongoose.connection.on('reconnected', () => console.log('🍃 MongoDB reconectado.'));
 mongoose.connection.on('error', (err) => console.error('❌ MongoDB error:', err.message));
