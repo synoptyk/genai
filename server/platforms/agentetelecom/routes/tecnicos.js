@@ -1626,17 +1626,602 @@ router.post('/produccion/apelacion/:actividadId/resolver', protect, async (req, 
             }
           });
           console.log(`🔌 [SSE Resolver] Notificación de apelación resuelta enviada a ${targetUser.name} (${targetUser._id})`);
-        } else {
-          console.warn(`⚠️ [SSE Resolver] No se encontró PlatformUser en la empresa para el RUT ${userRut} (${cleanRutStr})`);
         }
       }
-    } catch (sseErr) {
-      console.error('❌ Error enviando SSE para apelación resuelta:', sseErr);
+    } catch (notifErr) {
+      console.error('Error al enviar notificación SSE de resolución de apelación:', notifErr.message);
     }
 
-    res.json({ success: true, message: `Apelación ${status} correctamente` });
+    res.json({ success: true, message: `Apelación ${status} correctamente`, doc: updateFields });
+  } catch (error) {
+    console.error('Error al resolver apelación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper para aislamiento de empresa por contratista / maestro
+async function getCompanyScope(user) {
+  const Tecnico = require('../models/Tecnico');
+  const Candidato = require('../../rrhh/models/Candidato');
+
+  const empresaId = user?.empresaRef || user?.empresa?._id;
+  
+  if (user?.role === 'system_admin' && !empresaId) {
+    return { scopeFilter: {}, empresaId: null, techIds: [], ruts: [] };
+  }
+
+  const [tecs, cands] = await Promise.all([
+    empresaId ? Tecnico.find({ empresaRef: empresaId }).lean() : Tecnico.find({}).lean(),
+    empresaId ? Candidato.find({ empresaRef: empresaId }).lean() : Candidato.find({}).lean()
+  ]);
+
+  const idRecursos = new Set();
+  const ruts = new Set();
+
+  tecs.forEach(t => {
+    if (t.idRecursoToa) idRecursos.add(String(t.idRecursoToa).trim());
+    if (t.rut) ruts.add(String(t.rut).replace(/[^0-9kK]/g, '').toUpperCase());
+  });
+
+  cands.forEach(c => {
+    if (c.idRecursoToa) idRecursos.add(String(c.idRecursoToa).trim());
+    if (c.rut) ruts.add(String(c.rut).replace(/[^0-9kK]/g, '').toUpperCase());
+  });
+
+  const orConditions = [];
+  if (empresaId) {
+    orConditions.push({ empresaRef: empresaId });
+  }
+
+  if (idRecursos.size > 0) {
+    const ids = Array.from(idRecursos);
+    orConditions.push({ idRecursoToa: { $in: ids } });
+    orConditions.push({ ID_RECURSO: { $in: ids } });
+    orConditions.push({ 'recurso.id': { $in: ids } });
+  }
+
+  if (ruts.size > 0) {
+    const rutList = Array.from(ruts);
+    orConditions.push({ rut: { $in: rutList } });
+    orConditions.push({ 'apelacion.rut': { $in: rutList } });
+  }
+
+  return {
+    scopeFilter: orConditions.length > 0 ? { $or: orConditions } : {},
+    empresaId,
+    techIds: Array.from(idRecursos),
+    ruts: Array.from(ruts)
+  };
+}
+
+// --- APROBAR TODAS LAS APELACIONES PENDIENTES (APROBACIÓN GENERAL CEO/ADMIN) ---
+router.post('/produccion/apelaciones/aprobar-todas', protect, async (req, res) => {
+  try {
+    const Actividad = require('../models/Actividad');
+    const { obtenerTarifasEmpresa, calcularBaremos, valorizarBaremos, construirMapaValorizacion } = require('../utils/calculoEngine');
+    const { scopeFilter, empresaId } = await getCompanyScope(req.user);
+
+    const query = {
+      $and: [
+        scopeFilter,
+        { 'apelacion.status': 'por_validar' }
+      ]
+    };
+
+    const pendingAppeals = await Actividad.find(query).lean();
+    if (!pendingAppeals || pendingAppeals.length === 0) {
+      return res.json({ success: true, count: 0, message: 'No hay apelaciones pendientes por aprobar en su empresa' });
+    }
+
+    const tarifas = await obtenerTarifasEmpresa(empresaId);
+    const mapaValor = await construirMapaValorizacion(empresaId);
+
+    let approvedCount = 0;
+    for (const act of pendingAppeals) {
+      const decosVal = parseInt(act.apelacion?.equipos?.decos ?? 0);
+      const repetidoresVal = parseInt(act.apelacion?.equipos?.repetidores ?? 0);
+      const telefonosVal = parseInt(act.apelacion?.equipos?.telefonos ?? 0);
+      const codigoLpuVal = act.apelacion?.codigoLpu ?? '';
+      const puntosBaseVal = parseFloat(act.apelacion?.puntosBase ?? 0);
+
+      const updateFields = {
+        'apelacion.status': 'aprobada',
+        'apelacion.respuesta': 'Aprobación General por Administración Maestro / CEO',
+        'apelacion.fechaRespuesta': new Date()
+      };
+
+      const tempDoc = {
+        ...act,
+        Decos_Adicionales: String(decosVal),
+        DECOS_ADICIONALES: decosVal,
+        Repetidores_WiFi: String(repetidoresVal),
+        REPETIDORES_WIFI: repetidoresVal,
+        Telefonos: String(telefonosVal),
+        TELEFONOS: telefonosVal,
+        ...(codigoLpuVal ? {
+          CODIGO_LPU_BASE: codigoLpuVal,
+          'Cód LPU': codigoLpuVal,
+          COD_LPU: codigoLpuVal,
+          LPU_COD: codigoLpuVal,
+          SUBTIPO_DE_ACTIVIDAD: codigoLpuVal,
+          subtipo: codigoLpuVal
+        } : {}),
+        ...(puntosBaseVal > 0 ? {
+          Pts_Actividad_Base: puntosBaseVal,
+          PTS_ACTIVIDAD_BASE: puntosBaseVal
+        } : {})
+      };
+
+      const baremo = calcularBaremos(tempDoc, tarifas) || {};
+      const docParaValorizar = {
+        ...tempDoc,
+        ...baremo,
+        ID_Recurso: act.idRecursoToa || act.RECURSO || act.idRecurso,
+        Pts_Total_Baremo: baremo.Pts_Total_Baremo
+      };
+      const val = valorizarBaremos(docParaValorizar, mapaValor) || {};
+
+      Object.assign(updateFields, {
+        ...baremo,
+        ...val,
+        ptsTotalBaremo: baremo.ptsTotalBaremo || 0,
+        PTS_TOTAL_BAREMO: baremo.ptsTotalBaremo || 0,
+        Total_Puntos_Baremo: baremo.ptsTotalBaremo || 0
+      });
+
+      delete updateFields.apelacion;
+      delete updateFields._id;
+      delete updateFields.__v;
+
+      await Actividad.updateOne(
+        { _id: act._id },
+        { 
+          $set: {
+            ...updateFields,
+            'apelacion.status': 'aprobada',
+            'apelacion.respuesta': 'Aprobación General por Administración Maestro / CEO',
+            'apelacion.fechaRespuesta': new Date()
+          }
+        }
+      );
+      approvedCount++;
+    }
+
+    res.json({
+      success: true,
+      count: approvedCount,
+      message: `Se han aprobado ${approvedCount} apelaciones masivamente con éxito.`
+    });
   } catch (err) {
-    console.error('Error al resolver apelación:', err);
+    console.error('Error en aprobación general de apelaciones:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- LISTAR ACTIVIDADES DE CUALQUIER MES PARA EL CEO (AUDITORÍA & MODIFICACIÓN DIRECTA) ---
+router.get('/produccion/actividades-mes', protect, async (req, res) => {
+  try {
+    const Actividad = require('../models/Actividad');
+    const { mes, page = 1, limit = 50, search = '', filterEstado = 'TODOS', tecnicoRut = '' } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(10, parseInt(limit) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Determinar rango de fechas para el mes (ej: '2026-08' o '08')
+    let targetMonthStr = mes;
+    if (!targetMonthStr) {
+      const d = new Date();
+      targetMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    const year = parseInt(targetMonthStr.substring(0, 4)) || new Date().getFullYear();
+    const month = parseInt(targetMonthStr.substring(5, 7)) || (new Date().getMonth() + 1);
+
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+
+    const { scopeFilter } = await getCompanyScope(req.user);
+
+    const query = {
+      $and: [
+        scopeFilter,
+        { fecha: { $gte: startDate, $lt: endDate } }
+      ]
+    };
+
+    if (filterEstado && filterEstado !== 'TODOS') {
+      query.$and.push({
+        $or: [
+          { Estado: filterEstado },
+          { estado: filterEstado },
+          { ESTADO: filterEstado }
+        ]
+      });
+    }
+
+    if (tecnicoRut && String(tecnicoRut).trim()) {
+      const cleanR = String(tecnicoRut).replace(/[^0-9kK]/g, '');
+      query.$and.push({
+        $or: [
+          { rut: cleanR },
+          { RUT: cleanR },
+          { rut: tecnicoRut },
+          { RUT: tecnicoRut },
+          { 'apelacion.rut': cleanR }
+        ]
+      });
+    }
+
+    if (search && String(search).trim()) {
+      const term = String(search).trim();
+      const regex = new RegExp(term, 'i');
+      query.$and.push({
+        $or: [
+          { ordenId: regex },
+          { 'Numero orden': regex },
+          { 'Número orden': regex },
+          { 'Número de Petición': regex },
+          { NOMBRE: regex },
+          { Nombre: regex },
+          { 'Técnico': regex },
+          { 'RUT del cliente': regex },
+          { 'Subtipo de Actividad': regex },
+          { 'Actividad': regex },
+          { 'Comuna': regex },
+          { 'Agencia': regex }
+        ]
+      });
+    }
+
+    const [totalDocs, actividades, totalPuntosAgg] = await Promise.all([
+      Actividad.countDocuments(query),
+      Actividad.find(query)
+        .sort({ fecha: -1, _id: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Actividad.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalPuntos: {
+              $sum: {
+                $ifNull: [
+                  '$PTS_TOTAL_BAREMO',
+                  { $ifNull: ['$ptsTotalBaremo', { $ifNull: ['$Pts_Total_Baremo', 0] }] }
+                ]
+              }
+            }
+          }
+        }
+      ])
+    ]);
+
+    const totalPuntos = totalPuntosAgg[0]?.totalPuntos || 0;
+
+    res.json({
+      success: true,
+      mes: targetMonthStr,
+      data: actividades,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalDocs,
+        totalPages: Math.ceil(totalDocs / limitNum)
+      },
+      stats: {
+        totalActividades: totalDocs,
+        totalPuntos: Math.round(totalPuntos * 10) / 10
+      }
+    });
+  } catch (err) {
+    console.error('Error listando actividades del mes para CEO:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- RESUMEN DE PRODUCCIÓN Y TRAMOS POR TÉCNICO DEL MES (VISTA EJECUTIVA CEO) ---
+router.get('/produccion/resumen-mes-tramos', protect, async (req, res) => {
+  try {
+    const Actividad = require('../models/Actividad');
+    const Tecnico = require('../models/Tecnico');
+    const Candidato = require('../../rrhh/models/Candidato');
+    const ModeloBonificacion = require('../../admin/models/ModeloBonificacion');
+    const BonoConfig = require('../../admin/models/BonoConfig');
+
+    const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '');
+    const formatRut = (rut) => {
+      if (!rut) return '';
+      let clean = String(rut).replace(/[^0-9kK]/g, '');
+      if (clean.length < 2) return clean;
+      let cuerpo = clean.slice(0, -1);
+      let dv = clean.slice(-1).toUpperCase();
+      let formattedCuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      return `${formattedCuerpo}-${dv}`;
+    };
+
+    const { mes = '2026-08' } = req.query;
+    const year = parseInt(mes.substring(0, 4)) || 2026;
+    const month = parseInt(mes.substring(5, 7)) || 8;
+
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+
+    const { scopeFilter, empresaId } = await getCompanyScope(req.user);
+
+    // 1. Obtener modelo de bonificación activo para tramos y puntos no calculables
+    const [modeloBono, bonoConfigDoc] = await Promise.all([
+      ModeloBonificacion.findOne({ empresaRef: empresaId, activo: true }).lean(),
+      BonoConfig.findOne({ empresaRef: empresaId, activo: true }).lean()
+    ]);
+
+    const activeModel = modeloBono || bonoConfigDoc || {};
+    const tramosBaremos = activeModel.tramosBaremos || [
+      { desde: 0, hasta: 95, valor: 0 },
+      { desde: 96, hasta: 126, valor: 475 },
+      { desde: 127, hasta: 147, valor: 950 },
+      { desde: 148, hasta: 163, valor: 2660 },
+      { desde: 164, hasta: 'Más', valor: 3040 }
+    ];
+    const puntosNoCalculables = Number(activeModel.puntosExcluidos ?? activeModel.puntosNoCalculables ?? 95);
+
+    // 2. Obtener técnicos y candidatos de la empresa
+    const [tecnicosList, candidatosList] = await Promise.all([
+      Tecnico.find({ empresaRef: empresaId }).lean(),
+      Candidato.find({ empresaRef: empresaId }).lean()
+    ]);
+
+    // Mapear por RUT y ID Recurso TOA
+    const techMap = new Map();
+
+    const registerTech = (t, isCand = false) => {
+      const r = cleanRut(t.rut);
+      const toa = String(t.idRecursoToa || t.idRecurso || '').trim();
+      const name = isCand ? t.fullName : (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim());
+      const key = r || toa || name;
+      if (!key) return;
+
+      if (!techMap.has(key)) {
+        techMap.set(key, {
+          id: t._id,
+          nombre: name || 'Técnico',
+          rut: r,
+          rutFormateado: formatRut(t.rut),
+          idRecursoToa: toa || 'SIN',
+          cargo: t.cargo || t.position || 'Técnico Telecomunicaciones',
+          diasMap: new Set(),
+          totalOTs: 0,
+          totalPuntos: 0,
+          apelaciones: { pendientes: 0, aprobadas: 0, rechazadas: 0 }
+        });
+      }
+    };
+
+    tecnicosList.forEach(t => registerTech(t, false));
+    candidatosList.forEach(c => registerTech(c, true));
+
+    // 3. Obtener todas las actividades del mes para la empresa
+    const actividades = await Actividad.find({
+      $and: [
+        scopeFilter,
+        { fecha: { $gte: startDate, $lt: endDate } }
+      ]
+    }).lean();
+
+    actividades.forEach(act => {
+      const actRut = cleanRut(act.rut || act.RUT || act.apelacion?.rut);
+      const actToa = String(act.idRecursoToa || act.ID_Recurso || act.RECURSO || '').trim();
+      const actName = act.NOMBRE || act.Nombre || act.tecnicoNombre || '';
+
+      // Encontrar técnico correspondiente
+      let techEntry = null;
+      if (actRut && techMap.has(actRut)) techEntry = techMap.get(actRut);
+      else if (actToa && techMap.has(actToa)) techEntry = techMap.get(actToa);
+      else if (actName && techMap.has(actName)) techEntry = techMap.get(actName);
+
+      if (!techEntry) {
+        const fallbackKey = actRut || actToa || actName || 'Desconocido';
+        techEntry = {
+          id: act._id,
+          nombre: actName || 'Técnico',
+          rut: actRut,
+          rutFormateado: formatRut(actRut),
+          idRecursoToa: actToa || 'SIN',
+          cargo: 'Técnico Telecomunicaciones',
+          diasMap: new Set(),
+          totalOTs: 0,
+          totalPuntos: 0,
+          apelaciones: { pendientes: 0, aprobadas: 0, rechazadas: 0 }
+        };
+        techMap.set(fallbackKey, techEntry);
+      }
+
+      techEntry.totalOTs++;
+      const pts = parseFloat(act.PTS_TOTAL_BAREMO ?? act.ptsTotalBaremo ?? act.Pts_Total_Baremo ?? 0);
+      techEntry.totalPuntos += pts;
+
+      if (act.fecha) {
+        const dStr = new Date(act.fecha).toISOString().substring(0, 10);
+        techEntry.diasMap.add(dStr);
+      }
+
+      if (act.apelacion?.status === 'por_validar') techEntry.apelaciones.pendientes++;
+      else if (act.apelacion?.status === 'aprobada') techEntry.apelaciones.aprobadas++;
+      else if (act.apelacion?.status === 'rechazada') techEntry.apelaciones.rechazadas++;
+    });
+
+    // 4. Calcular tramos y bonos para cada técnico
+    const resumenTecnicos = Array.from(techMap.values())
+      .map(t => {
+        const totalPuntosRounded = Math.round(t.totalPuntos * 10) / 10;
+        const puntosCalculables = Math.max(0, Math.round((totalPuntosRounded - puntosNoCalculables) * 10) / 10);
+        
+        let valorTramo = 0;
+        let tramoAlcanzado = null;
+
+        for (const tramo of tramosBaremos) {
+          const hStr = String(tramo.hasta ?? '').trim().toLowerCase();
+          const isMax = hStr === 'más' || hStr === 'mas' || hStr === '' || tramo.hasta === null;
+          const limitMax = isMax ? 999999 : parseFloat(tramo.hasta);
+          if (totalPuntosRounded >= parseFloat(tramo.desde) && totalPuntosRounded <= limitMax) {
+            valorTramo = parseFloat(tramo.valor) || 0;
+            tramoAlcanzado = tramo;
+            break;
+          }
+        }
+
+        const bonoBaremo = Math.round(puntosCalculables * valorTramo);
+
+        return {
+          id: t.id,
+          nombre: t.nombre,
+          rut: t.rut,
+          rutFormateado: t.rutFormateado,
+          idRecursoToa: t.idRecursoToa,
+          cargo: t.cargo,
+          diasTrabajados: t.diasMap.size,
+          totalOTs: t.totalOTs,
+          totalPuntos: totalPuntosRounded,
+          puntosNoCalculables,
+          puntosCalculables,
+          valorTramo,
+          tramoAlcanzado,
+          bonoBaremo,
+          bonoTotal: bonoBaremo,
+          apelaciones: t.apelaciones
+        };
+      })
+      .filter(t => t.totalOTs > 0 || t.totalPuntos > 0)
+      .sort((a, b) => b.totalPuntos - a.totalPuntos);
+
+    const kpisGlobales = {
+      totalTecnicos: resumenTecnicos.length,
+      totalOTs: resumenTecnicos.reduce((acc, t) => acc + t.totalOTs, 0),
+      totalPuntos: Math.round(resumenTecnicos.reduce((acc, t) => acc + t.totalPuntos, 0) * 10) / 10,
+      totalCalculables: Math.round(resumenTecnicos.reduce((acc, t) => acc + t.puntosCalculables, 0) * 10) / 10,
+      totalBonoProduccion: resumenTecnicos.reduce((acc, t) => acc + t.bonoBaremo, 0)
+    };
+
+    res.json({
+      success: true,
+      mes,
+      tramosConfig: tramosBaremos,
+      puntosNoCalculables,
+      kpisGlobales,
+      tecnicos: resumenTecnicos
+    });
+  } catch (err) {
+    console.error('Error calculando resumen de tramos por mes:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- MODIFICACIÓN / APELACIÓN DIRECTA POR PARTE DEL CEO/ADMIN ---
+router.post('/produccion/actividad/:actividadId/modificar-ceo', protect, async (req, res) => {
+  try {
+    const { actividadId } = req.params;
+    const {
+      puntosBase,
+      decos,
+      repetidores,
+      telefonos,
+      codigoLpu,
+      motivoModificacion,
+      estado
+    } = req.body;
+
+    const Actividad = require('../models/Actividad');
+    const { obtenerTarifasEmpresa, calcularBaremos, valorizarBaremos, construirMapaValorizacion } = require('../utils/calculoEngine');
+
+    const act = await Actividad.findById(actividadId);
+    if (!act) return res.status(404).json({ error: 'Actividad no encontrada' });
+
+    if (act.empresaRef && String(act.empresaRef) !== String(req.user.empresaRef)) {
+      return res.status(403).json({ error: 'No autorizado para modificar esta actividad' });
+    }
+
+    const tarifas = await obtenerTarifasEmpresa(req.user.empresaRef);
+    const mapaValor = await construirMapaValorizacion(req.user.empresaRef);
+
+    const decosVal = parseInt(decos ?? act.DECOS_ADICIONALES ?? act.Decos_Adicionales ?? 0);
+    const repetidoresVal = parseInt(repetidores ?? act.REPETIDORES_WIFI ?? act.Repetidores_WiFi ?? 0);
+    const telefonosVal = parseInt(telefonos ?? act.TELEFONOS ?? act.Telefonos ?? 0);
+    const codigoLpuVal = codigoLpu ?? act.CODIGO_LPU_BASE ?? act.SUBTIPO_DE_ACTIVIDAD ?? '';
+    const puntosBaseVal = puntosBase !== undefined ? parseFloat(puntosBase) : parseFloat(act.PTS_ACTIVIDAD_BASE ?? act.Pts_Actividad_Base ?? 0);
+
+    const tempDoc = {
+      ...act.toObject(),
+      Decos_Adicionales: String(decosVal),
+      DECOS_ADICIONALES: decosVal,
+      Repetidores_WiFi: String(repetidoresVal),
+      REPETIDORES_WIFI: repetidoresVal,
+      Telefonos: String(telefonosVal),
+      TELEFONOS: telefonosVal,
+      ...(codigoLpuVal ? {
+        CODIGO_LPU_BASE: codigoLpuVal,
+        'Cód LPU': codigoLpuVal,
+        COD_LPU: codigoLpuVal,
+        LPU_COD: codigoLpuVal,
+        SUBTIPO_DE_ACTIVIDAD: codigoLpuVal,
+        subtipo: codigoLpuVal
+      } : {}),
+      ...(puntosBaseVal >= 0 ? {
+        Pts_Actividad_Base: puntosBaseVal,
+        PTS_ACTIVIDAD_BASE: puntosBaseVal
+      } : {})
+    };
+
+    const baremo = calcularBaremos(tempDoc, tarifas) || {};
+    const docParaValorizar = {
+      ...tempDoc,
+      ...baremo,
+      ID_Recurso: act.idRecursoToa || act.RECURSO || act.idRecurso,
+      Pts_Total_Baremo: baremo.Pts_Total_Baremo
+    };
+    const val = valorizarBaremos(docParaValorizar, mapaValor) || {};
+
+    const updateFields = {
+      ...baremo,
+      ...val,
+      DECOS_ADICIONALES: decosVal,
+      Decos_Adicionales: String(decosVal),
+      REPETIDORES_WIFI: repetidoresVal,
+      Repetidores_WiFi: String(repetidoresVal),
+      TELEFONOS: telefonosVal,
+      Telefonos: String(telefonosVal),
+      PTS_ACTIVIDAD_BASE: puntosBaseVal,
+      Pts_Actividad_Base: puntosBaseVal,
+      PTS_TOTAL_BAREMO: baremo.ptsTotalBaremo || puntosBaseVal,
+      ptsTotalBaremo: baremo.ptsTotalBaremo || puntosBaseVal,
+      Total_Puntos_Baremo: baremo.ptsTotalBaremo || puntosBaseVal,
+      ultimaModificacionCEO: {
+        usuario: req.user.name || req.user.email,
+        fecha: new Date(),
+        motivo: motivoModificacion || 'Ajuste directo por Auditoría CEO'
+      },
+      ...(estado ? { Estado: estado, estado: estado, ESTADO: estado } : {})
+    };
+
+    // Si además se quiere registrar como apelación aprobada directa:
+    updateFields['apelacion.status'] = 'aprobada';
+    updateFields['apelacion.respuesta'] = `Modificación directa CEO: ${motivoModificacion || 'Puntos y equipos actualizados'}`;
+    updateFields['apelacion.fechaRespuesta'] = new Date();
+
+    delete updateFields._id;
+    delete updateFields.__v;
+
+    await Actividad.updateOne({ _id: actividadId }, { $set: updateFields });
+
+    const updated = await Actividad.findById(actividadId).lean();
+    res.json({
+      success: true,
+      message: 'Actividad modificada y recalculada con éxito por CEO',
+      data: updated
+    });
+  } catch (err) {
+    console.error('Error en modificación directa CEO:', err);
     res.status(500).json({ error: err.message });
   }
 });

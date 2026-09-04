@@ -17,41 +17,45 @@ const helmet = require('helmet');
 // HELPER: Inyectar headers CORS en cualquier respuesta de error de rate limit
 // =============================================================================
 const corsHandler = (req, res, message) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Vary', 'Origin');
-  }
+  const origin = req.headers.origin || req.headers.referer || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin.startsWith('http') ? origin.replace(/\/$/, '') : '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, x-company-override, x-tenant-id');
+  res.setHeader('Vary', 'Origin');
   res.status(429).json({ error: 'Too many requests', message });
 };
 
 // =============================================================================
 // RUTAS EXCLUIDAS DEL RATE LIMIT GENERAL
-// Incluye: endpoints públicos, SSE, y cualquier request con JWT (autenticado)
+// Incluye: preflights (OPTIONS), endpoints públicos, SSE, y requests autenticados
 // =============================================================================
 const SKIP_RATE_LIMIT_PATHS = [
   '/api/indicadores',
   '/api/health',
   '/api/ping',
   '/api/ping-platform',
+  '/api/bot/',
+  '/api/admin/'
 ];
 
 const skipGeneralLimiter = (req) => {
-  const path = req.path || '';
+  // SIEMPRE excluir preflight OPTIONS de navegadores
+  if (req.method === 'OPTIONS') return true;
 
-  // Siempre excluir SSE streams (son long-lived connections)
-  if (path.includes('/stream/')) return true;
+  const path = req.path || req.originalUrl || '';
 
-  // Excluir endpoints públicos de caché
+  // Siempre excluir SSE streams
+  if (path.includes('/stream/') || path.includes('/events')) return true;
+
+  // Excluir endpoints públicos y de gestión
   if (SKIP_RATE_LIMIT_PATHS.some(p => path.startsWith(p))) return true;
 
-  // Excluir requests con JWT válido (usuario autenticado)
-  // No verificamos el token aquí para evitar overhead — solo chequeamos su presencia
+  // Excluir requests autenticados con JWT o headers de sesión
   const authHeader = req.headers.authorization || '';
   if (authHeader.startsWith('Bearer ')) return true;
 
-  // Excluir requests con token en query string (usado por SSE/EventSource)
+  // Excluir si viene con token en query
   if (req.query && req.query.token) return true;
 
   return false;
@@ -61,10 +65,10 @@ const skipGeneralLimiter = (req) => {
 // RATE LIMITING CONFIGURATION
 // =============================================================================
 
-// General API limiter — solo aplica a requests no autenticados y no excluidos
+// General API limiter — permisivo para soportar SPAs y proxies de Cloud Run
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: process.env.NODE_ENV === 'production' ? 500 : 5000, // Bajo — solo llegan requests no-auth aquí
+  max: 50000, // Alto para soportar múltiples usuarios concurrentes tras el Load Balancer
   skip: skipGeneralLimiter,
   standardHeaders: true,
   legacyHeaders: false,
@@ -74,15 +78,12 @@ const generalLimiter = rateLimit({
   },
 });
 
-// Auth endpoints — estricto para prevenir brute force de login/register
+// Auth endpoints — protege login de ataques de fuerza bruta
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: process.env.NODE_ENV === 'production' ? 30 : 200,
-  message: {
-    error: 'Too many authentication attempts',
-    message: 'Please try again after 15 minutes.',
-  },
-  skipSuccessfulRequests: true, // No cuenta logins exitosos
+  max: 200,
+  skip: (req) => req.method === 'OPTIONS',
+  skipSuccessfulRequests: true,
   handler: (req, res) => {
     console.warn(`🔐 Auth rate limit para IP ${req.ip}`);
     corsHandler(req, res, 'Demasiados intentos de autenticación. Espera 15 minutos.');
@@ -91,12 +92,12 @@ const authLimiter = rateLimit({
 
 // Bot endpoints — para automatización TOA/GPS
 const botLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutos
-  max: process.env.NODE_ENV === 'production' ? 5000 : 20000,
+  windowMs: 5 * 60 * 1000,
+  max: 50000,
   skip: (req) => {
-    // Skip si tiene JWT (request autenticado)
+    if (req.method === 'OPTIONS') return true;
     const authHeader = req.headers.authorization || '';
-    return authHeader.startsWith('Bearer ');
+    return authHeader.startsWith('Bearer ') || (req.query && req.query.token);
   },
   handler: (req, res) => {
     console.warn(`🤖 Bot rate limit para IP ${req.ip} en ${req.path}`);
@@ -104,14 +105,11 @@ const botLimiter = rateLimit({
   },
 });
 
-// Upload endpoints — límite bajo para archivos grandes
+// Upload endpoints
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hora
-  max: 50, // 50 uploads por hora por IP
-  message: {
-    error: 'Upload limit exceeded',
-    message: 'You have exceeded the upload limit for this hour.',
-  },
+  max: 200,
+  skip: (req) => req.method === 'OPTIONS',
   handler: (req, res) => {
     corsHandler(req, res, 'Has excedido el límite de uploads por hora.');
   },

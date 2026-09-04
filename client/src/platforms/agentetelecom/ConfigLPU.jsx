@@ -14,6 +14,7 @@ const GRUPOS_COLORES = {
     'BANDA ANCHA': { bg: 'bg-blue-50/50', border: 'border-blue-100', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-700', icon: <Wifi size={14} /> },
     'TELEVISION': { bg: 'bg-rose-50/50', border: 'border-rose-100', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700', icon: <Tv size={14} /> },
     'INSTALACIONES MULTIPRODUCTO': { bg: 'bg-violet-50/50', border: 'border-violet-100', text: 'text-violet-700', badge: 'bg-violet-100 text-violet-700', icon: <Package size={14} /> },
+    'TRASLADOS': { bg: 'bg-cyan-50/50', border: 'border-cyan-100', text: 'text-cyan-700', badge: 'bg-cyan-100 text-cyan-700', icon: <Activity size={14} /> },
     'RUTINAS Y PREVENTIVOS': { bg: 'bg-amber-50/50', border: 'border-amber-100', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', icon: <Settings size={14} /> },
     'ALTO VALOR': { bg: 'bg-emerald-50/50', border: 'border-emerald-100', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700', icon: <Target size={14} /> },
     'RESOLUCIÓN DE AVERÍAS': { bg: 'bg-orange-50/50', border: 'border-orange-100', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700', icon: <Zap size={14} /> },

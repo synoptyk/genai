@@ -811,3 +811,104 @@ exports.resetPassword = async (req, res) => {
         res.status(500).json({ message: 'Error al restablecer la contraseña.' });
     }
 };
+
+// POST /api/auth/users/bulk-password-reset
+exports.bulkPasswordReset = async (req, res) => {
+    try {
+        const { userIds, newPassword, useRutAsPassword, sendEmail } = req.body;
+
+        let filter = {};
+        if (req.user.role === 'system_admin') {
+            if (Array.isArray(userIds) && userIds.length > 0) {
+                filter._id = { $in: userIds };
+            }
+        } else {
+            filter.empresaRef = req.user.empresaRef;
+            filter.role = { $ne: 'system_admin' };
+            if (Array.isArray(userIds) && userIds.length > 0) {
+                filter._id = { $in: userIds };
+            }
+        }
+
+        const usersToUpdate = await PlatformUser.find(filter);
+        if (!usersToUpdate || usersToUpdate.length === 0) {
+            return res.status(404).json({ success: false, message: 'No se encontraron colaboradores para actualizar.' });
+        }
+
+        let updatedCount = 0;
+        for (const u of usersToUpdate) {
+            let passToSet = newPassword;
+            if (useRutAsPassword) {
+                const cleanR = (u.rut || '').replace(/[^0-9kK]/g, '');
+                passToSet = cleanR || '123456';
+            }
+            if (!passToSet || passToSet.length < 4) continue;
+
+            u.password = passToSet.trim();
+            if (!u.empresa || !u.empresa.nombre) {
+                u.empresa = { nombre: 'Enterprise Platform', plan: 'starter' };
+            }
+            await u.save();
+            updatedCount++;
+
+            if (sendEmail && u.email) {
+                try {
+                    await sendWelcomeEmail({
+                        email: u.email,
+                        name: u.name,
+                        password: passToSet,
+                        rut: u.rut,
+                        role: u.role,
+                        cargo: u.cargo,
+                        companyName: u.empresa?.nombre || req.user.empresa?.nombre || 'Plataforma Corporativa'
+                    });
+                } catch (emailErr) {
+                    console.warn(`[BulkPass] Error enviando correo a ${u.email}:`, emailErr.message);
+                }
+            }
+        }
+
+        res.json({
+            success: true,
+            count: updatedCount,
+            message: `Se ha cambiado la contraseña a ${updatedCount} colaboradores exitosamente.`
+        });
+    } catch (e) {
+        console.error('❌ Error en bulkPasswordReset:', e);
+        res.status(500).json({ success: false, message: e.message });
+    }
+};
+
+// POST /api/auth/users/bulk-status
+exports.bulkStatusUpdate = async (req, res) => {
+    try {
+        const { userIds, status } = req.body;
+        if (!['Activo', 'Suspendido', 'Bloqueado', 'Inactivo'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Estado no válido.' });
+        }
+
+        let filter = {};
+        if (req.user.role === 'system_admin') {
+            if (Array.isArray(userIds) && userIds.length > 0) {
+                filter._id = { $in: userIds };
+            }
+        } else {
+            filter.empresaRef = req.user.empresaRef;
+            filter.role = { $ne: 'system_admin' };
+            if (Array.isArray(userIds) && userIds.length > 0) {
+                filter._id = { $in: userIds };
+            }
+        }
+
+        const result = await PlatformUser.updateMany(filter, { $set: { status } });
+
+        res.json({
+            success: true,
+            count: result.modifiedCount || 0,
+            message: `Se ha actualizado el estado a "${status}" para ${result.modifiedCount || 0} colaboradores.`
+        });
+    } catch (e) {
+        console.error('❌ Error en bulkStatusUpdate:', e);
+        res.status(500).json({ success: false, message: e.message });
+    }
+};

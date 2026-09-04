@@ -24,6 +24,8 @@ router.put('/users/:id', protect, authorize('system_admin', 'ceo', 'admin', 'cfg
 router.delete('/users/:id', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:eliminar', 'admin_gestion_usuarios:eliminar'), authController.deleteUser);
 router.get('/stats/portales', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal', 'admin_gestion_usuarios'), authController.getPortalStats);
 router.get('/users/:id/history', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal', 'admin_gestion_usuarios'), authController.getUserHistory);
+router.post('/users/bulk-password-reset', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar', 'admin_gestion_usuarios:editar'), authController.bulkPasswordReset);
+router.post('/users/bulk-status', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar', 'admin_gestion_usuarios:editar'), authController.bulkStatusUpdate);
 router.post('/users/:id/resend-credentials', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar', 'admin_gestion_usuarios:editar'), authController.resendCredentials);
 router.post('/users/:id/reset-pin', protect, authorize('system_admin', 'ceo', 'admin', 'cfg_personal:editar', 'admin_gestion_usuarios:editar'), authController.resetPin);
 

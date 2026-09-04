@@ -277,8 +277,9 @@ const PortalColaborador = () => {
     const [flota, setFlota] = useState([]);
     const [lastFuelRequest, setLastFuelRequest] = useState(null);
     const [lastKm, setLastKm] = useState(0);
-    const MIN_VISIBLE_MONTH = 2; // Marzo
-    const [selectedMonth, setSelectedMonth] = useState(() => Math.max(new Date().getMonth(), MIN_VISIBLE_MONTH));
+    const isMasterOrAdmin = ['admin', 'system_admin', 'ceo', 'super_admin', 'gerencia'].includes(String(user?.role || '').toLowerCase());
+    const MIN_VISIBLE_MONTH = isMasterOrAdmin ? 0 : 6; // 6 = Julio (0-indexed). Para trabajadores: solo Julio en adelante
+    const [selectedMonth, setSelectedMonth] = useState(() => Math.max(new Date().getMonth(), isMasterOrAdmin ? 0 : 6));
     const [selectedOT, setSelectedOT] = useState(null);
     const [isAppealing, setIsAppealing] = useState(false);
     const [appealForm, setAppealForm] = useState({ decos: 0, repetidores: 0, telefonos: 0, codigoLpu: '', observacion: '', actividadIncorrecta: false, evidenciaUrl: '' });
@@ -326,14 +327,14 @@ const PortalColaborador = () => {
             setLoadingBonos(true);
             try {
                 const res = await api.get('/api/admin/bonos');
-                const modelo = (res.data || []).find(b => b.tipo === 'BAREMO_PUNTOS' && b.activo);
+                const modelo = (res.data || []).find(b => b.tipo === 'BAREMO_PUNTOS' && b.activo) || (res.data || [])[0];
                 if (modelo) {
                     setTramosBaremo((modelo.tramosBaremos || []).map(tr => ({
                         ...tr,
-                        hasta: tr.hasta === 'Más' ? null : tr.hasta
+                        hasta: tr.hasta === 'Más' || tr.hasta === 'mas' ? null : tr.hasta
                     })));
-                    // 100% de puntos son calculables (restricción de 95 desactivada)
-                    setPuntosNoCalculables(0);
+                    const noCalc = Number(modelo.puntosExcluidos ?? modelo.puntosNoCalculables ?? modelo.config?.puntosExcluidos ?? 0);
+                    setPuntosNoCalculables(noCalc);
                     setTramosRRState(modelo.tramosRR || []);
                     setTramosAIState(modelo.tramosAI || []);
                 }
@@ -1561,8 +1562,10 @@ const PortalColaborador = () => {
                 const META_MENSUAL = META_DIARIA * DIAS_LABORALES_MES;
                 const cumplimientoMeta = Math.min(100, Math.round((totalPuntos / META_MENSUAL) * 100));
 
-                // --- Bono imponible: 100% de puntos son calculables (restricción de 95 desactivada) ---
-                const puntosCalculables = Math.round(totalPuntos * 10) / 10;
+                // --- Bono imponible: Descontar puntos no calculables (ej. 95 pts base) ---
+                const noCalc = puntosNoCalculables || 0;
+                const puntosCalculables = Math.max(0, Math.round((totalPuntos - noCalc) * 10) / 10);
+                const calcPct = totalPuntos > 0 ? Math.round((puntosCalculables / totalPuntos) * 100) : 0;
                 let valorTramo = 0;
                 if (tramosBaremo.length > 0) {
                     for (let i = 0; i < tramosBaremo.length; i++) {
@@ -1778,9 +1781,15 @@ const PortalColaborador = () => {
                                                             <span className="text-slate-500 font-medium">Puntos Totales:</span>
                                                             <span className="font-mono font-bold text-slate-800">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                                                         </div>
+                                                        {noCalc > 0 && (
+                                                            <div className="flex justify-between items-center text-xs">
+                                                                <span className="text-slate-500 font-medium">No Calculables:</span>
+                                                                <span className="font-mono font-bold text-amber-600">-{noCalc} pts</span>
+                                                            </div>
+                                                        )}
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-slate-500 font-medium">Puntos Calculables:</span>
-                                                            <span className="font-mono font-bold text-emerald-600">{puntosCalculables} pts (100%)</span>
+                                                            <span className="font-mono font-bold text-emerald-600">{puntosCalculables} pts ({calcPct}%)</span>
                                                         </div>
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-slate-500 font-medium">Tramo Alcanzado:</span>

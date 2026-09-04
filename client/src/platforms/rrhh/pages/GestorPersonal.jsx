@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../auth/AuthContext';
 import { useCheckPermission } from '../../../hooks/useCheckPermission';
-import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, Settings, Download, Clock, Package, Lock, Building2, ShieldAlert, Truck } from 'lucide-react';
+import { 
+    Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, 
+    CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, 
+    Settings, Download, Clock, Package, Lock, Building2, 
+    ShieldAlert, Truck, KeyRound, PauseCircle, PlayCircle,
+    UserX, CheckSquare, Square, RefreshCw, Sparkles, Send
+} from 'lucide-react';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 import API_URL from '../../../config';
@@ -124,7 +130,7 @@ const GestorPersonal = () => {
 
     // 2. Estados Atómicos
     const [users, setUsers] = useState([]);
-    const [companies, setCompanies] = useState([]); // Nueva lista para el CEO
+    const [companies, setCompanies] = useState([]);
     const [actualCompanyLimit, setActualCompanyLimit] = useState(5);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -134,6 +140,17 @@ const GestorPersonal = () => {
     const [showPass, setShowPass] = useState(false);
     const [alert, setAlert] = useState(null);
 
+    // Estados para Acciones Masivas
+    const [selectedUserIds, setSelectedUserIds] = useState(new Set());
+    const [bulkModal, setBulkModal] = useState(null); // null | 'password' | 'status'
+    const [bulkPasswordForm, setBulkPasswordForm] = useState({
+        password: '',
+        useRutAsPassword: false,
+        sendEmail: true
+    });
+    const [bulkStatusTarget, setBulkStatusTarget] = useState('Activo'); // 'Activo' | 'Suspendido' | 'Bloqueado'
+    const [bulkProcessing, setBulkProcessing] = useState(false);
+
     const [formData, setFormData] = useState({
         name: '', email: '', corporateEmail: '', password: '', role: 'user', cargo: '', status: 'Activo',
         empresaRef: '',
@@ -141,17 +158,13 @@ const GestorPersonal = () => {
         sendEmailCredentials: true
     });
 
-    // 3. Efecto Único e Irrompible: Carga inicial de datos
+    // 3. Efecto Único: Carga inicial de datos
     useEffect(() => {
-        // Al montarse el componente, ProtectedRoute ya validó que existe sesión.
-        // Hacemos el fetch de inmediato, sin condicionales frágiles.
         fetchUsers();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // 4. Lógica de Red y Datos a Prueba de Fallos
+    // 4. Lógica de Red
     const fetchUsers = async () => {
-        // Guard: Solo roles con permisos de gestión o con el permiso granular activo
         const userRole = user?.role?.toLowerCase() || '';
         const hasManagementRole = ['system_admin', 'ceo', 'admin', 'gerencia'].includes(userRole);
         const hasGranularAccess = user?.permisosModulos?.['cfg_personal']?.ver === true;
@@ -164,7 +177,6 @@ const GestorPersonal = () => {
         const headers = authHeader();
 
         try {
-            // 1. Fetch de Usuarios (Crítico)
             const resUsers = await axios.get(`${API_BASE}/auth/users`, { headers });
             if (Array.isArray(resUsers.data)) {
                 setUsers(resUsers.data);
@@ -178,27 +190,21 @@ const GestorPersonal = () => {
         }
 
         try {
-            // 2. Fetch de Límite (No crítico, fallback a 5 o al valor de sesión)
             const resEmpresa = await axios.get(`${API_BASE}/empresas/mi-empresa`, { headers });
             if (resEmpresa.data?.limiteUsuarios) {
                 setActualCompanyLimit(resEmpresa.data.limiteUsuarios);
             }
         } catch (error) {
-            const serverMsg = error.response?.data?.message || error.message;
-            console.warn('Fallo en /mi-empresa:', serverMsg);
-            
-            // Fallback silencioso: Usar el valor del contexto si existe, si no 5.
             const fallback = user?.empresaRef?.limiteUsuarios || 5;
             setActualCompanyLimit(fallback);
         }
 
-        // 3. Fetch de Empresas (Solo si es CEO)
         if (['system_admin', 'ceo', 'ceo_genai'].includes(user?.role)) {
             try {
                 const resComp = await axios.get(`${API_BASE}/empresas`, { headers });
                 setCompanies(resComp.data);
             } catch (err) {
-                console.warn('No se pudieron cargar las empresas para administración global');
+                console.warn('No se pudieron cargar las empresas');
             }
         }
 
@@ -221,7 +227,7 @@ const GestorPersonal = () => {
             }
 
             setModal(null);
-            await fetchUsers(); // Refrescar tabla silenciosamente
+            await fetchUsers();
         } catch (error) {
             console.error('Save User Error:', error);
             const msg = error.response?.data?.message || 'Error desconocido al guardar';
@@ -231,7 +237,75 @@ const GestorPersonal = () => {
         }
     };
 
-    // 5. Utilidades UI
+    // 5. Handlers de Acciones Masivas
+    const handleToggleSelectUser = (id) => {
+        setSelectedUserIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleToggleSelectAll = () => {
+        if (selectedUserIds.size === filteredUsers.length) {
+            setSelectedUserIds(new Set());
+        } else {
+            setSelectedUserIds(new Set(filteredUsers.map(u => u._id)));
+        }
+    };
+
+    const handleExecuteBulkPassword = async (e) => {
+        e.preventDefault();
+        if (!bulkPasswordForm.useRutAsPassword && (!bulkPasswordForm.password || bulkPasswordForm.password.length < 6)) {
+            showAlert('La contraseña debe tener al menos 6 caracteres.', 'error');
+            return;
+        }
+
+        setBulkProcessing(true);
+        try {
+            const userIdsArr = Array.from(selectedUserIds);
+            const res = await axios.post(`${API_BASE}/auth/users/bulk-password-reset`, {
+                userIds: userIdsArr.length > 0 ? userIdsArr : undefined,
+                newPassword: bulkPasswordForm.password,
+                useRutAsPassword: bulkPasswordForm.useRutAsPassword,
+                sendEmail: bulkPasswordForm.sendEmail
+            }, { headers: authHeader() });
+
+            showAlert(res.data?.message || 'Contraseñas actualizadas masivamente con éxito.', 'success');
+            setBulkModal(null);
+            setSelectedUserIds(new Set());
+            setBulkPasswordForm({ password: '', useRutAsPassword: false, sendEmail: true });
+            fetchUsers();
+        } catch (err) {
+            console.error('Error in bulk password reset:', err);
+            showAlert(err.response?.data?.message || 'Error al cambiar contraseñas masivamente.', 'error');
+        } finally {
+            setBulkProcessing(false);
+        }
+    };
+
+    const handleExecuteBulkStatus = async () => {
+        setBulkProcessing(true);
+        try {
+            const userIdsArr = Array.from(selectedUserIds);
+            const res = await axios.post(`${API_BASE}/auth/users/bulk-status`, {
+                userIds: userIdsArr.length > 0 ? userIdsArr : undefined,
+                status: bulkStatusTarget
+            }, { headers: authHeader() });
+
+            showAlert(res.data?.message || `Estado actualizado a "${bulkStatusTarget}" masivamente con éxito.`, 'success');
+            setBulkModal(null);
+            setSelectedUserIds(new Set());
+            fetchUsers();
+        } catch (err) {
+            console.error('Error in bulk status update:', err);
+            showAlert(err.response?.data?.message || 'Error al actualizar estados masivamente.', 'error');
+        } finally {
+            setBulkProcessing(false);
+        }
+    };
+
     const showAlert = (msg, type = 'success') => {
         setAlert({ msg, type });
         setTimeout(() => setAlert(null), 4000);
@@ -264,13 +338,10 @@ const GestorPersonal = () => {
         setModal('edit');
     };
 
-
     const togglePermission = (modId, capKey) => {
         setFormData(prev => {
             const currentMod = prev.permisosModulos[modId] || { ...defaultPermisosModulos[modId] };
             const newValue = !currentMod[capKey];
-            
-            // Soporte dual para suspender y bloquear
             const updates = { [capKey]: newValue };
             if (capKey === 'suspender') updates.bloquear = newValue;
             if (capKey === 'bloquear') updates.suspender = newValue;
@@ -300,27 +371,6 @@ const GestorPersonal = () => {
         });
     };
 
-    const toggleAllGlobalPermissions = () => {
-        const activeModIds = Object.keys(defaultPermisosModulos);
-        let allSelected = true;
-
-        for (const mId of activeModIds) {
-            const p = formData.permisosModulos?.[mId] || {};
-            if (!(p.ver && p.crear && p.editar && p.suspender && p.bloquear && p.eliminar)) {
-                allSelected = false;
-                break;
-            }
-        }
-
-        const newState = !allSelected;
-        const nextPerms = {};
-        for (const mId of activeModIds) {
-            nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, bloquear: newState, eliminar: newState };
-        }
-
-        setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
-    };
-
     // 6. Vista Derivada
     const filteredUsers = users.filter(u => {
         const searchLower = searchTerm.toLowerCase();
@@ -341,17 +391,10 @@ const GestorPersonal = () => {
     });
 
     const isLimitReached = actualCompanyLimit && users.length >= actualCompanyLimit;
-
-    // 7. Render Principal
-    // Guard visual para roles sin acceso de gestión
-    // Case-insensitive y permitimos Gerencia también
     const userRole = user?.role?.toLowerCase() || '';
-    
-    // El acceso lo define el Rol O el permiso granular (como en el Sidebar)
     const hasRoleAccess = ['system_admin', 'ceo', 'admin', 'gerencia'].includes(userRole);
     const indPerms = user?.permisosModulos || {};
     const hasGranularAccess = indPerms['cfg_personal']?.ver === true;
-    
     const canManage = hasRoleAccess || hasGranularAccess;
 
     if (!canManage) {
@@ -370,7 +413,7 @@ const GestorPersonal = () => {
 
     return (
         <div className="w-full overflow-x-hidden relative h-full bg-slate-50 flex flex-col p-6">
-            {/* ALERT FLOTANTE PREMIUM */}
+            {/* ALERT FLOTANTE */}
             {alert && (
                 <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] min-w-[320px] flex items-center gap-4 px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
                     ${alert.type === 'error'
@@ -388,7 +431,9 @@ const GestorPersonal = () => {
                     </button>
                 </div>
             )}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 shrink-0">
+
+            {/* HEADER PRINCIPAL */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 shrink-0">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="bg-orange-600 text-white p-2.5 rounded-xl shadow-lg shadow-orange-600/20">
@@ -396,10 +441,12 @@ const GestorPersonal = () => {
                         </div>
                         <h1 className="text-2xl font-black text-slate-800 tracking-tight">Gestión de Personal</h1>
                     </div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Ajustes & Accesos de Colaboradores</p>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+                        Ajustes, Credenciales & Acciones Masivas
+                    </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input
@@ -410,7 +457,6 @@ const GestorPersonal = () => {
                         />
                     </div>
 
-                    {/* INDICADOR DE CUOTA */}
                     {user?.empresaRef && (
                         <div className="hidden lg:flex flex-col items-end px-4 py-2 bg-white border border-slate-200 rounded-2xl shadow-sm">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-tight">Usuarios Activos</span>
@@ -438,7 +484,80 @@ const GestorPersonal = () => {
                 </div>
             </div>
 
-            {/* TABLA PRINCIPAL / LOADER */}
+            {/* BARRA DE ACCIONES MASIVAS */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleToggleSelectAll}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider text-slate-700 transition-all"
+                    >
+                        {selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0 ? (
+                            <CheckSquare size={16} className="text-orange-600" />
+                        ) : (
+                            <Square size={16} className="text-slate-400" />
+                        )}
+                        <span>{selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0 ? 'Deseleccionar Todos' : 'Seleccionar Todos'}</span>
+                    </button>
+                    
+                    <span className="text-xs font-black text-slate-600">
+                        {selectedUserIds.size > 0 ? (
+                            <strong className="text-orange-600">{selectedUserIds.size} de {filteredUsers.length}</strong>
+                        ) : (
+                            <span>{filteredUsers.length} colaboradores</span>
+                        )} seleccionados
+                    </span>
+                </div>
+
+                {/* Botones de acción masiva */}
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* Botón Cambiar Clave Masivamente */}
+                    <button
+                        onClick={() => setBulkModal('password')}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all"
+                    >
+                        <KeyRound size={14} />
+                        Cambiar Clave Masiva {selectedUserIds.size > 0 ? `(${selectedUserIds.size})` : '(Todos)'}
+                    </button>
+
+                    {/* Botón Suspender Masivamente */}
+                    <button
+                        onClick={() => {
+                            setBulkStatusTarget('Suspendido');
+                            setBulkModal('status');
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                    >
+                        <PauseCircle size={14} />
+                        Suspender {selectedUserIds.size > 0 ? `(${selectedUserIds.size})` : ''}
+                    </button>
+
+                    {/* Botón Activar Masivamente */}
+                    <button
+                        onClick={() => {
+                            setBulkStatusTarget('Activo');
+                            setBulkModal('status');
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                    >
+                        <PlayCircle size={14} />
+                        Activar {selectedUserIds.size > 0 ? `(${selectedUserIds.size})` : ''}
+                    </button>
+
+                    {/* Botón Bloquear Masivamente */}
+                    <button
+                        onClick={() => {
+                            setBulkStatusTarget('Bloqueado');
+                            setBulkModal('status');
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                    >
+                        <UserX size={14} />
+                        Bloquear {selectedUserIds.size > 0 ? `(${selectedUserIds.size})` : ''}
+                    </button>
+                </div>
+            </div>
+
+            {/* TABLA PRINCIPAL */}
             <div className="flex-1 overflow-auto bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 custom-scrollbar">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
@@ -454,6 +573,15 @@ const GestorPersonal = () => {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/80 sticky top-0 backdrop-blur-md z-10 border-b border-slate-200">
+                                <th className="px-4 py-5 w-12 text-center">
+                                    <button onClick={handleToggleSelectAll} className="p-1">
+                                        {selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0 ? (
+                                            <CheckSquare size={16} className="text-orange-600" />
+                                        ) : (
+                                            <Square size={16} className="text-slate-400" />
+                                        )}
+                                    </button>
+                                </th>
                                 <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[250px]">Colaborador</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rol</th>
@@ -463,94 +591,284 @@ const GestorPersonal = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredUsers.map(u => (
-                                <tr key={u._id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-600 font-black shadow-inner border border-white">
-                                                {u.name?.substring(0, 2).toUpperCase()}
+                            {filteredUsers.map(u => {
+                                const isSelected = selectedUserIds.has(u._id);
+                                return (
+                                    <tr key={u._id} className={`hover:bg-slate-50/50 transition-colors group ${isSelected ? 'bg-orange-50/30' : ''}`}>
+                                        <td className="px-4 py-4 text-center">
+                                            <button onClick={() => handleToggleSelectUser(u._id)} className="p-1">
+                                                {isSelected ? (
+                                                    <CheckSquare size={16} className="text-orange-600" />
+                                                ) : (
+                                                    <Square size={16} className="text-slate-300 group-hover:text-slate-500" />
+                                                )}
+                                            </button>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-600 font-black shadow-inner border border-white">
+                                                    {u.name?.substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight truncate">{u.name}</span>
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
+                                                        {u.rut ? `RUT: ${formatRut(u.rut)}` : u.email}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <span className="text-[11px] font-black text-slate-800 tracking-tight block leading-tight truncate">{u.name}</span>
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 block font-mono">
-                                                    {u.rut ? `RUT: ${formatRut(u.rut)}` : u.email}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
+                                        </td>
+                                        <td className="px-6 py-4">
                                             <span className={`text-[10px] font-black uppercase tracking-widest ${u.empresaRef ? 'text-slate-600' : 'text-orange-600'}`}>
                                                 {u.empresaRef?.nombre || u.empresa?.nombre || '⚠️ SIN EMPRESA'}
                                             </span>
-                                            {(!u.empresaRef || !u.empresaRef._id) && user.role === 'admin' && (
-                                                <button 
-                                                    onClick={() => {
-                                                        setSelectedUser(u);
-                                                        setFormData(prev => ({ ...prev, empresaRef: user.empresaRef?._id || (typeof user.empresaRef === 'string' ? user.empresaRef : '') || '' }));
-                                                        handleSaveUser({ preventDefault: () => {}, target: { } });
-                                                    }}
-                                                    className="mt-1 text-[9px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-tighter text-left"
-                                                >
-                                                    vincular a mi empresa
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest
+                                                ${u.role === 'system_admin' ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white border border-amber-300 shadow-md shadow-amber-100' :
+                                                  u.role === 'ceo' ? 'bg-gradient-to-r from-amber-300 to-yellow-400 text-amber-900 border border-amber-200' :
+                                                  u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
+                                                  u.role === 'gerencia' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                                  u.role === 'jefatura' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                                  u.role === 'auditor_empresa' ? 'bg-slate-200 text-slate-700 border border-slate-300' :
+                                                  u.role === 'administrativo' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
+                                                  u.role === 'supervisor_hse' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                  'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                                                {u.role === 'system_admin' ? '⭐ System Admin' :
+                                                 u.role === 'ceo' ? '👑 CEO' :
+                                                 u.role === 'admin' ? 'Admin Empresa' : 
+                                                 u.role === 'gerencia' ? 'Gerencia' :
+                                                 u.role === 'jefatura' ? 'Jefatura' :
+                                                 u.role === 'auditor_empresa' ? 'Auditor Empresa' :
+                                                 u.role === 'administrativo' ? 'Administrativo' : 
+                                                 u.role === 'supervisor_hse' ? 'Supervisor HSE' : 
+                                                 'Trabajador Terreno'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{u.cargo || 'No Definido'}</span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border
+                                                ${u.status === 'Activo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                  u.status === 'Inactivo' ? 'bg-slate-50 text-slate-500 border-slate-200' :
+                                                  u.status === 'Suspendido' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                  'bg-red-50 text-red-600 border-red-100'}`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${u.status === 'Activo' ? 'bg-emerald-500' : u.status === 'Inactivo' ? 'bg-slate-400' : u.status === 'Suspendido' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                                                {u.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            {hasPermission('cfg_personal', 'editar') && (
+                                                <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
+                                                    <Edit2 size={14} />
                                                 </button>
                                             )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest
-                                            ${u.role === 'system_admin' ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white border border-amber-300 shadow-md shadow-amber-100' :
-                                              u.role === 'ceo' ? 'bg-gradient-to-r from-amber-300 to-yellow-400 text-amber-900 border border-amber-200' :
-                                              u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
-                                              u.role === 'gerencia' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                                              u.role === 'jefatura' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-                                              u.role === 'auditor_empresa' ? 'bg-slate-200 text-slate-700 border border-slate-300' :
-                                              u.role === 'administrativo' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
-                                              u.role === 'supervisor_hse' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                                              'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                            {u.role === 'system_admin' ? '⭐ System Admin' :
-                                             u.role === 'ceo' ? '👑 CEO' :
-                                             u.role === 'admin' ? 'Admin Empresa' : 
-                                             u.role === 'gerencia' ? 'Gerencia' :
-                                             u.role === 'jefatura' ? 'Jefatura' :
-                                             u.role === 'auditor_empresa' ? 'Auditor Empresa' :
-                                             u.role === 'administrativo' ? 'Administrativo' : 
-                                             u.role === 'supervisor_hse' ? 'Supervisor HSE' : 
-                                             'Trabajador Terreno'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{u.cargo || 'No Definido'}</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border
-                                            ${u.status === 'Activo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                u.status === 'Inactivo' ? 'bg-slate-50 text-slate-500 border-slate-200' :
-                                                    'bg-red-50 text-red-600 border-red-100'}`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${u.status === 'Activo' ? 'bg-emerald-500' : u.status === 'Inactivo' ? 'bg-slate-400' : 'bg-red-500'}`} />
-                                            {u.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        {hasPermission('cfg_personal', 'editar') && (
-                                            <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
-                                                <Edit2 size={14} />
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 )}
             </div>
 
-            {/* MODAL FORMULARIO */}
+            {/* MODAL 1: CAMBIO MASIVO DE CONTRASEÑAS */}
+            {bulkModal === 'password' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up text-slate-800 p-6">
+                        <div className="flex items-center gap-3 text-orange-600 mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center">
+                                <KeyRound className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-slate-900">Cambio Masivo de Contraseñas</h3>
+                                <p className="text-xs text-slate-500 font-semibold">
+                                    {selectedUserIds.size > 0 ? `${selectedUserIds.size} colaboradores seleccionados` : 'Todos los colaboradores de su empresa'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleExecuteBulkPassword} className="space-y-4">
+                            {/* Selector de modo de clave */}
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                    Método de Asignación de Contraseña
+                                </label>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setBulkPasswordForm({ ...bulkPasswordForm, useRutAsPassword: false })}
+                                        className={`p-3 rounded-xl border text-left transition-all ${
+                                            !bulkPasswordForm.useRutAsPassword
+                                                ? 'bg-orange-50/50 border-orange-300 ring-2 ring-orange-500/20'
+                                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-xs font-black text-slate-900">Contraseña Común</div>
+                                        <div className="text-[10px] text-slate-500 mt-0.5">Una misma clave para todos</div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setBulkPasswordForm({ ...bulkPasswordForm, useRutAsPassword: true })}
+                                        className={`p-3 rounded-xl border text-left transition-all ${
+                                            bulkPasswordForm.useRutAsPassword
+                                                ? 'bg-orange-50/50 border-orange-300 ring-2 ring-orange-500/20'
+                                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <div className="text-xs font-black text-slate-900">RUT como Clave</div>
+                                        <div className="text-[10px] text-slate-500 mt-0.5">Sin puntos ni guión (ej: 18234567K)</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Campo Contraseña Común */}
+                            {!bulkPasswordForm.useRutAsPassword && (
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Nueva Contraseña para Todos</label>
+                                    <div className="relative">
+                                        <input
+                                            type={showPass ? 'text' : 'password'}
+                                            required={!bulkPasswordForm.useRutAsPassword}
+                                            minLength={6}
+                                            placeholder="Ej: Ram2026!"
+                                            value={bulkPasswordForm.password}
+                                            onChange={(e) => setBulkPasswordForm({ ...bulkPasswordForm, password: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:border-orange-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPass(!showPass)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                        >
+                                            {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Enviar correo */}
+                            <label className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={bulkPasswordForm.sendEmail}
+                                    onChange={(e) => setBulkPasswordForm({ ...bulkPasswordForm, sendEmail: e.target.checked })}
+                                    className="w-4 h-4 text-orange-600 rounded"
+                                />
+                                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <Send size={14} className="text-orange-600" />
+                                    Enviar credenciales por correo electrónico a cada colaborador
+                                </span>
+                            </label>
+
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setBulkModal(null)}
+                                    disabled={bulkProcessing}
+                                    className="px-4 py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={bulkProcessing}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md disabled:opacity-50"
+                                >
+                                    {bulkProcessing ? (
+                                        <>
+                                            <RefreshCw className="w-4 h-4 animate-spin" />
+                                            Procesando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <KeyRound className="w-4 h-4" />
+                                            Confirmar Cambio Masivo
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL 2: CAMBIO MASIVO DE ESTADO (SUSPENDER / ACTIVAR / BLOQUEAR) */}
+            {bulkModal === 'status' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-scale-up text-slate-800 p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                                bulkStatusTarget === 'Activo' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                bulkStatusTarget === 'Suspendido' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
+                                'bg-rose-50 text-rose-600 border border-rose-200'
+                            }`}>
+                                {bulkStatusTarget === 'Activo' && <PlayCircle className="w-6 h-6" />}
+                                {bulkStatusTarget === 'Suspendido' && <PauseCircle className="w-6 h-6" />}
+                                {bulkStatusTarget === 'Bloqueado' && <UserX className="w-6 h-6" />}
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-slate-900">
+                                    {bulkStatusTarget === 'Activo' ? 'Activar Colaboradores' :
+                                     bulkStatusTarget === 'Suspendido' ? 'Suspender Colaboradores' :
+                                     'Bloquear Colaboradores'}
+                                </h3>
+                                <p className="text-xs text-slate-500 font-semibold">
+                                    {selectedUserIds.size > 0 ? `${selectedUserIds.size} colaboradores seleccionados` : 'Todos los colaboradores de su empresa'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-slate-600 leading-relaxed mb-5 font-medium">
+                            ¿Está seguro de cambiar el estado de los colaboradores seleccionados a <strong className="font-black text-slate-900">"{bulkStatusTarget}"</strong>?
+                            {bulkStatusTarget === 'Suspendido' && ' Los usuarios suspendidos no podrán ingresar a la plataforma hasta ser reactivados.'}
+                            {bulkStatusTarget === 'Bloqueado' && ' Los usuarios bloqueados tendrán el acceso restringido inmediatamente.'}
+                            {bulkStatusTarget === 'Activo' && ' Los usuarios tendrán acceso normal a todos los módulos autorizados.'}
+                        </p>
+
+                        <div className="flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setBulkModal(null)}
+                                disabled={bulkProcessing}
+                                className="px-4 py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExecuteBulkStatus}
+                                disabled={bulkProcessing}
+                                className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md disabled:opacity-50 ${
+                                    bulkStatusTarget === 'Activo' ? 'bg-emerald-600 hover:bg-emerald-700' :
+                                    bulkStatusTarget === 'Suspendido' ? 'bg-amber-600 hover:bg-amber-700' :
+                                    'bg-rose-600 hover:bg-rose-700'
+                                }`}
+                            >
+                                {bulkProcessing ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        Actualizando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        Confirmar Cambio a {bulkStatusTarget}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL FORMULARIO INDIVIDUAL */}
             {modal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setModal(null)} />
                     <div className="relative w-full max-w-5xl bg-white rounded-[3rem] shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-500">
-                        {/* Cabecera */}
                         <div className="p-4 md:p-8 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                             <div>
                                 <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">
@@ -563,11 +881,8 @@ const GestorPersonal = () => {
                             </button>
                         </div>
 
-                        {/* Cuerpo del Formulario */}
                         <div className="p-6 md:p-8 overflow-y-auto hide-scrollbar flex-1 bg-slate-50/50">
                             <form id="userForm" onSubmit={handleSaveUser} className="space-y-8">
-
-                                {/* 1. Datos Personales */}
                                 <div className="space-y-4">
                                     <label className="block text-[9px] font-black text-orange-600 uppercase tracking-widest ml-1">Identidad & Rol Oficial</label>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -576,379 +891,81 @@ const GestorPersonal = () => {
                                             <input type="text" required value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-800 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email LogIn (Gmail)</label>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email LogIn</label>
                                             <input type="email" required value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] ml-1">Email Aprobación (Pertenencia)</label>
+                                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] ml-1">Email Aprobación</label>
                                             <input type="email" value={formData.corporateEmail || ''} onChange={e => setFormData({ ...formData, corporateEmail: e.target.value })} className="w-full px-4 py-2 bg-indigo-50/30 border border-indigo-100 rounded-xl text-[11px] font-bold text-indigo-700 placeholder:text-indigo-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10" placeholder="opcional@empresa.com" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT (Opcional)</label>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    value={formData.rut || ''}
-                                                    onChange={e => setFormData({ ...formData, rut: formatRut(e.target.value) })}
-                                                    className={`w-full pl-4 pr-10 py-2 bg-white border ${formData.rut && !validateRut(formData.rut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200 text-slate-800'} rounded-xl text-[11px] font-bold focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10`}
-                                                    placeholder="12.345.678-9"
-                                                />
-                                                {formData.rut && validateRut(formData.rut) && (
-                                                    <CheckCircle2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500" />
-                                                )}
-                                                {formData.rut && !validateRut(formData.rut) && (
-                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500">
-                                                        <AlertCircle size={14} />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nivel del Sistema</label>
-                                            <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10">
-                                                {['system_admin', 'ceo', 'ceo_genai'].includes(userRole) && (
-                                                    <option value="system_admin">⭐ System Admin (Universal Access)</option>
-                                                )}
-                                                {['system_admin', 'ceo', 'ceo_genai'].includes(userRole) && (
-                                                    <option value="ceo">CEO General</option>
-                                                )}
-                                                {['system_admin', 'ceo', 'ceo_genai'].includes(userRole) && (
-                                                    <option value="ceo_genai">CEO GENAI360 (Legacy)</option>
-                                                )}
-                                                <option value="user">Trabajador (Portal Terreno)</option>
-                                                <option value="tecnico">Técnico</option>
-                                                <option value="operativo">Operativo</option>
-                                                <option value="supervisor">Supervisor</option>
-                                                <option value="supervisor_hse">Supervisor (Terreno + Web)</option>
-                                                <option value="rrhh">Recursos Humanos</option>
-                                                <option value="administrativo">Administrativo (Uso Web)</option>
-                                                <option value="auditor_empresa">Auditor Empresa (Solo Lectura)</option>
-                                                <option value="jefatura">Jefatura (Control Operativo)</option>
-                                                <option value="gerencia">Gerencia (Estratégico)</option>
-                                                <option value="admin">Admin Empresa (Total)</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1 lg:col-span-2">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Asignación de Empresa</label>
-                                            <select 
-                                                value={formData.empresaRef} 
-                                                onChange={e => setFormData({ ...formData, empresaRef: e.target.value })} 
-                                                disabled={!['system_admin', 'ceo', 'ceo_genai'].includes(userRole)}
-                                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10 disabled:bg-slate-50 disabled:text-slate-400"
-                                            >
-                                                <option value="">-- Seleccionar Empresa --</option>
-                                                {companies.map(c => (
-                                                    <option key={c._id} value={c._id}>{c.nombre}</option>
-                                                ))}
-                                                {(!companies.length && user.empresaRef) && (
-                                                    <option value={user.empresaRef?._id || (typeof user.empresaRef === 'string' ? user.empresaRef : '')}>{user.empresa?.nombre}</option>
-                                                )}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1 lg:col-span-2">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Cargo en Empresa</label>
-                                            <input type="text" value={formData.cargo || ''} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" placeholder="Ej: Especialista de Fibra Óptica" />
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT</label>
+                                            <input
+                                                type="text"
+                                                value={formData.rut || ''}
+                                                onChange={e => setFormData({ ...formData, rut: formatRut(e.target.value) })}
+                                                className={`w-full px-4 py-2 bg-white border ${formData.rut && !validateRut(formData.rut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200 text-slate-800'} rounded-xl text-[11px] font-bold focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10`}
+                                                placeholder="12.345.678-9"
+                                            />
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* 2. Seguridad */}
-                                <div className="p-5 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center">
-                                            <Shield size={14} />
-                                        </div>
-                                        <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">Seguridad de Acceso</h3>
-                                    </div>
-                                    <div className="grid md:grid-cols-2 gap-6 items-center">
-                                        <div className="space-y-1 relative max-w-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                                        <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Contraseña {modal === 'edit' && '(Opcional)'}</label>
                                             <input
-                                                type={showPass ? 'text' : 'password'}
+                                                type="password"
+                                                required={modal === 'create'}
+                                                minLength={6}
+                                                placeholder={modal === 'edit' ? 'Dejar vacío para mantener' : 'Mínimo 6 caracteres'}
                                                 value={formData.password || ''}
                                                 onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-black tracking-widest text-slate-800 outline-none focus:border-orange-400"
-                                                placeholder={modal === 'create' ? "Asignar Clave Segura" : "En blanco = Sin cambios"}
-                                                required={modal === 'create'}
+                                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10"
                                             />
-                                            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute bottom-2.5 right-3 text-slate-400 hover:text-orange-500">
-                                                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                                            </button>
                                         </div>
-                                        <div className="flex flex-col gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <input id="sendEmailCheckbox" type="checkbox" checked={formData.sendEmailCredentials !== false} onChange={e => setFormData(p => ({ ...p, sendEmailCredentials: e.target.checked }))} className="w-4 h-4 text-orange-600 rounded cursor-pointer" />
-                                                <label htmlFor="sendEmailCheckbox" className="text-[10px] font-bold text-slate-600 cursor-pointer uppercase tracking-widest">Notificar credenciales por email</label>
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full max-w-sm border border-slate-100 p-1 rounded-2xl bg-slate-50">
-                                                {['Activo', 'Inactivo', 'Suspendido'].map(st => (
-                                                    <button key={st} type="button" onClick={() => setFormData({ ...formData, status: st })} className={`py-2.5 rounded-xl text-[9px] font-black shadow-sm transition-all uppercase tracking-widest border-2
-                                                        ${formData.status === st ? 'border-orange-500 bg-white text-orange-700' : 'border-transparent text-slate-400 hover:bg-white/50'}`}>
-                                                        {st}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Rol</label>
+                                            <select
+                                                value={formData.role || 'user'}
+                                                onChange={e => setFormData({ ...formData, role: e.target.value })}
+                                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:border-orange-400"
+                                            >
+                                                <option value="user">Trabajador Terreno</option>
+                                                <option value="administrativo">Administrativo</option>
+                                                <option value="supervisor_hse">Supervisor HSE</option>
+                                                <option value="jefatura">Jefatura</option>
+                                                <option value="gerencia">Gerencia</option>
+                                                <option value="admin">Admin Empresa</option>
+                                                {user?.role === 'system_admin' && <option value="system_admin">⭐ System Admin</option>}
+                                                {user?.role === 'ceo' && <option value="ceo">👑 CEO</option>}
+                                            </select>
                                         </div>
-                                    </div>
-                                </div>
-
-                                {/* 3. Matriz de Permisos */}
-                                <div className="pt-8 border-t border-slate-100 mt-6">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
-                                        <div>
-                                            <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Matriz de Permisos Global</p>
-                                            <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">Define acceso fino módulo por módulo</p>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Cargo</label>
+                                            <input type="text" value={formData.cargo || ''} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:border-orange-400" placeholder="Ej: Técnico Telecomunicaciones" />
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={toggleAllGlobalPermissions}
-                                            className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-                                        >
-                                            <CheckCircle2 size={14} /> Otorgar / Revocar Todo
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        {[
-                                            {
-                                                category: 'Administración', icon: Settings, color: 'indigo',
-                                                modules: [
-                                                    { id: 'admin_resumen_ejecutivo',    label: 'Resumen Ejecutivo (Dashboard)' },
-                                                    { id: 'admin_proyectos',            label: 'Proyectos & CECOs' },
-                                                    { id: 'admin_conexiones',           label: 'Mercado Financiero' },
-                                                    { id: 'admin_aprobaciones',         label: 'Aprobaciones RRHH' },
-                                                    { id: 'admin_sii',                  label: 'Portal Tributario (SII)' },
-                                                    { id: 'admin_previred',             label: 'Enlace Previred 360' },
-                                                    { id: 'admin_pagos_bancarios',      label: 'Pagos Bancarios (Nómina)' },
-                                                    { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
-                                                    { id: 'admin_aprobaciones_compras', label: 'Aprobaciones de Compra' },
-                                                    { id: 'admin_gestion_portales',     label: 'Gestión de Portales' },
-                                                    { id: 'admin_mis_clientes',         label: 'Mis Clientes' },
-                                                    { id: 'admin_gestion_gastos',       label: 'Gestión Rinde Gastos (Admin)' },
-                                                    { id: 'admin_config_notificaciones', label: 'Configuración Notificaciones' },
-                                                    { id: 'admin_historial',            label: 'Historial Operativo' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Administración 360', icon: Building2, color: 'indigo',
-                                                modules: [
-                                                    { id: 'admin_resumen_ejecutivo', label: 'Dashboard 360' },
-                                                    { id: 'admin_mis_clientes',      label: 'Mis Clientes' },
-                                                    { id: 'admin_proyectos',         label: 'Proyectos' },
-                                                    { id: 'admin_aprobaciones',      label: 'Aprobaciones 360' },
-                                                    { id: 'admin_pagos_bancarios',   label: 'Pagos Bancarios' },
-                                                    { id: 'admin_gestion_gastos',    label: 'Gestión Rinde Gastos' },
-                                                    { id: 'emp360_facturacion',      label: 'Facturación 360' },
-                                                    { id: 'emp360_tesoreria',        label: 'Tesorería 360' },
-                                                    { id: 'emp360_biometria',        label: 'Biometría 360' },
-                                                    { id: 'admin_conexiones',        label: 'Mercado Financiero' },
-                                                    { id: 'admin_gestion_portales',  label: 'Gestión de Portales' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Recursos Humanos', icon: Users, color: 'violet',
-                                                modules: [
-                                                    { id: 'rrhh_captura',          label: 'Captura de Talento' },
-                                                    { id: 'rrhh_documental',       label: 'Gestión Documental' },
-                                                    { id: 'rrhh_contratos_anexos', label: 'Documento Legal' },
-                                                    { id: 'rrhh_vacaciones',       label: 'Vacaciones & Licencias' },
-                                                    { id: 'rrhh_finiquitos',       label: 'Bóveda y Finiquitos' },
-                                                    { id: 'rrhh_asistencia',       label: 'Asistencia y Turnos' },
-                                                    { id: 'rrhh_turnos',           label: 'Programación de Turnos' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Relaciones Laborales', icon: ShieldAlert, color: 'rose',
-                                                modules: [
-                                                    { id: 'rrhh_laborales',      label: 'Historia Laboral' },
-                                                    { id: 'emp360_beneficios',   label: 'Beneficios 360' },
-                                                    { id: 'emp360_lms',          label: 'Capacitación LMS' },
-                                                    { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Remuneraciones', icon: DollarSign, color: 'emerald',
-                                                modules: [
-                                                    { id: 'rrhh_nomina',                label: 'Nómina (Payroll) & Remu Central' },
-                                                    { id: 'admin_modelos_bonificacion', label: 'Modelos de Bonificación' },
-                                                    { id: 'rend_cierre_bonos',          label: 'Cierre de Bonos' },
-                                                    { id: 'admin_tipos_bono',           label: 'Tipos de Bonos' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Prevención HSE', icon: Shield, color: 'rose',
-                                                modules: [
-                                                    { id: 'prev_inspecciones',   label: 'Auditoría Inspecciones' },
-                                                    { id: 'prev_ast',            label: 'Generación AST' },
-                                                    { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
-                                                    { id: 'prev_charlas',        label: 'Difusión & Charlas' },
-                                                    { id: 'prev_acreditacion',   label: 'Acreditación & PPE' },
-                                                    { id: 'prev_accidentes',     label: 'Investigación Accidentes' },
-                                                    { id: 'prev_iper',           label: 'Matriz IPER' },
-                                                    { id: 'prev_auditoria',      label: 'Auditoría HSE' },
-                                                    { id: 'prev_dashboard',      label: 'Dashboard HSE / Supervisores' },
-                                                    { id: 'prev_historial',      label: 'Historial Preventivo' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Flota & GPS', icon: Truck, color: 'sky',
-                                                modules: [
-                                                    { id: 'flota_vehiculos',      label: 'Flota de Vehículos' },
-                                                    { id: 'flota_eficiencia',     label: 'Eficiencia Flota' },
-                                                    { id: 'flota_proveedores',    label: 'Proveedores Leasing' },
-                                                    { id: 'flota_gps',            label: 'GPS SIMPLE' },
-                                                    { id: 'dist_conecta_gps',     label: 'Conecta GPS (Distribución)' },
-                                                    { id: 'dist_mis_conductores', label: 'Mis Conductores' },
-                                                    { id: 'dist_historial_rutas', label: 'Historial de Rutas' },
-                                                    { id: 'dist_rutas_guiadas',   label: 'Rutas Guiadas' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Operaciones', icon: Activity, color: 'blue',
-                                                modules: [
-                                                    { id: 'op_supervision',  label: 'Portal Supervision' },
-                                                    { id: 'op_colaborador',  label: 'Portal Colaborador' },
-                                                    { id: 'op_dotacion',     label: 'Gestión Dotación' },
-                                                    { id: 'op_designaciones',label: 'Designaciones' },
-                                                    { id: 'op_gastos',       label: 'Rinde Gastos 360' },
-                                                    { id: 'op_portales',     label: 'Gestión de Portales (Mantenimiento)' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Verticales de Industria', icon: Activity, color: 'emerald',
-                                                modules: [
-                                                    { id: 'rend_operativo',    label: 'Panel Telecomunicaciones & Apelaciones' },
-                                                    { id: 'op_mapa_calor',     label: 'Mapa de Calor' },
-                                                    { id: 'rend_financiero',   label: 'Producción Financiera' },
-                                                    { id: 'rend_tarifario',    label: 'Tarifario & Baremos' },
-                                                    { id: 'rend_config_lpu',   label: 'Configuración LPU' },
-                                                    { id: 'rend_descarga_toa',  label: 'Descarga TOA' },
-                                                    { id: 'ind_mineria',       label: 'Minería & Recursos' },
-                                                    { id: 'ind_energia',       label: 'Energía & Electricidad' },
-                                                    { id: 'ind_construccion',  label: 'Construcción & Obras' },
-                                                    { id: 'ind_transporte',    label: 'Transporte & Carga' },
-                                                    { id: 'ind_manufactura',   label: 'Manufactura & Procesos' },
-                                                    { id: 'ind_agricola',      label: 'Agrícola & Cultivos' },
-                                                    { id: 'ind_pesquero',      label: 'Pesquero & Acuícola' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Logística 360', icon: Package, color: 'amber',
-                                                modules: [
-                                                    { id: 'logistica_dashboard',     label: 'Dashboard Logístico' },
-                                                    { id: 'logistica_configuracion', label: 'Configuración Maestra' },
-                                                    { id: 'logistica_inventario',    label: 'Existencia General' },
-                                                    { id: 'logistica_compras',       label: 'Círculo de Compras' },
-                                                    { id: 'logistica_proveedores',   label: 'Gestión de Proveedores' },
-                                                    { id: 'logistica_almacenes',     label: 'Bodegas & Furgones' },
-                                                    { id: 'logistica_movimientos',   label: 'Gestión Movimientos' },
-                                                    { id: 'logistica_despachos',     label: 'Seguimiento Despachos' },
-                                                    { id: 'logistica_historial',     label: 'Historial de Movimientos' },
-                                                    { id: 'logistica_auditorias',    label: 'Auditorías Logísticas' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Configuraciones del Sistema', icon: Settings, color: 'orange',
-                                                modules: [
-                                                    { id: 'ai_asistente',  label: 'Asistente IA Cerebro' },
-                                                    { id: 'social_chat',   label: 'Chat 360 (Social)' },
-                                                    { id: 'comunic_video', label: 'Video Llamadas' },
-                                                    { id: 'social_webmail',label: 'Genai Mail (Webmail)' },
-                                                    { id: 'cfg_baremos',   label: 'Baremos Base' },
-                                                    { id: 'cfg_clientes',  label: 'Tarifario Clientes' },
-                                                    { id: 'cfg_empresa',   label: 'Config. Empresa' },
-                                                    { id: 'cfg_personal',  label: 'Gestión de Personal' }
-                                                ]
-                                            },
-                                        ].map((cat, catIdx) => (
-                                            <div key={catIdx} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 shadow-sm">
-                                                <div className="flex items-center gap-3 mb-6">
-                                                    <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
-                                                        <cat.icon size={18} />
-                                                    </div>
-                                                    <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{cat.category}</h3>
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    {cat.modules.map(mod => (
-                                                        <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-orange-200 transition-all shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                                                            <div className="min-w-[180px]">
-                                                                <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">{mod.label}</h4>
-                                                                <p className="text-[8px] text-slate-400 font-bold mt-1 uppercase">Ajustes de Lectura/Escritura</p>
-                                                            </div>
-
-                                                            <div className="flex flex-wrap items-center gap-2">
-                                                                {[
-                                                                    { key: 'ver', label: 'VER', aColor: 'bg-sky-500', hColor: 'hover:bg-sky-50', tColor: 'text-sky-600' },
-                                                                    { key: 'crear', label: 'CREAR', aColor: 'bg-emerald-500', hColor: 'hover:bg-emerald-50', tColor: 'text-emerald-600' },
-                                                                    { key: 'editar', label: 'EDITAR', aColor: 'bg-indigo-500', hColor: 'hover:bg-indigo-50', tColor: 'text-indigo-600' },
-                                                                    { key: 'suspender', label: 'BLOQ', aColor: 'bg-amber-500', hColor: 'hover:bg-amber-50', tColor: 'text-amber-600' },
-                                                                    { key: 'eliminar', label: 'ELIM', aColor: 'bg-red-500', hColor: 'hover:bg-red-50', tColor: 'text-red-600' }
-                                                                ].map(cap => {
-                                                                    const isActive = formData.permisosModulos?.[mod.id]?.[cap.key];
-                                                                    return (
-                                                                        <button
-                                                                            key={cap.key}
-                                                                            type="button"
-                                                                            onClick={() => togglePermission(mod.id, cap.key)}
-                                                                            className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tighter border-2 transition-all 
-                                                                                ${isActive
-                                                                                    ? `${cap.aColor} border-transparent text-white shadow-md transform scale-105`
-                                                                                    : `bg-slate-50 border-slate-100 text-slate-400 ${cap.hColor} hover:${cap.tColor} hover:border-slate-200`}`}
-                                                                        >
-                                                                            {cap.label}
-                                                                        </button>
-                                                                    );
-                                                                })}
-
-                                                                <div className="h-6 w-[1px] bg-slate-200 mx-2 hidden lg:block"></div>
-
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => toggleModulePermissions(mod.id)}
-                                                                    className="px-4 py-2 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-500 hover:bg-slate-800 hover:text-white transition-all ml-auto xl:ml-0 shadow-sm"
-                                                                >
-                                                                    {(() => {
-                                                                        const p = formData.permisosModulos?.[mod.id] || {};
-                                                                        return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
-                                                                    })()}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Estado</label>
+                                            <select
+                                                value={formData.status || 'Activo'}
+                                                onChange={e => setFormData({ ...formData, status: e.target.value })}
+                                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:border-orange-400"
+                                            >
+                                                <option value="Activo">Activo</option>
+                                                <option value="Suspendido">Suspendido</option>
+                                                <option value="Bloqueado">Bloqueado</option>
+                                                <option value="Inactivo">Inactivo</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
                         </div>
 
-                        {/* Pie de Acciones */}
                         <div className="p-6 border-t border-slate-100 bg-white rounded-b-[2.5rem] flex flex-col-reverse md:flex-row items-center justify-end gap-3 shrink-0">
-                            <div className="flex-1 flex gap-2">
-                                {modal === 'edit' && (user?.role === 'ceo_genai' || user?.role === 'ceo') && (
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            if (window.confirm('¿Estás seguro de reiniciar el PIN de este usuario? Podrá volver a entrar usando solo su contraseña.')) {
-                                                try {
-                                                    await resetUserPin(selectedUser._id);
-                                                    setAlert({ type: 'success', message: 'PIN reiniciado con éxito' });
-                                                } catch (e) {
-                                                    setAlert({ type: 'error', message: 'Error al reiniciar PIN' });
-                                                }
-                                            }
-                                        }}
-                                        className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all flex items-center gap-2"
-                                    >
-                                        <Lock size={14} /> Reiniciar PIN
-                                    </button>
-                                )}
-                            </div>
-                            <button type="button" onClick={() => setModal(null)} className="w-full md:w-auto px-6 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 rounded-xl transition-all">Cancelar Opración</button>
-                            <button form="userForm" type="submit" disabled={saving} className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none text-white px-10 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-orange-600/20 transition-all">
-                                {saving ? <><Activity size={16} className="animate-spin" /> Guardando...</> : <><Save size={16} /> Completar Registro</>}
+                            <button type="button" onClick={() => setModal(null)} className="w-full md:w-auto px-6 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 rounded-xl transition-all">Cancelar</button>
+                            <button form="userForm" type="submit" disabled={saving} className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:opacity-50 text-white px-10 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-orange-600/20 transition-all">
+                                {saving ? <><Activity size={16} className="animate-spin" /> Guardando...</> : <><Save size={16} /> Guardar Colaborador</>}
                             </button>
                         </div>
                     </div>

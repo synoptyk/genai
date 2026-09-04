@@ -192,13 +192,13 @@ function calcularBaremos(doc, tarifas) {
         }
     }
 
-    const tipoTrabajo = clean.Tipo_Trabajo || clean.Tipo_de_Trabajo || clean['Tipo_de_Trabajo'] || '';
-    const subtipo     = clean.Subtipo_de_Actividad || clean['Subtipo_de_Actividad'] || '';
-    const reutDrop    = (clean['Reutilización_de_Drop'] || clean['Reutilizacion_de_Drop'] || clean['Reutilización de Drop'] || '').toUpperCase();
-    const conPreco    = (clean['Con_Preco'] || '').toUpperCase();
+    const tipoTrabajo = clean.Tipo_Trabajo || clean.Tipo_de_Trabajo || clean['Tipo_de_Trabajo'] || clean.TIPO_DE_TRABAJO || clean.tipo_trabajo || clean.tipoTrabajo || clean.tipo_de_trabajo || clean.ACTIVIDAD || '';
+    const subtipo     = clean.Subtipo_de_Actividad || clean['Subtipo_de_Actividad'] || clean.SUBTIPO_DE_ACTIVIDAD || clean.subtipo_de_actividad || clean.subtipo || clean.Subtipo || '';
+    const reutDrop    = (clean['Reutilización_de_Drop'] || clean['Reutilizacion_de_Drop'] || clean['Reutilización de Drop'] || clean['REUTILIZA_DROP'] || clean['REUTILIZACION_DROP'] || clean['Reutiliza_Drop'] || clean['Reutiliza_DROP'] || clean['REUTILIZACIÓN_DE_DROP'] || clean['reutilizaDrop'] || clean['REUTILIZA_DROP_SN'] || '').toUpperCase();
+    const conPreco    = (clean['Con_Preco'] || clean['CON_PRECO'] || clean['conPreco'] || '').toUpperCase();
     
     // Normalizar Acometida desde variantes
-    const acometida = (clean.Acometida || clean.ACOMETIDA || clean['Acometida_Exterior'] || clean['Acometida_Interior'] || '').toUpperCase();
+    const acometida = (clean.Acometida || clean.ACOMETIDA || clean['Acometida_Exterior'] || clean['Acometida_Interior'] || clean['ACOMETIDA_EXTERIOR'] || clean['ACOMETIDA_INTERIOR'] || '').toUpperCase();
     clean.Acometida = acometida; // Asegurar que esté disponible para condicion_extra
 
     const eqNuevos = parseInt(clean.CANTIDAD_DE_EQUIPOS_NUEVOS || clean.Cantidad_de_Equipos_Nuevos || 0);
