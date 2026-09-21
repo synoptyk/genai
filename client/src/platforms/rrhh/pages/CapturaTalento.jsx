@@ -665,9 +665,15 @@ const CapturaTalento = () => {
     };
 
     const handleEdit = (c) => {
+        const sanitizedC = {};
+        Object.keys(c || {}).forEach(k => {
+            if (c[k] !== null && c[k] !== undefined) {
+                sanitizedC[k] = c[k];
+            }
+        });
         const mappedData = { 
             ...initialForm, 
-            ...c,
+            ...sanitizedC,
             projectId: c.projectId?._id || c.projectId || '',
             empresaRef: c.empresaRef?._id || c.empresaRef || '',
             clienteId: c.clienteId?._id || c.clienteId || '',
@@ -680,6 +686,7 @@ const CapturaTalento = () => {
             licenceExpiryDate: c.licenceExpiryDate ? c.licenceExpiryDate.split('T')[0] : '',
             nextAddendumDate: (c.nextAddendumDate || c.fechaProximoHito) ? (c.nextAddendumDate || c.fechaProximoHito).split('T')[0] : '',
             fechaFiniquito: c.fechaFiniquito ? c.fechaFiniquito.split('T')[0] : '',
+            contractDurationDays: c.contractDurationDays ?? 30,
         };
         setForm(mappedData);
         setEditId(c._id);
@@ -2087,7 +2094,7 @@ const CapturaTalento = () => {
                                     </label>
                                     <SearchableSelect
                                         options={proyectos.map(p => ({ label: `${p.centroCosto} - ${p.nombreProyecto}`, value: p._id }))}
-                                        value={form.projectId}
+                                        value={form.projectId || ""}
                                         onChange={handleProyectoChange}
                                         placeholder="Busque el proyecto aquí..."
                                         className="w-full"
@@ -2258,7 +2265,7 @@ const CapturaTalento = () => {
                                                 type="number" 
                                                 disabled={form.contractType === 'INDEFINIDO'}
                                                 className={`w-full border-2 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold outline-none transition-all ${form.contractType === 'INDEFINIDO' ? 'bg-slate-100 border-slate-50 text-slate-400' : 'bg-slate-50 border-slate-100 text-slate-600 focus:border-indigo-300'}`} 
-                                                value={form.contractDurationDays} 
+                                                value={form.contractDurationDays ?? ""} 
                                                 onChange={e => setForm({...form, contractDurationDays: e.target.value})} 
                                                 placeholder={form.contractType === 'INDEFINIDO' ? "N/A" : "Ej: 30"} 
                                             />
@@ -2333,7 +2340,7 @@ const CapturaTalento = () => {
                                     label="Nacionalidad"
                                     icon={Globe}
                                     options={LATAM_COUNTRIES}
-                                    value={form.nacionalidad}
+                                    value={form.nacionalidad || ""}
                                     onChange={(val) => setForm({...form, nacionalidad: val})}
                                     placeholder="SELECCIONAR PAÍS..."
                                 />
@@ -2343,7 +2350,7 @@ const CapturaTalento = () => {
                                     label="Género Registrado"
                                     icon={Users}
                                     options={['MASCULINO', 'FEMENINO', 'OTRO', 'NO INFORMADO']}
-                                    value={form.gender?.toUpperCase()}
+                                    value={form.gender ? form.gender.toUpperCase() : ""}
                                     onChange={(val) => setForm({...form, gender: val})}
                                     placeholder="SELECCIONAR..."
                                 />
@@ -2353,7 +2360,7 @@ const CapturaTalento = () => {
                                     label="Estado Civil"
                                     icon={Heart}
                                     options={['SOLTERO/A', 'CASADO/A', 'DIVORCIADO/A', 'VIUDO/A', 'UNIÓN CIVIL']}
-                                    value={form.estadoCivil?.toUpperCase()}
+                                    value={form.estadoCivil ? form.estadoCivil.toUpperCase() : ""}
                                     onChange={(val) => setForm({...form, estadoCivil: val})}
                                     placeholder="SELECCIONAR..."
                                 />
@@ -2363,7 +2370,7 @@ const CapturaTalento = () => {
                                     label="Lugar de Nacimiento"
                                     icon={MapPin}
                                     options={CHILE_REGIONS}
-                                    value={form.birthPlace}
+                                    value={form.birthPlace || ""}
                                     onChange={(val) => setForm({...form, birthPlace: val})}
                                     placeholder="SELECCIONAR REGIÓN..."
                                 />
@@ -2521,11 +2528,11 @@ const CapturaTalento = () => {
                             </div>
                              <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><DollarSign size={14} className="text-emerald-500"/> Sueldo Base Legislado</label>
-                                <input type="number" className="w-full bg-emerald-50/10 border-2 border-emerald-100 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all font-mono" value={form.sueldoBase || ""} onChange={e => setForm({...form, sueldoBase: e.target.value})} placeholder="0" />
+                                <input type="number" className="w-full bg-emerald-50/10 border-2 border-emerald-100 rounded-2xl px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all font-mono" value={form.sueldoBase ?? ""} onChange={e => setForm({...form, sueldoBase: e.target.value})} placeholder="0" />
                             </div>
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Bonos Extra Permanente</label>
-                                <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.cantidadBonosExtraPermanentes || ""} onChange={e => setForm({...form, cantidadBonosExtraPermanentes: e.target.value})} />
+                                <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.cantidadBonosExtraPermanentes ?? ""} onChange={e => setForm({...form, cantidadBonosExtraPermanentes: e.target.value})} />
                             </div>
 
                             <div className="md:col-span-2 pt-10 border-t border-slate-100">
@@ -2552,7 +2559,7 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Cant. Cargas</label>
-                                        <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.cantidadCargasLimitadas || ""} onChange={e => setForm({...form, cantidadCargasLimitadas: e.target.value})} />
+                                        <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl hover:bg-white hover:border-indigo-300 px-4 py-3 md:px-5 md:py-3.5 text-xs md:text-sm font-bold text-slate-600 outline-none" value={form.cantidadCargasLimitadas ?? ""} onChange={e => setForm({...form, cantidadCargasLimitadas: e.target.value})} />
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Pensionado</label>

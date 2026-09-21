@@ -1357,16 +1357,29 @@ router.get('/produccion/apelaciones', protect, async (req, res) => {
       return `${formattedCuerpo}-${dv}`;
     };
 
-    // Buscar actividades que tengan objeto "apelacion" y pertenezcan a la empresa
+    const Proyecto = require('../../rrhh/models/Proyecto');
+    const { scopeFilter, empresaId } = await getCompanyScope(req.user);
+
+    // Buscar actividades que tengan objeto "apelacion" y pertenezcan al scope estricto de la empresa
     const query = {
-      empresaRef: req.user.empresaRef,
-      'apelacion.status': { $exists: true }
+      $and: [
+        scopeFilter,
+        { 'apelacion.status': { $exists: true } }
+      ]
     };
 
-    const actividades = await Actividad.find(query).sort({ 'apelacion.fechaSolicitud': -1 }).lean();
+    const [actividades, proys] = await Promise.all([
+      Actividad.find(query).sort({ 'apelacion.fechaSolicitud': -1 }).lean(),
+      Proyecto.find({}).lean()
+    ]);
+
+    const proysMap = new Map();
+    proys.forEach(p => {
+      proysMap.set(String(p._id), p.nombre || p.nombreProyecto || p.name || 'General');
+    });
 
     // Obtener todos los RUTs únicos para buscar los técnicos
-    const ruts = [...new Set(actividades.map(a => a.apelacion?.rut).filter(Boolean))];
+    const ruts = [...new Set(actividades.map(a => a.apelacion?.rut || a.rut).filter(Boolean))];
     const cleanedRuts = ruts.map(r => cleanRut(r));
     const formattedRuts = ruts.map(r => formatRut(r));
     const allSearchRuts = [...new Set([...ruts, ...cleanedRuts, ...formattedRuts])];
@@ -1408,14 +1421,10 @@ router.get('/produccion/apelaciones', protect, async (req, res) => {
       }
     });
 
-    // Mapear el nombre del técnico, TOA ID, rut formateado y retornar las actividades
-    const result = actividades.map(a => {
+    // Mapear el nombre del técnico, TOA ID, rut formateado, proyecto, drop reuse y retornar las actividades
+    let result = actividades.map(a => {
       const appealRut = cleanRut(a.apelacion?.rut || a.rut);
       
-      // Buscar información en orden de prioridad: 
-      // 1. PlatformUser (Página de perfil)
-      // 2. Candidato (Captura de Talento)
-      // 3. Tecnico (Registro de técnicos)
       const userProfile = usersMap[appealRut] || null;
       const candidateProfile = candidatosMap[appealRut] || null;
       const tecnicoProfile = tecnicosMap[appealRut] || null;
@@ -1438,22 +1447,46 @@ router.get('/produccion/apelaciones', protect, async (req, res) => {
         officialToaId = tecnicoProfile.idRecursoToa;
       } else if (candidateProfile && candidateProfile.idRecursoToa) {
         officialToaId = candidateProfile.idRecursoToa;
-      } else if (a.idRecursoToa || a.RECURSO || a.idRecurso) {
-        officialToaId = a.idRecursoToa || a.RECURSO || a.idRecurso;
+      } else if (a.idRecursoToa || a.RECURSO || a.idRecurso || a.ID_Recurso || a['ID Recurso']) {
+        officialToaId = a.idRecursoToa || a.RECURSO || a.idRecurso || a.ID_Recurso || a['ID Recurso'];
       }
+
+      // Determinar Proyecto
+      const proyIdStr = String(candidateProfile?.projectId?._id || candidateProfile?.projectId || tecnicoProfile?.projectId?._id || tecnicoProfile?.projectId || '');
+      const officialProyecto = proysMap.get(proyIdStr) || candidateProfile?.projectName || tecnicoProfile?.proyecto || 'General';
+
+      // Reutilización de Drop
+      const rawDrop = a['Reutilización de Drop'] || a['Reutilizacion_de_Drop'] || a.reutilizaDrop || a.REUTILIZA_DROP || '';
+      const reutilizaDrop = String(rawDrop).trim().toUpperCase() === 'SI' || String(rawDrop).trim().toUpperCase() === 'SÍ';
+
+      // Número de orden
+      const numeroOrden = a['Numero orden'] || a['Número orden'] || a.ordenId || a.peticion || 'S/N';
 
       // Estandarizar RUT con guion medio
       const finalRut = formatRut(a.apelacion?.rut || a.rut);
 
       return {
         ...a,
+        numeroOrden,
+        reutilizaDrop,
+        reutilizaDropRaw: rawDrop,
         tecnicoNombre: officialName,
         tecnicoEmail: userProfile?.email || candidateProfile?.email || tecnicoProfile?.email || '',
         tecnicoAvatar: userProfile?.avatar || '',
         tecnicoRutFormateado: finalRut,
-        tecnicoToaId: officialToaId
+        tecnicoToaId: officialToaId,
+        tecnicoProyecto: officialProyecto
       };
     });
+
+    // Filtro por proyectos si viene en req.query
+    const { proyectos } = req.query;
+    if (proyectos) {
+      const proyFilterList = Array.isArray(proyectos) ? proyectos : String(proyectos).split(',').map(s => s.trim()).filter(Boolean);
+      if (proyFilterList.length > 0) {
+        result = result.filter(item => proyFilterList.includes(item.tecnicoProyecto));
+      }
+    }
 
     res.json(result);
   } catch (err) {
@@ -1639,7 +1672,7 @@ router.post('/produccion/apelacion/:actividadId/resolver', protect, async (req, 
   }
 });
 
-// Helper para aislamiento de empresa por contratista / maestro
+// Helper para aislamiento estricto de empresa por contratista / admin maestro
 async function getCompanyScope(user) {
   const Tecnico = require('../models/Tecnico');
   const Candidato = require('../../rrhh/models/Candidato');
@@ -1647,7 +1680,7 @@ async function getCompanyScope(user) {
   const empresaId = user?.empresaRef || user?.empresa?._id;
   
   if (user?.role === 'system_admin' && !empresaId) {
-    return { scopeFilter: {}, empresaId: null, techIds: [], ruts: [] };
+    return { scopeFilter: {}, empresaId: null, techIds: [], ruts: [], isSystemAdmin: true };
   }
 
   const [tecs, cands] = await Promise.all([
@@ -1658,39 +1691,65 @@ async function getCompanyScope(user) {
   const idRecursos = new Set();
   const ruts = new Set();
 
+  const addId = (raw) => {
+    if (!raw) return;
+    const s = String(raw).trim();
+    if (!s) return;
+    idRecursos.add(s);
+    idRecursos.add(s.replace(/^0+/, ''));
+    const n = parseInt(s);
+    if (!isNaN(n)) idRecursos.add(String(n));
+  };
+
+  const addRut = (raw) => {
+    if (!raw) return;
+    const clean = String(raw).replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean) ruts.add(clean);
+  };
+
   tecs.forEach(t => {
-    if (t.idRecursoToa) idRecursos.add(String(t.idRecursoToa).trim());
-    if (t.rut) ruts.add(String(t.rut).replace(/[^0-9kK]/g, '').toUpperCase());
+    addId(t.idRecursoToa);
+    addId(t.idRecurso);
+    addRut(t.rut);
   });
 
   cands.forEach(c => {
-    if (c.idRecursoToa) idRecursos.add(String(c.idRecursoToa).trim());
-    if (c.rut) ruts.add(String(c.rut).replace(/[^0-9kK]/g, '').toUpperCase());
+    addId(c.idRecursoToa);
+    addId(c.idRecurso);
+    addRut(c.rut);
   });
 
+  const ids = Array.from(idRecursos);
+  const rutList = Array.from(ruts);
+
   const orConditions = [];
-  if (empresaId) {
-    orConditions.push({ empresaRef: empresaId });
-  }
-
-  if (idRecursos.size > 0) {
-    const ids = Array.from(idRecursos);
+  if (ids.length > 0) {
     orConditions.push({ idRecursoToa: { $in: ids } });
+    orConditions.push({ ID_Recurso: { $in: ids } });
+    orConditions.push({ 'ID Recurso': { $in: ids } });
     orConditions.push({ ID_RECURSO: { $in: ids } });
+    orConditions.push({ RECURSO: { $in: ids } });
+    orConditions.push({ 'Auto-asignado a recurso (id)': { $in: ids } });
     orConditions.push({ 'recurso.id': { $in: ids } });
+    orConditions.push({ idRecurso: { $in: ids } });
+    orConditions.push({ IDRECURSOTOA: { $in: ids } });
   }
 
-  if (ruts.size > 0) {
-    const rutList = Array.from(ruts);
+  if (rutList.length > 0) {
     orConditions.push({ rut: { $in: rutList } });
+    orConditions.push({ RUT: { $in: rutList } });
+    orConditions.push({ tecnicoRut: { $in: rutList } });
     orConditions.push({ 'apelacion.rut': { $in: rutList } });
   }
 
   return {
-    scopeFilter: orConditions.length > 0 ? { $or: orConditions } : {},
+    scopeFilter: orConditions.length > 0 ? { $or: orConditions } : { idRecursoToa: '__NO_LINKED_TECH__' },
     empresaId,
-    techIds: Array.from(idRecursos),
-    ruts: Array.from(ruts)
+    techIds: ids,
+    ruts: rutList,
+    isSystemAdmin: false,
+    tecnicosList: tecs,
+    candidatosList: cands
   };
 }
 
@@ -1802,7 +1861,11 @@ router.post('/produccion/apelaciones/aprobar-todas', protect, async (req, res) =
 router.get('/produccion/actividades-mes', protect, async (req, res) => {
   try {
     const Actividad = require('../models/Actividad');
-    const { mes, page = 1, limit = 50, search = '', filterEstado = 'TODOS', tecnicoRut = '' } = req.query;
+    const Proyecto = require('../../rrhh/models/Proyecto');
+    const Tecnico = require('../models/Tecnico');
+    const Candidato = require('../../rrhh/models/Candidato');
+
+    const { mes, page = 1, limit = 50, search = '', filterEstado = 'TODOS', tecnicoRut = '', tecnicoToa = '', tecnicoNombre = '', proyectos = '' } = req.query;
 
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(200, Math.max(10, parseInt(limit) || 50));
@@ -1821,11 +1884,93 @@ router.get('/produccion/actividades-mes', protect, async (req, res) => {
     const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
     const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
 
-    const { scopeFilter } = await getCompanyScope(req.user);
+    const { scopeFilter, empresaId, isSystemAdmin, tecnicosList = [], candidatosList = [] } = await getCompanyScope(req.user);
+
+    const { obtenerTarifasEmpresa, calcularBaremos } = require('../utils/calculoEngine');
+    const [proys, tarifasLPU] = await Promise.all([
+      Proyecto.find({}).lean(),
+      obtenerTarifasEmpresa(empresaId)
+    ]);
+
+    const proysMap = new Map();
+    proys.forEach(p => {
+      proysMap.set(String(p._id), p.nombre || p.nombreProyecto || p.name || 'General');
+    });
+
+    // Mapeo de técnicos y candidatos por TOA y RUT para enriquecer actividades
+    const techMetaByRut = new Map();
+    const techMetaByToa = new Map();
+
+    const registerMeta = (t, isCand = false) => {
+      const r = String(t.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+      const toa = String(t.idRecursoToa || t.idRecurso || '').trim();
+      const name = isCand ? t.fullName : (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim());
+      const proyIdStr = String(t.projectId?._id || t.projectId || '');
+      const proyName = proysMap.get(proyIdStr) || t.projectName || t.proyecto || 'General';
+
+      const meta = {
+        nombre: name || 'Técnico',
+        rut: r,
+        idRecursoToa: toa || 'SIN',
+        proyecto: proyName
+      };
+
+      if (r) techMetaByRut.set(r, meta);
+      if (toa) {
+        techMetaByToa.set(toa, meta);
+        techMetaByToa.set(toa.replace(/^0+/, ''), meta);
+      }
+    };
+
+    tecnicosList.forEach(t => registerMeta(t, false));
+    candidatosList.forEach(c => registerMeta(c, true));
+
+    // Filtro estricto por Proyectos
+    const proyFilterList = proyectos ? (Array.isArray(proyectos) ? proyectos : String(proyectos).split(',').map(s => s.trim()).filter(Boolean)) : [];
+    let projectScopeFilter = null;
+    if (proyFilterList.length > 0) {
+      const allowedIds = new Set();
+      const allowedRuts = new Set();
+
+      const checkAndAdd = (t) => {
+        const proyIdStr = String(t.projectId?._id || t.projectId || '');
+        const pName = proysMap.get(proyIdStr) || t.projectName || t.proyecto || 'General';
+        if (proyFilterList.includes(pName)) {
+          const r = String(t.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+          const toa = String(t.idRecursoToa || t.idRecurso || '').trim();
+          if (r) allowedRuts.add(r);
+          if (toa) {
+            allowedIds.add(toa);
+            allowedIds.add(toa.replace(/^0+/, ''));
+          }
+        }
+      };
+
+      tecnicosList.forEach(checkAndAdd);
+      candidatosList.forEach(checkAndAdd);
+
+      const proyOrs = [];
+      if (allowedIds.size > 0) {
+        const idArr = Array.from(allowedIds);
+        proyOrs.push({ idRecursoToa: { $in: idArr } });
+        proyOrs.push({ ID_Recurso: { $in: idArr } });
+        proyOrs.push({ 'ID Recurso': { $in: idArr } });
+        proyOrs.push({ RECURSO: { $in: idArr } });
+      }
+      if (allowedRuts.size > 0) {
+        const rArr = Array.from(allowedRuts);
+        proyOrs.push({ rut: { $in: rArr } });
+        proyOrs.push({ RUT: { $in: rArr } });
+        proyOrs.push({ 'apelacion.rut': { $in: rArr } });
+      }
+
+      projectScopeFilter = proyOrs.length > 0 ? { $or: proyOrs } : { idRecursoToa: '__NO_PROYECTO_TECH__' };
+    }
 
     const query = {
       $and: [
         scopeFilter,
+        ...(projectScopeFilter ? [projectScopeFilter] : []),
         { fecha: { $gte: startDate, $lt: endDate } }
       ]
     };
@@ -1840,17 +1985,50 @@ router.get('/produccion/actividades-mes', protect, async (req, res) => {
       });
     }
 
-    if (tecnicoRut && String(tecnicoRut).trim()) {
-      const cleanR = String(tecnicoRut).replace(/[^0-9kK]/g, '');
-      query.$and.push({
-        $or: [
-          { rut: cleanR },
-          { RUT: cleanR },
-          { rut: tecnicoRut },
-          { RUT: tecnicoRut },
-          { 'apelacion.rut': cleanR }
-        ]
-      });
+    // Filtro hiper-robusto por Técnico (TOA, RUT o Nombre) para "VER OTS"
+    const techConditions = [];
+    const toaClean = String(tecnicoToa || '').trim();
+    if (toaClean) {
+      const toaNoZeros = toaClean.replace(/^0+/, '');
+      const toaNum = parseInt(toaClean);
+      const possibleToas = [toaClean, toaNoZeros, !isNaN(toaNum) ? String(toaNum) : null, !isNaN(toaNum) ? toaNum : null].filter(Boolean);
+      
+      techConditions.push({ idRecursoToa: { $in: possibleToas } });
+      techConditions.push({ ID_Recurso: { $in: possibleToas } });
+      techConditions.push({ 'ID Recurso': { $in: possibleToas } });
+      techConditions.push({ ID_RECURSO: { $in: possibleToas } });
+      techConditions.push({ RECURSO: { $in: possibleToas } });
+      techConditions.push({ 'Auto-asignado a recurso (id)': { $in: possibleToas } });
+      techConditions.push({ idRecurso: { $in: possibleToas } });
+    }
+
+    const cleanR = String(tecnicoRut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+    if (cleanR) {
+      techConditions.push({ rut: cleanR });
+      techConditions.push({ RUT: cleanR });
+      techConditions.push({ tecnicoRut: cleanR });
+      techConditions.push({ 'apelacion.rut': cleanR });
+      if (tecnicoRut && tecnicoRut !== cleanR) {
+        techConditions.push({ rut: tecnicoRut });
+        techConditions.push({ RUT: tecnicoRut });
+      }
+    }
+
+    const cleanName = String(tecnicoNombre || '').trim();
+    if (cleanName && cleanName.length > 2) {
+      const nameParts = cleanName.split(' ').filter(p => p.length > 2);
+      if (nameParts.length > 0) {
+        const firstWord = nameParts[0];
+        const lastWord = nameParts[nameParts.length - 1];
+        const regexName = new RegExp(`${firstWord}.*${lastWord}`, 'i');
+        techConditions.push({ NOMBRE: regexName });
+        techConditions.push({ Nombre: regexName });
+        techConditions.push({ 'Técnico': regexName });
+      }
+    }
+
+    if (techConditions.length > 0) {
+      query.$and.push({ $or: techConditions });
     }
 
     if (search && String(search).trim()) {
@@ -1874,32 +2052,98 @@ router.get('/produccion/actividades-mes', protect, async (req, res) => {
       });
     }
 
-    const [totalDocs, actividades, totalPuntosAgg] = await Promise.all([
+    const [totalDocs, rawActividades] = await Promise.all([
       Actividad.countDocuments(query),
       Actividad.find(query)
         .sort({ fecha: -1, _id: -1 })
         .skip(skip)
         .limit(limitNum)
-        .lean(),
-      Actividad.aggregate([
-        { $match: query },
-        {
-          $group: {
-            _id: null,
-            totalPuntos: {
-              $sum: {
-                $ifNull: [
-                  '$PTS_TOTAL_BAREMO',
-                  { $ifNull: ['$ptsTotalBaremo', { $ifNull: ['$Pts_Total_Baremo', 0] }] }
-                ]
-              }
-            }
-          }
-        }
-      ])
+        .lean()
     ]);
 
-    const totalPuntos = totalPuntosAgg[0]?.totalPuntos || 0;
+    // Enriquecer actividades con cálculo dinámico de baremos conectado a TarifaLPU, datos de técnico ejecutor, TOA, reutilización de drop y proyecto
+    let pageTotalPuntos = 0;
+    const actividades = rawActividades.map(act => {
+      // Sanitización completa de keys para calcularBaremos
+      const clean = {};
+      for (let k in act) {
+        if (typeof act[k] === 'function') continue;
+        const val = act[k];
+        const kUpper = k.toUpperCase().replace(/[\s-]/g, '_');
+        clean[kUpper] = val;
+        const kNoAccents = kUpper.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (kNoAccents !== kUpper) clean[kNoAccents] = val;
+        const kAlphaNum = kUpper.replace(/[^A-Z0-9]/g, '');
+        if (kAlphaNum) clean[kAlphaNum] = val;
+        const kNormal = k.replace(/[\.\s]/g, '_');
+        if (!clean[kNormal]) clean[kNormal] = val;
+      }
+
+      // Motor de baremos conectado a la configuración activa de LPU
+      const baremo = calcularBaremos(clean, tarifasLPU) || {};
+
+      const rawDrop = act['Reutilización de Drop'] || act['Reutilizacion_de_Drop'] || act.reutilizaDrop || act.REUTILIZA_DROP || clean.REUTILIZACION_DE_DROP || clean.REUTILIZA_DROP || '';
+      const reutilizaDrop = String(rawDrop).trim().toUpperCase() === 'SI' || String(rawDrop).trim().toUpperCase() === 'SÍ';
+      const numeroPeticion = clean.NUMERO_DE_PETICION || clean.NUMERO_PETICION || act['Número de Petición'] || act['Numero de Peticion'] || act['Número_de_Petición'] || clean.PETICION || clean.APPT_NUMBER || '';
+      const numeroOrden = numeroPeticion || act['Numero orden'] || act['Número orden'] || act.ordenId || act.peticion || 'S/N';
+      const actRut = String(act.rut || act.RUT || act.tecnicoRut || act.apelacion?.rut || clean.RUT || '').replace(/[^0-9kK]/g, '').toUpperCase();
+      const actToa = String(act.idRecursoToa || act.ID_Recurso || act['ID Recurso'] || act.RECURSO || act['Auto-asignado a recurso (id)'] || clean.ID_RECURSO || clean.RECURSO || '').trim();
+
+      const meta = techMetaByRut.get(actRut) || techMetaByToa.get(actToa) || techMetaByToa.get(actToa.replace(/^0+/, '')) || {};
+      const officialName = meta.nombre || act.NOMBRE || act.Nombre || act.tecnicoNombre || act['Técnico'] || 'Sin Técnico';
+      const officialToa = meta.idRecursoToa || actToa || 'SIN';
+      const officialRut = meta.rut || actRut;
+      const officialProy = meta.proyecto || 'General';
+
+      // Estado de la orden
+      const estadoOrden = String(clean.ESTADO || clean.Estado || act.Estado || act.estado || 'Completado').trim();
+      const tipoTrabajo = String(clean.TIPO_DE_TRABAJO || clean.Tipo_de_Trabajo || act['Tipo de Trabajo'] || act.Tipo_Trabajo || clean.ACTIVIDAD || 'Op. Técnica').trim();
+
+      // Puntos baremo: apelación aprobada tiene prioridad; si no, motor dinámico LPU
+      let ptsBaremo = 0;
+      if (act.apelacion?.status === 'aprobada' && (act.apelacion.puntosTotal || act.apelacion.puntosBase)) {
+        ptsBaremo = parseFloat(act.apelacion.puntosTotal || act.apelacion.puntosBase || 0);
+      } else {
+        ptsBaremo = parseFloat(baremo.Pts_Total_Baremo || act.PTS_TOTAL_BAREMO || act.ptsTotalBaremo || 0);
+      }
+
+      const ptsBase = act.apelacion?.puntosBase ? parseFloat(act.apelacion.puntosBase) : parseFloat(baremo.Pts_Actividad_Base || act.Pts_Actividad_Base || act.PTS_ACTIVIDAD_BASE || 0);
+      const codigoLpu = act.apelacion?.codigoLpu || baremo.Codigo_LPU_Base || clean.CODIGO_LPU_BASE || clean.SUBTIPO_DE_ACTIVIDAD || '';
+      const descLpu = clean.DESC_LPU || clean['Desc LPU'] || baremo.Desc_LPU_Base || clean.SUBTIPO_DE_ACTIVIDAD || '';
+
+      const decosAdicionales = parseInt(act.apelacion?.equipos?.decos ?? (baremo.Decos_Adicionales || clean.DECOS_ADICIONALES || 0));
+      const repetidoresWifi = parseInt(act.apelacion?.equipos?.repetidores ?? (baremo.Repetidores_WiFi || clean.REPETIDORES_WIFI || 0));
+      const telefonos = parseInt(act.apelacion?.equipos?.telefonos ?? (baremo.Telefonos || clean.TELEFONOS || 0));
+
+      pageTotalPuntos += ptsBaremo;
+
+      return {
+        ...act,
+        numeroOrden,
+        numeroPeticion,
+        estado: estadoOrden,
+        tipoTrabajo,
+        reutilizaDrop,
+        reutilizaDropRaw: rawDrop,
+        idRecursoToa: officialToa,
+        tecnicoNombre: officialName,
+        tecnicoRut: officialRut,
+        tecnicoProyecto: officialProy,
+        PTS_TOTAL_BAREMO: ptsBaremo,
+        ptsTotalBaremo: ptsBaremo,
+        Pts_Actividad_Base: ptsBase,
+        PTS_ACTIVIDAD_BASE: ptsBase,
+        CODIGO_LPU_BASE: codigoLpu,
+        Desc_LPU_Base: descLpu,
+        descLpu,
+        Decos_Adicionales: decosAdicionales,
+        DECOS_ADICIONALES: decosAdicionales,
+        Repetidores_WiFi: repetidoresWifi,
+        REPETIDORES_WIFI: repetidoresWifi,
+        Telefonos: telefonos,
+        TELEFONOS: telefonos
+      };
+    });
 
     res.json({
       success: true,
@@ -1913,7 +2157,7 @@ router.get('/produccion/actividades-mes', protect, async (req, res) => {
       },
       stats: {
         totalActividades: totalDocs,
-        totalPuntos: Math.round(totalPuntos * 10) / 10
+        totalPuntos: Math.round(pageTotalPuntos * 10) / 10
       }
     });
   } catch (err) {
@@ -1928,34 +2172,43 @@ router.get('/produccion/resumen-mes-tramos', protect, async (req, res) => {
     const Actividad = require('../models/Actividad');
     const Tecnico = require('../models/Tecnico');
     const Candidato = require('../../rrhh/models/Candidato');
+    const Proyecto = require('../../rrhh/models/Proyecto');
     const ModeloBonificacion = require('../../admin/models/ModeloBonificacion');
     const BonoConfig = require('../../admin/models/BonoConfig');
 
-    const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '');
+    const cleanRut = (r) => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase();
     const formatRut = (rut) => {
       if (!rut) return '';
-      let clean = String(rut).replace(/[^0-9kK]/g, '');
+      let clean = String(rut).replace(/[^0-9kK]/g, '').toUpperCase();
       if (clean.length < 2) return clean;
       let cuerpo = clean.slice(0, -1);
-      let dv = clean.slice(-1).toUpperCase();
+      let dv = clean.slice(-1);
       let formattedCuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
       return `${formattedCuerpo}-${dv}`;
     };
 
-    const { mes = '2026-08' } = req.query;
+    const { mes = '2026-08', proyectos = '' } = req.query;
     const year = parseInt(mes.substring(0, 4)) || 2026;
     const month = parseInt(mes.substring(5, 7)) || 8;
 
     const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
     const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
 
-    const { scopeFilter, empresaId } = await getCompanyScope(req.user);
+    const { scopeFilter, empresaId, isSystemAdmin, tecnicosList = [], candidatosList = [] } = await getCompanyScope(req.user);
 
-    // 1. Obtener modelo de bonificación activo para tramos y puntos no calculables
-    const [modeloBono, bonoConfigDoc] = await Promise.all([
+    // 1. Obtener modelo de bonificación activo para tramos, puntos no calculables y catálogo LPU
+    const { obtenerTarifasEmpresa, calcularBaremos } = require('../utils/calculoEngine');
+    const [modeloBono, bonoConfigDoc, proys, tarifasLPU] = await Promise.all([
       ModeloBonificacion.findOne({ empresaRef: empresaId, activo: true }).lean(),
-      BonoConfig.findOne({ empresaRef: empresaId, activo: true }).lean()
+      BonoConfig.findOne({ empresaRef: empresaId, activo: true }).lean(),
+      Proyecto.find({}).lean(),
+      obtenerTarifasEmpresa(empresaId)
     ]);
+
+    const proysMap = new Map();
+    proys.forEach(p => {
+      proysMap.set(String(p._id), p.nombre || p.nombreProyecto || p.name || 'General');
+    });
 
     const activeModel = modeloBono || bonoConfigDoc || {};
     const tramosBaremos = activeModel.tramosBaremos || [
@@ -1967,84 +2220,220 @@ router.get('/produccion/resumen-mes-tramos', protect, async (req, res) => {
     ];
     const puntosNoCalculables = Number(activeModel.puntosExcluidos ?? activeModel.puntosNoCalculables ?? 95);
 
-    // 2. Obtener técnicos y candidatos de la empresa
-    const [tecnicosList, candidatosList] = await Promise.all([
-      Tecnico.find({ empresaRef: empresaId }).lean(),
-      Candidato.find({ empresaRef: empresaId }).lean()
-    ]);
+    // 2. Filtro por Proyectos
+    const proyFilterList = proyectos ? (Array.isArray(proyectos) ? proyectos : String(proyectos).split(',').map(s => s.trim()).filter(Boolean)) : [];
 
-    // Mapear por RUT y ID Recurso TOA
-    const techMap = new Map();
+    // Mapear técnicos y candidatos con unificación robusta (idéntica a server.js / produccion-stats)
+    const techMap = {};
+    const idToKey = {};
+    const rutToKey = {};
+    const nameToMapKey = {};
 
-    const registerTech = (t, isCand = false) => {
-      const r = cleanRut(t.rut);
-      const toa = String(t.idRecursoToa || t.idRecurso || '').trim();
-      const name = isCand ? t.fullName : (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim());
-      const key = r || toa || name;
-      if (!key) return;
+    const normalizeName = (n) => String(n || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
 
-      if (!techMap.has(key)) {
-        techMap.set(key, {
+    const addToTechMap = (t, source) => {
+      const rClean = cleanRut(t.rut);
+      const rawToa = String(t.idRecursoToa || '').trim();
+      const rawRec = String(t.idRecurso || '').trim();
+
+      const keysToa = [rawToa.toLowerCase(), rawToa.toLowerCase().replace(/^0+/, ''), rawToa].filter(Boolean);
+      const keysRec = [rawRec.toLowerCase(), rawRec.toLowerCase().replace(/^0+/, ''), rawRec].filter(Boolean);
+
+      let name = source === 'candidato' ? (t.fullName || 'Sin Nombre') : (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim() || 'Sin Nombre');
+
+      const nameVariations = [];
+      const norm = normalizeName(name);
+      if (norm) {
+        nameVariations.push(norm);
+        const parts = norm.split(' ').filter(Boolean);
+        if (parts.length >= 2) nameVariations.push(`${parts[0]} ${parts[1]}`);
+        if (parts.length >= 3) nameVariations.push(`${parts[0]} ${parts[2]}`);
+      }
+
+      let key = '';
+      for (const k of [...keysToa, ...keysRec]) {
+        if (k && idToKey[k]) { key = idToKey[k]; break; }
+      }
+      if (!key && rClean && rutToKey[rClean]) key = rutToKey[rClean];
+      if (!key) {
+        for (const nv of nameVariations) {
+          if (nv && nameToMapKey[nv]) { key = nameToMapKey[nv]; break; }
+        }
+      }
+
+      const proyIdStr = String(t.projectId?._id || t.projectId || '');
+      const proyName = proysMap.get(proyIdStr) || t.projectName || t.proyecto || 'General';
+
+      if (proyFilterList.length > 0 && !proyFilterList.includes(proyName)) {
+        return;
+      }
+
+      if (!key) {
+        const cleanIdToUse = keysToa[1] || keysRec[1];
+        const lowIdToUse = keysToa[0] || keysRec[0];
+        key = cleanIdToUse || lowIdToUse || (rClean ? `rut_${rClean}` : `id_${Math.random()}`);
+
+        techMap[key] = {
           id: t._id,
           nombre: name || 'Técnico',
-          rut: r,
+          rut: rClean,
           rutFormateado: formatRut(t.rut),
-          idRecursoToa: toa || 'SIN',
+          idRecursoToa: rawToa || rawRec || 'SIN',
           cargo: t.cargo || t.position || 'Técnico Telecomunicaciones',
-          diasMap: new Set(),
-          totalOTs: 0,
-          totalPuntos: 0,
-          apelaciones: { pendientes: 0, aprobadas: 0, rechazadas: 0 }
-        });
-      }
-    };
-
-    tecnicosList.forEach(t => registerTech(t, false));
-    candidatosList.forEach(c => registerTech(c, true));
-
-    // 3. Obtener todas las actividades del mes para la empresa
-    const actividades = await Actividad.find({
-      $and: [
-        scopeFilter,
-        { fecha: { $gte: startDate, $lt: endDate } }
-      ]
-    }).lean();
-
-    actividades.forEach(act => {
-      const actRut = cleanRut(act.rut || act.RUT || act.apelacion?.rut);
-      const actToa = String(act.idRecursoToa || act.ID_Recurso || act.RECURSO || '').trim();
-      const actName = act.NOMBRE || act.Nombre || act.tecnicoNombre || '';
-
-      // Encontrar técnico correspondiente
-      let techEntry = null;
-      if (actRut && techMap.has(actRut)) techEntry = techMap.get(actRut);
-      else if (actToa && techMap.has(actToa)) techEntry = techMap.get(actToa);
-      else if (actName && techMap.has(actName)) techEntry = techMap.get(actName);
-
-      if (!techEntry) {
-        const fallbackKey = actRut || actToa || actName || 'Desconocido';
-        techEntry = {
-          id: act._id,
-          nombre: actName || 'Técnico',
-          rut: actRut,
-          rutFormateado: formatRut(actRut),
-          idRecursoToa: actToa || 'SIN',
-          cargo: 'Técnico Telecomunicaciones',
+          proyecto: proyName,
           diasMap: new Set(),
           totalOTs: 0,
           totalPuntos: 0,
           apelaciones: { pendientes: 0, aprobadas: 0, rechazadas: 0 }
         };
-        techMap.set(fallbackKey, techEntry);
+
+        if (rClean) rutToKey[rClean] = key;
+        [...keysToa, ...keysRec].forEach(k => {
+          idToKey[k] = key;
+          const num = parseInt(k);
+          if (!isNaN(num)) idToKey[num] = key;
+        });
+        nameVariations.forEach(nv => { if (nv) nameToMapKey[nv] = key; });
+      } else {
+        const ex = techMap[key];
+        if (name && name !== 'Sin Nombre' && (!ex.nombre || ex.nombre === 'Sin Nombre')) ex.nombre = name;
+        if (t.rut && !ex.rut) { ex.rut = rClean; ex.rutFormateado = formatRut(t.rut); rutToKey[rClean] = key; }
+        if (rawToa && (!ex.idRecursoToa || ex.idRecursoToa === 'SIN')) ex.idRecursoToa = rawToa;
+        if (rawRec && (!ex.idRecursoToa || ex.idRecursoToa === 'SIN')) ex.idRecursoToa = rawRec;
+        [...keysToa, ...keysRec].forEach(k => {
+          if (k) {
+            idToKey[k] = key;
+            const num = parseInt(k);
+            if (!isNaN(num)) idToKey[num] = key;
+          }
+        });
+        nameVariations.forEach(nv => { if (nv && !nameToMapKey[nv]) nameToMapKey[nv] = key; });
+      }
+    };
+
+    candidatosList.forEach(c => addToTechMap(c, 'candidato'));
+    tecnicosList.forEach(t => addToTechMap(t, 'tecnico'));
+
+    // 3. Obtener todas las actividades del mes para la empresa con filtro unificado
+    const restrictedIDs = new Set();
+    const registerRestricted = (t) => {
+      const id1 = String(t.idRecursoToa || '').trim();
+      const id2 = String(t.idRecurso || t.rut || '').trim();
+      [id1, id2].forEach(rawId => {
+        if (!rawId) return;
+        restrictedIDs.add(rawId);
+        restrictedIDs.add(rawId.replace(/^0+/, ''));
+        const n = parseInt(rawId);
+        if (!isNaN(n)) restrictedIDs.add(n);
+      });
+    };
+    tecnicosList.forEach(registerRestricted);
+    candidatosList.forEach(registerRestricted);
+    const restrictedIDsArray = Array.from(restrictedIDs);
+
+    const queryAct = {
+      fecha: { $gte: startDate, $lt: endDate }
+    };
+
+    if (!isSystemAdmin || empresaId) {
+      if (restrictedIDsArray.length > 0) {
+        queryAct.$or = [
+          { "RECURSO": { $in: restrictedIDsArray } },
+          { "ID Recurso": { $in: restrictedIDsArray } },
+          { "ID_Recurso": { $in: restrictedIDsArray } },
+          { "ID_RECURSO": { $in: restrictedIDsArray } },
+          { idRecurso: { $in: restrictedIDsArray } },
+          { "Recurso": { $in: restrictedIDsArray } },
+          { idRecursoToa: { $in: restrictedIDsArray } },
+          { IDRECURSOTOA: { $in: restrictedIDsArray } }
+        ];
+      } else if (scopeFilter && Object.keys(scopeFilter).length > 0) {
+        queryAct.$and = [scopeFilter];
+      }
+    }
+
+    const actividades = await Actividad.find(queryAct).lean();
+
+    // Priorizar "Completado" sobre suspendidas/iniciadas y luego más recientes (idéntico a Panel Telecomunicaciones)
+    const statePriority = (state) => {
+      const s = String(state || '').toLowerCase();
+      if (s.includes('complet') || s.includes('finaliz')) return 1;
+      if (s.includes('inici') || s.includes('pendient')) return 2;
+      return 3;
+    };
+    actividades.sort((a, b) => {
+      const pA = statePriority(a.Estado || a.estado || a.ESTADO);
+      const pB = statePriority(b.Estado || b.estado || b.ESTADO);
+      if (pA !== pB) return pA - pB;
+      const dA = a.fecha ? new Date(a.fecha).getTime() : 0;
+      const dB = b.fecha ? new Date(b.fecha).getTime() : 0;
+      return dB - dA;
+    });
+
+    const seenOrdersResumen = new Set();
+
+    actividades.forEach(act => {
+      // Sanitización completa de keys para calcularBaremos idéntica a produccion-stats
+      const clean = {};
+      for (let k in act) {
+        if (typeof act[k] === 'function') continue;
+        const val = act[k];
+        const kUpper = k.toUpperCase().replace(/[\s-]/g, '_');
+        clean[kUpper] = val;
+        const kNoAccents = kUpper.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (kNoAccents !== kUpper) clean[kNoAccents] = val;
+        const kAlphaNum = kUpper.replace(/[^A-Z0-9]/g, '');
+        if (kAlphaNum) clean[kAlphaNum] = val;
+        const kNormal = k.replace(/[\.\s]/g, '_');
+        if (!clean[kNormal]) clean[kNormal] = val;
       }
 
-      techEntry.totalOTs++;
-      const pts = parseFloat(act.PTS_TOTAL_BAREMO ?? act.ptsTotalBaremo ?? act.Pts_Total_Baremo ?? 0);
-      techEntry.totalPuntos += pts;
+      // Prevenir duplicados (idéntico a Panel Telecomunicaciones)
+      const pet = String(clean.NUMERO_DE_PETICION || clean.NUMERO_PETICION || clean.APPT_NUMBER || clean.PETICION || clean.PETICION_ID || clean.ORDEN_ID || act.ordenId || '').trim();
+      const fallbackId = String(clean.ORDENID || act._id || '').trim();
+      const uniqueKey = pet && pet.length > 2 ? pet : fallbackId;
+      if (uniqueKey && seenOrdersResumen.has(uniqueKey)) return;
+      if (uniqueKey) seenOrdersResumen.add(uniqueKey);
 
-      if (act.fecha) {
-        const dStr = new Date(act.fecha).toISOString().substring(0, 10);
-        techEntry.diasMap.add(dStr);
+      let idRecursoRaw = clean.ID_RECURSO || clean.IDRECURSOTOA || clean.ID_RECURSO_TOA || clean.RECURSO || clean.AUTO_ASIGNADO_A_RECURSO_ID || act.idRecursoToa || act.ID_Recurso || act['ID Recurso'] || '';
+      if (!idRecursoRaw && clean.TECNICO && /^\d+$/.test(String(clean.TECNICO).trim())) idRecursoRaw = clean.TECNICO;
+      const idRecurso = String(idRecursoRaw || '').trim().replace(/^0+/, '');
+      const idLow = idRecurso.toLowerCase();
+      const idClean = idLow.replace(/^0+/, '');
+
+      let techKey = techMap[idRecurso] ? idRecurso : (idToKey[idLow] || idToKey[idClean] || idToKey[idRecurso] || '');
+      if (!techKey) {
+        let techNombreRaw = clean.TECNICO_NOMBRE || clean.NOMBRE_TECNICO || (!/^\d+$/.test(String(clean.TECNICO || '').trim()) ? clean.TECNICO : '');
+        if (techNombreRaw) {
+          const nClean = String(techNombreRaw).trim().toUpperCase();
+          if (nameToMapKey[nClean]) techKey = nameToMapKey[nClean];
+        }
+      }
+
+      if (!techKey || !techMap[techKey]) return;
+      const techEntry = techMap[techKey];
+
+      const cleanEstado = String(clean.ESTADO || clean.Estado || act.Estado || act.estado || '').toLowerCase().trim();
+      const isCompleted = cleanEstado.includes('complet') || cleanEstado.includes('finaliz') || act.apelacion?.status === 'aprobada';
+
+      // En Telecomunicaciones y Baremos: las órdenes completadas constituyen la producción calculable que se paga
+      if (isCompleted) {
+        techEntry.totalOTs++;
+
+        if (act.fecha) {
+          const dStr = new Date(act.fecha).toISOString().substring(0, 10);
+          techEntry.diasMap.add(dStr);
+        }
+
+        let pts = 0;
+        if (act.apelacion?.status === 'aprobada' && (act.apelacion.puntosTotal || act.apelacion.puntosBase)) {
+          pts = parseFloat(act.apelacion.puntosTotal || act.apelacion.puntosBase || 0);
+        } else {
+          const baremo = calcularBaremos(clean, tarifasLPU);
+          pts = parseFloat(baremo?.Pts_Total_Baremo || 0);
+        }
+
+        techEntry.totalPuntos += pts;
       }
 
       if (act.apelacion?.status === 'por_validar') techEntry.apelaciones.pendientes++;
@@ -2053,9 +2442,9 @@ router.get('/produccion/resumen-mes-tramos', protect, async (req, res) => {
     });
 
     // 4. Calcular tramos y bonos para cada técnico
-    const resumenTecnicos = Array.from(techMap.values())
+    const resumenTecnicos = Object.values(techMap)
       .map(t => {
-        const totalPuntosRounded = Math.round(t.totalPuntos * 10) / 10;
+        const totalPuntosRounded = Number.isFinite(t.totalPuntos) ? Math.round(t.totalPuntos * 10) / 10 : 0;
         const puntosCalculables = Math.max(0, Math.round((totalPuntosRounded - puntosNoCalculables) * 10) / 10);
         
         let valorTramo = 0;
@@ -2081,6 +2470,7 @@ router.get('/produccion/resumen-mes-tramos', protect, async (req, res) => {
           rutFormateado: t.rutFormateado,
           idRecursoToa: t.idRecursoToa,
           cargo: t.cargo,
+          proyecto: t.proyecto,
           diasTrabajados: t.diasMap.size,
           totalOTs: t.totalOTs,
           totalPuntos: totalPuntosRounded,
@@ -2098,10 +2488,10 @@ router.get('/produccion/resumen-mes-tramos', protect, async (req, res) => {
 
     const kpisGlobales = {
       totalTecnicos: resumenTecnicos.length,
-      totalOTs: resumenTecnicos.reduce((acc, t) => acc + t.totalOTs, 0),
-      totalPuntos: Math.round(resumenTecnicos.reduce((acc, t) => acc + t.totalPuntos, 0) * 10) / 10,
-      totalCalculables: Math.round(resumenTecnicos.reduce((acc, t) => acc + t.puntosCalculables, 0) * 10) / 10,
-      totalBonoProduccion: resumenTecnicos.reduce((acc, t) => acc + t.bonoBaremo, 0)
+      totalOTs: resumenTecnicos.reduce((acc, t) => acc + (Number(t.totalOTs) || 0), 0),
+      totalPuntos: Math.round(resumenTecnicos.reduce((acc, t) => acc + (Number(t.totalPuntos) || 0), 0) * 10) / 10 || 0,
+      totalCalculables: Math.round(resumenTecnicos.reduce((acc, t) => acc + (Number(t.puntosCalculables) || 0), 0) * 10) / 10 || 0,
+      totalBonoProduccion: resumenTecnicos.reduce((acc, t) => acc + (Number(t.bonoBaremo) || 0), 0) || 0
     };
 
     res.json({

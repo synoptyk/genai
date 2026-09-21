@@ -6,16 +6,17 @@ import {
   Tv, Wifi, ChevronRight, AlertCircle, RefreshCw, Phone, 
   Award, Upload, Image as ImageIcon, CheckCheck, ListOrdered, 
   Sliders, Edit3, ChevronLeft, Layers, FileText, Database, ShieldCheck,
-  TrendingUp, DollarSign, Target, UserCheck, ChevronDown
+  TrendingUp, DollarSign, Target, UserCheck, ChevronDown, Check
 } from 'lucide-react';
 import telecomApi from './telecomApi';
+import { proyectosApi } from '../rrhh/rrhhApi';
 
 const formatRut = (rut) => {
   if (!rut) return '';
-  let clean = String(rut).replace(/[^0-9kK]/g, '');
+  let clean = String(rut).replace(/[^0-9kK]/g, '').toUpperCase();
   if (clean.length < 2) return clean;
   let cuerpo = clean.slice(0, -1);
-  let dv = clean.slice(-1).toUpperCase();
+  let dv = clean.slice(-1);
   let formattedCuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${formattedCuerpo}-${dv}`;
 };
@@ -43,6 +44,11 @@ export default function ApelacionesPanel() {
 
   // --- Sub-view Mode in Bitácora: 'tramos' | 'actividades' ---
   const [bitacoraSubView, setBitacoraSubView] = useState('tramos'); // 'tramos' (Tabla Producción y Tramos) | 'actividades' (Detalle OTs)
+
+  // --- Filtro de Proyectos (Global e Idéntico a Panel Telecomunicaciones) ---
+  const [availableProyectos, setAvailableProyectos] = useState([]);
+  const [selectedProyectos, setSelectedProyectos] = useState([]);
+  const [showProjectFilter, setShowProjectFilter] = useState(false);
 
   // --- Tab 1: Apelaciones State ---
   const [appeals, setAppeals] = useState([]);
@@ -101,11 +107,35 @@ export default function ApelacionesPanel() {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  // Fetch appeals from backend (Scoped by company)
+  // Fetch projects available in database
+  useEffect(() => {
+    proyectosApi.getAll()
+      .then(res => {
+        const list = res.data || [];
+        const projs = list.map(p => p.nombreProyecto || p.projectName || p.nombre || p.name || '').filter(Boolean);
+        if (projs.length > 0) {
+          setAvailableProyectos(prev => Array.from(new Set([...prev, ...projs])));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Enrich available projects from returned technicians
+  useEffect(() => {
+    if (resumenTramos.tecnicos?.length > 0) {
+      const fromTechs = resumenTramos.tecnicos.map(t => t.proyecto).filter(p => p && p !== 'General' && p !== 'S/N');
+      if (fromTechs.length > 0) {
+        setAvailableProyectos(prev => Array.from(new Set([...prev, ...fromTechs])));
+      }
+    }
+  }, [resumenTramos.tecnicos]);
+
+  // Fetch appeals from backend (Scoped strictly by company)
   const fetchAppeals = async () => {
     setLoading(true);
     try {
-      const res = await telecomApi.get('/tecnicos/produccion/apelaciones');
+      const proyParam = selectedProyectos.length > 0 ? `?proyectos=${encodeURIComponent(selectedProyectos.join(','))}` : '';
+      const res = await telecomApi.get(`/tecnicos/produccion/apelaciones${proyParam}`);
       setAppeals(res.data || []);
     } catch (err) {
       console.error('Error fetching appeals:', err);
@@ -120,13 +150,21 @@ export default function ApelacionesPanel() {
     setLoadingTramos(true);
     try {
       const monthStr = `${selectedYear}-${MESES_NAMES[selectedMonthIndex].key}`;
-      const res = await telecomApi.get(`/tecnicos/produccion/resumen-mes-tramos?mes=${monthStr}`);
+      const proyParam = selectedProyectos.length > 0 ? `&proyectos=${encodeURIComponent(selectedProyectos.join(','))}` : '';
+      const res = await telecomApi.get(`/tecnicos/produccion/resumen-mes-tramos?mes=${monthStr}${proyParam}`);
       if (res.data && res.data.success) {
+        const rawKpis = res.data.kpisGlobales || {};
         setResumenTramos({
-          tecnicos: res.data.tecnicos || [],
-          tramosConfig: res.data.tramosConfig || [],
-          puntosNoCalculables: res.data.puntosNoCalculables || 95,
-          kpisGlobales: res.data.kpisGlobales || { totalTecnicos: 0, totalOTs: 0, totalPuntos: 0, totalCalculables: 0, totalBonoProduccion: 0 }
+          tecnicos: Array.isArray(res.data.tecnicos) ? res.data.tecnicos : [],
+          tramosConfig: Array.isArray(res.data.tramosConfig) ? res.data.tramosConfig : [],
+          puntosNoCalculables: Number(res.data.puntosNoCalculables) || 95,
+          kpisGlobales: {
+            totalTecnicos: Number(rawKpis.totalTecnicos) || 0,
+            totalOTs: Number(rawKpis.totalOTs) || 0,
+            totalPuntos: Number(rawKpis.totalPuntos) || 0,
+            totalCalculables: Number(rawKpis.totalCalculables) || 0,
+            totalBonoProduccion: Number(rawKpis.totalBonoProduccion) || 0
+          }
         });
       }
     } catch (err) {
@@ -146,9 +184,18 @@ export default function ApelacionesPanel() {
         page: String(page),
         limit: String(bitacoraPagination.limit || 50),
         search: bitacoraSearch,
-        filterEstado: bitacoraFilterEstado,
-        tecnicoRut: selectedTecnicoFiltro?.rut || ''
+        filterEstado: bitacoraFilterEstado
       });
+      if (selectedTecnicoFiltro) {
+        if (selectedTecnicoFiltro.rut) params.append('tecnicoRut', selectedTecnicoFiltro.rut);
+        if (selectedTecnicoFiltro.idRecursoToa && selectedTecnicoFiltro.idRecursoToa !== 'SIN') {
+          params.append('tecnicoToa', selectedTecnicoFiltro.idRecursoToa);
+        }
+        if (selectedTecnicoFiltro.nombre) params.append('tecnicoNombre', selectedTecnicoFiltro.nombre);
+      }
+      if (selectedProyectos.length > 0) {
+        params.append('proyectos', selectedProyectos.join(','));
+      }
       const res = await telecomApi.get(`/tecnicos/produccion/actividades-mes?${params.toString()}`);
       if (res.data && res.data.success) {
         setBitacoraData(res.data.data || []);
@@ -187,13 +234,15 @@ export default function ApelacionesPanel() {
     };
   }, []);
 
-  // Re-fetch bitácora and tramos when month, year or view mode changes
+  // Re-fetch when month, year, view mode, or selected project filters change
   useEffect(() => {
     if (viewMode === 'bitacora') {
       fetchResumenTramos();
       fetchBitacora(1);
+    } else {
+      fetchAppeals();
     }
-  }, [viewMode, selectedMonthIndex, selectedYear, bitacoraFilterEstado, selectedTecnicoFiltro]);
+  }, [viewMode, selectedMonthIndex, selectedYear, bitacoraFilterEstado, selectedTecnicoFiltro, selectedProyectos]);
 
   // Debounced search for bitácora
   useEffect(() => {
@@ -346,23 +395,127 @@ export default function ApelacionesPanel() {
     rejected: appeals.filter(a => a.apelacion?.status === 'rechazada').length,
   };
 
+  // Close project filter dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (showProjectFilter && !e.target.closest('.project-filter-dropdown-container')) {
+        setShowProjectFilter(false);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [showProjectFilter]);
+
   // Filter appeals
   const filteredAppeals = appeals.filter(a => {
     if (activeTab !== 'todas' && a.apelacion?.status !== activeTab) return false;
+    if (selectedProyectos.length > 0 && a.tecnicoProyecto && !selectedProyectos.includes(a.tecnicoProyecto)) return false;
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
-    const ot = String(a.peticion || a.ordenId || '').toLowerCase();
+    const ot = String(a.numeroOrden || a.peticion || a.ordenId || '').toLowerCase();
     const tech = String(a.tecnicoNombre || a.NOMBRE || '').toLowerCase();
     const act = String(a.actividadVisible || a.actividad || '').toLowerCase();
-    return ot.includes(term) || tech.includes(term) || act.includes(term);
+    const toa = String(a.tecnicoToaId || a.idRecursoToa || '').toLowerCase();
+    const rut = String(a.tecnicoRut || a.rut || '').toLowerCase();
+    const proy = String(a.tecnicoProyecto || '').toLowerCase();
+    return ot.includes(term) || tech.includes(term) || act.includes(term) || toa.includes(term) || rut.includes(term) || proy.includes(term);
   });
 
   // Filter Tramos Technicians
   const filteredTecnicosTramos = resumenTramos.tecnicos.filter(t => {
+    if (selectedProyectos.length > 0 && t.proyecto && !selectedProyectos.includes(t.proyecto)) return false;
     if (!searchTecnicoTramo) return true;
     const s = searchTecnicoTramo.toLowerCase();
-    return (t.nombre || '').toLowerCase().includes(s) || (t.rut || '').includes(s) || (t.idRecursoToa || '').toLowerCase().includes(s);
+    return (
+      (t.nombre || '').toLowerCase().includes(s) ||
+      (t.rut || '').includes(s) ||
+      (t.idRecursoToa || '').toLowerCase().includes(s) ||
+      (t.proyecto || '').toLowerCase().includes(s)
+    );
   });
+
+  // Reusable Project Filter Dropdown
+  const renderProjectFilterDropdown = () => (
+    <div className="relative project-filter-dropdown-container">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowProjectFilter(prev => !prev);
+        }}
+        className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-xl text-xs font-bold text-slate-700 shadow-sm transition-all duration-150 cursor-pointer"
+        title="Filtrar por proyecto"
+      >
+        <Filter className="w-3.5 h-3.5 text-sky-600" />
+        <span>
+          {selectedProyectos.length === 0
+            ? 'Lista de Proyectos'
+            : `${selectedProyectos.length} Proyecto(s)`}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showProjectFilter ? 'rotate-180' : ''}`} />
+      </button>
+
+      {showProjectFilter && (
+        <div 
+          className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[240px] max-h-72 overflow-y-auto p-2.5 animate-scale-up"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-2 py-1.5 mb-1.5 border-b border-slate-100">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Proyectos</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedProyectos(availableProyectos)}
+                className="text-[10px] font-black text-sky-600 hover:text-sky-700 uppercase tracking-wider cursor-pointer"
+              >
+                Todos
+              </button>
+              <span className="text-slate-300">•</span>
+              <button
+                type="button"
+                onClick={() => setSelectedProyectos([])}
+                className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-wider cursor-pointer"
+              >
+                Limpiar
+              </button>
+            </div>
+          </div>
+
+          {availableProyectos.length === 0 ? (
+            <div className="px-3 py-4 text-center text-xs text-slate-400 font-medium">
+              No hay proyectos disponibles
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {availableProyectos.map(p => {
+                const isSelected = selectedProyectos.includes(p);
+                return (
+                  <label
+                    key={p}
+                    className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl cursor-pointer text-xs font-semibold transition-colors ${
+                      isSelected ? 'bg-sky-50 text-sky-900' : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {
+                        setSelectedProyectos(prev =>
+                          prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+                        );
+                      }}
+                      className="w-4 h-4 rounded text-sky-600 accent-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
+                    />
+                    <span className="truncate" title={p}>{p}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in p-1 max-w-[1680px] mx-auto text-slate-800">
@@ -407,6 +560,8 @@ export default function ApelacionesPanel() {
 
         {/* View Mode Switcher + Action Buttons */}
         <div className="flex flex-wrap items-center gap-3">
+          {renderProjectFilterDropdown()}
+
           <div className="flex items-center p-1 bg-slate-100 border border-slate-200 rounded-xl shadow-inner">
             <button
               onClick={() => setViewMode('apelaciones')}
@@ -599,8 +754,9 @@ export default function ApelacionesPanel() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Técnico</th>
-                      <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Actividad / Orden ID</th>
+                      <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Técnico Ejecutor</th>
+                      <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">N° Orden / Actividad</th>
+                      <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Reutiliza Drop</th>
                       <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Equipos Solicitados</th>
                       <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Justificación Técnico</th>
                       <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Estado / Fecha</th>
@@ -608,104 +764,141 @@ export default function ApelacionesPanel() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {filteredAppeals.map((item) => (
-                      <tr key={item._id} className="hover:bg-slate-50/50 transition-all duration-150 group">
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="relative flex-shrink-0 w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-600 text-xs overflow-hidden">
-                              {item.tecnicoAvatar ? (
-                                <img src={item.tecnicoAvatar} alt={item.tecnicoNombre} className="w-full h-full object-cover" />
-                              ) : (
-                                String(item.tecnicoNombre || 'T').substring(0, 2).toUpperCase()
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-xs font-black text-slate-900 group-hover:text-sky-600 transition-colors duration-150">{item.tecnicoNombre}</div>
-                              <div className="flex flex-col text-[10px] text-slate-500 mt-0.5 gap-0.5">
-                                <span>RUT: {formatRut(item.tecnicoRutFormateado || item.apelacion?.rut || item.rut)}</span>
-                                <span className="text-[9px] text-sky-600 font-black tracking-wider uppercase">TOA ID: {item.tecnicoToaId || item.idRecursoToa || 'SIN'}</span>
+                    {filteredAppeals.map((item) => {
+                      const otNumber = item.numeroOrden || item.peticion || item.ordenId || 'S/N';
+                      const officialToa = item.tecnicoToaId || item.idRecursoToa || 'SIN';
+                      const officialRut = item.tecnicoRutFormateado || item.apelacion?.rut || item.rut || item.tecnicoRut;
+                      const officialProy = item.tecnicoProyecto || '';
+
+                      return (
+                        <tr key={item._id} className="hover:bg-slate-50/50 transition-all duration-150 group">
+                          {/* Técnico Ejecutor según ID TOA */}
+                          <td className="px-5 py-4 min-w-[200px]">
+                            <div className="flex items-center gap-3">
+                              <div className="relative flex-shrink-0 w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-600 text-xs overflow-hidden">
+                                {item.tecnicoAvatar ? (
+                                  <img src={item.tecnicoAvatar} alt={item.tecnicoNombre} className="w-full h-full object-cover" />
+                                ) : (
+                                  String(item.tecnicoNombre || 'T').substring(0, 2).toUpperCase()
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-xs font-black text-slate-900 group-hover:text-sky-600 transition-colors duration-150">
+                                  {item.tecnicoNombre}
+                                </div>
+                                <div className="flex flex-col text-[10px] text-slate-500 mt-0.5 gap-0.5">
+                                  {officialRut && <span>RUT: {formatRut(officialRut)}</span>}
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span className="px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-black rounded tracking-wider uppercase">
+                                      TOA: {officialToa}
+                                    </span>
+                                    {officialProy && (
+                                      <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 border border-slate-200 text-[8px] font-bold rounded truncate max-w-[130px]" title={officialProy}>
+                                        {officialProy}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <Hash className="w-3.5 h-3.5 text-slate-400" />
-                              <span className="text-xs font-black text-slate-900">{item.peticion || item.ordenId || 'S/N'}</span>
+                          {/* N° Orden / Actividad */}
+                          <td className="px-5 py-4">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-black text-slate-900 flex items-center gap-1">
+                                  <Hash className="w-3.5 h-3.5 text-indigo-500" />
+                                  OT: {otNumber}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-550 mt-1 font-bold leading-tight">
+                                <span className="text-slate-450">Orig:</span> {item.actividadVisible || item.actividad || 'Op. Técnica'} <span className="font-mono text-slate-650 bg-slate-100 px-1 py-0.2 rounded font-black">({item.Pts_Actividad_Base || item.PTS_ACTIVIDAD_BASE || 0} pts)</span>
+                                {item.apelacion?.codigoLpu && (
+                                  <div className="mt-1.5 flex flex-col gap-0.5">
+                                    <span className="text-[9px] text-amber-700 font-extrabold flex items-center gap-1">
+                                      ➔ Apela: [{item.apelacion.codigoLpu}] <span className="font-mono bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-md font-black">({item.apelacion.puntosBase || 0} pts)</span>
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-[10px] text-slate-550 mt-1 font-bold leading-tight">
-                              <span className="text-slate-450">Orig:</span> {item.actividadVisible || item.actividad || 'Op. Técnica'} <span className="font-mono text-slate-650 bg-slate-100 px-1 py-0.2 rounded font-black">({item.Pts_Actividad_Base || item.PTS_ACTIVIDAD_BASE || 0} pts)</span>
-                              {item.apelacion?.codigoLpu && (
-                                <div className="mt-1.5 flex flex-col gap-0.5">
-                                  <span className="text-[9px] text-amber-700 font-extrabold flex items-center gap-1">
-                                    ➔ Apela: [{item.apelacion.codigoLpu}] <span className="font-mono bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-md font-black">({item.apelacion.puntosBase || 0} pts)</span>
-                                  </span>
+                          </td>
+
+                          {/* Reutiliza Drop */}
+                          <td className="px-5 py-4 text-center">
+                            {item.reutilizaDrop ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm whitespace-nowrap">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> SÍ (Reutiliza)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">
+                                <XCircle className="w-3.5 h-3.5 text-slate-400" /> NO (Sin Reutilizar)
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Equipos Solicitados */}
+                          <td className="px-5 py-4">
+                            <div className="flex flex-wrap gap-1.5 max-w-[200px]">
+                              {parseInt(item.apelacion?.equipos?.decos || 0) > 0 && (
+                                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-150 text-indigo-650 text-[10px] font-black">
+                                  <Tv className="w-3.5 h-3.5 text-indigo-500" />
+                                  {item.apelacion.equipos.decos} Decos
                                 </div>
                               )}
+                              {parseInt(item.apelacion?.equipos?.repetidores || 0) > 0 && (
+                                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-150 text-teal-605 text-[10px] font-black">
+                                  <Wifi className="w-3.5 h-3.5 text-teal-500" />
+                                  {item.apelacion.equipos.repetidores} WiFi
+                                </div>
+                              )}
+                              {parseInt(item.apelacion?.equipos?.telefonos || 0) > 0 && (
+                                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-150 text-emerald-600 text-[10px] font-black">
+                                  <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                                  {item.apelacion.equipos.telefonos} Telf.
+                                </div>
+                              )}
+                              {!item.apelacion?.equipos?.decos && !item.apelacion?.equipos?.repetidores && !item.apelacion?.equipos?.telefonos && (
+                                <span className="text-[10px] text-slate-400 font-bold">Sólo revisión de puntos</span>
+                              )}
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <div className="flex flex-wrap gap-1.5 max-w-[200px]">
-                            {parseInt(item.apelacion?.equipos?.decos || 0) > 0 && (
-                              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-150 text-indigo-650 text-[10px] font-black">
-                                <Tv className="w-3.5 h-3.5 text-indigo-500" />
-                                {item.apelacion.equipos.decos} Decos
-                              </div>
-                            )}
-                            {parseInt(item.apelacion?.equipos?.repetidores || 0) > 0 && (
-                              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-150 text-teal-605 text-[10px] font-black">
-                                <Wifi className="w-3.5 h-3.5 text-teal-500" />
-                                {item.apelacion.equipos.repetidores} WiFi
-                              </div>
-                            )}
-                            {parseInt(item.apelacion?.equipos?.telefonos || 0) > 0 && (
-                              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-150 text-emerald-600 text-[10px] font-black">
-                                <Phone className="w-3.5 h-3.5 text-emerald-500" />
-                                {item.apelacion.equipos.telefonos} Telf.
-                              </div>
-                            )}
-                            {!item.apelacion?.equipos?.decos && !item.apelacion?.equipos?.repetidores && !item.apelacion?.equipos?.telefonos && (
-                              <span className="text-[10px] text-slate-400 font-bold">Sólo revisión de puntos</span>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4 max-w-xs">
-                          <div className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed font-medium">
-                            "{item.apelacion?.observacion || 'Sin observaciones ingresadas.'}"
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div>
-                            {item.apelacion?.status === 'por_validar' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-wider shadow-sm">
-                                <Clock className="w-2.5 h-2.5" /> Pendiente
-                              </span>
-                            )}
-                            {item.apelacion?.status === 'aprobada' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase tracking-wider shadow-sm">
-                                <CheckCircle2 className="w-2.5 h-2.5" /> Aprobada
-                              </span>
-                            )}
-                            {item.apelacion?.status === 'rechazada' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider shadow-sm">
-                                <XCircle className="w-2.5 h-2.5" /> Rechazada
-                              </span>
-                            )}
-                            
-                            <div className="flex items-center gap-1 text-[9px] text-slate-500 mt-1.5 font-bold">
-                              <Calendar className="w-3 h-3 text-slate-400" />
-                              {item.apelacion?.fechaSolicitud 
-                                ? new Date(item.apelacion.fechaSolicitud).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                                : new Date(item.fecha || item.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
+                          {/* Justificación */}
+                          <td className="px-5 py-4 max-w-xs">
+                            <div className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed font-medium">
+                              "{item.apelacion?.observacion || 'Sin observaciones ingresadas.'}"
                             </div>
-                          </div>
-                        </td>
+                          </td>
+
+                          {/* Estado / Fecha */}
+                          <td className="px-5 py-4">
+                            <div>
+                              {item.apelacion?.status === 'por_validar' && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-wider shadow-sm">
+                                  <Clock className="w-2.5 h-2.5" /> Pendiente
+                                </span>
+                              )}
+                              {item.apelacion?.status === 'aprobada' && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase tracking-wider shadow-sm">
+                                  <CheckCircle2 className="w-2.5 h-2.5" /> Aprobada
+                                </span>
+                              )}
+                              {item.apelacion?.status === 'rechazada' && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider shadow-sm">
+                                  <XCircle className="w-2.5 h-2.5" /> Rechazada
+                                </span>
+                              )}
+                              
+                              <div className="flex items-center gap-1 text-[9px] text-slate-500 mt-1.5 font-bold">
+                                <Calendar className="w-3 h-3 text-slate-400" />
+                                {item.apelacion?.fechaSolicitud 
+                                  ? new Date(item.apelacion.fechaSolicitud).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                                  : new Date(item.fecha || item.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
+                              </div>
+                            </div>
+                          </td>
 
                         <td className="px-5 py-4 text-center">
                           <button 
@@ -727,7 +920,8 @@ export default function ApelacionesPanel() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               )}
@@ -752,16 +946,19 @@ export default function ApelacionesPanel() {
                   Bitácora y Cálculo de Baremos: {MESES_NAMES[selectedMonthIndex].name} {selectedYear}
                 </h3>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500">Año:</span>
-                <select 
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none"
-                >
-                  <option value={2026}>2026</option>
-                  <option value={2025}>2025</option>
-                </select>
+              <div className="flex items-center gap-3">
+                {renderProjectFilterDropdown()}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500">Año:</span>
+                  <select 
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none"
+                  >
+                    <option value={2026}>2026</option>
+                    <option value={2025}>2025</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -797,7 +994,7 @@ export default function ApelacionesPanel() {
                 <Users className="w-4 h-4 text-indigo-600" />
               </div>
               <div className="text-2xl font-black text-slate-900 mt-2">
-                {resumenTramos.kpisGlobales.totalTecnicos}
+                {Number(resumenTramos.kpisGlobales?.totalTecnicos || 0)}
               </div>
               <div className="text-[10px] text-slate-500 mt-1 font-semibold">
                 Con producción registrada
@@ -810,7 +1007,7 @@ export default function ApelacionesPanel() {
                 <Layers className="w-4 h-4 text-sky-600" />
               </div>
               <div className="text-2xl font-black text-slate-900 mt-2">
-                {resumenTramos.kpisGlobales.totalOTs.toLocaleString('es-CL')}
+                {Number(resumenTramos.kpisGlobales?.totalOTs || 0).toLocaleString('es-CL')}
               </div>
               <div className="text-[10px] text-slate-500 mt-1 font-semibold">
                 Órdenes técnicas completadas
@@ -823,7 +1020,7 @@ export default function ApelacionesPanel() {
                 <Award className="w-4 h-4 text-indigo-600" />
               </div>
               <div className="text-2xl font-black text-slate-900 mt-2">
-                {resumenTramos.kpisGlobales.totalPuntos.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                {Number(resumenTramos.kpisGlobales?.totalPuntos || 0).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </div>
               <div className="text-[10px] text-slate-500 mt-1 font-semibold">
                 Producción global generada
@@ -836,10 +1033,10 @@ export default function ApelacionesPanel() {
                 <Target className="w-4 h-4 text-amber-600" />
               </div>
               <div className="text-2xl font-black text-amber-600 mt-2">
-                {resumenTramos.kpisGlobales.totalCalculables.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                {Number(resumenTramos.kpisGlobales?.totalCalculables || 0).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </div>
               <div className="text-[10px] text-slate-500 mt-1 font-semibold">
-                Descontando {resumenTramos.puntosNoCalculables} pts base
+                Descontando {resumenTramos.puntosNoCalculables ?? 95} pts base
               </div>
             </div>
 
@@ -849,7 +1046,7 @@ export default function ApelacionesPanel() {
                 <DollarSign className="w-4 h-4 text-emerald-600" />
               </div>
               <div className="text-2xl font-black text-emerald-600 mt-2">
-                ${resumenTramos.kpisGlobales.totalBonoProduccion.toLocaleString('es-CL')}
+                ${Number(resumenTramos.kpisGlobales?.totalBonoProduccion || 0).toLocaleString('es-CL')}
               </div>
               <div className="text-[10px] text-slate-500 mt-1 font-semibold">
                 Total estimado a pagar
@@ -890,7 +1087,7 @@ export default function ApelacionesPanel() {
 
             {selectedTecnicoFiltro && (
               <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700">
-                <span>Filtrando técnico: <strong>{selectedTecnicoFiltro.nombre}</strong></span>
+                <span>Filtrando técnico: <strong>{selectedTecnicoFiltro.nombre}</strong> {selectedTecnicoFiltro.idRecursoToa && selectedTecnicoFiltro.idRecursoToa !== 'SIN' ? `(TOA: ${selectedTecnicoFiltro.idRecursoToa})` : ''}</span>
                 <button
                   onClick={() => setSelectedTecnicoFiltro(null)}
                   className="w-5 h-5 rounded-full bg-indigo-200 hover:bg-indigo-300 text-indigo-800 flex items-center justify-center font-black text-[10px]"
@@ -943,6 +1140,7 @@ export default function ApelacionesPanel() {
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Técnico / RUT</th>
+                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Proyecto</th>
                         <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Días Trab.</th>
                         <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Total OTs</th>
                         <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Pts Totales</th>
@@ -967,6 +1165,13 @@ export default function ApelacionesPanel() {
                             </div>
                           </td>
 
+                          {/* Proyecto */}
+                          <td className="px-5 py-4">
+                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 block truncate max-w-[200px]" title={tec.proyecto || 'General'}>
+                              {tec.proyecto || 'General'}
+                            </span>
+                          </td>
+
                           {/* Días trabajados */}
                           <td className="px-5 py-4 text-center font-bold text-xs text-slate-700">
                             {tec.diasTrabajados} días
@@ -979,21 +1184,21 @@ export default function ApelacionesPanel() {
 
                           {/* Pts Totales */}
                           <td className="px-5 py-4 text-right font-mono font-black text-xs text-slate-900">
-                            {tec.totalPuntos.toFixed(1)} pts
+                            {(Number(tec.totalPuntos) || 0).toFixed(1)} pts
                           </td>
 
                           {/* Pts Calculables */}
                           <td className="px-5 py-4 text-right">
-                            <span className={`font-mono font-black text-xs ${tec.puntosCalculables > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                              {tec.puntosCalculables.toFixed(1)} pts
+                            <span className={`font-mono font-black text-xs ${(Number(tec.puntosCalculables) || 0) > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                              {(Number(tec.puntosCalculables) || 0).toFixed(1)} pts
                             </span>
                           </td>
 
                           {/* Tramo */}
                           <td className="px-5 py-4 text-center">
-                            {tec.valorTramo > 0 ? (
+                            {(Number(tec.valorTramo) || 0) > 0 ? (
                               <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[10px] font-black inline-flex items-center gap-1">
-                                ${tec.valorTramo.toLocaleString('es-CL')} c/u
+                                ${Number(tec.valorTramo || 0).toLocaleString('es-CL')} c/u
                               </span>
                             ) : (
                               <span className="text-[10px] text-slate-400 font-bold">Sin Tramo ($0)</span>
@@ -1003,7 +1208,7 @@ export default function ApelacionesPanel() {
                           {/* Bono Producción */}
                           <td className="px-5 py-4 text-right">
                             <span className="text-sm font-black font-mono text-emerald-600">
-                              ${tec.bonoBaremo.toLocaleString('es-CL')}
+                              ${Number(tec.bonoBaremo || 0).toLocaleString('es-CL')}
                             </span>
                           </td>
 
@@ -1097,69 +1302,136 @@ export default function ApelacionesPanel() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Fecha / OT</th>
-                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Técnico Asignado</th>
-                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Actividad / Cód LPU</th>
-                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Cliente / Dirección</th>
-                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Equipos Ad.</th>
-                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Pts Baremos</th>
-                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Acción CEO</th>
+                        <th className="px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Fecha / N° Petición</th>
+                        <th className="px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Estado Orden</th>
+                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Técnico Ejecutor (TOA)</th>
+                        <th className="px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Reutiliza Drop</th>
+                        <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Actividad Técnica & Desc LPU</th>
+                        <th className="px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500">Cliente / Dirección</th>
+                        <th className="px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Equipos Ad.</th>
+                        <th className="px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Pts Baremos</th>
+                        <th className="px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Acción CEO</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {bitacoraData.map((act) => {
                         const fechaStr = act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : (act['Fecha de Cita'] || act.Fecha_de_Cita || 'S/F');
-                        const otNumber = act.ordenId || act.peticion || act['Numero orden'] || act['Número orden'] || 'S/N';
-                        const techName = act.NOMBRE || act.Nombre || act.tecnicoNombre || act['Técnico'] || 'Sin Técnico';
-                        const techRut = act.RUT || act.rut || act.tecnicoRut || act['Rut'] || '';
+                        const petNumber = act.numeroPeticion || act.numeroOrden || act.ordenId || act.peticion || act['Numero orden'] || act['Número orden'] || 'S/N';
+                        const techName = act.tecnicoNombre || act.NOMBRE || act.Nombre || act['Técnico'] || 'Sin Técnico';
+                        const techRut = act.tecnicoRut || act.RUT || act.rut || act['Rut'] || '';
+                        const toaId = act.idRecursoToa || act.tecnicoToaId || act.ID_Recurso || act['ID Recurso'] || act.RECURSO || 'S/N';
+                        const techProy = act.tecnicoProyecto || act.proyecto || '';
                         const lpuCode = act.CODIGO_LPU_BASE || act.Codigo_LPU_Base || act.COD_LPU || act['Cód LPU'] || act.LPU_COD || 'SIN LPU';
-                        const actName = act['Subtipo de Actividad'] || act.actividad || act.ACTIVIDAD || act.Desc_LPU_Base || 'Op. Técnica';
+                        const actName = act['Subtipo de Actividad'] || act.actividad || act.ACTIVIDAD || act.tipoTrabajo || 'Op. Técnica';
+                        const descLpu = act.Desc_LPU_Base || act.descLpu || '';
                         const ptsBase = parseFloat(act.Pts_Actividad_Base || act.PTS_ACTIVIDAD_BASE || 0);
                         const decos = parseInt(act.Decos_Adicionales || act.DECOS_ADICIONALES || 0);
                         const repetidores = parseInt(act.Repetidores_WiFi || act.REPETIDORES_WIFI || 0);
                         const telefonos = parseInt(act.Telefonos || act.TELEFONOS || 0);
                         const totalPts = parseFloat(act.PTS_TOTAL_BAREMO ?? act.ptsTotalBaremo ?? act.Pts_Total_Baremo ?? 0);
                         const hasAppealed = Boolean(act.apelacion?.status);
+                        const estadoRaw = String(act.estado || act.Estado || 'Completado').trim();
+                        const estadoLower = estadoRaw.toLowerCase();
+                        const isCompleted = estadoLower.includes('complet') || estadoLower.includes('finaliz');
 
                         return (
                           <tr key={act._id} className="hover:bg-slate-50/60 transition-all duration-150">
-                            {/* Fecha / OT */}
-                            <td className="px-5 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-black text-slate-900 flex items-center gap-1">
-                                  <Hash className="w-3 h-3 text-slate-400" />
-                                  {otNumber}
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-500 mt-0.5 flex items-center gap-1">
-                                  <Calendar className="w-3 h-3 text-slate-400" />
+                            {/* Fecha / N° Petición */}
+                            <td className="px-4 py-4 min-w-[150px]">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
                                   {fechaStr}
                                 </span>
-                              </div>
-                            </td>
-
-                            {/* Técnico */}
-                            <td className="px-5 py-4">
-                              <div>
-                                <span className="text-xs font-black text-slate-800 block truncate max-w-[200px]" title={techName}>
-                                  {techName}
+                                <span className="px-2.5 py-0.5 bg-slate-100 text-slate-900 rounded-lg text-xs font-mono font-black uppercase tracking-wider w-fit border border-slate-200 flex items-center gap-1" title={`Petición: ${petNumber}`}>
+                                  <Hash className="w-3 h-3 text-indigo-500" />
+                                  Pet: {petNumber}
                                 </span>
-                                {techRut && (
-                                  <span className="text-[10px] font-mono text-slate-500 block mt-0.5">
-                                    RUT: {formatRut(techRut)}
+                                {hasAppealed && (
+                                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider w-fit border ${
+                                    act.apelacion?.status === 'por_validar' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                    act.apelacion?.status === 'aprobada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                    'bg-rose-50 text-rose-700 border-rose-200'
+                                  }`}>
+                                    {act.apelacion?.status === 'por_validar' && '⚠️ Apelado: Pendiente'}
+                                    {act.apelacion?.status === 'aprobada' && '✅ Apelado: Aprobada'}
+                                    {act.apelacion?.status === 'rechazada' && '❌ Apelado: Rechazada'}
                                   </span>
                                 )}
                               </div>
                             </td>
 
-                            {/* Actividad / LPU */}
-                            <td className="px-5 py-4">
+                            {/* Estado de la Orden */}
+                            <td className="px-4 py-4 text-center">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black border uppercase tracking-wider whitespace-nowrap shadow-sm ${
+                                isCompleted
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : estadoLower.includes('no realizada')
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : estadoLower.includes('cancelad')
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : estadoLower.includes('suspend')
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}>
+                                {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <AlertCircle className="w-3.5 h-3.5 text-slate-400" />}
+                                {estadoRaw}
+                              </span>
+                            </td>
+
+                            {/* Técnico Ejecutor según ID TOA */}
+                            <td className="px-5 py-4 min-w-[190px]">
                               <div>
-                                <span className="text-xs font-bold text-slate-800 block truncate max-w-[260px]" title={actName}>
+                                <span className="text-xs font-black text-slate-800 block truncate max-w-[200px]" title={techName}>
+                                  {techName}
+                                </span>
+                                <div className="flex flex-col gap-0.5 mt-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-mono font-black rounded">
+                                      TOA: {toaId}
+                                    </span>
+                                    {techRut && (
+                                      <span className="text-[10px] font-mono text-slate-500">
+                                        RUT: {formatRut(techRut)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {techProy && (
+                                    <span className="text-[9px] font-bold text-slate-500 truncate max-w-[180px]" title={techProy}>
+                                      {techProy}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Reutiliza Drop */}
+                            <td className="px-4 py-4 text-center">
+                              {act.reutilizaDrop ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm whitespace-nowrap">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> SÍ (Reutiliza)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">
+                                  <XCircle className="w-3.5 h-3.5 text-slate-400" /> NO (Sin Reutilizar)
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Actividad Técnica & Desc LPU */}
+                            <td className="px-5 py-4 min-w-[260px] max-w-[320px]">
+                              <div>
+                                <span className="text-xs font-black text-slate-900 uppercase italic block leading-snug tracking-tight" title={actName}>
                                   {actName}
                                 </span>
-                                <div className="flex items-center gap-2 mt-1">
+                                {descLpu && descLpu !== actName && (
+                                  <span className="text-[11px] font-semibold text-slate-600 block mt-1 leading-snug" title={descLpu}>
+                                    {descLpu}
+                                  </span>
+                                )}
+                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                   <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] font-mono font-black text-slate-700">
-                                    {lpuCode}
+                                    Cód LPU: {lpuCode}
                                   </span>
                                   <span className="text-[10px] font-bold text-slate-500">
                                     Base: {ptsBase.toFixed(1)} pts
@@ -1302,15 +1574,31 @@ export default function ApelacionesPanel() {
                 <div>
                   <div className="text-xs font-black text-slate-950">{selectedAppeal.tecnicoNombre}</div>
                   <div className="flex flex-col text-[10px] text-slate-500 mt-0.5 font-bold gap-0.5">
-                    <span>RUT: {formatRut(selectedAppeal.tecnicoRutFormateado || selectedAppeal.apelacion?.rut || selectedAppeal.rut)}</span>
-                    <span className="text-[9px] text-sky-600 font-black tracking-wider uppercase">TOA ID Técnico: {selectedAppeal.tecnicoToaId || selectedAppeal.idRecursoToa || 'Sin ID TOA'}</span>
+                    <span>RUT: {formatRut(selectedAppeal.tecnicoRutFormateado || selectedAppeal.apelacion?.rut || selectedAppeal.rut || selectedAppeal.tecnicoRut)}</span>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="text-[9px] text-sky-600 font-black tracking-wider uppercase bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded">
+                        TOA ID: {selectedAppeal.tecnicoToaId || selectedAppeal.idRecursoToa || 'Sin ID TOA'}
+                      </span>
+                      {selectedAppeal.tecnicoProyecto && (
+                        <span className="text-[9px] text-slate-600 font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded">
+                          {selectedAppeal.tecnicoProyecto}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* OT Info Details & Comparative Delta Table */}
               <div className="space-y-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-sky-600 block border-b border-slate-150 pb-1.5">Análisis Comparativo (TOA vs Apelación)</span>
+                <div className="flex items-center justify-between border-b border-slate-150 pb-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-sky-600 block">
+                    Análisis Comparativo (TOA vs Apelación)
+                  </span>
+                  <span className="text-xs font-mono font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    OT: {selectedAppeal.numeroOrden || selectedAppeal.peticion || selectedAppeal.ordenId || 'S/N'}
+                  </span>
+                </div>
                 
                 <div className="overflow-x-auto custom-scrollbar border border-slate-200 rounded-2xl bg-white shadow-inner">
                   <table className="w-full text-left border-collapse text-[11px]">
@@ -1322,6 +1610,24 @@ export default function ApelacionesPanel() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150 font-medium text-slate-700">
+                      {/* Reutiliza Drop */}
+                      <tr>
+                        <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Reutiliza Drop</td>
+                        <td className="px-4 py-3">
+                          {selectedAppeal.reutilizaDrop ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> SÍ (Reutiliza Drop)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-500 border border-slate-200">
+                              <XCircle className="w-3.5 h-3.5 text-slate-400" /> NO (Sin Reutilizar)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-400 text-xs italic">
+                          Parámetro de terreno TOA
+                        </td>
+                      </tr>
                       <tr>
                         <td className="px-4 py-3 font-bold text-slate-500 bg-slate-50/50">Actividad LPU</td>
                         <td className="px-4 py-3 text-slate-700">
@@ -1336,7 +1642,7 @@ export default function ApelacionesPanel() {
                         <td className="px-4 py-3 bg-amber-50/20 font-bold text-amber-800">
                           {selectedAppeal.apelacion?.status === 'por_validar' ? (
                             <select
-                              value={overrideData.lpu}
+                              value={overrideData.lpu || ''}
                               onChange={(e) => setOverrideData({...overrideData, lpu: e.target.value.toUpperCase()})}
                               className="w-full px-2 py-1 text-xs border border-amber-200 rounded outline-none focus:border-amber-400 bg-white font-mono uppercase"
                             >
@@ -1371,7 +1677,7 @@ export default function ApelacionesPanel() {
                             <input
                               type="number"
                               min="0"
-                              value={overrideData.decos}
+                              value={overrideData.decos ?? 0}
                               onChange={(e) => setOverrideData({...overrideData, decos: e.target.value})}
                               className="w-16 px-2 py-1 text-xs border border-emerald-200 rounded outline-none focus:border-emerald-400 bg-white"
                             />
@@ -1389,7 +1695,7 @@ export default function ApelacionesPanel() {
                             <input
                               type="number"
                               min="0"
-                              value={overrideData.repetidores}
+                              value={overrideData.repetidores ?? 0}
                               onChange={(e) => setOverrideData({...overrideData, repetidores: e.target.value})}
                               className="w-16 px-2 py-1 text-xs border border-emerald-200 rounded outline-none focus:border-emerald-400 bg-white"
                             />
@@ -1407,7 +1713,7 @@ export default function ApelacionesPanel() {
                             <input
                               type="number"
                               min="0"
-                              value={overrideData.telefonos}
+                              value={overrideData.telefonos ?? 0}
                               onChange={(e) => setOverrideData({...overrideData, telefonos: e.target.value})}
                               className="w-16 px-2 py-1 text-xs border border-emerald-200 rounded outline-none focus:border-emerald-400 bg-white"
                             />
@@ -1614,7 +1920,7 @@ export default function ApelacionesPanel() {
                   Código LPU Asignado
                 </label>
                 <select
-                  value={editFormData.codigoLpu}
+                  value={editFormData.codigoLpu || ''}
                   onChange={(e) => {
                     const found = tarifasLPU.find(t => t.codigo === e.target.value);
                     setEditFormData({
@@ -1643,7 +1949,7 @@ export default function ApelacionesPanel() {
                   type="number"
                   step="0.1"
                   min="0"
-                  value={editFormData.puntosBase}
+                  value={editFormData.puntosBase ?? ''}
                   onChange={(e) => setEditFormData({ ...editFormData, puntosBase: e.target.value })}
                   placeholder="Ej: 1.5"
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-indigo-500 outline-none"
@@ -1659,7 +1965,7 @@ export default function ApelacionesPanel() {
                   <input
                     type="number"
                     min="0"
-                    value={editFormData.decos}
+                    value={editFormData.decos ?? 0}
                     onChange={(e) => setEditFormData({ ...editFormData, decos: parseInt(e.target.value) || 0 })}
                     className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-indigo-500 outline-none text-center"
                   />
@@ -1672,7 +1978,7 @@ export default function ApelacionesPanel() {
                   <input
                     type="number"
                     min="0"
-                    value={editFormData.repetidores}
+                    value={editFormData.repetidores ?? 0}
                     onChange={(e) => setEditFormData({ ...editFormData, repetidores: parseInt(e.target.value) || 0 })}
                     className="w-full px-3 py-2 bg-white border border-teal-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-teal-500 outline-none text-center"
                   />
@@ -1685,7 +1991,7 @@ export default function ApelacionesPanel() {
                   <input
                     type="number"
                     min="0"
-                    value={editFormData.telefonos}
+                    value={editFormData.telefonos ?? 0}
                     onChange={(e) => setEditFormData({ ...editFormData, telefonos: parseInt(e.target.value) || 0 })}
                     className="w-full px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:border-emerald-500 outline-none text-center"
                   />
@@ -1699,7 +2005,7 @@ export default function ApelacionesPanel() {
                 </label>
                 <textarea
                   placeholder="Ej: Ajuste de baremos autorizado por gerencia por dificultad de terreno..."
-                  value={editFormData.observacionCeo}
+                  value={editFormData.observacionCeo || ''}
                   onChange={(e) => setEditFormData({ ...editFormData, observacionCeo: e.target.value })}
                   className="w-full bg-white border border-slate-200 p-3 rounded-xl text-xs font-medium text-slate-700 h-20 focus:border-indigo-500 outline-none resize-none"
                 />

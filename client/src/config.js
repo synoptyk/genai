@@ -32,7 +32,7 @@ if (!API_URL) {
 
 API_URL = String(API_URL || '').replace(/\/$/, '');
 
-if (!isLocal && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1') || API_URL.includes('494015'))) {
+if (!isLocal && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1') || !API_URL.startsWith('https://'))) {
   API_URL = PROD_API_URL;
 }
 

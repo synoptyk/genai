@@ -29,7 +29,8 @@ El proyecto utiliza **Google Cloud Run** para una arquitectura escalable y segur
 - **Frontend:** `genai-client` (Puerto 8080)
 - **Backend:** `genai-server` (Puerto 8080)
 - **Región:** `us-central1`
-- **Proyecto ID:** `genai360-494015`
+- **Proyecto ID:** `genai360-504317`
+- **Cuenta GCP:** `synoptykia2@gmail.com`
 
 ---
 

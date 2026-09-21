@@ -8,13 +8,19 @@ const _tarifaCache = {};
  * Auto-importa el modelo TarifaLPU para que sea autónomo
  */
 async function obtenerTarifasEmpresa(empresaId, TarifaLPUModel = null) {
-    const key = String(empresaId);
+    const key = String(empresaId || 'default');
     const now = Date.now();
     if (_tarifaCache[key] && (now - _tarifaCache[key].ts) < 300000) return _tarifaCache[key].data;
 
     // Auto-importar el modelo si no se proporciona
     const TarifaLPU = TarifaLPUModel || require('../models/TarifaLPU');
-    const tarifas = await TarifaLPU.find({ empresaRef: empresaId, activo: true }).lean();
+    let tarifas = [];
+    if (empresaId) {
+        tarifas = await TarifaLPU.find({ empresaRef: empresaId, activo: true }).lean();
+    }
+    if (!tarifas || tarifas.length === 0) {
+        tarifas = await TarifaLPU.find({ activo: true }).lean();
+    }
     _tarifaCache[key] = { data: tarifas, ts: now };
     return tarifas;
 }

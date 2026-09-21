@@ -2309,7 +2309,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const ConfigProduccion = require(`${PLATFORM_PATH}/models/ConfigProduccion`);
     const RegistroAsistencia = require('./platforms/rrhh/models/RegistroAsistencia');
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
-    const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
+    const efectivoEmpresaId = empresaFilter || empresaId || req.user.empresaRef?._id || req.user.empresaRef || '69ab8a37d7239b0dd12383d1';
     // --- FILTRO DE PROYECTOS PARA LA QUERY DE RRHH ---
     let projectFilterRRHH = {};
     if (proyectos && proyectos.length > 0) {
@@ -2333,15 +2333,11 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const Proyecto = require('./platforms/rrhh/models/Proyecto');
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands, r_asistencia, r_proyectos] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
-      isSystemAdmin && !empresaFilter
-        ? Tecnico.find({}).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean(),
-      ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
-      construirMapaValorizacion(empresaId),
-      Empresa.findById(empresaId).select('nombre logo').lean(),
-      isSystemAdmin && !empresaFilter
-        ? Candidato.find({}).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean()
-        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean(),
+      Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean(),
+      ConfigProduccion.findOne({ empresaRef: efectivoEmpresaId }).lean(),
+      construirMapaValorizacion(efectivoEmpresaId),
+      Empresa.findById(efectivoEmpresaId).select('nombre logo').lean(),
+      Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecurso idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId ceco sede sueldoBase').populate('projectId', 'nombreProyecto projectName').lean(),
       queryAsistencia,
       Proyecto.find({}).lean()
     ]);
@@ -2742,18 +2738,12 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       
       let techKey = techMap[idRecurso] ? idRecurso : (idToKey[idLow] || idToKey[idClean] || idToKey[idRecurso] || '');
       
-      // Fallback por nombre si el ID no cruza
+      // Fallback por nombre de técnico ÚNICAMENTE si existe campo explícito de técnico (evitar cruces accidentales con nombres de clientes)
       if (!techKey) {
-        let nombreRaw = clean.NOMBRE || clean.NOMBRE_TECNICO || clean.TECNICO_NOMBRE || '';
-        if (nombreRaw) {
-          const nClean = String(nombreRaw).trim().toUpperCase();
+        let techNombreRaw = clean.TECNICO_NOMBRE || clean.NOMBRE_TECNICO || (!/^\d+$/.test(String(clean.TECNICO || '').trim()) ? clean.TECNICO : '');
+        if (techNombreRaw) {
+          const nClean = String(techNombreRaw).trim().toUpperCase();
           if (nameToMapKey[nClean]) techKey = nameToMapKey[nClean];
-          else {
-            const parts = nClean.split(' ').filter(Boolean);
-            if (parts.length >= 3 && nameToMapKey[`${parts[0]} ${parts[2]}`]) {
-              techKey = nameToMapKey[`${parts[0]} ${parts[2]}`];
-            }
-          }
         }
       }
 

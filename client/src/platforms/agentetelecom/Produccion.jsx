@@ -389,7 +389,18 @@ export default function Produccion() {
             <Calendar size={11} className="text-indigo-400" />
             <select
               value={selectedMonths[0] || ''}
-              onChange={e => setSelectedMonths(e.target.value ? [e.target.value] : [])}
+              onChange={e => {
+                const val = e.target.value;
+                setSelectedMonths(val ? [val] : []);
+                if (val && /^\d{4}-\d{2}$/.test(val)) {
+                  const [y, m] = val.split('-').map(Number);
+                  const start = `${y}-${String(m).padStart(2, '0')}-01`;
+                  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+                  const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                  setDateFrom(start);
+                  setDateTo(end);
+                }
+              }}
               className="bg-transparent outline-none text-white font-bold cursor-pointer"
             >
               <option value="" className="bg-slate-900">Mes: Actual</option>
