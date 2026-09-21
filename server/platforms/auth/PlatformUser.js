@@ -141,7 +141,7 @@ const PlatformUserSchema = new mongoose.Schema({
     cargo: { type: String },
     avatar: { type: String },
     telefono: { type: String },
-    status: { type: String, enum: ['Activo', 'Inactivo', 'Suspendido'], default: 'Activo' },
+    status: { type: String, enum: ['Activo', 'Inactivo', 'Suspendido', 'Bloqueado'], default: 'Activo' },
 
     // Sesión única (anti-sharing)
     tokenVersion: { type: Number, default: 0 },

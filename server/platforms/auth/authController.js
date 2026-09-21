@@ -815,6 +815,7 @@ exports.resetPassword = async (req, res) => {
 // POST /api/auth/users/bulk-password-reset
 exports.bulkPasswordReset = async (req, res) => {
     try {
+        const bcrypt = require('bcryptjs');
         const { userIds, newPassword, useRutAsPassword, sendEmail } = req.body;
 
         let filter = {};
@@ -830,7 +831,8 @@ exports.bulkPasswordReset = async (req, res) => {
             }
         }
 
-        const usersToUpdate = await PlatformUser.find(filter);
+        // Solo traemos los campos mínimos necesarios (evitar cargar campos grandes)
+        const usersToUpdate = await PlatformUser.find(filter).select('_id email name rut empresa cargo role');
         if (!usersToUpdate || usersToUpdate.length === 0) {
             return res.status(404).json({ success: false, message: 'No se encontraron colaboradores para actualizar.' });
         }
@@ -839,16 +841,22 @@ exports.bulkPasswordReset = async (req, res) => {
         for (const u of usersToUpdate) {
             let passToSet = newPassword;
             if (useRutAsPassword) {
-                const cleanR = (u.rut || '').replace(/[^0-9kK]/g, '');
+                // Usar RUT sin formato como contraseña (solo dígitos + k)
+                const cleanR = (u.rut || '').replace(/[^0-9kK]/g, '').toLowerCase();
                 passToSet = cleanR || '123456';
             }
-            if (!passToSet || passToSet.length < 4) continue;
+            if (!passToSet || passToSet.trim().length < 4) continue;
 
-            u.password = passToSet.trim();
-            if (!u.empresa || !u.empresa.nombre) {
-                u.empresa = { nombre: 'Enterprise Platform', plan: 'starter' };
-            }
-            await u.save();
+            // 🔑 Hashear directamente con bcrypt, sin pasar por save()
+            // Esto evita que validaciones legacy del schema (empresa.nombre required, etc.)
+            // bloqueen la actualización masiva.
+            const salt = await bcrypt.genSalt(12);
+            const hashedPassword = await bcrypt.hash(passToSet.trim(), salt);
+
+            await PlatformUser.updateOne(
+                { _id: u._id },
+                { $set: { password: hashedPassword } }
+            );
             updatedCount++;
 
             if (sendEmail && u.email) {
@@ -856,7 +864,7 @@ exports.bulkPasswordReset = async (req, res) => {
                     await sendWelcomeEmail({
                         email: u.email,
                         name: u.name,
-                        password: passToSet,
+                        password: passToSet.trim(),
                         rut: u.rut,
                         role: u.role,
                         cargo: u.cargo,
@@ -868,6 +876,7 @@ exports.bulkPasswordReset = async (req, res) => {
             }
         }
 
+        console.log(`✅ [BulkPass] Contraseñas actualizadas: ${updatedCount}/${usersToUpdate.length}`);
         res.json({
             success: true,
             count: updatedCount,
@@ -883,8 +892,9 @@ exports.bulkPasswordReset = async (req, res) => {
 exports.bulkStatusUpdate = async (req, res) => {
     try {
         const { userIds, status } = req.body;
-        if (!['Activo', 'Suspendido', 'Bloqueado', 'Inactivo'].includes(status)) {
-            return res.status(400).json({ success: false, message: 'Estado no válido.' });
+        // Nota: el schema de PlatformUser acepta 'Activo', 'Inactivo', 'Suspendido', 'Bloqueado'
+        if (!['Activo', 'Suspendido', 'Inactivo', 'Bloqueado'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Estado no válido. Use: Activo, Suspendido, Bloqueado o Inactivo.' });
         }
 
         let filter = {};
