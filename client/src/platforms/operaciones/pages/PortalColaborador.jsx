@@ -278,8 +278,8 @@ const PortalColaborador = () => {
     const [lastFuelRequest, setLastFuelRequest] = useState(null);
     const [lastKm, setLastKm] = useState(0);
     const isMasterOrAdmin = ['admin', 'system_admin', 'ceo', 'super_admin', 'gerencia'].includes(String(user?.role || '').toLowerCase());
-    const MIN_VISIBLE_MONTH = isMasterOrAdmin ? 0 : 6; // 6 = Julio (0-indexed). Para trabajadores: solo Julio en adelante
-    const [selectedMonth, setSelectedMonth] = useState(() => Math.max(new Date().getMonth(), isMasterOrAdmin ? 0 : 6));
+    const MIN_VISIBLE_MONTH = isMasterOrAdmin ? 0 : 8; // 8 = Septiembre (0-indexed). Para técnicos/trabajadores: solo Septiembre en adelante
+    const [selectedMonth, setSelectedMonth] = useState(() => Math.max(new Date().getMonth(), isMasterOrAdmin ? 0 : 8));
     const [selectedOT, setSelectedOT] = useState(null);
     const [isAppealing, setIsAppealing] = useState(false);
     const [appealForm, setAppealForm] = useState({ decos: 0, repetidores: 0, telefonos: 0, codigoLpu: '', observacion: '', actividadIncorrecta: false, evidenciaUrl: '' });
