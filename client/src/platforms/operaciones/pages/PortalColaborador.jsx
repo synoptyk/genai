@@ -1374,14 +1374,24 @@ const PortalColaborador = () => {
                                         <tbody className="divide-y divide-emerald-50">
                                             {tramosRRState.length === 0 ? (
                                                 <tr><td colSpan="2" className="py-5 text-center text-slate-400 italic text-xs">Sin tramos configurados</td></tr>
-                                            ) : tramosRRState.map((t, i) => (
-                                                <tr key={i} className="hover:bg-emerald-50/20">
-                                                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">
+                                            ) : tramosRRState.map((t, i) => {
+                                                const rrVal = parseFloat(garantiasMetrics.rrValue) || 0;
+                                                let isActive = false;
+                                                if (t.operator === '<') isActive = rrVal < t.limit;
+                                                else if (t.operator === '>') isActive = rrVal > t.limit;
+                                                else if (t.operator === '<=') isActive = rrVal <= t.limit;
+                                                else if (t.operator === '>=') isActive = rrVal >= t.limit;
+                                                else { const h = t.hasta === 'Más' || t.hasta === 'mas' || t.hasta === null ? 999999 : parseFloat(t.hasta); isActive = rrVal >= parseFloat(t.desde) && rrVal <= h; }
+                                                return (
+                                                <tr key={i} className={`transition-colors ${isActive ? 'bg-emerald-100 border-l-4 border-emerald-500' : 'hover:bg-emerald-50/20'}`}>
+                                                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 flex items-center gap-2">
                                                         {t.operator === 'Entre' || !t.operator ? `${t.desde}% – ${t.hasta}%` : `${t.operator} ${t.limit}%`}
+                                                        {isActive && <span className="text-[8px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full uppercase">Tú</span>}
                                                     </td>
-                                                    <td className="px-4 py-2.5 text-right font-black text-emerald-700">${t.valor?.toLocaleString('es-CL')}</td>
+                                                    <td className={`px-4 py-2.5 text-right font-black ${isActive ? 'text-emerald-700' : 'text-emerald-600'}`}>${t.valor?.toLocaleString('es-CL')}</td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1402,14 +1412,24 @@ const PortalColaborador = () => {
                                         <tbody className="divide-y divide-blue-50">
                                             {tramosAIState.length === 0 ? (
                                                 <tr><td colSpan="2" className="py-5 text-center text-slate-400 italic text-xs">Sin tramos configurados</td></tr>
-                                            ) : tramosAIState.map((t, i) => (
-                                                <tr key={i} className="hover:bg-blue-50/20">
-                                                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">
+                                            ) : tramosAIState.map((t, i) => {
+                                                const aiVal = parseFloat(garantiasMetrics.aiValue) || 0;
+                                                let isActive = false;
+                                                if (t.operator === '<') isActive = aiVal < t.limit;
+                                                else if (t.operator === '>') isActive = aiVal > t.limit;
+                                                else if (t.operator === '<=') isActive = aiVal <= t.limit;
+                                                else if (t.operator === '>=') isActive = aiVal >= t.limit;
+                                                else { const h = t.hasta === 'Más' || t.hasta === 'mas' || t.hasta === null ? 999999 : parseFloat(t.hasta); isActive = aiVal >= parseFloat(t.desde) && aiVal <= h; }
+                                                return (
+                                                <tr key={i} className={`transition-colors ${isActive ? 'bg-blue-100 border-l-4 border-blue-500' : 'hover:bg-blue-50/20'}`}>
+                                                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 flex items-center gap-2">
                                                         {t.operator === 'Entre' || !t.operator ? `${t.desde}% – ${t.hasta}%` : `${t.operator} ${t.limit}%`}
+                                                        {isActive && <span className="text-[8px] font-black bg-blue-500 text-white px-1.5 py-0.5 rounded-full uppercase">Tú</span>}
                                                     </td>
-                                                    <td className="px-4 py-2.5 text-right font-black text-blue-700">${t.valor?.toLocaleString('es-CL')}</td>
+                                                    <td className={`px-4 py-2.5 text-right font-black ${isActive ? 'text-blue-700' : 'text-blue-600'}`}>${t.valor?.toLocaleString('es-CL')}</td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1809,6 +1829,14 @@ const PortalColaborador = () => {
                                                             <Activity size={16} />
                                                         </div>
                                                         <span className="text-sm font-black text-slate-700 uppercase tracking-wide">Avería Infancia</span>
+                                                        <button
+                                                            onClick={() => setActiveView('configuracion-bonificacion')}
+                                                            className="ml-auto text-[9px] font-black uppercase tracking-wider text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1"
+                                                            title="Ver tabla de tramos AI"
+                                                        >
+                                                            <BarChart3 size={10} />
+                                                            Ver tabla
+                                                        </button>
                                                     </div>
                                                     <div className="space-y-3">
                                                         <div className="flex justify-between items-center text-xs">
@@ -1821,11 +1849,16 @@ const PortalColaborador = () => {
                                                         </div>
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-slate-500 font-medium">Estado Calidad:</span>
-                                                            <span className="font-bold text-emerald-600 text-[10px] uppercase">Calificado</span>
+                                                            {aiBonus > 0
+                                                                ? <span className="font-bold text-emerald-600 text-[10px] uppercase">✓ Calificado</span>
+                                                                : garantiasMetrics.aiTotal === 0
+                                                                    ? <span className="font-bold text-slate-400 text-[10px] uppercase">Sin datos</span>
+                                                                    : <span className="font-bold text-rose-500 text-[10px] uppercase">Fuera de tramo</span>
+                                                            }
                                                         </div>
                                                         <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between items-center">
                                                             <span className="text-[10px] font-black uppercase text-slate-400">Bono Calidad AI</span>
-                                                            <span className="text-lg font-black text-emerald-700">${aiBonus.toLocaleString('es-CL')}</span>
+                                                            <span className={`text-lg font-black ${aiBonus > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>${aiBonus.toLocaleString('es-CL')}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1837,6 +1870,14 @@ const PortalColaborador = () => {
                                                             <Wrench size={16} />
                                                         </div>
                                                         <span className="text-sm font-black text-slate-700 uppercase tracking-wide">Repetido Reparado</span>
+                                                        <button
+                                                            onClick={() => setActiveView('configuracion-bonificacion')}
+                                                            className="ml-auto text-[9px] font-black uppercase tracking-wider text-indigo-500 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1"
+                                                            title="Ver tabla de tramos RR"
+                                                        >
+                                                            <BarChart3 size={10} />
+                                                            Ver tabla
+                                                        </button>
                                                     </div>
                                                     <div className="space-y-3">
                                                         <div className="flex justify-between items-center text-xs">
@@ -1849,11 +1890,16 @@ const PortalColaborador = () => {
                                                         </div>
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-slate-500 font-medium">Estado Calidad:</span>
-                                                            <span className="font-bold text-emerald-600 text-[10px] uppercase">Calificado</span>
+                                                            {rrBonus > 0
+                                                                ? <span className="font-bold text-emerald-600 text-[10px] uppercase">✓ Calificado</span>
+                                                                : garantiasMetrics.rrTotal === 0
+                                                                    ? <span className="font-bold text-slate-400 text-[10px] uppercase">Sin datos</span>
+                                                                    : <span className="font-bold text-rose-500 text-[10px] uppercase">Fuera de tramo</span>
+                                                            }
                                                         </div>
                                                         <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between items-center">
                                                             <span className="text-[10px] font-black uppercase text-slate-400">Bono Calidad RR</span>
-                                                            <span className="text-lg font-black text-emerald-700">${rrBonus.toLocaleString('es-CL')}</span>
+                                                            <span className={`text-lg font-black ${rrBonus > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>${rrBonus.toLocaleString('es-CL')}</span>
                                                         </div>
                                                     </div>
                                                 </div>
