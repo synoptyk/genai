@@ -371,6 +371,27 @@ const GestorPersonal = () => {
         });
     };
 
+    const toggleAllGlobalPermissions = () => {
+        const activeModIds = Object.keys(defaultPermisosModulos);
+        let allSelected = true;
+
+        for (const mId of activeModIds) {
+            const p = formData.permisosModulos?.[mId] || {};
+            if (!(p.ver && p.crear && p.editar && (p.suspender || p.bloquear) && p.eliminar)) {
+                allSelected = false;
+                break;
+            }
+        }
+
+        const newState = !allSelected;
+        const nextPerms = {};
+        for (const mId of activeModIds) {
+            nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, bloquear: newState, eliminar: newState };
+        }
+
+        setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
+    };
+
     // 6. Vista Derivada
     const filteredUsers = users.filter(u => {
         const searchLower = searchTerm.toLowerCase();
@@ -958,11 +979,283 @@ const GestorPersonal = () => {
                                             </select>
                                         </div>
                                     </div>
+
+                                    {['system_admin', 'ceo', 'ceo_genai'].includes(user?.role) && (
+                                        <div className="space-y-1 pt-2">
+                                            <label className="text-[9px] font-black text-orange-600 uppercase tracking-[0.2em] ml-1 flex items-center gap-1.5">
+                                                <Building2 size={12} /> Asignar Empresa (Solo CEO / Superadmin)
+                                            </label>
+                                            <select
+                                                value={formData.empresaRef || ''}
+                                                onChange={e => setFormData({ ...formData, empresaRef: e.target.value })}
+                                                className="w-full px-4 py-2 bg-orange-50/40 border border-orange-200 rounded-xl text-[11px] font-bold text-orange-950 focus:outline-none focus:border-orange-500"
+                                            >
+                                                <option value="">Selecciona Empresa...</option>
+                                                {companies.map(c => (
+                                                    <option key={c._id} value={c._id}>
+                                                        {c.nombre || c.razonSocial || 'Empresa sin nombre'} ({c.rut || 'Sin RUT'})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 2. Matriz de Permisos Granulares */}
+                                <div className="pt-6 border-t border-slate-200 mt-6">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                                        <div>
+                                            <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2">
+                                                <Shield size={16} /> Matriz de Permisos Global
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">Define acceso fino módulo por módulo</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={toggleAllGlobalPermissions}
+                                            className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                        >
+                                            <CheckCircle2 size={14} /> Otorgar / Revocar Todo
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        {[
+                                            {
+                                                category: 'Administración', icon: Settings, color: 'indigo',
+                                                modules: [
+                                                    { id: 'admin_resumen_ejecutivo',    label: 'Resumen Ejecutivo (Dashboard)' },
+                                                    { id: 'admin_proyectos',            label: 'Proyectos & CECOs' },
+                                                    { id: 'admin_conexiones',           label: 'Mercado Financiero' },
+                                                    { id: 'admin_aprobaciones',         label: 'Aprobaciones RRHH' },
+                                                    { id: 'admin_sii',                  label: 'Portal Tributario (SII)' },
+                                                    { id: 'admin_previred',             label: 'Enlace Previred 360' },
+                                                    { id: 'admin_pagos_bancarios',      label: 'Pagos Bancarios (Nómina)' },
+                                                    { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
+                                                    { id: 'admin_aprobaciones_compras', label: 'Aprobaciones de Compra' },
+                                                    { id: 'admin_gestion_portales',     label: 'Gestión de Portales' },
+                                                    { id: 'admin_mis_clientes',         label: 'Mis Clientes' },
+                                                    { id: 'admin_gestion_gastos',       label: 'Gestión Rinde Gastos (Admin)' },
+                                                    { id: 'admin_config_notificaciones', label: 'Configuración Notificaciones' },
+                                                    { id: 'admin_historial',            label: 'Historial Operativo' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Administración 360', icon: Building2, color: 'indigo',
+                                                modules: [
+                                                    { id: 'admin_resumen_ejecutivo', label: 'Dashboard 360' },
+                                                    { id: 'admin_mis_clientes',      label: 'Mis Clientes' },
+                                                    { id: 'admin_proyectos',         label: 'Proyectos' },
+                                                    { id: 'admin_aprobaciones',      label: 'Aprobaciones 360' },
+                                                    { id: 'admin_pagos_bancarios',   label: 'Pagos Bancarios' },
+                                                    { id: 'admin_gestion_gastos',    label: 'Gestión Rinde Gastos' },
+                                                    { id: 'emp360_facturacion',      label: 'Facturación 360' },
+                                                    { id: 'emp360_tesoreria',        label: 'Tesorería 360' },
+                                                    { id: 'emp360_biometria',        label: 'Biometría 360' },
+                                                    { id: 'admin_conexiones',        label: 'Mercado Financiero' },
+                                                    { id: 'admin_gestion_portales',  label: 'Gestión de Portales' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Recursos Humanos', icon: Users, color: 'violet',
+                                                modules: [
+                                                    { id: 'rrhh_captura',          label: 'Captura de Talento' },
+                                                    { id: 'rrhh_documental',       label: 'Gestión Documental' },
+                                                    { id: 'rrhh_contratos_anexos', label: 'Documento Legal' },
+                                                    { id: 'rrhh_vacaciones',       label: 'Vacaciones & Licencias' },
+                                                    { id: 'rrhh_finiquitos',       label: 'Bóveda y Finiquitos' },
+                                                    { id: 'rrhh_asistencia',       label: 'Asistencia y Turnos' },
+                                                    { id: 'rrhh_turnos',           label: 'Programación de Turnos' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Relaciones Laborales', icon: ShieldAlert, color: 'rose',
+                                                modules: [
+                                                    { id: 'rrhh_laborales',      label: 'Historia Laboral' },
+                                                    { id: 'emp360_beneficios',   label: 'Beneficios 360' },
+                                                    { id: 'emp360_lms',          label: 'Capacitación LMS' },
+                                                    { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Remuneraciones', icon: DollarSign, color: 'emerald',
+                                                modules: [
+                                                    { id: 'rrhh_nomina',                label: 'Nómina (Payroll) & Remu Central' },
+                                                    { id: 'admin_modelos_bonificacion', label: 'Modelos de Bonificación' },
+                                                    { id: 'rend_cierre_bonos',          label: 'Cierre de Bonos' },
+                                                    { id: 'admin_tipos_bono',           label: 'Tipos de Bonos' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Prevención HSE', icon: Shield, color: 'rose',
+                                                modules: [
+                                                    { id: 'prev_inspecciones',   label: 'Auditoría Inspecciones' },
+                                                    { id: 'prev_ast',            label: 'Generación AST' },
+                                                    { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
+                                                    { id: 'prev_charlas',        label: 'Difusión & Charlas' },
+                                                    { id: 'prev_acreditacion',   label: 'Acreditación & PPE' },
+                                                    { id: 'prev_accidentes',     label: 'Investigación Accidentes' },
+                                                    { id: 'prev_iper',           label: 'Matriz IPER' },
+                                                    { id: 'prev_auditoria',      label: 'Auditoría HSE' },
+                                                    { id: 'prev_dashboard',      label: 'Dashboard HSE / Supervisores' },
+                                                    { id: 'prev_historial',      label: 'Historial Preventivo' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Flota & GPS', icon: Truck, color: 'sky',
+                                                modules: [
+                                                    { id: 'flota_vehiculos',      label: 'Flota de Vehículos' },
+                                                    { id: 'flota_eficiencia',     label: 'Eficiencia Flota' },
+                                                    { id: 'flota_proveedores',    label: 'Proveedores Leasing' },
+                                                    { id: 'flota_gps',            label: 'GPS SIMPLE' },
+                                                    { id: 'dist_conecta_gps',     label: 'Conecta GPS (Distribución)' },
+                                                    { id: 'dist_mis_conductores', label: 'Mis Conductores' },
+                                                    { id: 'dist_historial_rutas', label: 'Historial de Rutas' },
+                                                    { id: 'dist_rutas_guiadas',   label: 'Rutas Guiadas' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Operaciones', icon: Activity, color: 'blue',
+                                                modules: [
+                                                    { id: 'op_supervision',  label: 'Portal Supervision' },
+                                                    { id: 'op_colaborador',  label: 'Portal Colaborador' },
+                                                    { id: 'op_dotacion',     label: 'Gestión Dotación' },
+                                                    { id: 'op_designaciones',label: 'Designaciones' },
+                                                    { id: 'op_gastos',       label: 'Rinde Gastos 360' },
+                                                    { id: 'op_portales',     label: 'Gestión de Portales (Mantenimiento)' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Verticales de Industria', icon: Activity, color: 'emerald',
+                                                modules: [
+                                                    { id: 'rend_operativo',    label: 'Panel Telecomunicaciones & Apelaciones' },
+                                                    { id: 'op_mapa_calor',     label: 'Mapa de Calor' },
+                                                    { id: 'rend_financiero',   label: 'Producción Financiera' },
+                                                    { id: 'rend_tarifario',    label: 'Tarifario & Baremos' },
+                                                    { id: 'rend_config_lpu',   label: 'Configuración LPU' },
+                                                    { id: 'rend_descarga_toa',  label: 'Descarga TOA' },
+                                                    { id: 'ind_mineria',       label: 'Minería & Recursos' },
+                                                    { id: 'ind_energia',       label: 'Energía & Electricidad' },
+                                                    { id: 'ind_construccion',  label: 'Construcción & Obras' },
+                                                    { id: 'ind_transporte',    label: 'Transporte & Carga' },
+                                                    { id: 'ind_manufactura',   label: 'Manufactura & Procesos' },
+                                                    { id: 'ind_agricola',      label: 'Agrícola & Cultivos' },
+                                                    { id: 'ind_pesquero',      label: 'Pesquero & Acuícola' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Logística 360', icon: Package, color: 'amber',
+                                                modules: [
+                                                    { id: 'logistica_dashboard',     label: 'Dashboard Logístico' },
+                                                    { id: 'logistica_configuracion', label: 'Configuración Maestra' },
+                                                    { id: 'logistica_inventario',    label: 'Existencia General' },
+                                                    { id: 'logistica_compras',       label: 'Círculo de Compras' },
+                                                    { id: 'logistica_proveedores',   label: 'Gestión de Proveedores' },
+                                                    { id: 'logistica_almacenes',     label: 'Bodegas & Furgones' },
+                                                    { id: 'logistica_movimientos',   label: 'Gestión Movimientos' },
+                                                    { id: 'logistica_despachos',     label: 'Seguimiento Despachos' },
+                                                    { id: 'logistica_historial',     label: 'Historial de Movimientos' },
+                                                    { id: 'logistica_auditorias',    label: 'Auditorías Logísticas' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Configuraciones del Sistema', icon: Settings, color: 'orange',
+                                                modules: [
+                                                    { id: 'ai_asistente',  label: 'Asistente IA Cerebro' },
+                                                    { id: 'social_chat',   label: 'Chat 360 (Social)' },
+                                                    { id: 'comunic_video', label: 'Video Llamadas' },
+                                                    { id: 'social_webmail',label: 'Genai Mail (Webmail)' },
+                                                    { id: 'cfg_baremos',   label: 'Baremos Base' },
+                                                    { id: 'cfg_clientes',  label: 'Tarifario Clientes' },
+                                                    { id: 'cfg_empresa',   label: 'Config. Empresa' },
+                                                    { id: 'cfg_personal',  label: 'Gestión de Personal' }
+                                                ]
+                                            },
+                                        ].map((cat, catIdx) => (
+                                            <div key={catIdx} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 shadow-sm">
+                                                <div className="flex items-center gap-3 mb-6">
+                                                    <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
+                                                        <cat.icon size={18} />
+                                                    </div>
+                                                    <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{cat.category}</h3>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {cat.modules.map(mod => (
+                                                        <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-orange-200 transition-all shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                                                            <div className="min-w-[180px]">
+                                                                <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">{mod.label}</h4>
+                                                                <p className="text-[8px] text-slate-400 font-bold mt-1 uppercase">Ajustes de Lectura/Escritura</p>
+                                                            </div>
+
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                {[
+                                                                    { key: 'ver', label: 'VER', aColor: 'bg-sky-500', hColor: 'hover:bg-sky-50', tColor: 'text-sky-600' },
+                                                                    { key: 'crear', label: 'CREAR', aColor: 'bg-emerald-500', hColor: 'hover:bg-emerald-50', tColor: 'text-emerald-600' },
+                                                                    { key: 'editar', label: 'EDITAR', aColor: 'bg-indigo-500', hColor: 'hover:bg-indigo-50', tColor: 'text-indigo-600' },
+                                                                    { key: 'suspender', label: 'BLOQ', aColor: 'bg-amber-500', hColor: 'hover:bg-amber-50', tColor: 'text-amber-600' },
+                                                                    { key: 'eliminar', label: 'ELIM', aColor: 'bg-red-500', hColor: 'hover:bg-red-50', tColor: 'text-red-600' }
+                                                                ].map(cap => {
+                                                                    const isActive = formData.permisosModulos?.[mod.id]?.[cap.key];
+                                                                    return (
+                                                                        <button
+                                                                            key={cap.key}
+                                                                            type="button"
+                                                                            onClick={() => togglePermission(mod.id, cap.key)}
+                                                                            className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tighter border-2 transition-all 
+                                                                                ${isActive
+                                                                                    ? `${cap.aColor} border-transparent text-white shadow-md transform scale-105`
+                                                                                    : `bg-slate-50 border-slate-100 text-slate-400 ${cap.hColor} hover:${cap.tColor} hover:border-slate-200`}`}
+                                                                        >
+                                                                            {cap.label}
+                                                                        </button>
+                                                                    );
+                                                                })}
+
+                                                                <div className="h-6 w-[1px] bg-slate-200 mx-2 hidden lg:block"></div>
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleModulePermissions(mod.id)}
+                                                                    className="px-4 py-2 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-500 hover:bg-slate-800 hover:text-white transition-all ml-auto xl:ml-0 shadow-sm"
+                                                                >
+                                                                    {(() => {
+                                                                        const p = formData.permisosModulos?.[mod.id] || {};
+                                                                        return (p.ver && p.crear && p.editar && (p.suspender || p.bloquear) && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                    })()}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </form>
                         </div>
 
                         <div className="p-6 border-t border-slate-100 bg-white rounded-b-[2.5rem] flex flex-col-reverse md:flex-row items-center justify-end gap-3 shrink-0">
+                            <div className="flex-1 flex gap-2">
+                                {modal === 'edit' && (user?.role === 'ceo_genai' || user?.role === 'ceo') && (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            if (window.confirm('¿Estás seguro de reiniciar el PIN de este usuario? Podrá volver a entrar usando solo su contraseña.')) {
+                                                try {
+                                                    await resetUserPin(selectedUser._id);
+                                                    setAlert({ type: 'success', message: 'PIN reiniciado con éxito' });
+                                                } catch (e) {
+                                                    setAlert({ type: 'error', message: 'Error al reiniciar PIN' });
+                                                }
+                                            }
+                                        }}
+                                        className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all flex items-center gap-2"
+                                    >
+                                        <Lock size={14} /> Reiniciar PIN
+                                    </button>
+                                )}
+                            </div>
                             <button type="button" onClick={() => setModal(null)} className="w-full md:w-auto px-6 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 rounded-xl transition-all">Cancelar</button>
                             <button form="userForm" type="submit" disabled={saving} className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:opacity-50 text-white px-10 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-orange-600/20 transition-all">
                                 {saving ? <><Activity size={16} className="animate-spin" /> Guardando...</> : <><Save size={16} /> Guardar Colaborador</>}
